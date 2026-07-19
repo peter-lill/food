@@ -1,0 +1,2 @@
+const metrics=[['Hydration','2.35 L'],['Steps','8,642'],['Active calories','486 kcal'],['Total burned','2,418 kcal'],['Exercise','42 min'],['Sleep','7 h 18 m'],['Weight','93.3 kg']];
+export default function HealthPage(){return <><h1 className="page-title">Health</h1><p className="subtle">Nutrition-relevant Health Connect summaries.</p><div className="grid">{metrics.map(([k,v])=><section className="card span-4" key={k}><div className="subtle">{k}</div><div className="metric">{v}</div></section>)}</div></>}

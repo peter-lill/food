@@ -1,0 +1,11 @@
+node_modules
+.next
+.env
+.env.local
+*.log
+.DS_Store
+apps/web/prisma/dev.db
+apps/android/**/.gradle
+apps/android/**/build
+apps/android/**/app/build
+local.properties

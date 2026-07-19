@@ -1,0 +1,94 @@
+.page {
+  min-height: 100vh;
+  overflow: hidden;
+  position: relative;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(88, 150, 115, .18), transparent 32rem),
+    radial-gradient(circle at 95% 10%, rgba(180, 123, 75, .18), transparent 30rem),
+    #111512;
+  color: #f8f5ee;
+}
+.glowOne,.glowTwo { position: fixed; width: 24rem; height: 24rem; border-radius: 999px; filter: blur(100px); opacity: .18; pointer-events: none; }
+.glowOne { background: #4d8a68; left: -10rem; top: 25rem; }
+.glowTwo { background: #b77b4b; right: -10rem; top: 4rem; }
+.shell { position: relative; z-index: 1; width: min(1100px, 100%); margin: 0 auto; padding: 28px 18px 48px; }
+.header { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 24px; }
+.header h1 { margin: 3px 0 8px; font-size: clamp(2rem, 7vw, 4.4rem); line-height: .98; letter-spacing: -.055em; max-width: 700px; }
+.eyebrow { margin: 0; font-size: .72rem; font-weight: 800; letter-spacing: .18em; color: #9fc4aa; }
+.subtitle { max-width: 650px; color: #b9c1ba; line-height: 1.55; margin: 0; }
+.privateBadge { flex: none; border: 1px solid rgba(159,196,170,.28); background: rgba(33,47,38,.7); padding: 10px 14px; border-radius: 999px; color: #c7ddcc; font-size: .78rem; }
+.summaryGrid { display: grid; grid-template-columns: 1.15fr 1fr 1fr; gap: 14px; }
+.heroCard,.metricCard,.recipeCard,.listCard,.tipCard { border: 1px solid rgba(255,255,255,.08); background: rgba(25,31,27,.82); box-shadow: 0 18px 50px rgba(0,0,0,.22); backdrop-filter: blur(18px); }
+.heroCard,.metricCard { border-radius: 24px; min-height: 210px; padding: 20px; }
+.cardTopline { display: flex; justify-content: space-between; color: #aeb7af; font-size: .83rem; }
+.cardTopline strong { color: #fff; }
+.progressRing { width: 128px; height: 128px; border-radius: 50%; margin: 18px auto 0; display: grid; place-items: center; background: conic-gradient(#80b590 var(--progress), rgba(255,255,255,.08) 0); position: relative; }
+.progressRing:after { content: ""; position: absolute; inset: 9px; border-radius: inherit; background: #19201b; }
+.progressRing div { position: relative; z-index: 1; display: grid; text-align: center; }
+.progressRing strong { font-size: 1.8rem; }
+.progressRing span { color: #aeb7af; font-size: .72rem; }
+.metricCard { display: flex; flex-direction: column; }
+.metricCard > span { color: #aeb7af; font-size: .82rem; }
+.metricCard > strong { font-size: 2.2rem; margin-top: 12px; letter-spacing: -.04em; }
+.metricCard small { color: #829087; }
+.waterBar { height: 8px; background: rgba(255,255,255,.08); border-radius: 99px; margin: 18px 0 12px; overflow: hidden; }
+.waterBar i { display: block; height: 100%; background: linear-gradient(90deg,#659fbc,#8cc1d7); border-radius: inherit; }
+.waterButtons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
+.waterButtons button,.tabs button,.dayStrip button,.resetButton { color: inherit; font: inherit; cursor: pointer; }
+.waterButtons button { border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.04); border-radius: 10px; padding: 7px 9px; font-size: .7rem; }
+.miniNote { margin-top: auto; padding: 12px; border-radius: 14px; color: #d8c0a9; background: rgba(181,122,73,.1); font-size: .82rem; }
+.tabs { display: flex; gap: 6px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); width: fit-content; padding: 5px; border-radius: 15px; margin: 22px 0 14px; }
+.tabs button { border: 0; background: transparent; padding: 10px 14px; border-radius: 11px; color: #9da79f; font-weight: 700; }
+.tabs .activeTab { background: #f1eee5; color: #1b211d; }
+.dayStrip { display: grid; grid-template-columns: repeat(7,1fr); gap: 8px; margin-bottom: 14px; }
+.dayStrip button { border: 1px solid rgba(255,255,255,.07); background: rgba(255,255,255,.035); color: #aab2ac; border-radius: 16px; padding: 12px 5px; display: grid; gap: 3px; }
+.dayStrip button small { color: #718078; }
+.dayStrip .selectedDay { background: #2e4938; color: #fff; border-color: #5b8068; }
+.dayStrip .selectedDay small { color: #bcd0c2; }
+.mealGrid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+.mealCard { width: 100%; min-height: 132px; text-align: left; display: grid; grid-template-columns: 34px 1fr; gap: 14px; border: 1px solid rgba(255,255,255,.08); background: rgba(25,31,27,.72); color: inherit; border-radius: 20px; padding: 18px; cursor: pointer; transition: transform .15s ease,border-color .15s ease,background .15s ease; }
+.mealCard:hover { transform: translateY(-2px); border-color: rgba(159,196,170,.4); }
+.check { width: 28px; height: 28px; display: grid; place-items: center; border: 1px solid #637269; border-radius: 9px; color: #112015; font-weight: 900; }
+.mealCard span { color: #90a097; font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 800; }
+.mealCard h2 { margin: 6px 0 4px; font-size: 1.12rem; }
+.mealCard p { margin: 0; color: #aeb7af; font-size: .84rem; line-height: 1.45; }
+.mealCard em { display: inline-block; margin-top: 10px; color: #d5b394; font-style: normal; font-size: .72rem; font-weight: 800; }
+.mealCard.complete { background: rgba(46,73,56,.55); border-color: rgba(126,177,143,.45); }
+.mealCard.complete .check { background: #89bd98; border-color: #89bd98; }
+.mealCard.complete h2,.mealCard.complete p { opacity: .68; text-decoration: line-through; }
+.recipeCard { border-radius: 24px; padding: 22px; margin-top: 14px; display: grid; grid-template-columns: .9fr 1.4fr; gap: 22px; background: linear-gradient(135deg,rgba(83,55,35,.75),rgba(31,38,32,.9)); }
+.recipeCard h2 { margin: 7px 0; font-size: 1.45rem; }
+.recipeCard p { color: #c3bbb2; margin: 0; }
+.ingredients { display: grid; grid-template-columns: repeat(2,1fr); gap: 8px; }
+.ingredients span { padding: 12px; background: rgba(255,255,255,.055); border-radius: 13px; color: #c8cdc9; font-size: .82rem; }
+.ingredients strong { display: block; color: #fff; font-size: .95rem; }
+.shoppingGrid { display: grid; grid-template-columns: repeat(2,1fr); gap: 12px; }
+.listCard { border-radius: 22px; padding: 20px; }
+.listCard h2,.tipCard h2 { margin: 4px 0 15px; }
+.listCard label { display: flex; gap: 11px; align-items: flex-start; padding: 10px 0; color: #d4d9d5; border-bottom: 1px solid rgba(255,255,255,.055); cursor: pointer; }
+.listCard input { width: 18px; height: 18px; accent-color: #75a985; }
+.checkedItem span { opacity: .5; text-decoration: line-through; }
+.resetButton { border: 1px solid rgba(255,255,255,.1); background: transparent; border-radius: 13px; padding: 11px 14px; margin-top: 14px; }
+.prepLayout { display: grid; grid-template-columns: 1.45fr .8fr; gap: 14px; }
+.tipCard { border-radius: 22px; padding: 20px; height: fit-content; }
+.tipCard p { color: #aeb7af; line-height: 1.55; }
+.tipCard hr { border: 0; border-top: 1px solid rgba(255,255,255,.08); margin: 22px 0; }
+.footer { text-align: center; color: #667269; font-size: .74rem; padding-top: 28px; }
+@media (max-width: 760px) {
+  .shell { padding: 20px 12px 36px; }
+  .header { display: block; }
+  .privateBadge { display: inline-block; margin-top: 15px; }
+  .summaryGrid { grid-template-columns: 1fr 1fr; }
+  .heroCard { grid-column: 1/-1; }
+  .metricCard { min-height: 190px; }
+  .mealGrid,.shoppingGrid,.prepLayout,.recipeCard { grid-template-columns: 1fr; }
+  .dayStrip { overflow-x: auto; grid-template-columns: repeat(7,64px); padding-bottom: 4px; }
+  .tabs { width: 100%; }
+  .tabs button { flex: 1; padding-inline: 6px; }
+}
+@media (max-width: 430px) {
+  .summaryGrid { grid-template-columns: 1fr; }
+  .heroCard { grid-column: auto; }
+  .header h1 { font-size: 2.5rem; }
+  .ingredients { grid-template-columns: 1fr 1fr; }
+}

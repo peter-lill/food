@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum InventoryLocation {
+  PANTRY
+  FRIDGE
+  FREEZER
+}
+
+enum HealthMetricType {
+  HYDRATION_ML
+  STEPS
+  ACTIVE_CALORIES
+  TOTAL_CALORIES
+  EXERCISE_MINUTES
+  DISTANCE_METRES
+  SLEEP_MINUTES
+  WEIGHT_KG
+}
+
+model Product {
+  id             String          @id @default(cuid())
+  name           String
+  brand          String?
+  barcode        String?         @unique
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  inventoryItems InventoryItem[]
+}
+
+model InventoryItem {
+  id          String            @id @default(cuid())
+  productId   String
+  product     Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  location    InventoryLocation
+  quantity    Float
+  unit        String
+  expiresAt   DateTime?
+  purchasedAt DateTime?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([productId])
+  @@index([location])
+  @@index([expiresAt])
+}
+
+model Recipe {
+  id           String             @id @default(cuid())
+  name         String
+  description  String?
+  instructions String?
+  servings     Int                @default(1)
+  prepMinutes  Int?
+  cookMinutes  Int?
+  calories     Float?
+  proteinGrams Float?
+  carbsGrams   Float?
+  fatGrams     Float?
+  fibreGrams   Float?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  ingredients  RecipeIngredient[]
+}
+
+model Ingredient {
+  id        String             @id @default(cuid())
+  name      String             @unique
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  recipes   RecipeIngredient[]
+}
+
+model RecipeIngredient {
+  id           String     @id @default(cuid())
+  recipeId     String
+  ingredientId String
+  quantity     Float
+  unit         String
+  recipe       Recipe     @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredient   Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, ingredientId])
+  @@index([ingredientId])
+}
+
+model ShoppingList {
+  id        String         @id @default(cuid())
+  name      String
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  items     ShoppingItem[]
+}
+
+model ShoppingItem {
+  id             String       @id @default(cuid())
+  shoppingListId String
+  name           String
+  quantity       Float?
+  unit           String?
+  checked        Boolean      @default(false)
+  shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+
+  @@index([shoppingListId])
+}
+
+model HealthMetric {
+  id         String           @id @default(cuid())
+  type       HealthMetricType
+  value      Float
+  recordedAt DateTime
+  source     String?
+  createdAt  DateTime         @default(now())
+
+  @@index([type, recordedAt])
+}
+
+model ReceiptImport {
+  id          String        @id @default(cuid())
+  retailer    String?
+  purchasedAt DateTime?
+  total       Float?
+  imagePath   String?
+  createdAt   DateTime      @default(now())
+  items       ReceiptItem[]
+}
+
+model ReceiptItem {
+  id              String        @id @default(cuid())
+  receiptImportId String
+  rawDescription  String
+  normalisedName  String?
+  quantity        Float?
+  price           Float?
+  isFood          Boolean?
+  receiptImport   ReceiptImport @relation(fields: [receiptImportId], references: [id], onDelete: Cascade)
+
+  @@index([receiptImportId])
+}
+
+model SupermarketPrice {
+  id          String   @id @default(cuid())
+  retailer    String
+  productName String
+  brand       String?
+  packSize    String?
+  price       Float
+  unitPrice   Float?
+  isSpecial   Boolean  @default(false)
+  checkedAt   DateTime @default(now())
+
+  @@index([retailer, productName])
+}

@@ -1,0 +1,14 @@
+{
+  "name": "food",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "start": "npm --workspace apps/web run start",
+    "db:generate": "npm --workspace apps/web run db:generate",
+    "db:migrate": "npm --workspace apps/web run db:migrate",
+    "db:seed": "npm --workspace apps/web run db:seed"
+  }
+}

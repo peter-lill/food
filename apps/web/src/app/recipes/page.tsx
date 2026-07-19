@@ -1,0 +1,2 @@
+import { recipes } from "@/lib/demo";
+export default function RecipesPage(){return <><h1 className="page-title">Recipes</h1><p className="subtle">Meals ranked by what is already available.</p><div className="grid">{recipes.map(r=><article className="card span-4" key={r.name}><span className="badge">{r.available}% available</span><h2>{r.name}</h2><p className="subtle">{r.minutes} minutes · {r.protein} g protein</p><button className="button">Open recipe</button></article>)}</div></>}

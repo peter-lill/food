@@ -1,0 +1,20 @@
+services:
+  food-postgres:
+    image: postgres:17-alpine
+    container_name: food-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: food
+      POSTGRES_PASSWORD: food_dev_password
+      POSTGRES_DB: food
+    ports:
+      - "5433:5432"
+    volumes:
+      - food_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U food -d food"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+volumes:
+  food_postgres_data:
