@@ -4,7 +4,19 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="8fc1ea5b-e9b8-4ed0-a930-241868554908" name="Changes" comment="" />
+    <list default="true" id="8fc1ea5b-e9b8-4ed0-a930-241868554908" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/gradle.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/gradle.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/app/src/main/java/au/com/food/healthsync/MainActivity.kt" beforeDir="false" afterPath="$PROJECT_DIR$/app/src/main/java/au/com/food/healthsync/MainActivity.kt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/package.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/prisma.config.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/prisma.config.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/app/api/health/sync/route.ts" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/src/app/api/health/sync/route.ts" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/app/globals.css" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/src/app/globals.css" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/app/health/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/src/app/health/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/app/layout.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/src/app/layout.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/app/page.tsx" beforeDir="false" afterPath="$PROJECT_DIR$/../../web/src/app/page.tsx" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/../../web/src/components/Nav.tsx" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -13,16 +25,19 @@
   <component name="ClangdSettings">
     <option name="formatViaClangd" value="false" />
   </component>
-  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[PhysicalDevice::serial=HUHEZP6P5P8XLN5P]" />
+  <component name="ExecutionTargetManager" SELECTED_TARGET="device_and_snapshot_combo_box_target[]" />
   <component name="ExternalProjectsData">
     <projectState path="$PROJECT_DIR$">
       <ProjectState />
     </projectState>
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 1,
-  "fromUser": false
-}]]></component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/../../.." />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1,
+  &quot;fromUser&quot;: false
+}</component>
   <component name="ProjectId" id="3Gg69fCy4VF65lBM5Vy3EscBPM0" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -36,9 +51,11 @@
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.readMode.enableVisualFormatting": "true",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
+    "git-widget-placeholder": "master",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "/home/peter/Development/food/apps/android/food-health-sync",
     "settings.editor.selected.configurable": "AndroidSdkUpdater"

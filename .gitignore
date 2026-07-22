@@ -1,11 +1,43 @@
-node_modules
-.next
-.env
-.env.local
-*.log
-.DS_Store
-apps/web/prisma/dev.db
-apps/android/**/.gradle
-apps/android/**/build
-apps/android/**/app/build
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Next.js
+.next/
+**/.next/
+out/
+
+# Android / Gradle
+.gradle/
+**/.gradle/
+**/build/
+*.apk
+*.aab
 local.properties
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+
+# Databases and runtime data
+*.db
+*.sqlite
+*.sqlite3
+*.log
+storage/
+uploads/
+
+# IDE and operating system
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Generated archives and backups
+*.zip
+.food-hotfix-backups/
+.food-backups/
