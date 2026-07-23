@@ -1,0 +1,241 @@
+.workspace {
+  display: grid;
+  gap: 20px;
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.metricLabel {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.metric {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 30px;
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(300px, .85fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.planPanel {
+  min-width: 0;
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.sectionHeading h2,
+.sidebar h2 {
+  margin: 3px 0 0;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.dayGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.dayCard {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: 0 10px 28px rgba(37, 65, 48, .05);
+}
+
+.dayCard:last-child {
+  grid-column: 1 / -1;
+}
+
+.dayHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.dayHeading span {
+  min-width: 36px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+.dayHeading strong {
+  font-size: 17px;
+}
+
+.selectLabel,
+.shoppingForm label {
+  display: grid;
+  gap: 6px;
+}
+
+.selectLabel > span,
+.shoppingForm label > span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.selectLabel select,
+.shoppingForm select {
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: inherit;
+}
+
+.recipeDetail {
+  display: grid;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.recipeDetail p,
+.emptyDay {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.emptyDay {
+  margin-top: 14px;
+}
+
+.recipeMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.recipeMeta span {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sidebar {
+  display: grid;
+  gap: 14px;
+}
+
+.ingredientList {
+  display: grid;
+  gap: 9px;
+}
+
+.ingredientList > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.ingredientList > div:last-child {
+  border-bottom: 0;
+}
+
+.ingredientList span {
+  min-width: 0;
+}
+
+.ingredientList strong {
+  flex: none;
+  font-size: 13px;
+}
+
+.readyState {
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.readyState span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.shoppingForm {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .headerActions,
+  .headerActions a {
+    width: 100%;
+  }
+
+  .summaryGrid,
+  .dayGrid,
+  .sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .dayCard:last-child {
+    grid-column: auto;
+  }
+
+  .sectionHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
