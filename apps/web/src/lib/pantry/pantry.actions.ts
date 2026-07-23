@@ -255,6 +255,7 @@ export async function consumePantryItemAndAddToShoppingList(itemId: string, form
           where: { id: existing.id },
           data: {
             checked: false,
+            stockedAt: null,
             quantity: existing.quantity ?? 1,
             unit: existing.unit ?? pantryItem.unit,
           },
