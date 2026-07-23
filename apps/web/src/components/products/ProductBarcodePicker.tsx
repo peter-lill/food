@@ -102,22 +102,26 @@ export function ProductBarcodePicker({
     if (!scannerOpen) return;
 
     const Detector = getBarcodeDetector();
-    if (!Detector || !navigator.mediaDevices?.getUserMedia) return;
+    const mediaDevices = navigator.mediaDevices;
+    if (!Detector || !mediaDevices?.getUserMedia) return;
 
+    const ActiveDetector = Detector;
+    const activeMediaDevices = mediaDevices;
     let cancelled = false;
     let stream: MediaStream | null = null;
+    let videoElement: HTMLVideoElement | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let emptyPasses = 0;
 
     async function startScanner() {
       try {
-        const supportedFormats = Detector.getSupportedFormats
-          ? await Detector.getSupportedFormats()
+        const supportedFormats = ActiveDetector.getSupportedFormats
+          ? await ActiveDetector.getSupportedFormats()
           : preferredFormats;
         const formats = preferredFormats.filter((format) => supportedFormats.includes(format));
-        const detector = new Detector(formats.length > 0 ? { formats } : undefined);
+        const detector = new ActiveDetector(formats.length > 0 ? { formats } : undefined);
 
-        stream = await navigator.mediaDevices.getUserMedia({
+        stream = await activeMediaDevices.getUserMedia({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
@@ -126,22 +130,24 @@ export function ProductBarcodePicker({
           },
         });
 
-        if (cancelled || !videoRef.current) {
+        const activeVideo = videoRef.current;
+        if (cancelled || !activeVideo) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        videoElement = activeVideo;
+        activeVideo.srcObject = stream;
+        await activeVideo.play();
         setScanTone("neutral");
         setScanStatus("Camera is live. Hold a barcode inside the frame.");
 
         const scan = async () => {
-          if (cancelled || !videoRef.current) return;
+          if (cancelled) return;
 
           try {
-            const results = videoRef.current.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-              ? await detector.detect(videoRef.current)
+            const results = activeVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+              ? await detector.detect(activeVideo)
               : [];
             const barcode = normaliseBarcode(results[0]?.rawValue ?? "");
 
@@ -191,7 +197,7 @@ export function ProductBarcodePicker({
       cancelled = true;
       if (timer) clearTimeout(timer);
       stream?.getTracks().forEach((track) => track.stop());
-      if (videoRef.current) videoRef.current.srcObject = null;
+      if (videoElement) videoElement.srcObject = null;
     };
   }, [scannerOpen]);
 
