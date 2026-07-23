@@ -1,0 +1,127 @@
+.picker {
+  display: grid;
+  gap: 12px;
+}
+
+.productRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, .52fr) auto;
+  gap: 10px;
+  align-items: end;
+}
+
+.scanButton {
+  min-height: 43px;
+  white-space: nowrap;
+}
+
+.scanner {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.scannerHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.scannerHeading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.scannerHeading strong {
+  font-size: 14px;
+}
+
+.scannerHeading span,
+.scanStatus,
+.cameraNote {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.videoFrame {
+  position: relative;
+  min-height: 220px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #101511;
+}
+
+.videoFrame video {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  max-height: 360px;
+  object-fit: cover;
+}
+
+.scanGuide {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: min(78%, 420px);
+  height: 112px;
+  border: 2px solid rgba(255, 255, 255, .9);
+  border-radius: 14px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .2);
+  pointer-events: none;
+}
+
+.scanGuide::after {
+  content: "Hold the barcode inside this frame";
+  position: absolute;
+  left: 50%;
+  bottom: -31px;
+  width: max-content;
+  max-width: 90vw;
+  transform: translateX(-50%);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .75);
+}
+
+.scanStatus {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.scanStatus.success {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.scanStatus.error {
+  background: #f7dfdc;
+  color: var(--danger);
+}
+
+.cameraNote {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .productRow {
+    grid-template-columns: 1fr;
+  }
+
+  .scanButton {
+    width: 100%;
+  }
+
+  .videoFrame,
+  .videoFrame video {
+    min-height: 260px;
+  }
+}
