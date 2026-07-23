@@ -1,1 +1,46 @@
-export default function ShoppingPage(){return <><h1 className="page-title">Shopping</h1><p className="subtle">Optimise Woolworths, Coles and ALDI once live price connectors are configured.</p><section className="card"><label htmlFor="mode"><strong>Optimisation mode</strong></label><select id="mode" style={{display:"block",marginTop:10,padding:12,borderRadius:12,border:"1px solid #dfe5df",width:"100%",maxWidth:420}} defaultValue="overall"><option value="items">Cheapest individual items</option><option value="overall">Cheapest overall store</option><option value="store">Choose a store</option></select><div className="row"><div><strong>Springwood, Queensland</strong><div className="subtle">Aisle data will be shown where reliably available.</div></div><button className="button">Generate lists</button></div></section></>}
+import { ShoppingWorkspace } from "@/components/shopping/ShoppingWorkspace";
+import { getShoppingWorkspace } from "@/lib/shopping/shopping.repository";
+
+export const dynamic = "force-dynamic";
+
+export default async function ShoppingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ list?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const requestedListId = Array.isArray(params.list) ? params.list[0] : params.list;
+
+  try {
+    const workspace = await getShoppingWorkspace();
+    const selectedList = workspace.lists.find((list) => list.id === requestedListId) ?? workspace.lists[0] ?? null;
+
+    return (
+      <>
+        <header className="pantry-page-heading">
+          <div>
+            <h1 className="page-title">Shopping</h1>
+            <p className="subtle">Plan, organise and check off your shop from any device.</p>
+          </div>
+          <span className="badge neutral">PostgreSQL</span>
+        </header>
+        <ShoppingWorkspace
+          lists={workspace.lists}
+          pantrySuggestions={workspace.pantrySuggestions}
+          selectedList={selectedList}
+        />
+      </>
+    );
+  } catch (error) {
+    console.error("Unable to load shopping workspace", error);
+    return (
+      <>
+        <h1 className="page-title">Shopping</h1>
+        <div className="card pantry-error" role="alert">
+          <strong>Shopping data is unavailable.</strong>
+          <p>Check the PostgreSQL connection and refresh this page.</p>
+        </div>
+      </>
+    );
+  }
+}
