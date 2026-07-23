@@ -1,3 +1,4 @@
+import { ReceiptStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type {
   PriceHistoryData,
@@ -79,7 +80,9 @@ function buildProductHistory(key: string, observations: PriceHistoryObservation[
   const prices = comparable.map((observation) => observation.comparisonPrice);
   const previousPrice = comparable[1]?.comparisonPrice ?? null;
   const changeAmount = previousPrice === null ? null : latest.comparisonPrice - previousPrice;
-  const changePercent = previousPrice && previousPrice > 0 ? (changeAmount! / previousPrice) * 100 : null;
+  const changePercent = previousPrice && previousPrice > 0 && changeAmount !== null
+    ? (changeAmount / previousPrice) * 100
+    : null;
 
   return {
     key,
@@ -105,7 +108,7 @@ export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
       isFood: true,
       normalisedName: { not: null },
       price: { gt: 0 },
-      receiptImport: { status: "IMPORTED" },
+      receiptImport: { is: { status: ReceiptStatus.IMPORTED } },
     },
     select: {
       id: true,
@@ -125,6 +128,7 @@ export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
 
   const grouped = new Map<string, PriceHistoryObservation[]>();
   const retailers = new Set<string>();
+  let observationCount = 0;
 
   for (const item of receiptItems) {
     if (!item.normalisedName || item.price === null) continue;
@@ -152,6 +156,7 @@ export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
     existing.push(observation);
     grouped.set(key, existing);
     retailers.add(retailer);
+    observationCount += 1;
   }
 
   const products = Array.from(grouped.entries())
@@ -161,7 +166,7 @@ export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
   return {
     products,
     productCount: products.length,
-    observationCount: receiptItems.length,
+    observationCount,
     retailerCount: retailers.size,
     retailers: Array.from(retailers).sort((a, b) => a.localeCompare(b)),
   };
