@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { LiveShoppingPriceSearch } from "@/components/prices/LiveShoppingPriceSearch";
 import { importSupermarketPrices } from "@/lib/prices/supermarket-comparison.actions";
 import {
   initialSupermarketPriceActionState,
@@ -276,14 +277,24 @@ function ShoppingListMode({ data }: { data: SupermarketComparisonData }) {
   return (
     <section className={styles.modePanel}>
       <div className={styles.modeHeading}>
-        <div><p className="eyebrow">WHOLE LIST</p><h2>Compare a shopping list</h2><p className="subtle">Estimates use one matching shelf-price pack per item, except count-based quantities which are multiplied.</p></div>
+        <div><p className="eyebrow">WHOLE LIST</p><h2>Compare a shopping list</h2><p className="subtle">Search current online prices or use Food's saved catalogue observations for an estimate.</p></div>
         <label className="field"><span>Shopping list</span><select onChange={(event) => setSelectedListId(event.target.value)} value={selectedList?.id ?? ""}>{data.shoppingLists.map((list) => <option key={list.id} value={list.id}>{list.name} · {list.items.length} remaining</option>)}</select></label>
       </div>
 
       {selectedList && selectedList.items.length === 0 ? (
         <div className="pantry-empty"><strong>This Shopping list has no remaining items.</strong><p>Add or uncheck items before comparing retailers.</p></div>
-      ) : (
+      ) : selectedList ? (
         <>
+          <LiveShoppingPriceSearch key={selectedList.id} list={selectedList} />
+
+          <div className={styles.savedEstimateHeading}>
+            <div>
+              <p className="eyebrow">SAVED PRICE ESTIMATE</p>
+              <h3>Food catalogue prices</h3>
+              <p className="subtle">These totals use prices previously imported, captured or cached from an earlier live search.</p>
+            </div>
+          </div>
+
           <div className={styles.totalGrid}>
             {storeTotals.map((store) => (
               <article className="card" key={store.retailer}>
@@ -321,9 +332,9 @@ function ShoppingListMode({ data }: { data: SupermarketComparisonData }) {
             ))}
           </div>
 
-          <p className={styles.estimateNote}>{bestCompleteStore ? `Best single-store estimate: ${bestCompleteStore.retailer} at ${money(bestCompleteStore.total)}.` : "No retailer currently has a price match for every remaining item."} Product matching is automatic and should be checked before relying on the estimate.</p>
+          <p className={styles.estimateNote}>{bestCompleteStore ? `Best single-store estimate: ${bestCompleteStore.retailer} at ${money(bestCompleteStore.total)}.` : "No retailer currently has a saved price match for every remaining item."} Product matching is automatic and should be checked before relying on the estimate.</p>
         </>
-      )}
+      ) : null}
     </section>
   );
 }
