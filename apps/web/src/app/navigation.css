@@ -1,0 +1,26 @@
+@media (max-width: 900px) {
+  .mobile-nav {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+
+  .mobile-link {
+    min-width: 0;
+  }
+
+  .mobile-link small {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 420px) {
+  .mobile-link {
+    font-size: 15px;
+  }
+
+  .mobile-link small {
+    font-size: 7px;
+  }
+}
