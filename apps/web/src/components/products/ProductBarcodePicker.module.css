@@ -5,9 +5,13 @@
 
 .productRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, .52fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 10px;
   align-items: end;
+}
+
+.productRow > label:first-child {
+  grid-column: 1 / -1;
 }
 
 .scanButton {
@@ -119,6 +123,10 @@
 @media (max-width: 720px) {
   .productRow {
     grid-template-columns: 1fr;
+  }
+
+  .productRow > label:first-child {
+    grid-column: auto;
   }
 
   .scanButton {
