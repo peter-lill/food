@@ -23,6 +23,12 @@ enum HealthMetricType {
   WEIGHT_KG
 }
 
+enum ReceiptStatus {
+  DRAFT
+  IMPORTED
+  CANCELLED
+}
+
 model Product {
   id             String          @id @default(cuid())
   name           String
@@ -126,19 +132,28 @@ model ReceiptImport {
   purchasedAt DateTime?
   total       Float?
   imagePath   String?
+  fingerprint String?       @unique
+  status      ReceiptStatus @default(DRAFT)
+  importedAt  DateTime?
   createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
   items       ReceiptItem[]
+
+  @@index([status, createdAt])
 }
 
 model ReceiptItem {
-  id              String        @id @default(cuid())
+  id              String             @id @default(cuid())
   receiptImportId String
   rawDescription  String
   normalisedName  String?
   quantity        Float?
+  unit            String?
   price           Float?
   isFood          Boolean?
-  receiptImport   ReceiptImport @relation(fields: [receiptImportId], references: [id], onDelete: Cascade)
+  location        InventoryLocation?
+  expiresAt       DateTime?
+  receiptImport   ReceiptImport      @relation(fields: [receiptImportId], references: [id], onDelete: Cascade)
 
   @@index([receiptImportId])
 }
