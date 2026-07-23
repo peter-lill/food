@@ -1,0 +1,263 @@
+.workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryGrid article {
+  min-width: 0;
+}
+
+.summaryGrid article > p:last-child {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.summaryValue {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  letter-spacing: -.04em;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) minmax(170px, 1fr) minmax(190px, 1fr) auto;
+  gap: 14px;
+  align-items: end;
+}
+
+.resultCount {
+  min-height: 43px;
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.resultCount strong {
+  color: var(--ink);
+  font-size: 20px;
+}
+
+.resultCount span {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.productList {
+  display: grid;
+  gap: 14px;
+}
+
+.productCard {
+  display: grid;
+  gap: 17px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(37, 65, 48, .055);
+}
+
+.productHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.productHeading h2 {
+  margin: 3px 0 4px;
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+
+.productHeading p:last-child {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.trend {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.down {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.up {
+  background: #f7dfdc;
+  color: var(--danger);
+}
+
+.neutral {
+  background: var(--surface-soft);
+  color: var(--muted);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.metrics > span {
+  display: grid;
+  gap: 4px;
+  padding: 13px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.metrics strong {
+  font-size: 19px;
+  letter-spacing: -.025em;
+}
+
+.metrics small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.details {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+
+.details > summary {
+  width: fit-content;
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  margin-top: 17px;
+}
+
+.detailGrid h3 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+
+.retailerList,
+.historyList {
+  display: grid;
+  gap: 8px;
+}
+
+.retailerRow,
+.historyRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fbfcfa;
+}
+
+.retailerRow > div,
+.historyRow > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.retailerRow > div:last-child,
+.historyRow > div:last-child {
+  flex: none;
+  justify-items: end;
+  text-align: right;
+}
+
+.retailerRow span,
+.historyRow span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.retailerRow small {
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+@media (max-width: 1000px) {
+  .summaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .resultCount {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 700px) {
+  .summaryGrid,
+  .filters,
+  .metrics,
+  .detailGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .productHeading {
+    display: grid;
+  }
+
+  .trend {
+    width: fit-content;
+  }
+}
+
+@media (max-width: 520px) {
+  .productCard {
+    padding: 16px;
+  }
+
+  .retailerRow,
+  .historyRow {
+    display: grid;
+  }
+
+  .retailerRow > div:last-child,
+  .historyRow > div:last-child {
+    justify-items: start;
+    text-align: left;
+  }
+}

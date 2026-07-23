@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./shopping.css";
+import "./navigation.css";
 import { AppShell } from "@/components/AppShell";
 
 export const metadata: Metadata = {

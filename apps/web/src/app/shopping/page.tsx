@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { ShoppingWorkspace } from "@/components/shopping/ShoppingWorkspace";
 import { getShoppingWorkspace } from "@/lib/shopping/shopping.repository";
 
@@ -22,7 +23,7 @@ export default async function ShoppingPage({
             <h1 className="page-title">Shopping</h1>
             <p className="subtle">Plan, organise and check off your shop from any device.</p>
           </div>
-          <span className="badge neutral">PostgreSQL</span>
+          <Link className="secondary-button" href="/prices">Compare receipt prices</Link>
         </header>
         <ShoppingWorkspace
           lists={workspace.lists}
