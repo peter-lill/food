@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
+import { ProductBarcodePicker } from "@/components/products/ProductBarcodePicker";
 import {
   addPantryItemToShoppingList,
   addShoppingItem,
@@ -21,6 +22,7 @@ import {
   type ShoppingItemView,
   type ShoppingListView,
 } from "@/lib/shopping/shopping.types";
+import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 
 const categoryOrder = [
   "Fruit & vegetables",
@@ -75,7 +77,7 @@ function CreateListCard() {
   );
 }
 
-function AddItemForm({ listId }: { listId: string }) {
+function AddItemForm({ listId, products }: { listId: string; products: ProductCatalogueItem[] }) {
   const actionWithId = addShoppingItem.bind(null, listId);
   const [state, action] = useActionState(actionWithId, initialShoppingActionState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -86,11 +88,15 @@ function AddItemForm({ listId }: { listId: string }) {
 
   return (
     <form action={action} className="shopping-add-form" ref={formRef}>
-      <label className="field shopping-item-name-field">
-        <span>Item</span>
-        <input aria-invalid={Boolean(state.fieldErrors?.name)} maxLength={100} minLength={2} name="name" placeholder="e.g. Chicken breast" required />
-        <FieldError field="name" state={state} />
-      </label>
+      <div className="shopping-item-name-field">
+        <ProductBarcodePicker
+          barcodeError={state.fieldErrors?.barcode}
+          nameError={state.fieldErrors?.name}
+          nameLabel="Product to replace"
+          namePlaceholder="Choose a product or scan its barcode"
+          products={products}
+        />
+      </div>
       <label className="field">
         <span>Quantity</span>
         <input aria-invalid={Boolean(state.fieldErrors?.quantity)} defaultValue="1" min="0.01" name="quantity" required step="0.01" type="number" />
@@ -199,10 +205,12 @@ export function ShoppingWorkspace({
   lists,
   selectedList,
   pantrySuggestions,
+  products,
 }: {
   lists: ShoppingListView[];
   selectedList: ShoppingListView | null;
   pantrySuggestions: PantryShoppingSuggestion[];
+  products: ProductCatalogueItem[];
 }) {
   const groupedItems = selectedList
     ? categoryOrder.map((category) => ({
@@ -267,11 +275,11 @@ export function ShoppingWorkspace({
                 <div className="progress"><span style={{ width: `${selectedList.totalCount === 0 ? 0 : Math.round((selectedList.completedCount / selectedList.totalCount) * 100)}%` }} /></div>
                 <span>{selectedList.totalCount === 0 ? 0 : Math.round((selectedList.completedCount / selectedList.totalCount) * 100)}%</span>
               </div>
-              <AddItemForm listId={selectedList.id} />
+              <AddItemForm listId={selectedList.id} products={products} />
             </section>
 
             {selectedList.items.length === 0 ? (
-              <section className="card pantry-empty"><strong>Your list is empty.</strong><p>Add an item above or use a low-stock Pantry suggestion.</p></section>
+              <section className="card pantry-empty"><strong>Your list is empty.</strong><p>Add an item above, scan an empty package or use a low-stock Pantry suggestion.</p></section>
             ) : (
               <section className="shopping-groups">
                 {groupedItems.map((group) => (
