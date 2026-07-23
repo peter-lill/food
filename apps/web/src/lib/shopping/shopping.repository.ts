@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
 import type { ShoppingWorkspaceData } from "./shopping.types";
 
 const categoryKeywords: Array<[string, string[]]> = [
@@ -17,7 +18,7 @@ export function getShoppingCategory(name: string) {
 }
 
 export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
-  const [lists, pantryItems] = await Promise.all([
+  const [lists, pantryItems, products] = await Promise.all([
     prisma.shoppingList.findMany({
       include: {
         items: {
@@ -32,6 +33,7 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
       orderBy: [{ quantity: "asc" }, { product: { name: "asc" } }],
       take: 12,
     }),
+    getProductCatalogue(),
   ]);
 
   return {
@@ -58,5 +60,6 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
       unit: item.unit,
       location: item.location,
     })),
+    products,
   };
 }

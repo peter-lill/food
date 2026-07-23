@@ -1,3 +1,5 @@
+import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
+
 export type ShoppingActionState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -39,4 +41,5 @@ export type PantryShoppingSuggestion = {
 export type ShoppingWorkspaceData = {
   lists: ShoppingListView[];
   pantrySuggestions: PantryShoppingSuggestion[];
+  products: ProductCatalogueItem[];
 };

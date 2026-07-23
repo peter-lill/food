@@ -1,0 +1,214 @@
+.picker {
+  display: grid;
+  gap: 12px;
+}
+
+.productRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: end;
+}
+
+.pickerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.catalogue,
+.scanner {
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface-soft);
+}
+
+.catalogueHeading,
+.scannerHeading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.catalogueHeading > div,
+.scannerHeading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.catalogueHeading strong,
+.scannerHeading strong {
+  font-size: 14px;
+}
+
+.catalogueHeading span,
+.scannerHeading span,
+.scanStatus,
+.cameraNote,
+.catalogueEmpty {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.productList {
+  display: grid;
+  max-height: 310px;
+  overflow-y: auto;
+  gap: 7px;
+  padding-right: 2px;
+}
+
+.productOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.productOption:hover,
+.productOption:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.productOption > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.productOption strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.productOption small,
+.productOption > span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.productOption > span:last-child {
+  flex: none;
+  max-width: 44%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.catalogueEmpty {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+}
+
+.videoFrame {
+  position: relative;
+  min-height: 220px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #101511;
+}
+
+.videoFrame video {
+  display: block;
+  width: 100%;
+  min-height: 220px;
+  max-height: 360px;
+  object-fit: cover;
+}
+
+.scanGuide {
+  position: absolute;
+  inset: 50% auto auto 50%;
+  width: min(78%, 420px);
+  height: 112px;
+  border: 2px solid rgba(255, 255, 255, .9);
+  border-radius: 14px;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .2);
+  pointer-events: none;
+}
+
+.scanGuide::after {
+  content: "Hold the barcode inside this frame";
+  position: absolute;
+  left: 50%;
+  bottom: -31px;
+  width: max-content;
+  max-width: 90vw;
+  transform: translateX(-50%);
+  color: white;
+  font-size: 11px;
+  font-weight: 800;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .75);
+}
+
+.scanStatus {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  background: var(--surface);
+}
+
+.scanStatus.neutral {
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.scanStatus.success {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.scanStatus.error {
+  background: #f7dfdc;
+  color: var(--danger);
+}
+
+.cameraNote {
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .productRow {
+    grid-template-columns: 1fr;
+  }
+
+  .pickerActions > button {
+    flex: 1;
+  }
+
+  .videoFrame,
+  .videoFrame video {
+    min-height: 260px;
+  }
+}
+
+@media (max-width: 480px) {
+  .productOption {
+    align-items: flex-start;
+  }
+
+  .productOption > span:last-child {
+    max-width: 38%;
+  }
+}

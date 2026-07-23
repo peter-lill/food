@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
+import { ProductBarcodePicker } from "@/components/products/ProductBarcodePicker";
 import {
   consumePantryItem,
   createPantryItem,
@@ -15,6 +16,7 @@ import {
   type PantryItem,
   type PantryLocation,
 } from "@/lib/pantry/pantry.types";
+import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 
 const locationLabels: Record<PantryLocation, string> = {
   PANTRY: "Pantry",
@@ -141,7 +143,7 @@ function ActionMessage({ state }: { state: PantryActionState }) {
   );
 }
 
-function AddPantryForm() {
+function AddPantryForm({ products }: { products: ProductCatalogueItem[] }) {
   const [state, action] = useActionState(createPantryItem, initialPantryActionState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -154,22 +156,15 @@ function AddPantryForm() {
       <div>
         <p className="eyebrow">ADD STOCK</p>
         <h2 className="section-title">Add a pantry item</h2>
-        <p className="subtle pantry-copy">Track what you have across the pantry, fridge and freezer.</p>
+        <p className="subtle pantry-copy">Choose a saved product or keep the camera live and scan each barcode as you put groceries away.</p>
       </div>
 
       <form action={action} className="pantry-form" ref={formRef}>
-        <label className="field field-full">
-          <span>Product</span>
-          <input
-            aria-invalid={Boolean(state.fieldErrors?.name)}
-            maxLength={100}
-            minLength={2}
-            name="name"
-            placeholder="e.g. Greek yoghurt"
-            required
-          />
-          <FieldError state={state} field="name" />
-        </label>
+        <ProductBarcodePicker
+          barcodeError={state.fieldErrors?.barcode}
+          nameError={state.fieldErrors?.name}
+          products={products}
+        />
 
         <PantryFields state={state} />
         <ActionMessage state={state} />
@@ -198,6 +193,7 @@ function PantryItemCard({ item }: { item: PantryItem }) {
           </div>
           <div className="pantry-item-meta">
             <span>{locationLabels[item.location]}</span>
+            {item.barcode ? <span>Barcode {item.barcode}</span> : null}
             {item.purchasedAt ? <span>Purchased {formatDate(item.purchasedAt)}</span> : null}
             {item.expiresAt ? <span>Expires {formatDate(item.expiresAt)}</span> : <span>No expiry set</span>}
           </div>
@@ -233,7 +229,15 @@ function PantryItemCard({ item }: { item: PantryItem }) {
   );
 }
 
-export function PantryManager({ items, loadError }: { items: PantryItem[]; loadError: boolean }) {
+export function PantryManager({
+  items,
+  loadError,
+  products,
+}: {
+  items: PantryItem[];
+  loadError: boolean;
+  products: ProductCatalogueItem[];
+}) {
   return (
     <div className="pantry-layout">
       <datalist id="pantry-units">
@@ -247,7 +251,7 @@ export function PantryManager({ items, loadError }: { items: PantryItem[]; loadE
         <option value="fillet" />
       </datalist>
 
-      <AddPantryForm />
+      <AddPantryForm products={products} />
 
       <section className="card pantry-stock-card">
         <div className="pantry-stock-heading">
