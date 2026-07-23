@@ -4,10 +4,18 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 
 const supportedExternalBarcode = /^\d{7,14}$/;
-const lookupTimeoutMs = 8_000;
+const providerTimeoutMs = 6_000;
 
 type RouteContext = {
   params: Promise<{ barcode: string }>;
+};
+
+type ProductLookupSource = "local" | "open-food-facts" | "upcitemdb";
+
+type ExternalProduct = {
+  name: string;
+  brand: string | null;
+  source: Exclude<ProductLookupSource, "local">;
 };
 
 type OpenFoodFactsProduct = {
@@ -17,7 +25,19 @@ type OpenFoodFactsProduct = {
 };
 
 type OpenFoodFactsResponse = {
+  status?: number;
   product?: OpenFoodFactsProduct;
+};
+
+type UpcItemDbItem = {
+  title?: string;
+  brand?: string;
+};
+
+type UpcItemDbResponse = {
+  code?: string;
+  total?: number;
+  items?: UpcItemDbItem[];
 };
 
 function cleanText(value: unknown, maximumLength: number) {
@@ -28,13 +48,108 @@ function cleanText(value: unknown, maximumLength: number) {
 
 function productResponse(
   product: { id: string; name: string; brand: string | null; barcode: string | null },
-  source: "local" | "open-food-facts",
+  source: ProductLookupSource,
 ) {
   return NextResponse.json({
     found: true,
     source,
     product,
   });
+}
+
+async function withProviderTimeout<T>(
+  lookup: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), providerTimeoutMs);
+
+  try {
+    return await lookup(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function lookupOpenFoodFacts(
+  barcode: string,
+  signal: AbortSignal,
+): Promise<ExternalProduct | null> {
+  const fields = "status,product_name,product_name_en,brands";
+  const response = await fetch(
+    `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
+      },
+      signal,
+    },
+  );
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`Open Food Facts returned HTTP ${response.status}.`);
+  }
+
+  const payload = await response.json() as OpenFoodFactsResponse;
+  if (payload.status === 0) return null;
+
+  const product = payload.product;
+  const name = cleanText(product?.product_name, 100)
+    ?? cleanText(product?.product_name_en, 100);
+  const brand = cleanText(product?.brands?.split(",")[0], 100);
+
+  return name ? { name, brand, source: "open-food-facts" } : null;
+}
+
+async function lookupUpcItemDb(
+  barcode: string,
+  signal: AbortSignal,
+): Promise<ExternalProduct | null> {
+  const response = await fetch(
+    `https://api.upcitemdb.com/prod/trial/lookup?upc=${encodeURIComponent(barcode)}`,
+    {
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      signal,
+    },
+  );
+
+  if (response.status === 404) return null;
+  if (!response.ok) {
+    throw new Error(`UPCitemdb returned HTTP ${response.status}.`);
+  }
+
+  const payload = await response.json() as UpcItemDbResponse;
+  const item = payload.items?.[0];
+  const name = cleanText(item?.title, 100);
+  const brand = cleanText(item?.brand, 100);
+
+  return name ? { name, brand, source: "upcitemdb" } : null;
+}
+
+async function lookupExternalProduct(barcode: string): Promise<ExternalProduct | null> {
+  const providerErrors: Error[] = [];
+  const providers = [lookupOpenFoodFacts, lookupUpcItemDb];
+
+  for (const provider of providers) {
+    try {
+      const product = await withProviderTimeout((signal) => provider(barcode, signal));
+      if (product) return product;
+    } catch (error) {
+      providerErrors.push(error instanceof Error ? error : new Error("Barcode provider failed."));
+    }
+  }
+
+  if (providerErrors.length === providers.length) {
+    throw new AggregateError(providerErrors, "All barcode lookup providers failed.");
+  }
+
+  return null;
 }
 
 export async function GET(_request: Request, context: RouteContext) {
@@ -56,73 +171,40 @@ export async function GET(_request: Request, context: RouteContext) {
   if (existing) return productResponse(existing, "local");
 
   if (!supportedExternalBarcode.test(barcode)) {
-    return NextResponse.json({ found: false, source: "open-food-facts" });
+    return NextResponse.json({ found: false, source: "local" });
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), lookupTimeoutMs);
-
   try {
-    const fields = "product_name,product_name_en,brands";
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(barcode)}?fields=${fields}`,
-      {
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
-        },
-        signal: controller.signal,
-      },
-    );
+    const externalProduct = await lookupExternalProduct(barcode);
 
-    if (response.status === 404) {
-      return NextResponse.json({ found: false, source: "open-food-facts" });
-    }
-
-    if (!response.ok) {
-      throw new Error(`Open Food Facts returned HTTP ${response.status}.`);
-    }
-
-    const payload = await response.json() as OpenFoodFactsResponse;
-    const externalProduct = payload.product;
-    const name = cleanText(externalProduct?.product_name, 100)
-      ?? cleanText(externalProduct?.product_name_en, 100);
-    const brand = cleanText(externalProduct?.brands?.split(",")[0], 100);
-
-    if (!name) {
-      return NextResponse.json({ found: false, source: "open-food-facts" });
+    if (!externalProduct) {
+      return NextResponse.json({ found: false, source: "external" });
     }
 
     const saved = await prisma.product.upsert({
       where: { barcode },
       update: {
-        name,
-        ...(brand ? { brand } : {}),
+        name: externalProduct.name,
+        ...(externalProduct.brand ? { brand: externalProduct.brand } : {}),
       },
       create: {
-        name,
-        brand,
+        name: externalProduct.name,
+        brand: externalProduct.brand,
         barcode,
       },
       select: { id: true, name: true, brand: true, barcode: true },
     });
 
-    return productResponse(saved, "open-food-facts");
+    return productResponse(saved, externalProduct.source);
   } catch (error) {
     console.error("Unable to look up barcode", error);
-    const timedOut = error instanceof Error && error.name === "AbortError";
 
     return NextResponse.json(
       {
         found: false,
-        error: timedOut
-          ? "Product lookup timed out."
-          : "Product lookup is temporarily unavailable.",
+        error: "Product lookup is temporarily unavailable.",
       },
-      { status: timedOut ? 504 : 502 },
+      { status: 502 },
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }
