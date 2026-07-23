@@ -1,4 +1,4 @@
-import { FoodDashboard } from "./FoodDashboard";
+import { PlannerClient } from "./PlannerClient";
 
 export const metadata = {
   title: "Food Meal Planner",
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function PlannerPage() {
-  return <FoodDashboard firstName="Peter" />;
+  return <PlannerClient />;
 }
