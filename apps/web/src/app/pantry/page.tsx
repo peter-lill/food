@@ -1,30 +1,26 @@
-import { pantry } from "@/lib/demo";
+import { PantryManager } from "@/components/pantry/PantryManager";
+import { getPantryItems } from "@/lib/pantry/pantry.repository";
 
-export default function PantryPage() {
+export const dynamic = "force-dynamic";
+
+export default async function PantryPage() {
+  let loadError = false;
+  const items = await getPantryItems().catch((error) => {
+    console.error("Unable to load pantry", error);
+    loadError = true;
+    return [];
+  });
+
   return (
     <>
-      <h1 className="page-title">Pantry</h1>
-      <p className="subtle">Pantry, fridge and freezer stock.</p>
-      <section className="card">
-        <div className="list">
-          {pantry.map((item) => (
-            <div className="row" key={item.name}>
-              <div>
-                <strong>{item.name}</strong>
-                <div className="subtle">{item.location}</div>
-              </div>
-              <div>
-                <span className="badge">{item.quantity}</span>
-                {item.useSoon && (
-                  <span className="badge" style={{ marginLeft: 8 }}>
-                    Use soon
-                  </span>
-                )}
-              </div>
-            </div>
-          ))}
+      <header className="pantry-page-heading">
+        <div>
+          <p className="eyebrow">FOOD STOCK</p>
+          <h1 className="page-title">Pantry</h1>
+          <p className="subtle">Manage pantry, fridge and freezer stock in one place.</p>
         </div>
-      </section>
+      </header>
+      <PantryManager items={items} loadError={loadError} />
     </>
   );
 }
