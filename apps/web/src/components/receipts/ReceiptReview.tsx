@@ -154,7 +154,7 @@ function ReceiptLine({ receiptId, item, editable }: { receiptId: string; item: R
             <ActionMessage state={state} />
             <div>
               <SaveLineButton />
-              <button className="danger-button" formAction={removeReceiptItem.bind(null, receiptId, item.id)} type="submit">Remove line</button>
+              <button className="danger-button" formAction={removeReceiptItem.bind(null, receiptId, item.id)} formNoValidate type="submit">Remove line</button>
             </div>
           </div>
         ) : null}
