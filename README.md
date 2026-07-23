@@ -31,6 +31,8 @@ The Prices screen derives product and retailer price history from imported recei
 
 The Prices screen also supports manual Woolworths, Coles and ALDI catalogue or shelf-price capture. It can compare individual products, estimate a remaining Shopping list at each retailer, show catalogue coverage and calculate an item-by-item split-shop estimate. Automatic product matching should be checked before relying on whole-list totals.
 
+For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY_PRICE_SEARCH_LOCATION`. Food sends one Google Shopping query for each uncached remaining item, limits a search to 25 items and caches returned retailer prices for six hours. Exact products are preferred. When enabled, substitutes may use another brand or pack size only when the product type and stated requirements such as lactose-free, gluten-free, full-cream, light, unsweetened, fresh or frozen remain compatible. Every substitute is labelled and shows the actual selected product. SerpApi's Google Shopping results may vary by store, postcode, stock and promotion timing.
+
 The Shopping screen stores multiple lists and their items in PostgreSQL. Items can be grouped, checked off, edited and cleared, with low-stock Pantry items available as quick-add suggestions. Shopping entry uses the same saved-product, two-stage external lookup and continuous barcode scanner as Pantry, allowing an empty package to be scanned directly onto a replacement list. Scanned products remain in the reusable catalogue after Pantry stock is consumed. No extra migration is required for this feature.
 
 ## Android
