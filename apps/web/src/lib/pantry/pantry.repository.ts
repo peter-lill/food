@@ -33,6 +33,7 @@ export async function getPantryItems(): Promise<PantryItem[]> {
     return {
       id: row.id,
       name: row.product.name,
+      barcode: row.product.barcode,
       location: row.location as PantryLocation,
       quantity: row.quantity,
       unit: row.unit,
