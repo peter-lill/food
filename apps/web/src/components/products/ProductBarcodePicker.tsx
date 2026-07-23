@@ -60,18 +60,25 @@ export function ProductBarcodePicker({
   const barcodeRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastBarcodeRef = useRef("");
+  const productsRef = useRef(products);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanTone, setScanTone] = useState<ScanTone>("neutral");
   const [scanStatus, setScanStatus] = useState("Camera ready when you are.");
+
+  useEffect(() => {
+    productsRef.current = products;
+  }, [products]);
 
   useEffect(() => {
     const form = containerRef.current?.closest("form");
     if (!form) return;
 
     const handleReset = () => {
-      lastBarcodeRef.current = "";
+      if (!scannerOpen) lastBarcodeRef.current = "";
       setScanTone("neutral");
-      setScanStatus(scannerOpen ? "Camera is live. Scan the next barcode." : "Camera ready when you are.");
+      setScanStatus(scannerOpen
+        ? "Item added. Move it away from the camera, then present the next barcode."
+        : "Camera ready when you are.");
     };
 
     form.addEventListener("reset", handleReset);
@@ -135,7 +142,7 @@ export function ProductBarcodePicker({
                 lastBarcodeRef.current = barcode;
                 if (barcodeRef.current) barcodeRef.current.value = barcode;
 
-                const knownProduct = productByBarcode(products, barcode);
+                const knownProduct = productByBarcode(productsRef.current, barcode);
                 if (knownProduct && nameRef.current) {
                   nameRef.current.value = knownProduct.name;
                   setScanTone("success");
@@ -171,7 +178,7 @@ export function ProductBarcodePicker({
       stream?.getTracks().forEach((track) => track.stop());
       if (videoRef.current) videoRef.current.srcObject = null;
     };
-  }, [products, scannerOpen]);
+  }, [scannerOpen]);
 
   function handleProductNameChange(value: string) {
     const product = productByName(products, value);
