@@ -11,7 +11,6 @@ type RouteContext = {
 };
 
 type OpenFoodFactsProduct = {
-  code?: string;
   product_name?: string;
   product_name_en?: string;
   brands?: string;
@@ -64,7 +63,7 @@ export async function GET(_request: Request, context: RouteContext) {
   const timeout = setTimeout(() => controller.abort(), lookupTimeoutMs);
 
   try {
-    const fields = "code,product_name,product_name_en,brands";
+    const fields = "product_name,product_name_en,brands";
     const response = await fetch(
       `https://world.openfoodfacts.org/api/v3/product/${encodeURIComponent(barcode)}?fields=${fields}`,
       {
@@ -87,10 +86,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const payload = await response.json() as OpenFoodFactsResponse;
     const externalProduct = payload.product;
-    const name = cleanText(
-      externalProduct?.product_name_en ?? externalProduct?.product_name,
-      100,
-    );
+    const name = cleanText(externalProduct?.product_name, 100)
+      ?? cleanText(externalProduct?.product_name_en, 100);
     const brand = cleanText(externalProduct?.brands?.split(",")[0], 100);
 
     if (!name) {
