@@ -1,4 +1,4 @@
-# Food 0.2.0
+# Food 0.1.0
 
 A standalone personal food application. This repository does not modify or depend on CoffeeHQ.
 
