@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
+    "lint": "npm --workspace apps/web run lint",
     "start": "npm --workspace apps/web run start",
     "db:generate": "npm --workspace apps/web run db:generate",
     "db:migrate": "npm --workspace apps/web run db:migrate",
