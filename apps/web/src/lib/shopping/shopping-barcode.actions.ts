@@ -109,7 +109,7 @@ export async function addBarcodeShoppingItem(
         if (duplicate.checked) {
           await transaction.shoppingItem.update({
             where: { id: duplicate.id },
-            data: { checked: false, quantity, unit },
+            data: { checked: false, stockedAt: null, quantity, unit },
           });
           return { status: "restored" as const, name: product.name };
         }
