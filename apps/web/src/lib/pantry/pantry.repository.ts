@@ -8,7 +8,9 @@ function getExpiryStatus(expiresAt: Date | null, now = new Date()) {
     return { useSoon: false, expired: false };
   }
 
-  const difference = expiresAt.getTime() - now.getTime();
+  const expiryEndOfDay = new Date(expiresAt);
+  expiryEndOfDay.setUTCHours(23, 59, 59, 999);
+  const difference = expiryEndOfDay.getTime() - now.getTime();
 
   return {
     expired: difference < 0,
