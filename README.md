@@ -1,4 +1,4 @@
-# Food 0.1.0
+# Food 0.2.0
 
 A standalone personal food application. This repository does not modify or depend on CoffeeHQ.
 
@@ -16,10 +16,14 @@ cp .env.example .env
 docker compose up -d
 npm install
 npm run db:generate
+npm run db:migrate
+npm run db:seed
 npm run dev
 ```
 
 Open `http://localhost:3100`.
+
+The Pantry screen stores products, quantities, locations, purchase dates and expiry dates in PostgreSQL. The seed command adds sample Pantry stock only when the database has no existing Pantry items.
 
 ## Android
 
