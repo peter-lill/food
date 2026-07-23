@@ -24,7 +24,7 @@ export default async function Dashboard() {
     .slice(0, 4);
 
   return <>
-    <header className="topbar"><div><div className="brand">Food</div><div className="subtle">Good evening, Peter</div></div><span className="badge">Standalone v0.2.0</span></header>
+    <header className="topbar"><div><div className="brand">Food</div><div className="subtle">Good evening, Peter</div></div><span className="badge">Standalone v0.1.0</span></header>
     <div className="grid">
       <section className="card span-4"><div className="subtle">Hydration</div><div className="metric">{health ? formatLitres(health.hydrationMl) : "Not synced"}</div><div className="subtle">{health ? "of 3.0 L" : "Sync from Android"}</div><div className="progress"><span style={{width:`${hydrationPercent}%`}} /></div></section>
       <section className="card span-4"><div className="subtle">Steps</div><div className="metric">{health ? Math.round(health.steps).toLocaleString("en-AU") : "Not synced"}</div><div className="subtle">{health ? "of 10,000" : "Sync from Android"}</div><div className="progress"><span style={{width:`${stepPercent}%`}} /></div></section>
