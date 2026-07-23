@@ -20,24 +20,25 @@ const cacheWindowMs = 6 * 60 * 60 * 1000;
 const requestTimeoutMs = 15_000;
 
 const protectedRequirements = [
-  { label: "lactose free", aliases: ["lactose free"] },
-  { label: "gluten free", aliases: ["gluten free"] },
-  { label: "dairy free", aliases: ["dairy free"] },
-  { label: "nut free", aliases: ["nut free"] },
-  { label: "sugar free", aliases: ["sugar free", "no sugar"] },
-  { label: "no added sugar", aliases: ["no added sugar"] },
-  { label: "unsweetened", aliases: ["unsweetened"] },
-  { label: "decaf", aliases: ["decaf", "decaffeinated"] },
-  { label: "organic", aliases: ["organic"] },
-  { label: "free range", aliases: ["free range"] },
-  { label: "full cream", aliases: ["full cream"] },
-  { label: "light", aliases: ["light milk", "lite milk", "reduced fat", "low fat"] },
-  { label: "skim", aliases: ["skim", "skimmed"] },
-  { label: "vegan", aliases: ["vegan"] },
-  { label: "vegetarian", aliases: ["vegetarian"] },
-  { label: "halal", aliases: ["halal"] },
-  { label: "wholemeal", aliases: ["wholemeal", "whole wheat"] },
-  { label: "brown", aliases: ["brown rice", "brown bread"] },
+  ["lactose free"],
+  ["gluten free"],
+  ["dairy free"],
+  ["nut free"],
+  ["sugar free", "no sugar"],
+  ["no added sugar"],
+  ["unsweetened"],
+  ["decaf", "decaffeinated"],
+  ["organic"],
+  ["free range"],
+  ["full cream"],
+  ["light milk", "lite milk", "reduced fat", "low fat"],
+  ["skim", "skimmed"],
+  ["vegan"],
+  ["vegetarian"],
+  ["halal"],
+  ["wholemeal", "whole wheat"],
+  ["brown rice", "brown bread"],
+  ["white rice", "white bread"],
 ] as const;
 
 const protectedProductTypes = [
@@ -50,6 +51,10 @@ const protectedProductTypes = [
   "tuna",
   "prawn",
   "tofu",
+  "almond",
+  "oat",
+  "soy",
+  "coconut",
 ] as const;
 
 const stopWords = new Set([
@@ -64,6 +69,8 @@ type SearchRequestBody = {
 type SerpShoppingResult = {
   title?: unknown;
   source?: unknown;
+  seller?: unknown;
+  merchant?: unknown;
   price?: unknown;
   extracted_price?: unknown;
   old_price?: unknown;
@@ -94,13 +101,29 @@ type CandidateSeed = {
   measurement: Measurement | null;
   isSpecial: boolean;
   sourceUrl: string | null;
+  rank: number;
   cached: boolean;
 };
 
 type ScoredCandidate = {
   match: LiveGroceryPriceMatch;
   score: number;
+  rank: number;
 };
+
+type PriceSearchCacheEntry = {
+  expiresAt: number;
+  candidates: CandidateSeed[];
+};
+
+type PriceSearchGlobal = typeof globalThis & {
+  foodGroceryPriceSearchCache?: Map<string, PriceSearchCacheEntry>;
+};
+
+const priceSearchGlobal = globalThis as PriceSearchGlobal;
+const priceSearchCache = priceSearchGlobal.foodGroceryPriceSearchCache
+  ?? new Map<string, PriceSearchCacheEntry>();
+priceSearchGlobal.foodGroceryPriceSearchCache = priceSearchCache;
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -140,6 +163,9 @@ function sourceRetailer(source: unknown): SupermarketRetailer | null {
 function numericPrice(result: SerpShoppingResult) {
   if (typeof result.extracted_price === "number" && Number.isFinite(result.extracted_price)) {
     return result.extracted_price;
+  }
+  if (typeof result.price === "number" && Number.isFinite(result.price)) {
+    return result.price;
   }
 
   const raw = cleanText(result.price).replace(/[^0-9.]/g, "");
@@ -220,7 +246,7 @@ function targetMeasurement(item: SupermarketShoppingItem): Measurement | null {
     return {
       amount: unit === "kg" ? quantity : quantity / 1000,
       dimension: "weight",
-      label: `${quantity} ${item.unit}`,
+      label: `${quantity} ${item.unit ?? unit}`,
       unitLabel: "/kg",
     };
   }
@@ -229,7 +255,7 @@ function targetMeasurement(item: SupermarketShoppingItem): Measurement | null {
     return {
       amount: unit === "l" ? quantity : quantity / 1000,
       dimension: "volume",
-      label: `${quantity} ${item.unit}`,
+      label: `${quantity} ${item.unit ?? unit}`,
       unitLabel: "/L",
     };
   }
@@ -242,12 +268,13 @@ function targetMeasurement(item: SupermarketShoppingItem): Measurement | null {
     };
   }
 
-  return {
-    amount: Math.max(1, Math.ceil(quantity)),
-    dimension: "count",
-    label: `${Math.max(1, Math.ceil(quantity))} item`,
-    unitLabel: "/item",
-  };
+  // "item" means a number of retail packs, not a measurement dimension.
+  // Leaving the target untyped allows entries such as "milk" to match a 2 L bottle.
+  return null;
+}
+
+function requestedPackCount(item: SupermarketShoppingItem) {
+  return item.quantity && item.quantity > 1 ? Math.ceil(item.quantity) : 1;
 }
 
 function searchQuery(item: SupermarketShoppingItem) {
@@ -259,16 +286,12 @@ function searchQuery(item: SupermarketShoppingItem) {
 
 function itemRequirements(itemName: string) {
   const value = normalise(itemName);
-  return protectedRequirements.filter((requirement) => (
-    requirement.aliases.some((alias) => value.includes(alias))
-  ));
+  return protectedRequirements.filter((aliases) => aliases.some((alias) => value.includes(alias)));
 }
 
 function requirementsPreserved(itemName: string, candidateName: string) {
   const candidate = normalise(candidateName);
-  return itemRequirements(itemName).every((requirement) => (
-    requirement.aliases.some((alias) => candidate.includes(alias))
-  ));
+  return itemRequirements(itemName).every((aliases) => aliases.some((alias) => candidate.includes(alias)));
 }
 
 function productTypePreserved(itemName: string, candidateName: string) {
@@ -311,8 +334,7 @@ function nameScore(itemName: string, candidateName: string) {
 function estimateTotal(item: SupermarketShoppingItem, candidate: CandidateSeed) {
   const target = targetMeasurement(item);
   if (!target || !candidate.measurement || target.dimension !== candidate.measurement.dimension) {
-    const count = item.quantity && item.quantity > 1 ? Math.ceil(item.quantity) : 1;
-    return roundMoney(candidate.price * count);
+    return roundMoney(candidate.price * requestedPackCount(item));
   }
 
   const packs = Math.max(1, Math.ceil((target.amount - 0.000001) / candidate.measurement.amount));
@@ -359,6 +381,7 @@ function classifyCandidate(
 
   return {
     score,
+    rank: candidate.rank,
     match: {
       retailer: candidate.retailer,
       productName: candidate.productName,
@@ -391,7 +414,9 @@ function selectMatches(
           if (left.match.matchKind !== right.match.matchKind) {
             return left.match.matchKind === "exact" ? -1 : 1;
           }
-          return right.score - left.score || left.match.estimatedTotal - right.match.estimatedTotal;
+          return right.score - left.score
+            || left.rank - right.rank
+            || left.match.estimatedTotal - right.match.estimatedTotal;
         });
       return scored[0]?.match ?? null;
     })
@@ -399,29 +424,10 @@ function selectMatches(
     .sort((left, right) => left.estimatedTotal - right.estimatedTotal);
 }
 
-function candidateFromStoredPrice(row: {
-  retailer: string;
-  productName: string;
-  price: number;
-  packSize: string | null;
-  isSpecial: boolean;
-}) : CandidateSeed | null {
-  const retailer = sourceRetailer(row.retailer);
-  if (!retailer || !Number.isFinite(row.price) || row.price <= 0) return null;
-  return {
-    retailer,
-    productName: row.productName,
-    price: row.price,
-    packSize: row.packSize,
-    measurement: parseMeasurement(row.packSize ?? row.productName),
-    isSpecial: row.isSpecial,
-    sourceUrl: null,
-    cached: true,
-  };
-}
-
-function candidateFromSerpResult(result: SerpShoppingResult): CandidateSeed | null {
-  const retailer = sourceRetailer(result.source);
+function candidateFromSerpResult(result: SerpShoppingResult, rank: number): CandidateSeed | null {
+  const retailer = sourceRetailer(result.source)
+    ?? sourceRetailer(result.seller)
+    ?? sourceRetailer(result.merchant);
   const productName = cleanText(result.title);
   const price = numericPrice(result);
   if (!retailer || !productName || price === null) return null;
@@ -444,11 +450,29 @@ function candidateFromSerpResult(result: SerpShoppingResult): CandidateSeed | nu
     isSpecial: (Number.isFinite(oldPrice) && oldPrice > price)
       || /special|sale|half price|save/i.test(extensions),
     sourceUrl,
+    rank,
     cached: false,
   };
 }
 
+function removeExpiredCacheEntries() {
+  if (priceSearchCache.size < 200) return;
+  const now = Date.now();
+  for (const [key, entry] of priceSearchCache) {
+    if (entry.expiresAt <= now) priceSearchCache.delete(key);
+  }
+}
+
 async function searchGoogleShopping(query: string, apiKey: string, location: string) {
+  const key = `${normalise(location)}|${normalise(query)}`;
+  const cached = priceSearchCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) {
+    return {
+      cached: true,
+      candidates: cached.candidates.map((candidate) => ({ ...candidate, cached: true })),
+    };
+  }
+
   const url = new URL("https://serpapi.com/search.json");
   url.searchParams.set("engine", "google_shopping_light");
   url.searchParams.set("q", query);
@@ -479,10 +503,17 @@ async function searchGoogleShopping(query: string, apiKey: string, location: str
       : Array.isArray(payload.inline_shopping_results)
         ? payload.inline_shopping_results
         : [];
-
-    return results
-      .map((result) => candidateFromSerpResult(result as SerpShoppingResult))
+    const candidates = results
+      .map((result, index) => candidateFromSerpResult(result as SerpShoppingResult, index))
       .filter((candidate): candidate is CandidateSeed => candidate !== null);
+
+    removeExpiredCacheEntries();
+    priceSearchCache.set(key, {
+      expiresAt: Date.now() + cacheWindowMs,
+      candidates: candidates.map((candidate) => ({ ...candidate, cached: false })),
+    });
+
+    return { cached: false, candidates };
   } finally {
     clearTimeout(timeout);
   }
@@ -556,47 +587,24 @@ export async function POST(
   }
 
   const items = list.items.slice(0, itemLimit);
-  const recentRows = await prisma.supermarketPrice.findMany({
-    where: {
-      retailer: { in: [...supermarketRetailers] },
-      checkedAt: { gte: new Date(Date.now() - cacheWindowMs) },
-    },
-    orderBy: { checkedAt: "desc" },
-    take: 1500,
-  });
-  const cachedCandidates = recentRows
-    .map(candidateFromStoredPrice)
-    .filter((candidate): candidate is CandidateSeed => candidate !== null);
-
   let cachedItemCount = 0;
   let liveItemCount = 0;
-  const newlyFetched: CandidateSeed[] = [];
+  const selectedLiveMatches: LiveGroceryPriceMatch[] = [];
 
   const itemResults = await mapWithConcurrency(items, 3, async (item): Promise<LiveGroceryPriceItemResult> => {
-    const cachedMatches = selectMatches(item, cachedCandidates, allowSubstitutes);
-    if (cachedMatches.length >= 2) {
-      cachedItemCount += 1;
-      return {
-        item,
-        query: searchQuery(item),
-        matches: cachedMatches,
-        best: cachedMatches[0] ?? null,
-        error: null,
-      };
-    }
+    const query = searchQuery(item);
 
     try {
-      const liveCandidates = await searchGoogleShopping(searchQuery(item), apiKey, location);
-      newlyFetched.push(...liveCandidates);
-      liveItemCount += 1;
-      const matches = selectMatches(
-        item,
-        [...liveCandidates, ...cachedCandidates],
-        allowSubstitutes,
-      );
+      const search = await searchGoogleShopping(query, apiKey, location);
+      if (search.cached) cachedItemCount += 1;
+      else liveItemCount += 1;
+
+      const matches = selectMatches(item, search.candidates, allowSubstitutes);
+      if (!search.cached) selectedLiveMatches.push(...matches);
+
       return {
         item,
-        query: searchQuery(item),
+        query,
         matches,
         best: matches[0] ?? null,
         error: null,
@@ -605,42 +613,40 @@ export async function POST(
       const message = error instanceof Error ? error.message : "Current prices could not be searched.";
       return {
         item,
-        query: searchQuery(item),
-        matches: cachedMatches,
-        best: cachedMatches[0] ?? null,
+        query,
+        matches: [],
+        best: null,
         error: message,
       };
     }
   });
 
-  const uniqueFetched = new Map<string, CandidateSeed>();
-  for (const candidate of newlyFetched) {
-    uniqueFetched.set([
-      candidate.retailer,
-      normalise(candidate.productName),
-      normalise(candidate.packSize ?? ""),
-      candidate.price,
-    ].join("|"), candidate);
+  const uniqueMatches = new Map<string, LiveGroceryPriceMatch>();
+  for (const match of selectedLiveMatches) {
+    uniqueMatches.set([
+      match.retailer,
+      normalise(match.productName),
+      normalise(match.packSize ?? ""),
+      match.price,
+    ].join("|"), match);
   }
 
-  if (uniqueFetched.size > 0) {
+  if (uniqueMatches.size > 0) {
     try {
       await prisma.supermarketPrice.createMany({
-        data: [...uniqueFetched.values()].map((candidate) => ({
-          retailer: candidate.retailer,
-          productName: candidate.productName,
+        data: [...uniqueMatches.values()].map((match) => ({
+          retailer: match.retailer,
+          productName: match.productName,
           brand: null,
-          packSize: candidate.packSize,
-          price: candidate.price,
-          unitPrice: candidate.measurement
-            ? roundMoney(candidate.price / candidate.measurement.amount)
-            : null,
-          isSpecial: candidate.isSpecial,
+          packSize: match.packSize,
+          price: match.price,
+          unitPrice: match.unitPrice,
+          isSpecial: match.isSpecial,
           checkedAt: new Date(),
         })),
       });
     } catch (error) {
-      console.error("Unable to cache live grocery prices", error);
+      console.error("Unable to save live grocery prices", error);
     }
   }
 
@@ -664,7 +670,7 @@ export async function POST(
     warningParts.push(`Only the first ${itemLimit} remaining items were searched.`);
   }
   if (failedItems > 0) {
-    warningParts.push(`${failedItems} item${failedItems === 1 ? "" : "s"} could not be refreshed and may show cached prices only.`);
+    warningParts.push(`${failedItems} item${failedItems === 1 ? "" : "s"} could not be refreshed.`);
   }
 
   const response: LiveGroceryPriceSearchResponse = {
