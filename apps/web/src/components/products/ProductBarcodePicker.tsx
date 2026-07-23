@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 import styles from "./ProductBarcodePicker.module.css";
 
@@ -61,9 +61,22 @@ export function ProductBarcodePicker({
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastBarcodeRef = useRef("");
   const productsRef = useRef(products);
+  const [catalogueOpen, setCatalogueOpen] = useState(false);
+  const [productQuery, setProductQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scanTone, setScanTone] = useState<ScanTone>("neutral");
   const [scanStatus, setScanStatus] = useState("Camera ready when you are.");
+
+  const visibleProducts = useMemo(() => {
+    const query = productQuery.trim().toLocaleLowerCase("en-AU");
+    const matching = query
+      ? products.filter((product) => [product.name, product.brand, product.barcode]
+          .filter(Boolean)
+          .some((value) => value!.toLocaleLowerCase("en-AU").includes(query)))
+      : products;
+
+    return matching.slice(0, 40);
+  }, [productQuery, products]);
 
   useEffect(() => {
     productsRef.current = products;
@@ -143,13 +156,15 @@ export function ProductBarcodePicker({
                 if (barcodeRef.current) barcodeRef.current.value = barcode;
 
                 const knownProduct = productByBarcode(productsRef.current, barcode);
-                if (knownProduct && nameRef.current) {
-                  nameRef.current.value = knownProduct.name;
+                if (nameRef.current) nameRef.current.value = knownProduct?.name ?? "";
+
+                if (knownProduct) {
                   setScanTone("success");
                   setScanStatus(`${knownProduct.name} recognised. The camera remains live for the next item.`);
                 } else {
                   setScanTone("neutral");
                   setScanStatus(`Barcode ${barcode} is new. Enter the product name once and Food will remember it.`);
+                  nameRef.current?.focus();
                 }
 
                 navigator.vibrate?.(70);
@@ -180,11 +195,17 @@ export function ProductBarcodePicker({
     };
   }, [scannerOpen]);
 
+  function selectProduct(product: ProductCatalogueItem) {
+    if (nameRef.current) nameRef.current.value = product.name;
+    if (barcodeRef.current) barcodeRef.current.value = product.barcode ?? "";
+    setScanTone("success");
+    setScanStatus(`${product.name} selected${product.barcode ? " with its saved barcode" : ""}.`);
+    setCatalogueOpen(false);
+  }
+
   function handleProductNameChange(value: string) {
     const product = productByName(products, value);
-    if (product?.barcode && barcodeRef.current && !barcodeRef.current.value.trim()) {
-      barcodeRef.current.value = product.barcode;
-    }
+    if (product && barcodeRef.current) barcodeRef.current.value = product.barcode ?? "";
   }
 
   function handleBarcodeChange(value: string) {
@@ -196,7 +217,13 @@ export function ProductBarcodePicker({
     }
   }
 
+  function toggleCatalogue() {
+    setScannerOpen(false);
+    setCatalogueOpen((open) => !open);
+  }
+
   function openScanner() {
+    setCatalogueOpen(false);
     setScannerOpen(true);
 
     if (!getBarcodeDetector()) {
@@ -258,13 +285,54 @@ export function ProductBarcodePicker({
           />
           {barcodeError ? <small className="field-error">{barcodeError}</small> : null}
         </label>
+      </div>
 
+      <div className={styles.pickerActions}>
+        <button className="secondary-button" onClick={toggleCatalogue} type="button">
+          {catalogueOpen ? "Hide products" : "Show products"}
+        </button>
         {scannerOpen ? (
-          <button className={`secondary-button ${styles.scanButton}`} onClick={() => setScannerOpen(false)} type="button">Stop camera</button>
+          <button className="secondary-button" onClick={() => setScannerOpen(false)} type="button">Stop camera</button>
         ) : (
-          <button className={`secondary-button ${styles.scanButton}`} onClick={openScanner} type="button">Scan barcode</button>
+          <button className="secondary-button" onClick={openScanner} type="button">Scan barcode</button>
         )}
       </div>
+
+      {catalogueOpen ? (
+        <section className={styles.catalogue} aria-label="Saved products">
+          <div className={styles.catalogueHeading}>
+            <div>
+              <strong>Saved products</strong>
+              <span>Select a known product or search by name, brand or barcode.</span>
+            </div>
+            <span className="badge neutral">{products.length}</span>
+          </div>
+          <label className="field">
+            <span>Find a product</span>
+            <input
+              autoComplete="off"
+              onChange={(event) => setProductQuery(event.target.value)}
+              placeholder="Search products"
+              type="search"
+              value={productQuery}
+            />
+          </label>
+          {products.length === 0 ? (
+            <p className={styles.catalogueEmpty}>No products have been saved yet. Scan a barcode or enter the first product manually.</p>
+          ) : visibleProducts.length === 0 ? (
+            <p className={styles.catalogueEmpty}>No saved products match this search.</p>
+          ) : (
+            <div className={styles.productList}>
+              {visibleProducts.map((product) => (
+                <button className={styles.productOption} key={product.id} onClick={() => selectProduct(product)} type="button">
+                  <span><strong>{product.name}</strong><small>{product.brand || "Brand not recorded"}</small></span>
+                  <span>{product.barcode || "No barcode"}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {scannerOpen ? (
         <section className={styles.scanner} aria-label="Live barcode scanner">
