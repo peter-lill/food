@@ -110,6 +110,7 @@ model ShoppingItem {
   quantity       Float?
   unit           String?
   checked        Boolean      @default(false)
+  stockedAt      DateTime?
   shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
 
   @@index([shoppingListId])
