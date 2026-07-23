@@ -97,6 +97,11 @@
   background: var(--surface);
 }
 
+.scanStatus.neutral {
+  background: var(--surface);
+  color: var(--muted);
+}
+
 .scanStatus.success {
   background: var(--accent-pale);
   color: var(--accent-dark);
