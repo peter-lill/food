@@ -1,14 +1,8 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState } from "react";
 import { PlannerWorkspace } from "@/components/planner/PlannerWorkspace";
 import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
-
-const subscribe = () => () => {};
-
-function useHydrated() {
-  return useSyncExternalStore(subscribe, () => true, () => false);
-}
 
 type PlannerClientProps = {
   data: PlannerWorkspaceData;
@@ -17,9 +11,15 @@ type PlannerClientProps = {
 };
 
 export function PlannerClient({ data, loadError = false, shoppingError = false }: PlannerClientProps) {
-  const hydrated = useHydrated();
+  const [mounted, setMounted] = useState(false);
 
-  if (!hydrated) {
+  useEffect(() => {
+    // Keep the server HTML and first browser render identical.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
     return (
       <section className="card pantry-empty" aria-live="polite">
         <strong>Loading your planner…</strong>
