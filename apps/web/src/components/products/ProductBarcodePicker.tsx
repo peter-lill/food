@@ -19,7 +19,7 @@ type BarcodeDetectorConstructor = {
 
 type BarcodeLookupResponse = {
   found: boolean;
-  source?: "local" | "open-food-facts";
+  source?: "local" | "open-food-facts" | "upcitemdb";
   product?: ProductCatalogueItem;
   error?: string;
 };
@@ -208,7 +208,7 @@ export function ProductBarcodePicker({
                       if (nameRef.current) nameRef.current.value = product.name;
                       setScanTone("success");
                       setScanStatus(
-                        `${product.name}${product.brand ? ` by ${product.brand}` : ""} found via Open Food Facts. The camera remains live.`,
+                        `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue. The camera remains live.`,
                       );
                     } else {
                       setScanTone("neutral");
@@ -397,7 +397,7 @@ export function ProductBarcodePicker({
           <div className={styles.scannerHeading}>
             <div>
               <strong>Live barcode scanner</strong>
-              <span>No image is captured or uploaded. New barcodes are looked up using Open Food Facts.</span>
+              <span>No image is captured or uploaded. New barcodes are checked against external product catalogues.</span>
             </div>
             <span className="badge neutral">Rear camera</span>
           </div>
