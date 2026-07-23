@@ -1,20 +1,27 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
 
-const FoodDashboard = dynamic(
-  () => import("./FoodDashboard").then((module) => module.FoodDashboard),
+const PlannerWorkspace = dynamic(
+  () => import("@/components/planner/PlannerWorkspace").then((module) => module.PlannerWorkspace),
   {
     ssr: false,
     loading: () => (
       <section className="card pantry-empty" aria-live="polite">
         <strong>Loading your planner…</strong>
-        <p>Restoring meal, shopping, preparation and hydration progress from this device.</p>
+        <p>Restoring this week&apos;s meal selections from this device.</p>
       </section>
     ),
   },
 );
 
-export function PlannerClient() {
-  return <FoodDashboard firstName="Peter" />;
+type PlannerClientProps = {
+  data: PlannerWorkspaceData;
+  loadError?: boolean;
+  shoppingError?: boolean;
+};
+
+export function PlannerClient({ data, loadError = false, shoppingError = false }: PlannerClientProps) {
+  return <PlannerWorkspace data={data} loadError={loadError} shoppingError={shoppingError} />;
 }
