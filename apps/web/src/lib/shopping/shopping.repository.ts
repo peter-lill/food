@@ -17,6 +17,13 @@ export function getShoppingCategory(name: string) {
   return categoryKeywords.find(([, keywords]) => keywords.some((keyword) => normalised.includes(keyword)))?.[0] ?? "Pantry & other";
 }
 
+export async function getShoppingListOptions() {
+  return prisma.shoppingList.findMany({
+    select: { id: true, name: true },
+    orderBy: { updatedAt: "desc" },
+  });
+}
+
 export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
   const [lists, pantryItems, products] = await Promise.all([
     prisma.shoppingList.findMany({
