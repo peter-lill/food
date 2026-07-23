@@ -7,7 +7,7 @@ Standalone web app, PostgreSQL schema, dashboard, pantry, recipes, shopping scaf
 Pantry transactions, expiry and use-soon are live. Manual receipt entry, duplicate protection, line review, food classification and Pantry import are implemented. Receipt-image OCR remains a future enhancement.
 
 ## 0.3 Shopping optimiser
-Woolworths, Coles and ALDI price connectors, individual-item and whole-store modes, Springwood list ordering and aisle data where reliably available.
+Persisted shopping lists, item grouping, mobile check-off, completed-item cleanup and low-stock Pantry quick-adds are implemented. Woolworths, Coles and ALDI price connectors, individual-item and whole-store modes, Springwood list ordering and aisle data remain future work.
 
 ## 0.4 Health
 Health Connect aggregation and secure sync for hydration, steps, calories, exercise, sleep and weight.
