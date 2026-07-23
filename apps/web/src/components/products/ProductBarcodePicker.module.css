@@ -5,20 +5,18 @@
 
 .productRow {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   align-items: end;
 }
 
-.productRow > label:first-child {
-  grid-column: 1 / -1;
+.pickerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.scanButton {
-  min-height: 43px;
-  white-space: nowrap;
-}
-
+.catalogue,
 .scanner {
   display: grid;
   gap: 12px;
@@ -28,6 +26,7 @@
   background: var(--surface-soft);
 }
 
+.catalogueHeading,
 .scannerHeading {
   display: flex;
   align-items: flex-start;
@@ -35,21 +34,90 @@
   gap: 14px;
 }
 
+.catalogueHeading > div,
 .scannerHeading > div {
   display: grid;
   gap: 3px;
 }
 
+.catalogueHeading strong,
 .scannerHeading strong {
   font-size: 14px;
 }
 
+.catalogueHeading span,
 .scannerHeading span,
 .scanStatus,
-.cameraNote {
+.cameraNote,
+.catalogueEmpty {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.productList {
+  display: grid;
+  max-height: 310px;
+  overflow-y: auto;
+  gap: 7px;
+  padding-right: 2px;
+}
+
+.productOption {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+}
+
+.productOption:hover,
+.productOption:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.productOption > span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.productOption strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.productOption small,
+.productOption > span:last-child {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.productOption > span:last-child {
+  flex: none;
+  max-width: 44%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.catalogueEmpty {
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
 }
 
 .videoFrame {
@@ -125,16 +193,22 @@
     grid-template-columns: 1fr;
   }
 
-  .productRow > label:first-child {
-    grid-column: auto;
-  }
-
-  .scanButton {
-    width: 100%;
+  .pickerActions > button {
+    flex: 1;
   }
 
   .videoFrame,
   .videoFrame video {
     min-height: 260px;
+  }
+}
+
+@media (max-width: 480px) {
+  .productOption {
+    align-items: flex-start;
+  }
+
+  .productOption > span:last-child {
+    max-width: 38%;
   }
 }
