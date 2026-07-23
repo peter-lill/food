@@ -1,5 +1,6 @@
 "use server";
 
+import { InventoryLocation, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -45,6 +46,41 @@ function validateItem(formData: FormData) {
 
 function refreshShopping() {
   revalidatePath("/shopping");
+  revalidatePath("/pantry");
+  revalidatePath("/");
+}
+
+function inferInventoryLocation(name: string): InventoryLocation {
+  const normalised = name.toLocaleLowerCase("en-AU");
+  const freezerKeywords = ["frozen", "ice cream", "ice-cream"];
+  const fridgeKeywords = [
+    "beef", "butter", "cheese", "chicken", "cream", "egg", "fish", "ham", "lamb",
+    "milk", "mince", "pork", "prawn", "salmon", "sausage", "steak", "turkey",
+    "yoghurt", "yogurt",
+  ];
+
+  if (freezerKeywords.some((keyword) => normalised.includes(keyword))) return InventoryLocation.FREEZER;
+  if (fridgeKeywords.some((keyword) => normalised.includes(keyword))) return InventoryLocation.FRIDGE;
+  return InventoryLocation.PANTRY;
+}
+
+function brisbaneToday() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Australia/Brisbane",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return new Date(`${values.year}-${values.month}-${values.day}T00:00:00.000Z`);
+}
+
+async function resolveShoppingProduct(transaction: Prisma.TransactionClient, name: string) {
+  const existing = await transaction.product.findFirst({
+    where: { name: { equals: name, mode: "insensitive" } },
+  });
+
+  return existing ?? transaction.product.create({ data: { name } });
 }
 
 export async function createShoppingList(
@@ -244,13 +280,60 @@ export async function toggleShoppingItem(listId: string, itemId: string, formDat
   const nextChecked = textValue(formData, "nextChecked") === "true";
 
   try {
-    await prisma.shoppingItem.updateMany({
-      where: { id: itemId, shoppingListId: listId },
-      data: { checked: nextChecked },
+    const changed = await prisma.$transaction(async (transaction) => {
+      const item = await transaction.shoppingItem.findFirst({
+        where: { id: itemId, shoppingListId: listId },
+        select: {
+          id: true,
+          name: true,
+          quantity: true,
+          unit: true,
+          checked: true,
+          stockedAt: true,
+        },
+      });
+
+      if (!item) return false;
+
+      if (!nextChecked) {
+        await transaction.shoppingItem.update({
+          where: { id: item.id },
+          data: { checked: false },
+        });
+        return true;
+      }
+
+      if (item.checked) return false;
+
+      const stockedAt = item.stockedAt ?? new Date();
+
+      if (!item.stockedAt) {
+        const product = await resolveShoppingProduct(transaction, item.name);
+        await transaction.inventoryItem.create({
+          data: {
+            productId: product.id,
+            location: inferInventoryLocation(product.name),
+            quantity: item.quantity ?? 1,
+            unit: item.unit || "item",
+            purchasedAt: brisbaneToday(),
+            expiresAt: null,
+          },
+        });
+      }
+
+      await transaction.shoppingItem.update({
+        where: { id: item.id },
+        data: { checked: true, stockedAt },
+      });
+
+      return true;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
-    refreshShopping();
+
+    if (changed) refreshShopping();
   } catch (error) {
-    console.error("Unable to toggle shopping item", error);
+    console.error("Unable to purchase shopping item and add it to Pantry", error);
   }
 }
 
@@ -301,6 +384,7 @@ export async function addPantryItemToShoppingList(
         where: { id: existing.id },
         data: {
           checked: false,
+          stockedAt: null,
           quantity: existing.quantity ?? 1,
           unit: existing.unit ?? pantryItem.unit,
         },
