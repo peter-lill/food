@@ -57,6 +57,27 @@ const protectedProductTypes = [
   "coconut",
 ] as const;
 
+const plantMilkTypes = ["almond", "oat", "soy", "coconut", "rice milk"] as const;
+const unrelatedContexts = [
+  "baby formula",
+  "cat food",
+  "cat treat",
+  "dog food",
+  "dog treat",
+  "infant formula",
+  "pet food",
+  "pet treat",
+] as const;
+const specialisedMilkForms = [
+  "chocolate milk",
+  "condensed milk",
+  "evaporated milk",
+  "flavoured milk",
+  "milk powder",
+  "powdered milk",
+  "strawberry milk",
+] as const;
+
 const stopWords = new Set([
   "and", "the", "with", "for", "from", "pack", "packet", "bottle", "bottles",
   "item", "items", "each", "ea", "pk", "can", "cans", "tin", "tins", "of",
@@ -268,9 +289,15 @@ function targetMeasurement(item: SupermarketShoppingItem): Measurement | null {
     };
   }
 
-  // "item" means a number of retail packs, not a measurement dimension.
-  // Leaving the target untyped allows entries such as "milk" to match a 2 L bottle.
+  // "item" is a number of retail packs, not a measurement dimension.
+  // An unmeasured entry such as "milk" may therefore match a measured retail bottle.
   return null;
+}
+
+function comparisonMeasurement(item: SupermarketShoppingItem) {
+  const namedMeasurement = parseMeasurement(item.name);
+  if (namedMeasurement) return namedMeasurement;
+  return targetMeasurement(item);
 }
 
 function requestedPackCount(item: SupermarketShoppingItem) {
@@ -301,6 +328,13 @@ function productTypePreserved(itemName: string, candidateName: string) {
   return requiredTypes.every((type) => candidate.includes(type));
 }
 
+function descriptorPresent(value: string, descriptor: string) {
+  if (descriptor === "sweetened") {
+    return value.includes("sweetened") && !value.includes("unsweetened");
+  }
+  return value.includes(descriptor);
+}
+
 function incompatibleForm(itemName: string, candidateName: string) {
   const item = normalise(itemName);
   const candidate = normalise(candidateName);
@@ -313,9 +347,30 @@ function incompatibleForm(itemName: string, candidateName: string) {
   ] as const;
 
   return opposites.some(([left, right]) => (
-    (item.includes(left) && candidate.includes(right))
-    || (item.includes(right) && candidate.includes(left))
+    (descriptorPresent(item, left) && descriptorPresent(candidate, right))
+    || (descriptorPresent(item, right) && descriptorPresent(candidate, left))
   ));
+}
+
+function candidateContextCompatible(itemName: string, candidateName: string) {
+  const item = normalise(itemName);
+  const candidate = normalise(candidateName);
+
+  if (unrelatedContexts.some((context) => candidate.includes(context) && !item.includes(context))) {
+    return false;
+  }
+
+  if (item.includes("milk")) {
+    const requestedPlantMilk = plantMilkTypes.some((type) => item.includes(type));
+    const candidatePlantMilk = plantMilkTypes.some((type) => candidate.includes(type));
+    if (requestedPlantMilk !== candidatePlantMilk) return false;
+
+    const requestedSpecialisedForm = specialisedMilkForms.find((form) => item.includes(form));
+    if (requestedSpecialisedForm) return candidate.includes(requestedSpecialisedForm);
+    if (specialisedMilkForms.some((form) => candidate.includes(form))) return false;
+  }
+
+  return true;
 }
 
 function nameScore(itemName: string, candidateName: string) {
@@ -348,15 +403,19 @@ function classifyCandidate(
 ): ScoredCandidate | null {
   if (!requirementsPreserved(item.name, candidate.productName)) return null;
   if (!productTypePreserved(item.name, candidate.productName)) return null;
+  if (!candidateContextCompatible(item.name, candidate.productName)) return null;
   if (incompatibleForm(item.name, candidate.productName)) return null;
 
   const score = nameScore(item.name, candidate.productName);
-  const target = targetMeasurement(item);
-  const sameDimension = !target || !candidate.measurement || target.dimension === candidate.measurement.dimension;
+  const comparisonTarget = comparisonMeasurement(item);
+  const sameDimension = !comparisonTarget
+    || !candidate.measurement
+    || comparisonTarget.dimension === candidate.measurement.dimension;
   if (!sameDimension) return null;
 
-  const sizeRatio = target && candidate.measurement
-    ? Math.min(target.amount, candidate.measurement.amount) / Math.max(target.amount, candidate.measurement.amount)
+  const sizeRatio = comparisonTarget && candidate.measurement
+    ? Math.min(comparisonTarget.amount, candidate.measurement.amount)
+      / Math.max(comparisonTarget.amount, candidate.measurement.amount)
     : 1;
   const isExact = score >= 0.8 && sizeRatio >= 0.85;
 
@@ -372,7 +431,7 @@ function classifyCandidate(
   const unitPrice = candidate.measurement
     ? roundMoney(candidate.price / candidate.measurement.amount)
     : null;
-  const sizeNote = target && candidate.measurement && sizeRatio < 0.85
+  const sizeNote = comparisonTarget && candidate.measurement && sizeRatio < 0.85
     ? ` Different pack size: ${candidate.measurement.label}.`
     : "";
   const matchReason = matchKind === "exact"
@@ -481,7 +540,6 @@ async function searchGoogleShopping(query: string, apiKey: string, location: str
   url.searchParams.set("gl", "au");
   url.searchParams.set("hl", "en");
   url.searchParams.set("google_domain", "google.com.au");
-  url.searchParams.set("num", "40");
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
