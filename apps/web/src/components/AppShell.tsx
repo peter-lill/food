@@ -8,6 +8,7 @@ const navigation = [
   { label: "Today", href: "/", icon: "◉" },
   { label: "Planner", href: "/planner", icon: "▦" },
   { label: "Pantry", href: "/pantry", icon: "□" },
+  { label: "Receipts", href: "/receipts", icon: "≡" },
   { label: "Shopping", href: "/shopping", icon: "✓" },
   { label: "Recipes", href: "/recipes", icon: "◇" },
   { label: "Health", href: "/health", icon: "♥" },
