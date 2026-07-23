@@ -48,6 +48,7 @@ export default async function ShoppingPage({
       <ShoppingWorkspace
         lists={workspace.lists}
         pantrySuggestions={workspace.pantrySuggestions}
+        products={workspace.products}
         selectedList={selectedList}
       />
     </>
