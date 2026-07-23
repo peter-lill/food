@@ -223,6 +223,63 @@ export async function consumePantryItem(itemId: string, _formData: FormData) {
   }
 }
 
+export async function consumePantryItemAndAddToShoppingList(itemId: string, formData: FormData) {
+  const shoppingListId = textValue(formData, "shoppingListId");
+  if (!shoppingListId) return;
+
+  try {
+    const completed = await prisma.$transaction(async (transaction) => {
+      const pantryItem = await transaction.inventoryItem.findUnique({
+        where: { id: itemId },
+        include: { product: true },
+      });
+
+      if (!pantryItem) return false;
+
+      const shoppingList = await transaction.shoppingList.findUnique({
+        where: { id: shoppingListId },
+        select: { id: true },
+      });
+
+      if (!shoppingList) return false;
+
+      const existing = await transaction.shoppingItem.findFirst({
+        where: {
+          shoppingListId,
+          name: { equals: pantryItem.product.name, mode: "insensitive" },
+        },
+      });
+
+      if (existing) {
+        await transaction.shoppingItem.update({
+          where: { id: existing.id },
+          data: {
+            checked: false,
+            quantity: existing.quantity ?? 1,
+            unit: existing.unit ?? pantryItem.unit,
+          },
+        });
+      } else {
+        await transaction.shoppingItem.create({
+          data: {
+            shoppingListId,
+            name: pantryItem.product.name,
+            quantity: 1,
+            unit: pantryItem.unit,
+          },
+        });
+      }
+
+      await transaction.inventoryItem.delete({ where: { id: pantryItem.id } });
+      return true;
+    });
+
+    if (completed) refreshPantryPages();
+  } catch (error) {
+    console.error("Unable to consume pantry item and add replacement", error);
+  }
+}
+
 export async function removePantryItem(itemId: string, _formData: FormData) {
   try {
     await deletePantryItem(itemId);
