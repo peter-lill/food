@@ -6,6 +6,9 @@ export const pantry = [
   { name: "Broccoli", quantity: "2 heads", location: "Fridge", useSoon: true },
 ];
 
+/** @deprecated Use pantry. */
+export const inventory = pantry;
+
 export const recipes = [
   { name: "Lemon herb chicken bowl", protein: 58, minutes: 28, available: 92 },
   { name: "Salmon, rice and greens", protein: 49, minutes: 25, available: 100 },
