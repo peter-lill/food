@@ -82,7 +82,7 @@ export async function createPantryItem(
 ): Promise<PantryActionState> {
   const name = textValue(formData, "name");
   const parsed = parseStockFields(formData);
-  const fieldErrors = parsed.ok ? {} : { ...parsed.fieldErrors };
+  const fieldErrors: Record<string, string> = parsed.ok ? {} : { ...parsed.fieldErrors };
 
   if (name.length < 2 || name.length > 100) {
     fieldErrors.name = "Enter a product name between 2 and 100 characters.";
