@@ -4,13 +4,17 @@ import { getReceiptImports } from "@/lib/receipts/receipt.repository";
 
 export const dynamic = "force-dynamic";
 
-export default async function ReceiptsPage() {
-  let loadError = false;
-  const receipts = await getReceiptImports().catch((error) => {
+async function loadReceiptsPageData() {
+  try {
+    return { receipts: await getReceiptImports(), loadError: false };
+  } catch (error) {
     console.error("Unable to load receipts", error);
-    loadError = true;
-    return [];
-  });
+    return { receipts: [], loadError: true };
+  }
+}
+
+export default async function ReceiptsPage() {
+  const { receipts, loadError } = await loadReceiptsPageData();
 
   return (
     <>
