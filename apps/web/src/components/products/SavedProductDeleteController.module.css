@@ -1,0 +1,38 @@
+.controller {
+  display: none;
+}
+
+:global(section[aria-label="Saved products"] button[data-product-delete-armed="true"]) {
+  border-color: var(--danger) !important;
+  background: #fff4f2 !important;
+  color: var(--danger) !important;
+}
+
+:global(section[aria-label="Saved products"] button[data-product-delete-armed="true"] strong),
+:global(section[aria-label="Saved products"] button[data-product-delete-armed="true"] small),
+:global(section[aria-label="Saved products"] button[data-product-delete-armed="true"] > span:last-child) {
+  color: var(--danger) !important;
+}
+
+:global(section[aria-label="Saved products"] button[data-product-deleting="true"]) {
+  cursor: wait;
+  opacity: .65;
+}
+
+:global([data-product-delete-message]) {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 11px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+:global([data-product-delete-message][data-tone="success"]) {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+:global([data-product-delete-message][data-tone="error"]) {
+  background: #f7dfdc;
+  color: var(--danger);
+}
