@@ -1,20 +1,14 @@
 "use client";
 
-import dynamic from "next/dynamic";
+import { useSyncExternalStore } from "react";
+import { PlannerWorkspace } from "@/components/planner/PlannerWorkspace";
 import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
 
-const PlannerWorkspace = dynamic(
-  () => import("@/components/planner/PlannerWorkspace").then((module) => module.PlannerWorkspace),
-  {
-    ssr: false,
-    loading: () => (
-      <section className="card pantry-empty" aria-live="polite">
-        <strong>Loading your planner…</strong>
-        <p>Restoring this week&apos;s meal selections from this device.</p>
-      </section>
-    ),
-  },
-);
+const subscribe = () => () => {};
+
+function useHydrated() {
+  return useSyncExternalStore(subscribe, () => true, () => false);
+}
 
 type PlannerClientProps = {
   data: PlannerWorkspaceData;
@@ -23,5 +17,16 @@ type PlannerClientProps = {
 };
 
 export function PlannerClient({ data, loadError = false, shoppingError = false }: PlannerClientProps) {
+  const hydrated = useHydrated();
+
+  if (!hydrated) {
+    return (
+      <section className="card pantry-empty" aria-live="polite">
+        <strong>Loading your planner…</strong>
+        <p>Restoring this week&apos;s meal selections from this device.</p>
+      </section>
+    );
+  }
+
   return <PlannerWorkspace data={data} loadError={loadError} shoppingError={shoppingError} />;
 }
