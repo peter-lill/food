@@ -4,6 +4,15 @@ import { getShoppingWorkspace } from "@/lib/shopping/shopping.repository";
 
 export const dynamic = "force-dynamic";
 
+async function loadShoppingPageData() {
+  try {
+    return await getShoppingWorkspace();
+  } catch (error) {
+    console.error("Unable to load shopping workspace", error);
+    return null;
+  }
+}
+
 export default async function ShoppingPage({
   searchParams,
 }: {
@@ -11,29 +20,9 @@ export default async function ShoppingPage({
 }) {
   const params = await searchParams;
   const requestedListId = Array.isArray(params.list) ? params.list[0] : params.list;
+  const workspace = await loadShoppingPageData();
 
-  try {
-    const workspace = await getShoppingWorkspace();
-    const selectedList = workspace.lists.find((list) => list.id === requestedListId) ?? workspace.lists[0] ?? null;
-
-    return (
-      <>
-        <header className="pantry-page-heading">
-          <div>
-            <h1 className="page-title">Shopping</h1>
-            <p className="subtle">Plan, organise and check off your shop from any device.</p>
-          </div>
-          <Link className="secondary-button" href="/prices">Compare receipt prices</Link>
-        </header>
-        <ShoppingWorkspace
-          lists={workspace.lists}
-          pantrySuggestions={workspace.pantrySuggestions}
-          selectedList={selectedList}
-        />
-      </>
-    );
-  } catch (error) {
-    console.error("Unable to load shopping workspace", error);
+  if (!workspace) {
     return (
       <>
         <h1 className="page-title">Shopping</h1>
@@ -44,4 +33,23 @@ export default async function ShoppingPage({
       </>
     );
   }
+
+  const selectedList = workspace.lists.find((list) => list.id === requestedListId) ?? workspace.lists[0] ?? null;
+
+  return (
+    <>
+      <header className="pantry-page-heading">
+        <div>
+          <h1 className="page-title">Shopping</h1>
+          <p className="subtle">Plan, organise and check off your shop from any device.</p>
+        </div>
+        <Link className="secondary-button" href="/prices">Compare receipt prices</Link>
+      </header>
+      <ShoppingWorkspace
+        lists={workspace.lists}
+        pantrySuggestions={workspace.pantrySuggestions}
+        selectedList={selectedList}
+      />
+    </>
+  );
 }

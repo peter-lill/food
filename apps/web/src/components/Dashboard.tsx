@@ -70,13 +70,17 @@ export function Dashboard() {
   const meals = dayMeals[todayIndex()];
 
   useEffect(() => {
-    try {
-      setWater(Number(localStorage.getItem(waterStorageKey) ?? "0"));
-      setCompletedMeals(JSON.parse(localStorage.getItem(mealStorageKey) ?? "{}"));
-    } catch {
-      setWater(0);
-      setCompletedMeals({});
-    }
+    const frame = window.requestAnimationFrame(() => {
+      try {
+        setWater(Number(localStorage.getItem(waterStorageKey) ?? "0"));
+        setCompletedMeals(JSON.parse(localStorage.getItem(mealStorageKey) ?? "{}"));
+      } catch {
+        setWater(0);
+        setCompletedMeals({});
+      }
+    });
+
+    return () => window.cancelAnimationFrame(frame);
   }, []);
 
   function addWater(amount: number) {

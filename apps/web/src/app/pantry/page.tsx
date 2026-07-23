@@ -3,13 +3,17 @@ import { getPantryItems } from "@/lib/pantry/pantry.repository";
 
 export const dynamic = "force-dynamic";
 
-export default async function PantryPage() {
-  let loadError = false;
-  const items = await getPantryItems().catch((error) => {
+async function loadPantryPageData() {
+  try {
+    return { items: await getPantryItems(), loadError: false };
+  } catch (error) {
     console.error("Unable to load pantry", error);
-    loadError = true;
-    return [];
-  });
+    return { items: [], loadError: true };
+  }
+}
+
+export default async function PantryPage() {
+  const { items, loadError } = await loadPantryPageData();
 
   return (
     <>
