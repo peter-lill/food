@@ -17,6 +17,13 @@ type BarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
+type BarcodeLookupResponse = {
+  found: boolean;
+  source?: "local" | "open-food-facts";
+  product?: ProductCatalogueItem;
+  error?: string;
+};
+
 type ScanTone = "neutral" | "success" | "error";
 
 type ProductBarcodePickerProps = {
@@ -46,6 +53,20 @@ function productByName(products: ProductCatalogueItem[], name: string) {
   const normalised = name.trim().toLocaleLowerCase("en-AU");
   if (!normalised) return null;
   return products.find((product) => product.name.toLocaleLowerCase("en-AU") === normalised) ?? null;
+}
+
+async function lookupProductByBarcode(barcode: string): Promise<BarcodeLookupResponse> {
+  const response = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+  });
+  const payload = await response.json() as BarcodeLookupResponse;
+
+  if (!response.ok) {
+    throw new Error(payload.error || `Product lookup returned HTTP ${response.status}.`);
+  }
+
+  return payload;
 }
 
 export function ProductBarcodePicker({
@@ -162,15 +183,46 @@ export function ProductBarcodePicker({
                 if (barcodeRef.current) barcodeRef.current.value = barcode;
 
                 const knownProduct = productByBarcode(productsRef.current, barcode);
-                if (nameRef.current) nameRef.current.value = knownProduct?.name ?? "";
 
                 if (knownProduct) {
+                  if (nameRef.current) nameRef.current.value = knownProduct.name;
                   setScanTone("success");
                   setScanStatus(`${knownProduct.name} recognised. The camera remains live for the next item.`);
                 } else {
+                  if (nameRef.current) nameRef.current.value = "";
                   setScanTone("neutral");
-                  setScanStatus(`Barcode ${barcode} is new. Enter the product name once and Food will remember it.`);
-                  nameRef.current?.focus();
+                  setScanStatus(`Looking up barcode ${barcode}…`);
+
+                  try {
+                    const lookup = await lookupProductByBarcode(barcode);
+                    if (cancelled) return;
+
+                    if (lookup.found && lookup.product) {
+                      const product = lookup.product;
+                      productsRef.current = [
+                        product,
+                        ...productsRef.current.filter((item) => (
+                          item.id !== product.id && item.barcode !== product.barcode
+                        )),
+                      ];
+                      if (nameRef.current) nameRef.current.value = product.name;
+                      setScanTone("success");
+                      setScanStatus(
+                        `${product.name}${product.brand ? ` by ${product.brand}` : ""} found via Open Food Facts. The camera remains live.`,
+                      );
+                    } else {
+                      setScanTone("neutral");
+                      setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
+                      nameRef.current?.focus();
+                    }
+                  } catch (error) {
+                    if (cancelled) return;
+                    const message = error instanceof Error ? error.message : "Product lookup failed.";
+                    console.error("Unable to look up scanned product", error);
+                    setScanTone("error");
+                    setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
+                    nameRef.current?.focus();
+                  }
                 }
 
                 navigator.vibrate?.(70);
@@ -215,7 +267,7 @@ export function ProductBarcodePicker({
   }
 
   function handleBarcodeChange(value: string) {
-    const product = productByBarcode(products, value);
+    const product = productByBarcode(productsRef.current, value);
     if (product && nameRef.current) {
       nameRef.current.value = product.name;
       setScanTone("success");
@@ -345,7 +397,7 @@ export function ProductBarcodePicker({
           <div className={styles.scannerHeading}>
             <div>
               <strong>Live barcode scanner</strong>
-              <span>No image is captured or uploaded. The camera remains live until you stop it.</span>
+              <span>No image is captured or uploaded. New barcodes are looked up using Open Food Facts.</span>
             </div>
             <span className="badge neutral">Rear camera</span>
           </div>
