@@ -1,2 +1,5 @@
-import { inventory } from "@/lib/demo";
-export default function InventoryPage(){return <><h1 className="page-title">Inventory</h1><p className="subtle">Pantry, fridge and freezer stock.</p><section className="card"><div className="list">{inventory.map(i=><div className="row" key={i.name}><div><strong>{i.name}</strong><div className="subtle">{i.location}</div></div><div><span className="badge">{i.quantity}</span>{i.useSoon && <span className="badge" style={{marginLeft:8}}>Use soon</span>}</div></div>)}</div></section></>}
+import { redirect } from "next/navigation";
+
+export default function InventoryPage() {
+  redirect("/pantry");
+}

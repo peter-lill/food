@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 const navigation = [
   { label: "Today", href: "/", icon: "◉" },
   { label: "Planner", href: "/planner", icon: "▦" },
-  { label: "Pantry", href: "/inventory", icon: "□" },
+  { label: "Pantry", href: "/pantry", icon: "□" },
   { label: "Shopping", href: "/shopping", icon: "✓" },
   { label: "Recipes", href: "/recipes", icon: "◇" },
   { label: "Health", href: "/health", icon: "♥" },
