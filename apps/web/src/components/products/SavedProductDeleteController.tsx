@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import styles from "./SavedProductDeleteController.module.css";
 
 const holdDelayMs = 650;
 const movementTolerancePx = 10;
@@ -69,6 +68,8 @@ function disarmButton(button: HTMLButtonElement | null) {
 }
 
 function armButton(button: HTMLButtonElement) {
+  if (button.dataset.productDeleteArmed === "true") return;
+
   const { name, barcode, trailing } = productDescriptor(button);
   if (!name || !trailing) return;
 
@@ -219,5 +220,5 @@ export function SavedProductDeleteController() {
     };
   }, [router]);
 
-  return <span aria-hidden className={styles.controller} />;
+  return <span aria-hidden hidden />;
 }
