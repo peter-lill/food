@@ -1,6 +1,6 @@
 "use server";
 
-import { InventoryLocation } from "@prisma/client";
+import { InventoryLocation, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PantryActionState } from "./pantry.types";
@@ -18,6 +18,20 @@ function dateValue(rawValue: string) {
 
   const date = new Date(`${rawValue}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+function parseBarcode(formData: FormData) {
+  const barcode = textValue(formData, "barcode");
+  if (!barcode) return { value: null, error: null };
+
+  if (barcode.length < 4 || barcode.length > 80 || /\s/.test(barcode)) {
+    return {
+      value: null,
+      error: "Enter a barcode between 4 and 80 characters without spaces.",
+    };
+  }
+
+  return { value: barcode, error: null };
 }
 
 function parseStockFields(formData: FormData) {
@@ -71,8 +85,47 @@ function parseStockFields(formData: FormData) {
   };
 }
 
+async function resolveProduct(
+  transaction: Prisma.TransactionClient,
+  name: string,
+  barcode: string | null,
+) {
+  if (barcode) {
+    const productWithBarcode = await transaction.product.findUnique({
+      where: { barcode },
+    });
+
+    if (productWithBarcode) return productWithBarcode;
+  }
+
+  const productWithName = await transaction.product.findFirst({
+    where: {
+      name: {
+        equals: name,
+        mode: "insensitive",
+      },
+    },
+  });
+
+  if (productWithName && (!barcode || productWithName.barcode === barcode)) {
+    return productWithName;
+  }
+
+  if (productWithName && barcode && !productWithName.barcode) {
+    return transaction.product.update({
+      where: { id: productWithName.id },
+      data: { barcode },
+    });
+  }
+
+  return transaction.product.create({
+    data: { name, barcode },
+  });
+}
+
 function refreshPantryPages() {
   revalidatePath("/pantry");
+  revalidatePath("/shopping");
   revalidatePath("/");
 }
 
@@ -81,12 +134,15 @@ export async function createPantryItem(
   formData: FormData,
 ): Promise<PantryActionState> {
   const name = textValue(formData, "name");
+  const barcode = parseBarcode(formData);
   const parsed = parseStockFields(formData);
   const fieldErrors: Record<string, string> = parsed.ok ? {} : { ...parsed.fieldErrors };
 
   if (name.length < 2 || name.length > 100) {
     fieldErrors.name = "Enter a product name between 2 and 100 characters.";
   }
+
+  if (barcode.error) fieldErrors.barcode = barcode.error;
 
   if (Object.keys(fieldErrors).length > 0 || !parsed.ok) {
     return {
@@ -96,20 +152,12 @@ export async function createPantryItem(
     };
   }
 
+  let savedName = name;
+
   try {
     await prisma.$transaction(async (transaction) => {
-      const existingProduct = await transaction.product.findFirst({
-        where: {
-          name: {
-            equals: name,
-            mode: "insensitive",
-          },
-        },
-      });
-
-      const product = existingProduct ?? await transaction.product.create({
-        data: { name },
-      });
+      const product = await resolveProduct(transaction, name, barcode.value);
+      savedName = product.name;
 
       await transaction.inventoryItem.create({
         data: {
@@ -120,7 +168,7 @@ export async function createPantryItem(
     });
 
     refreshPantryPages();
-    return { status: "success", message: `${name} was added to your pantry.` };
+    return { status: "success", message: `${savedName} was added to your pantry.` };
   } catch (error) {
     console.error("Unable to create pantry item", error);
     return {
@@ -162,30 +210,13 @@ export async function updatePantryItem(
   }
 }
 
-async function deletePantryItemAndOrphanedProduct(itemId: string) {
-  await prisma.$transaction(async (transaction) => {
-    const item = await transaction.inventoryItem.findUnique({
-      where: { id: itemId },
-      select: { productId: true },
-    });
-
-    if (!item) return;
-
-    await transaction.inventoryItem.delete({ where: { id: itemId } });
-
-    const remainingItems = await transaction.inventoryItem.count({
-      where: { productId: item.productId },
-    });
-
-    if (remainingItems === 0) {
-      await transaction.product.delete({ where: { id: item.productId } });
-    }
-  });
+async function deletePantryItem(itemId: string) {
+  await prisma.inventoryItem.deleteMany({ where: { id: itemId } });
 }
 
 export async function consumePantryItem(itemId: string, _formData: FormData) {
   try {
-    await deletePantryItemAndOrphanedProduct(itemId);
+    await deletePantryItem(itemId);
     refreshPantryPages();
   } catch (error) {
     console.error("Unable to consume pantry item", error);
@@ -194,7 +225,7 @@ export async function consumePantryItem(itemId: string, _formData: FormData) {
 
 export async function removePantryItem(itemId: string, _formData: FormData) {
   try {
-    await deletePantryItemAndOrphanedProduct(itemId);
+    await deletePantryItem(itemId);
     refreshPantryPages();
   } catch (error) {
     console.error("Unable to remove pantry item", error);
