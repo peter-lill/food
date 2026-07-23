@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 
 const navigation = [
   { label: "Today", href: "/", icon: "◉" },
@@ -15,8 +15,16 @@ const navigation = [
   { label: "Health", href: "/health", icon: "♥" },
 ] as const;
 
+const subscribe = () => () => {};
+
+function useHydrated() {
+  return useSyncExternalStore(subscribe, () => true, () => false);
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
-  const pathname = usePathname();
+  const livePathname = usePathname();
+  const hydrated = useHydrated();
+  const pathname = hydrated ? livePathname : "";
   const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
 
   return (
