@@ -6,7 +6,7 @@ import type {
   LiveGroceryPriceSearchResponse,
 } from "@/lib/prices/live-grocery-price.types";
 import type { SupermarketShoppingList } from "@/lib/prices/supermarket-comparison.types";
-import styles from "@/app/prices/supermarket-comparison.module.css";
+import styles from "./LiveShoppingPriceSearch.module.css";
 
 function money(value: number) {
   return new Intl.NumberFormat("en-AU", {
