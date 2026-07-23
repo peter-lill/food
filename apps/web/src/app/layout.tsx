@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./shopping.css";
 import "./navigation.css";
+import "./saved-product-delete.css";
 import { AppShell } from "@/components/AppShell";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
 
