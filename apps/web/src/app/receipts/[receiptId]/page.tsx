@@ -10,11 +10,10 @@ export default async function ReceiptReviewPage({
   params: Promise<{ receiptId: string }>;
 }) {
   const { receiptId } = await params;
+  let receipt;
 
   try {
-    const receipt = await getReceiptImport(receiptId);
-    if (!receipt) notFound();
-    return <ReceiptReview receipt={receipt} />;
+    receipt = await getReceiptImport(receiptId);
   } catch (error) {
     console.error("Unable to load receipt review", error);
     return (
@@ -24,4 +23,7 @@ export default async function ReceiptReviewPage({
       </div>
     );
   }
+
+  if (!receipt) notFound();
+  return <ReceiptReview receipt={receipt} />;
 }
