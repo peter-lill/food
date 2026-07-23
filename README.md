@@ -29,6 +29,8 @@ The Receipts screen supports manual receipt entry and line-by-line review. Every
 
 The Prices screen derives product and retailer price history from imported receipts. Weight purchases are normalised per 100 g, liquids per litre and count-based purchases per item or pack so differently sized receipt lines can be compared more meaningfully.
 
+The Prices screen also supports manual Woolworths, Coles and ALDI catalogue or shelf-price capture. It can compare individual products, estimate a remaining Shopping list at each retailer, show catalogue coverage and calculate an item-by-item split-shop estimate. Automatic product matching should be checked before relying on whole-list totals.
+
 The Shopping screen stores multiple lists and their items in PostgreSQL. Items can be grouped, checked off, edited and cleared, with low-stock Pantry items available as quick-add suggestions. No extra migration is required for this feature.
 
 ## Android
