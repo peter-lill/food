@@ -17,12 +17,6 @@ type BarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
-declare global {
-  interface Window {
-    BarcodeDetector?: BarcodeDetectorConstructor;
-  }
-}
-
 type ScanTone = "neutral" | "success" | "error";
 
 type ProductBarcodePickerProps = {
@@ -34,6 +28,10 @@ type ProductBarcodePickerProps = {
 };
 
 const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
+
+function getBarcodeDetector() {
+  return (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
+}
 
 function normaliseBarcode(value: string) {
   return value.trim();
@@ -83,26 +81,15 @@ export function ProductBarcodePicker({
   useEffect(() => {
     if (!scannerOpen) return;
 
+    const Detector = getBarcodeDetector();
+    if (!Detector || !navigator.mediaDevices?.getUserMedia) return;
+
     let cancelled = false;
     let stream: MediaStream | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let emptyPasses = 0;
 
     async function startScanner() {
-      const Detector = window.BarcodeDetector;
-
-      if (!Detector) {
-        setScanTone("error");
-        setScanStatus("Live barcode detection is not supported by this browser. Enter the barcode manually instead.");
-        return;
-      }
-
-      if (!navigator.mediaDevices?.getUserMedia) {
-        setScanTone("error");
-        setScanStatus("This browser cannot access the camera. Enter the barcode manually instead.");
-        return;
-      }
-
       try {
         const supportedFormats = Detector.getSupportedFormats
           ? await Detector.getSupportedFormats()
@@ -203,9 +190,22 @@ export function ProductBarcodePicker({
   }
 
   function openScanner() {
+    setScannerOpen(true);
+
+    if (!getBarcodeDetector()) {
+      setScanTone("error");
+      setScanStatus("Live barcode detection is not supported by this browser. Enter the barcode manually instead.");
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScanTone("error");
+      setScanStatus("This browser cannot access the camera. Enter the barcode manually instead.");
+      return;
+    }
+
     setScanTone("neutral");
     setScanStatus("Starting the rear camera…");
-    setScannerOpen(true);
   }
 
   return (
