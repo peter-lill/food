@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { ProductBarcodePicker } from "@/components/products/ProductBarcodePicker";
+import { addBarcodeShoppingItem } from "@/lib/shopping/shopping-barcode.actions";
 import {
   addPantryItemToShoppingList,
-  addShoppingItem,
   clearCompletedShoppingItems,
   createShoppingList,
   deleteShoppingList,
@@ -78,7 +78,7 @@ function CreateListCard() {
 }
 
 function AddItemForm({ listId, products }: { listId: string; products: ProductCatalogueItem[] }) {
-  const actionWithId = addShoppingItem.bind(null, listId);
+  const actionWithId = addBarcodeShoppingItem.bind(null, listId);
   const [state, action] = useActionState(actionWithId, initialShoppingActionState);
   const formRef = useRef<HTMLFormElement>(null);
 
