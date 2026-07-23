@@ -1,0 +1,315 @@
+.liveSearch {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border-color: rgba(57, 120, 72, .24);
+  background: linear-gradient(145deg, var(--surface), var(--accent-pale));
+}
+
+.liveSearchHeading,
+.savedEstimateHeading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.liveSearchHeading > div,
+.savedEstimateHeading > div {
+  display: grid;
+  gap: 3px;
+}
+
+.liveSearchHeading h3,
+.savedEstimateHeading h3 {
+  margin: 0;
+  font-size: 20px;
+  letter-spacing: -.03em;
+}
+
+.liveSearchHeading p,
+.savedEstimateHeading p {
+  max-width: 720px;
+  margin: 0;
+}
+
+.substituteToggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .72);
+  cursor: pointer;
+}
+
+.substituteToggle input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+.substituteToggle span {
+  display: grid;
+  gap: 3px;
+}
+
+.substituteToggle strong {
+  font-size: 12px;
+}
+
+.substituteToggle small,
+.liveSearchNote,
+.liveMeta,
+.liveItem header span,
+.liveMatchCard small,
+.liveBestMatch small,
+.liveMatchCard p,
+.liveBestMatch p,
+.estimateNote,
+.liveNoMatch,
+.liveItemError {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.liveSearchNote,
+.estimateNote,
+.liveNoMatch,
+.liveItemError {
+  margin: 0;
+}
+
+.liveResults,
+.liveItemRows {
+  display: grid;
+  gap: 12px;
+}
+
+.liveSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.liveTotal,
+.liveCompleteTotal,
+.liveSplitTotal {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .82);
+}
+
+.liveCompleteTotal,
+.liveSplitTotal {
+  border-color: rgba(57, 120, 72, .28);
+  background: var(--accent-pale);
+}
+
+.liveTotal > span,
+.liveCompleteTotal > span,
+.liveSplitTotal > span {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.liveTotal > strong,
+.liveCompleteTotal > strong,
+.liveSplitTotal > strong {
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+
+.liveTotal > small,
+.liveCompleteTotal > small,
+.liveSplitTotal > small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.liveMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .65);
+}
+
+.liveMeta strong {
+  color: var(--accent-dark);
+}
+
+.liveItem {
+  display: grid;
+  gap: 10px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.liveItem header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.liveItem header > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.liveMatchGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.liveMatchCard,
+.liveBestMatch {
+  display: grid;
+  align-content: start;
+  gap: 7px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface-soft);
+}
+
+.liveBestMatch {
+  border-color: rgba(57, 120, 72, .3);
+  background: var(--accent-pale);
+}
+
+.liveMatchTopline,
+.livePriceLine {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.exactBadge,
+.substituteBadge {
+  padding: 3px 6px;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+.exactBadge {
+  background: rgba(57, 120, 72, .14);
+  color: var(--accent-dark);
+}
+
+.substituteBadge {
+  background: #fff0d7;
+  color: #8a5700;
+}
+
+.liveProductName {
+  min-height: 34px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
+.livePriceLine > strong {
+  font-size: 18px;
+  letter-spacing: -.025em;
+}
+
+.livePriceLine > span {
+  color: var(--muted);
+  font-size: 9px;
+  text-align: right;
+}
+
+.liveMatchCard p,
+.liveBestMatch p {
+  margin: 0;
+}
+
+.liveMatchCard a,
+.liveBestMatch a {
+  width: fit-content;
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.liveMatchCard a:hover,
+.liveBestMatch a:hover {
+  text-decoration: underline;
+}
+
+.liveNoMatch,
+.liveItemError {
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.liveItemError {
+  background: #f7dfdc;
+  color: var(--danger);
+}
+
+.savedEstimateHeading {
+  padding-top: 6px;
+}
+
+@media (max-width: 1050px) {
+  .liveSummaryGrid,
+  .liveMatchGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
+  .liveSearchHeading,
+  .savedEstimateHeading {
+    display: grid;
+  }
+
+  .liveSearchHeading button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 560px) {
+  .liveSummaryGrid,
+  .liveMatchGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .liveItem header,
+  .liveMatchTopline,
+  .livePriceLine {
+    display: grid;
+  }
+
+  .livePriceLine > span {
+    text-align: left;
+  }
+}
