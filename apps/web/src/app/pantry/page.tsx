@@ -1,19 +1,24 @@
 import { PantryManager } from "@/components/pantry/PantryManager";
 import { getPantryItems } from "@/lib/pantry/pantry.repository";
+import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
 
 export const dynamic = "force-dynamic";
 
 async function loadPantryPageData() {
   try {
-    return { items: await getPantryItems(), loadError: false };
+    const [items, products] = await Promise.all([
+      getPantryItems(),
+      getProductCatalogue(),
+    ]);
+    return { items, products, loadError: false };
   } catch (error) {
     console.error("Unable to load pantry", error);
-    return { items: [], loadError: true };
+    return { items: [], products: [], loadError: true };
   }
 }
 
 export default async function PantryPage() {
-  const { items, loadError } = await loadPantryPageData();
+  const { items, products, loadError } = await loadPantryPageData();
 
   return (
     <>
@@ -24,7 +29,7 @@ export default async function PantryPage() {
           <p className="subtle">Manage pantry, fridge and freezer stock in one place.</p>
         </div>
       </header>
-      <PantryManager items={items} loadError={loadError} />
+      <PantryManager items={items} loadError={loadError} products={products} />
     </>
   );
 }
