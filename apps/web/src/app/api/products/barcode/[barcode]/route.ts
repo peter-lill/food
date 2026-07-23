@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 
 const supportedExternalBarcode = /^\d{7,14}$/;
-const lookupTimeoutMs = 10_000;
+const providerTimeoutMs = 6_000;
 
 type RouteContext = {
   params: Promise<{ barcode: string }>;
@@ -55,6 +55,19 @@ function productResponse(
     source,
     product,
   });
+}
+
+async function withProviderTimeout<T>(
+  lookup: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), providerTimeoutMs);
+
+  try {
+    return await lookup(controller.signal);
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function lookupOpenFoodFacts(
@@ -119,29 +132,20 @@ async function lookupUpcItemDb(
   return name ? { name, brand, source: "upcitemdb" } : null;
 }
 
-async function lookupExternalProduct(
-  barcode: string,
-  signal: AbortSignal,
-): Promise<ExternalProduct | null> {
+async function lookupExternalProduct(barcode: string): Promise<ExternalProduct | null> {
   const providerErrors: Error[] = [];
+  const providers = [lookupOpenFoodFacts, lookupUpcItemDb];
 
-  try {
-    const product = await lookupOpenFoodFacts(barcode, signal);
-    if (product) return product;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw error;
-    providerErrors.push(error instanceof Error ? error : new Error("Open Food Facts lookup failed."));
+  for (const provider of providers) {
+    try {
+      const product = await withProviderTimeout((signal) => provider(barcode, signal));
+      if (product) return product;
+    } catch (error) {
+      providerErrors.push(error instanceof Error ? error : new Error("Barcode provider failed."));
+    }
   }
 
-  try {
-    const product = await lookupUpcItemDb(barcode, signal);
-    if (product) return product;
-  } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") throw error;
-    providerErrors.push(error instanceof Error ? error : new Error("UPCitemdb lookup failed."));
-  }
-
-  if (providerErrors.length === 2) {
+  if (providerErrors.length === providers.length) {
     throw new AggregateError(providerErrors, "All barcode lookup providers failed.");
   }
 
@@ -170,11 +174,8 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ found: false, source: "local" });
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), lookupTimeoutMs);
-
   try {
-    const externalProduct = await lookupExternalProduct(barcode, controller.signal);
+    const externalProduct = await lookupExternalProduct(barcode);
 
     if (!externalProduct) {
       return NextResponse.json({ found: false, source: "external" });
@@ -197,18 +198,13 @@ export async function GET(_request: Request, context: RouteContext) {
     return productResponse(saved, externalProduct.source);
   } catch (error) {
     console.error("Unable to look up barcode", error);
-    const timedOut = error instanceof Error && error.name === "AbortError";
 
     return NextResponse.json(
       {
         found: false,
-        error: timedOut
-          ? "Product lookup timed out."
-          : "Product lookup is temporarily unavailable.",
+        error: "Product lookup is temporarily unavailable.",
       },
-      { status: timedOut ? 504 : 502 },
+      { status: 502 },
     );
-  } finally {
-    clearTimeout(timeout);
   }
 }
