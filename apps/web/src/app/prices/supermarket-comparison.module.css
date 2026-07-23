@@ -1,0 +1,394 @@
+.workspace {
+  display: grid;
+  gap: 18px;
+}
+
+.summaryGrid,
+.totalGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.summaryGrid article,
+.totalGrid article {
+  min-width: 0;
+}
+
+.summaryGrid article > p:last-child,
+.totalGrid article > p:last-child {
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.summaryValue,
+.totalValue {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  letter-spacing: -.04em;
+}
+
+.summaryDate {
+  display: block;
+  margin-top: 11px;
+  font-size: 20px;
+  letter-spacing: -.025em;
+}
+
+.modeSwitch {
+  display: flex;
+  gap: 7px;
+  width: fit-content;
+  padding: 6px;
+}
+
+.modeSwitch button {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.modeSwitch button:hover,
+.modeSwitch .activeMode {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.modePanel {
+  display: grid;
+  gap: 16px;
+}
+
+.modeHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.modeHeading h2,
+.captureIntro h2 {
+  margin: 3px 0 5px;
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+
+.modeHeading p,
+.captureIntro p {
+  max-width: 680px;
+  margin: 0;
+}
+
+.modeHeading > label {
+  width: min(320px, 100%);
+  flex: none;
+}
+
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.productCard {
+  display: grid;
+  gap: 15px;
+  padding: 19px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(37, 65, 48, .055);
+}
+
+.productTitle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.productTitle h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+  letter-spacing: -.025em;
+}
+
+.productTitle > div > span,
+.productCard footer,
+.storeRow span,
+.bestStoreRow span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.storeRows {
+  display: grid;
+  gap: 8px;
+}
+
+.storeRow,
+.bestStoreRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: #fbfcfa;
+}
+
+.bestStoreRow {
+  border-color: rgba(57, 120, 72, .28);
+  background: var(--accent-pale);
+}
+
+.storeRow > div,
+.bestStoreRow > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.storeRow > div:last-child,
+.bestStoreRow > div:last-child {
+  flex: none;
+  justify-items: end;
+  text-align: right;
+}
+
+.storeRow small,
+.bestStoreRow small {
+  color: var(--accent-dark);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.productCard footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.productCard footer strong {
+  color: var(--accent-dark);
+}
+
+.splitCard {
+  background: var(--accent-pale);
+  border-color: rgba(57, 120, 72, .25);
+}
+
+.listRows {
+  display: grid;
+  gap: 8px;
+}
+
+.listRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 13px 15px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.listItemName {
+  display: grid;
+  gap: 3px;
+  min-width: 160px;
+}
+
+.listItemName span {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.matchPills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.match,
+.bestMatch {
+  display: grid;
+  gap: 2px;
+  min-width: 82px;
+  padding: 7px 9px;
+  border-radius: 11px;
+  background: var(--surface-soft);
+  text-align: right;
+}
+
+.bestMatch {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.match small,
+.bestMatch small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.estimateNote {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.capture {
+  padding: 0;
+  overflow: hidden;
+}
+
+.capture > summary {
+  padding: 17px 19px;
+  color: var(--accent-dark);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.capture[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+
+.captureIntro {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 19px 19px 0;
+}
+
+.captureIntro code {
+  max-width: 420px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 10px;
+  white-space: normal;
+}
+
+.captureForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 18px 19px 19px;
+}
+
+.linesField,
+.captureForm > .form-message,
+.captureActions {
+  grid-column: 1 / -1;
+}
+
+.linesField textarea {
+  resize: vertical;
+  min-height: 150px;
+  font-family: inherit;
+}
+
+.captureActions {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.captureActions span {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+@media (max-width: 1050px) {
+  .summaryGrid,
+  .totalGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .productGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .modeHeading,
+  .captureIntro {
+    display: grid;
+  }
+
+  .modeHeading > label {
+    width: 100%;
+  }
+
+  .captureForm {
+    grid-template-columns: 1fr;
+  }
+
+  .captureForm > * {
+    grid-column: 1;
+  }
+}
+
+@media (max-width: 560px) {
+  .summaryGrid,
+  .totalGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .modeSwitch {
+    width: 100%;
+  }
+
+  .modeSwitch button {
+    flex: 1;
+  }
+
+  .productTitle,
+  .storeRow,
+  .bestStoreRow,
+  .listRow,
+  .productCard footer,
+  .captureActions {
+    display: grid;
+  }
+
+  .storeRow > div:last-child,
+  .bestStoreRow > div:last-child {
+    justify-items: start;
+    text-align: left;
+  }
+
+  .matchPills {
+    justify-content: flex-start;
+  }
+
+  .match,
+  .bestMatch {
+    text-align: left;
+  }
+}
