@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useEffect, useRef } from "react";
 import { useFormStatus } from "react-dom";
 import { ProductBarcodePicker } from "@/components/products/ProductBarcodePicker";
 import {
   consumePantryItem,
+  consumePantryItemAndAddToShoppingList,
   createPantryItem,
   removePantryItem,
   updatePantryItem,
@@ -22,6 +24,11 @@ const locationLabels: Record<PantryLocation, string> = {
   PANTRY: "Pantry",
   FRIDGE: "Fridge",
   FREEZER: "Freezer",
+};
+
+type ShoppingListOption = {
+  id: string;
+  name: string;
 };
 
 function formatQuantity(quantity: number) {
@@ -176,8 +183,15 @@ function AddPantryForm({ products }: { products: ProductCatalogueItem[] }) {
   );
 }
 
-function PantryItemCard({ item }: { item: PantryItem }) {
+function PantryItemCard({
+  item,
+  shoppingLists,
+}: {
+  item: PantryItem;
+  shoppingLists: ShoppingListOption[];
+}) {
   const updateAction = updatePantryItem.bind(null, item.id);
+  const restockAction = consumePantryItemAndAddToShoppingList.bind(null, item.id);
   const [state, action] = useActionState(updateAction, initialPantryActionState);
   const attentionLabel = item.expired ? "Expired" : item.useSoon ? "Use soon" : null;
 
@@ -216,13 +230,33 @@ function PantryItemCard({ item }: { item: PantryItem }) {
           </form>
         </details>
 
-        <div className="pantry-destructive-actions">
-          <form action={consumePantryItem.bind(null, item.id)}>
-            <button className="secondary-button" type="submit">Mark consumed</button>
-          </form>
-          <form action={removePantryItem.bind(null, item.id)}>
-            <button className="danger-button" type="submit">Remove</button>
-          </form>
+        <div className="pantry-stock-actions">
+          {shoppingLists.length > 0 ? (
+            <form action={restockAction} className="pantry-restock-form">
+              <label className="field pantry-restock-list">
+                <span>Replacement list</span>
+                <select defaultValue={shoppingLists[0].id} name="shoppingListId" required>
+                  {shoppingLists.map((list) => (
+                    <option key={list.id} value={list.id}>{list.name}</option>
+                  ))}
+                </select>
+              </label>
+              <button className="button" type="submit">Consume + add to list</button>
+            </form>
+          ) : (
+            <p className="pantry-no-list">
+              <Link href="/shopping">Create a shopping list</Link> to add replacements when stock is consumed.
+            </p>
+          )}
+
+          <div className="pantry-destructive-actions">
+            <form action={consumePantryItem.bind(null, item.id)}>
+              <button className="secondary-button" type="submit">Mark consumed</button>
+            </form>
+            <form action={removePantryItem.bind(null, item.id)}>
+              <button className="danger-button" type="submit">Remove</button>
+            </form>
+          </div>
         </div>
       </div>
     </article>
@@ -233,10 +267,12 @@ export function PantryManager({
   items,
   loadError,
   products,
+  shoppingLists,
 }: {
   items: PantryItem[];
   loadError: boolean;
   products: ProductCatalogueItem[];
+  shoppingLists: ShoppingListOption[];
 }) {
   return (
     <div className="pantry-layout">
@@ -274,7 +310,9 @@ export function PantryManager({
           </div>
         ) : (
           <div className="pantry-items">
-            {items.map((item) => <PantryItemCard item={item} key={item.id} />)}
+            {items.map((item) => (
+              <PantryItemCard item={item} key={item.id} shoppingLists={shoppingLists} />
+            ))}
           </div>
         )}
       </section>
