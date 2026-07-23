@@ -13,13 +13,17 @@ const emptyData: PriceHistoryData = {
   retailers: [],
 };
 
-export default async function PricesPage() {
-  let loadError = false;
-  const data = await getReceiptPriceHistory().catch((error) => {
+async function loadPricesPageData() {
+  try {
+    return { data: await getReceiptPriceHistory(), loadError: false };
+  } catch (error) {
     console.error("Unable to load receipt price history", error);
-    loadError = true;
-    return emptyData;
-  });
+    return { data: emptyData, loadError: true };
+  }
+}
+
+export default async function PricesPage() {
+  const { data, loadError } = await loadPricesPageData();
 
   return (
     <>
