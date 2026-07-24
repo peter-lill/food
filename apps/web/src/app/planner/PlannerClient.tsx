@@ -5,7 +5,10 @@ import dynamic from "next/dynamic";
 import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
 
 const PlannerWorkspace = dynamic(
-  () => import("./PlannerWorkspace").then((module) => module.PlannerWorkspace),
+  () =>
+    import("@/components/planner/PlannerWorkspace").then(
+      (module) => module.PlannerWorkspace,
+    ),
   {
     ssr: false,
     loading: () => (
@@ -23,7 +26,16 @@ type PlannerClientProps = {
   shoppingError?: boolean;
 };
 
-export function PlannerClient(props: PlannerClientProps) {
-  void props;
-  return <PlannerWorkspace />;
+export function PlannerClient({
+  data,
+  loadError = false,
+  shoppingError = false,
+}: PlannerClientProps) {
+  return (
+    <PlannerWorkspace
+      data={data}
+      loadError={loadError}
+      shoppingError={shoppingError}
+    />
+  );
 }
