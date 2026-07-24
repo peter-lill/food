@@ -1,8 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { PlannerWorkspace } from "@/components/planner/PlannerWorkspace";
+import dynamic from "next/dynamic";
+
 import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
+
+const PlannerWorkspace = dynamic(
+  () =>
+    import("@/components/planner/PlannerWorkspace").then(
+      (module) => module.PlannerWorkspace,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <section className="card pantry-empty" aria-live="polite">
+        <strong>Loading your planner…</strong>
+        <p>Restoring meal, preparation and hydration progress from this device.</p>
+      </section>
+    ),
+  },
+);
 
 type PlannerClientProps = {
   data: PlannerWorkspaceData;
@@ -10,23 +26,16 @@ type PlannerClientProps = {
   shoppingError?: boolean;
 };
 
-export function PlannerClient({ data, loadError = false, shoppingError = false }: PlannerClientProps) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    // Keep the server HTML and first browser render identical.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return (
-      <section className="card pantry-empty" aria-live="polite">
-        <strong>Loading your planner…</strong>
-        <p>Restoring this week&apos;s meal selections from this device.</p>
-      </section>
-    );
-  }
-
-  return <PlannerWorkspace data={data} loadError={loadError} shoppingError={shoppingError} />;
+export function PlannerClient({
+  data,
+  loadError = false,
+  shoppingError = false,
+}: PlannerClientProps) {
+  return (
+    <PlannerWorkspace
+      data={data}
+      loadError={loadError}
+      shoppingError={shoppingError}
+    />
+  );
 }
