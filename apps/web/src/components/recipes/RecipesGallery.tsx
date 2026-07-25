@@ -3,13 +3,15 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
+import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
 
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
+  externalRecipes: ExternalRecipe[];
 };
 
-export function RecipesGallery({ recipes }: RecipesGalleryProps) {
+export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps) {
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
 
   useEffect(() => {
@@ -73,6 +75,59 @@ export function RecipesGallery({ recipes }: RecipesGalleryProps) {
           ))
         )}
       </div>
+
+      {externalRecipes.length > 0 ? (
+        <section className={styles.externalSection}>
+          <div className={styles.sectionHeading}>
+            <div>
+              <p className="eyebrow">TRUSTED SOURCES</p>
+              <h2>More heart-healthy recipes</h2>
+              <p className="subtle">These attributed recipes open on their original publisher’s website.</p>
+            </div>
+            <span className="badge neutral">{externalRecipes.length} recipes</span>
+          </div>
+
+          <div className={styles.gallery}>
+            {externalRecipes.map((recipe) => (
+              <article className={styles.card} key={recipe.id}>
+                {recipe.imageUrl ? (
+                  <div
+                    aria-label={`Finished ${recipe.name}`}
+                    className={styles.externalImage}
+                    role="img"
+                    style={{ backgroundImage: `url("${recipe.imageUrl}")` }}
+                  />
+                ) : (
+                  <div aria-hidden="true" className={styles.imageFallback}>♡</div>
+                )}
+
+                <div className={styles.cardContent}>
+                  <span className={styles.source}>{recipe.sourceName}</span>
+                  <h2>{recipe.name}</h2>
+                  <p className={styles.description}>{recipe.description}</p>
+                  <div className={styles.meta}>
+                    {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
+                    {recipe.servings ? <span>{recipe.servings} servings</span> : null}
+                    {recipe.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
+                  </div>
+                  <span className={styles.openLabel}>View on {recipe.sourceName} ↗</span>
+                  <p className={styles.attribution}>
+                    Recipe by <a href={recipe.sourceHomeUrl}>{recipe.sourceName}</a> · {recipe.licence}
+                  </p>
+                </div>
+
+                <a
+                  aria-label={`View ${recipe.name} on ${recipe.sourceName}`}
+                  className={styles.cardAction}
+                  href={recipe.sourceUrl}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                />
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {openRecipe ? (
         <div className={styles.backdrop} onClick={() => setOpenRecipe(null)}>
