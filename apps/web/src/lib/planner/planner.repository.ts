@@ -3,9 +3,9 @@ import { externalRecipes } from "@/lib/recipes/external-recipes";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
 const recipeImages: Record<string, string | null> = {
-  "Lemon herb chicken bowl": null,
-  "Salmon, rice and greens": null,
-  "Lean beef burrito bowl": null,
+  "Lemon herb chicken bowl": "/recipes/lemon-herb-chicken-bowl.webp",
+  "Salmon, rice and greens": "/recipes/salmon-rice-greens.webp",
+  "Lean beef burrito bowl": "/recipes/lean-beef-burrito-bowl.webp",
 };
 
 const starterRecipes: PlannerRecipe[] = [
