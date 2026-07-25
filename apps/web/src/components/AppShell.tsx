@@ -25,13 +25,27 @@ const memberNavigation = [
 
 const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
 
-export function AppShell({ children, ownerEmails }: { children: ReactNode; ownerEmails: string[] }) {
+type InitialUser = {
+  name: string;
+  email: string;
+} | null;
+
+export function AppShell({
+  children,
+  ownerEmails,
+  initialUser,
+}: {
+  children: ReactNode;
+  ownerEmails: string[];
+  initialUser: InitialUser;
+}) {
   const livePathname = usePathname();
-  const { data: session } = authClient.useSession();
+  const { data: session, isPending } = authClient.useSession();
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const owner = Boolean(session?.user.email && ownerEmails.includes(session.user.email.toLocaleLowerCase()));
-  const navigation = owner ? ownerNavigation : session ? memberNavigation : memberNavigation.slice(0, 1);
+  const user = isPending ? initialUser : session?.user ?? null;
+  const owner = Boolean(user?.email && ownerEmails.includes(user.email.toLocaleLowerCase()));
+  const navigation = owner ? ownerNavigation : user ? memberNavigation : memberNavigation.slice(0, 1);
   const mobilePrimaryNavigation = owner ? navigation.filter((item) => mobilePrimaryLabels.has(item.label)) : navigation;
   const mobileMoreNavigation = owner ? navigation.filter((item) => !mobilePrimaryLabels.has(item.label) && item.label !== "Scan") : [];
   const mobileItemCount = mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
@@ -57,12 +71,12 @@ export function AppShell({ children, ownerEmails }: { children: ReactNode; owner
             return <Link className={active ? "side-link active" : "side-link"} href={item.href} key={item.href}><span>{item.icon}</span>{item.label}</Link>;
           })}
         </nav>
-        <div className="sidebar-note"><span className="status-dot" />{session ? `Signed in as ${session.user.name}` : "Recipes are open to everyone"}</div>
+        <div className="sidebar-note"><span className="status-dot" />{user ? `Signed in as ${user.name}` : "Recipes are open to everyone"}</div>
       </aside>
       <div className="workspace">
         <header className="workspace-header">
           <div><span className="eyebrow">FOOD</span><strong>{current?.label ?? "Workspace"}</strong></div>
-          <Link className="header-action" href={session ? "/account" : "/sign-in"}>{session ? "Your account" : "Sign in"}</Link>
+          <Link className="header-action" href={user ? "/account" : "/sign-in"}>{user ? "Your account" : "Sign in"}</Link>
         </header>
         <main className="content-shell">{children}</main>
       </div>
