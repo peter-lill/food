@@ -131,6 +131,8 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
           .filter(Boolean)
         : [],
       source: "database",
+      originalSourceName: externalRecipe?.sourceName ?? null,
+      originalSourceUrl: externalRecipe?.sourceUrl ?? null,
       ingredients: recipe.ingredients.map((entry) => ({
         name: entry.ingredient.name,
         quantity: entry.quantity,
@@ -156,6 +158,8 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       instructions: [],
       ingredients: [],
       source: "external",
+      originalSourceName: recipe.sourceName,
+      originalSourceUrl: recipe.sourceUrl,
     }));
 
   return {
