@@ -22,6 +22,10 @@ export default async function RecipesPage() {
   const catalogueRecipes = [
     ...new Map(
       externalRecipes
+        // Mayo's individual recipe pages expose recipe text but not a usable
+        // dish photo. Do not show blank cards (or generic Mayo branding) in
+        // the visual catalogue; keep sources with actual recipe photography.
+        .filter((recipe) => recipe.sourceName !== "Mayo Clinic")
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
@@ -42,7 +46,7 @@ export default async function RecipesPage() {
           <p className="eyebrow">RECIPE LIBRARY</p>
           <h1 className="page-title">Recipes</h1>
           <p className="subtle">
-            Search the full low-cholesterol collection. Recipe images are resolved from each trusted source when available.
+            Search the full photographed low-cholesterol collection. Sources without a usable dish image are excluded.
           </p>
         </div>
         <span className="badge neutral">
