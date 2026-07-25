@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getAuthSession } from "@/lib/auth-session";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { formatLitres } from "@/lib/health/health.format";
+import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
 import { getPantryItems } from "@/lib/pantry/pantry.repository";
 
@@ -20,8 +21,11 @@ function randomRecipes(count: number) {
 
 export default async function Dashboard() {
   const session = await getAuthSession();
+  const healthPaired = session
+    ? await isHealthConnectPaired(session.user.id).catch(() => false)
+    : false;
   const [health, pantryItems] = await Promise.all([
-    session ? getLatestHealthSummary(session.user.id).catch(() => null) : Promise.resolve(null),
+    session && healthPaired ? getLatestHealthSummary(session.user.id).catch(() => null) : Promise.resolve(null),
     getPantryItems().catch(() => []),
   ]);
   const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 4);
@@ -52,8 +56,12 @@ export default async function Dashboard() {
       </section>
 
       <section className="v2-stat-grid" aria-label="Today at a glance">
-        <article className="v2-stat"><div className="v2-stat-label"><span>Hydration</span><span className="v2-stat-icon">◌</span></div><div className="v2-stat-value">{health ? formatLitres(health.hydrationMl) : "—"}</div><div className="v2-stat-note">{health ? "of 3.0 L target" : "Sync Health Connect"}</div></article>
-        <article className="v2-stat"><div className="v2-stat-label"><span>Steps</span><span className="v2-stat-icon">↗</span></div><div className="v2-stat-value">{health ? Math.round(health.steps).toLocaleString("en-AU") : "—"}</div><div className="v2-stat-note">{health ? "of 10,000 target" : "No activity synced"}</div></article>
+        {healthPaired ? (
+          <>
+            <article className="v2-stat"><div className="v2-stat-label"><span>Hydration</span><span className="v2-stat-icon">◌</span></div><div className="v2-stat-value">{health ? formatLitres(health.hydrationMl) : "—"}</div><div className="v2-stat-note">{health ? "of 3.0 L target" : "No health data synced"}</div></article>
+            <article className="v2-stat"><div className="v2-stat-label"><span>Steps</span><span className="v2-stat-icon">↗</span></div><div className="v2-stat-value">{health ? Math.round(health.steps).toLocaleString("en-AU") : "—"}</div><div className="v2-stat-note">{health ? "of 10,000 target" : "No activity synced"}</div></article>
+          </>
+        ) : null}
         <article className="v2-stat"><div className="v2-stat-label"><span>Pantry</span><span className="v2-stat-icon">□</span></div><div className="v2-stat-value">{pantryItems.length}</div><div className="v2-stat-note">items currently stocked</div></article>
         <article className="v2-stat"><div className="v2-stat-label"><span>Use soon</span><span className="v2-stat-icon">!</span></div><div className="v2-stat-value">{attentionItems.length}</div><div className="v2-stat-note">items need attention</div></article>
       </section>
