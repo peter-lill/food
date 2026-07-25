@@ -51,10 +51,12 @@ export function AppShell({
   children,
   ownerEmails,
   initialUser,
+  initialHealthPaired,
 }: {
   children: ReactNode;
   ownerEmails: string[];
   initialUser: InitialUser;
+  initialHealthPaired: boolean;
 }) {
   const livePathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
@@ -62,7 +64,10 @@ export function AppShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const user = isPending ? initialUser : session?.user ?? null;
   const owner = Boolean(user?.email && ownerEmails.includes(user.email.toLocaleLowerCase()));
-  const navigation = owner ? ownerNavigation : user ? memberNavigation : memberNavigation.slice(0, 1);
+  const ownerItems = initialHealthPaired
+    ? ownerNavigation
+    : ownerNavigation.filter((item) => item.label !== "Health");
+  const navigation = owner ? ownerItems : user ? memberNavigation : memberNavigation.slice(0, 1);
   const mobilePrimaryNavigation = owner ? navigation.filter((item) => mobilePrimaryLabels.has(item.label)) : navigation;
   const mobileMoreNavigation = owner ? navigation.filter((item) => !mobilePrimaryLabels.has(item.label) && item.label !== "Scan") : [];
   const mobileItemCount = mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
