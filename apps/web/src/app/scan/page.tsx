@@ -45,7 +45,7 @@ export default async function ScanPage() {
             <option value="tub" />
             <option value="fillet" />
           </datalist>
-          <AddPantryForm autoOpenScanner products={products} />
+          <AddPantryForm autoOpenScanner fullPageScanner products={products} />
         </div>
       )}
     </>

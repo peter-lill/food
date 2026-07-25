@@ -3,6 +3,22 @@
   gap: 12px;
 }
 
+.fullPage .scanner {
+  order: -1;
+  width: 100vw;
+  margin-inline: calc(50% - 50vw);
+  padding: 14px max(16px, calc((100vw - 920px) / 2));
+  border-right: 0;
+  border-left: 0;
+  border-radius: 0;
+}
+
+.fullPage .videoFrame,
+.fullPage .videoFrame video {
+  min-height: min(68dvh, 720px);
+  max-height: none;
+}
+
 .productRow {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -200,6 +216,22 @@
   .videoFrame,
   .videoFrame video {
     min-height: 260px;
+  }
+
+  .fullPage .scanner {
+    padding-inline: 0;
+  }
+
+  .fullPage .scannerHeading,
+  .fullPage .scanStatus,
+  .fullPage .cameraNote {
+    margin-inline: 14px;
+  }
+
+  .fullPage .videoFrame,
+  .fullPage .videoFrame video {
+    min-height: calc(100dvh - 190px);
+    border-radius: 0;
   }
 }
 

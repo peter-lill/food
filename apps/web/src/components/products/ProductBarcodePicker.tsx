@@ -37,6 +37,7 @@ type ProductBarcodePickerProps = {
   nameLabel?: string;
   namePlaceholder?: string;
   autoOpenScanner?: boolean;
+  fullPageScanner?: boolean;
 };
 
 const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
@@ -85,6 +86,7 @@ export function ProductBarcodePicker({
   nameLabel = "Product",
   namePlaceholder = "e.g. Greek yoghurt",
   autoOpenScanner = false,
+  fullPageScanner = false,
 }: ProductBarcodePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -350,7 +352,7 @@ export function ProductBarcodePicker({
   }
 
   return (
-    <div className={styles.picker} ref={containerRef}>
+    <div className={`${styles.picker} ${fullPageScanner ? styles.fullPage : ""}`} ref={containerRef}>
       <datalist id="food-product-catalogue">
         {products.map((product) => (
           <option
