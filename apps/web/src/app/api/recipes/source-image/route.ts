@@ -33,6 +33,18 @@ function normaliseImageUrl(value: unknown, baseUrl: URL) {
   }
 }
 
+function isGenericImage(url: string, sourceUrl: URL) {
+  const value = url.toLowerCase();
+  const commonBranding = /logo|icon|avatar|spinner|placeholder|social-share|default[-_]?image|brandmark/;
+  if (commonBranding.test(value)) return true;
+
+  if (sourceUrl.hostname.includes("mayoclinic.org")) {
+    return /mayo[-_ ]?clinic|mc-logo|social-media|sharing-image|open-graph-default/.test(value);
+  }
+
+  return false;
+}
+
 function imageFromJsonLd(value: unknown, baseUrl: URL): string | null {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -50,19 +62,17 @@ function imageFromJsonLd(value: unknown, baseUrl: URL): string | null {
 
   if (isRecipe) {
     const image = record.image;
-    if (typeof image === "string") return normaliseImageUrl(image, baseUrl);
-    if (Array.isArray(image)) {
-      for (const candidate of image) {
-        const result = typeof candidate === "string"
-          ? normaliseImageUrl(candidate, baseUrl)
-          : imageFromJsonLd(candidate, baseUrl);
-        if (result) return result;
+    const candidates: unknown[] = Array.isArray(image) ? image : [image];
+
+    for (const candidate of candidates) {
+      let result: string | null = null;
+      if (typeof candidate === "string") {
+        result = normaliseImageUrl(candidate, baseUrl);
+      } else if (candidate && typeof candidate === "object") {
+        const imageRecord = candidate as Record<string, unknown>;
+        result = normaliseImageUrl(imageRecord.url ?? imageRecord.contentUrl, baseUrl);
       }
-    }
-    if (image && typeof image === "object") {
-      const imageRecord = image as Record<string, unknown>;
-      const result = normaliseImageUrl(imageRecord.url ?? imageRecord.contentUrl, baseUrl);
-      if (result) return result;
+      if (result && !isGenericImage(result, baseUrl)) return result;
     }
   }
 
@@ -75,6 +85,17 @@ function imageFromJsonLd(value: unknown, baseUrl: URL): string | null {
 }
 
 function extractImageUrl(html: string, baseUrl: URL) {
+  // Recipe schema is the most reliable source of the actual dish photo.
+  const jsonLdPattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+  for (const match of html.matchAll(jsonLdPattern)) {
+    try {
+      const result = imageFromJsonLd(JSON.parse(match[1].trim()), baseUrl);
+      if (result) return result;
+    } catch {
+      // Continue when a source publishes malformed JSON-LD.
+    }
+  }
+
   const metaPatterns = [
     /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
@@ -85,32 +106,22 @@ function extractImageUrl(html: string, baseUrl: URL) {
   ];
 
   for (const pattern of metaPatterns) {
-    const match = html.match(pattern);
-    const result = normaliseImageUrl(match?.[1], baseUrl);
-    if (result) return result;
-  }
-
-  const jsonLdPattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
-  for (const match of html.matchAll(jsonLdPattern)) {
-    try {
-      const result = imageFromJsonLd(JSON.parse(match[1].trim()), baseUrl);
-      if (result) return result;
-    } catch {
-      // Some sites include malformed JSON-LD; continue to the next candidate.
-    }
+    const result = normaliseImageUrl(html.match(pattern)?.[1], baseUrl);
+    if (result && !isGenericImage(result, baseUrl)) return result;
   }
 
   const imagePatterns = [
-    /<img[^>]+(?:data-lazy-src|data-src|data-original)=["']([^"']+)["']/i,
-    /<img[^>]+srcset=["']([^"']+)["']/i,
-    /<img[^>]+src=["']([^"']+)["']/i,
+    /<img[^>]+(?:data-lazy-src|data-src|data-original)=["']([^"']+)["']/gi,
+    /<img[^>]+srcset=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["']/gi,
   ];
 
   for (const pattern of imagePatterns) {
-    const match = html.match(pattern);
-    const raw = match?.[1]?.split(",").at(-1)?.trim().split(/\s+/)[0];
-    const result = normaliseImageUrl(raw, baseUrl);
-    if (result && !/logo|icon|avatar|spinner|placeholder/i.test(result)) return result;
+    for (const match of html.matchAll(pattern)) {
+      const raw = match[1]?.split(",").at(-1)?.trim().split(/\s+/)[0];
+      const result = normaliseImageUrl(raw, baseUrl);
+      if (result && !isGenericImage(result, baseUrl)) return result;
+    }
   }
 
   return null;
