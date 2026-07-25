@@ -129,7 +129,7 @@ export function RecipesGallery({
           <div className={styles.sectionHeading}>
             <div>
               <p className="eyebrow">LOW-CHOLESTEROL COLLECTION</p>
-              <h2>Explore 150 heart-healthy recipes</h2>
+              <h2>Explore {externalRecipes.length} heart-healthy recipes</h2>
               <p className="subtle">
                 Search by ingredient or filter trusted publishers. Recipes open on their original website.
               </p>
@@ -370,41 +370,37 @@ export function RecipesGallery({
               <div className={styles.summary}>
                 {openRecipe.minutes ? <span><strong>{openRecipe.minutes}</strong> minutes</span> : null}
                 <span><strong>{openRecipe.servings}</strong> servings</span>
-                {openRecipe.proteinGrams ? (
-                  <span><strong>{Math.round(openRecipe.proteinGrams)} g</strong> protein</span>
-                ) : null}
+                {openRecipe.proteinGrams ? <span><strong>{Math.round(openRecipe.proteinGrams)}</strong> g protein</span> : null}
               </div>
 
-              <div className={styles.columns}>
-                <section>
-                  <h3>Ingredients</h3>
-                  {openRecipe.ingredients.length > 0 ? (
-                    <ul className={styles.ingredients}>
-                      {openRecipe.ingredients.map((ingredient) => (
-                        <li key={`${ingredient.name}-${ingredient.unit}`}>
-                          <span>{ingredient.name}</span>
-                          <strong>{ingredient.quantity} {ingredient.unit}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="subtle">No ingredients have been saved yet.</p>
-                  )}
-                </section>
+              <section className={styles.recipeSection}>
+                <h3>Ingredients</h3>
+                {openRecipe.ingredients.length > 0 ? (
+                  <ul className={styles.ingredients}>
+                    {openRecipe.ingredients.map((ingredient, index) => (
+                      <li key={`${ingredient.name}-${index}`}>
+                        <strong>{ingredient.quantity} {ingredient.unit}</strong>
+                        <span>{ingredient.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="subtle">No ingredients are available for this recipe yet.</p>
+                )}
+              </section>
 
-                <section>
-                  <h3>Method</h3>
-                  {openRecipe.instructions.length > 0 ? (
-                    <ol className={styles.method}>
-                      {openRecipe.instructions.map((instruction, index) => (
-                        <li key={`${index}-${instruction}`}>{instruction}</li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="subtle">No cooking method has been saved yet.</p>
-                  )}
-                </section>
-              </div>
+              <section className={styles.recipeSection}>
+                <h3>Method</h3>
+                {openRecipe.instructions.length > 0 ? (
+                  <ol className={styles.instructions}>
+                    {openRecipe.instructions.map((instruction, index) => (
+                      <li key={`${instruction}-${index}`}>{instruction}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="subtle">No cooking method is available for this recipe yet.</p>
+                )}
+              </section>
             </div>
           </article>
         </div>
