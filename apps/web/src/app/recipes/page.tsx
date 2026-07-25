@@ -2,7 +2,7 @@ import { RecipesGallery } from "@/components/recipes/RecipesGallery";
 import { getAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
 import { prisma } from "@/lib/prisma";
-import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { getAuditedExternalRecipes } from "@/lib/recipes/catalogue-audit";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
 export const dynamic = "force-dynamic";
@@ -13,15 +13,16 @@ export const metadata = {
 };
 
 export default async function RecipesPage() {
-  const [{ recipes: plannerRecipes }, session] = await Promise.all([
+  const [{ recipes: plannerRecipes }, session, auditedRecipes] = await Promise.all([
     getPlannerWorkspace(),
     getAuthSession(),
+    getAuditedExternalRecipes(),
   ]);
 
   const completeRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
   const catalogueRecipes = [
     ...new Map(
-      externalRecipes
+      auditedRecipes
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
@@ -42,7 +43,7 @@ export default async function RecipesPage() {
           <p className="eyebrow">RECIPE LIBRARY</p>
           <h1 className="page-title">Recipes</h1>
           <p className="subtle">
-            Search a curated low-cholesterol collection, then open a recipe on its trusted source.
+            Search a checked low-cholesterol collection. Broken pages and recipes without a working food image are automatically excluded.
           </p>
         </div>
         <span className="badge neutral">
