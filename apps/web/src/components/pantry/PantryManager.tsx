@@ -150,7 +150,13 @@ function ActionMessage({ state }: { state: PantryActionState }) {
   );
 }
 
-function AddPantryForm({ products }: { products: ProductCatalogueItem[] }) {
+export function AddPantryForm({
+  products,
+  autoOpenScanner = false,
+}: {
+  products: ProductCatalogueItem[];
+  autoOpenScanner?: boolean;
+}) {
   const [state, action] = useActionState(createPantryItem, initialPantryActionState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -168,6 +174,7 @@ function AddPantryForm({ products }: { products: ProductCatalogueItem[] }) {
 
       <form action={action} className="pantry-form" ref={formRef}>
         <ProductBarcodePicker
+          autoOpenScanner={autoOpenScanner}
           barcodeError={state.fieldErrors?.barcode}
           nameError={state.fieldErrors?.name}
           products={products}
