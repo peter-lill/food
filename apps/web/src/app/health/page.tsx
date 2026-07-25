@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { requireAuthSession } from "@/lib/auth-session";
+import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
 import {
   formatDistance,
@@ -10,18 +12,20 @@ export const dynamic = "force-dynamic";
 
 export default async function HealthPage() {
   const session = await requireAuthSession();
+  const paired = await isHealthConnectPaired(session.user.id).catch(() => false);
+  if (!paired) redirect("/account");
+
   const summary = await getLatestHealthSummary(session.user.id).catch(() => null);
 
   if (!summary) {
     return (
       <>
         <h1 className="page-title">Health</h1>
-        <p className="subtle">Live summaries from the Food Android companion.</p>
+        <p className="subtle">Live summaries from your paired Food Android companion.</p>
         <section className="card" style={{ marginTop: 16 }}>
-          <h2 className="section-title">No health data synced</h2>
+          <h2 className="section-title">No health data synced yet</h2>
           <p className="subtle">
-            Generate a pairing code from Your account, pair the Android companion,
-            then sync Health Connect. Data from that device will be stored against this Food account.
+            Your Android device is paired to this account. Open Food on Android and sync Health Connect to populate this page.
           </p>
         </section>
       </>
