@@ -12,6 +12,7 @@
     "start": "npm --workspace apps/web run start",
     "db:generate": "npm --workspace apps/web run db:generate",
     "db:migrate": "npm --workspace apps/web run db:migrate",
+    "db:migrate:deploy": "npm --workspace apps/web run db:migrate:deploy",
     "db:seed": "npm --workspace apps/web run db:seed"
   }
 }
