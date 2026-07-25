@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
@@ -62,7 +61,7 @@ export function AppShell({
     <div className="app-frame">
       <aside className="sidebar">
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
-          <span className="wordmark-mark"><Image alt="" height={40} priority src="/brand/food-mark.svg" width={40} /></span>
+          <span className="wordmark-mark"><img alt="" height="40" src="/brand/food-mark.svg" width="40" /></span>
           <span><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
         </Link>
         <nav className="side-nav" aria-label="Primary navigation">
