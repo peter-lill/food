@@ -37,10 +37,29 @@ export function HealthConnectPairing() {
     setPending(true);
     setError("");
     try {
-      const response = await fetch("/api/health-connect/pairing", { method: "POST" });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error ?? "Unable to generate a pairing code.");
-      setPairing(result);
+      const response = await fetch("/api/health-connect/pairing", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const result = contentType.includes("application/json")
+        ? await response.json() as Partial<PairingResponse> & { error?: string }
+        : { error: await response.text() };
+
+      if (!response.ok) {
+        throw new Error(result.error || `Unable to generate a pairing code (${response.status}).`);
+      }
+
+      if (!result.code || !result.expiresAt || !result.pairingUri) {
+        throw new Error("The server returned an incomplete pairing response.");
+      }
+
+      setPairing({
+        code: result.code,
+        expiresAt: result.expiresAt,
+        pairingUri: result.pairingUri,
+      });
       setNow(Date.now());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to generate a pairing code.");
@@ -78,7 +97,7 @@ export function HealthConnectPairing() {
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
             <button className={accountStyles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
-              Generate a new code
+              {pending ? "Generating…" : "Generate a new code"}
             </button>
           </div>
         </div>
