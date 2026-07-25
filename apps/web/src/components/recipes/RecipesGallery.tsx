@@ -131,7 +131,7 @@ export function RecipesGallery({
               <p className="eyebrow">LOW-CHOLESTEROL COLLECTION</p>
               <h2>Explore {externalRecipes.length} heart-healthy recipes</h2>
               <p className="subtle">
-                Search by ingredient or filter trusted publishers. Recipes open on their original website.
+                Search by ingredient or filter trusted publishers.
               </p>
             </div>
             <span className="badge neutral">{externalRecipes.length} recipes</span>
@@ -401,6 +401,15 @@ export function RecipesGallery({
                   <p className="subtle">No cooking method is available for this recipe yet.</p>
                 )}
               </section>
+
+              {openRecipe.originalSourceUrl ? (
+                <p className={styles.attribution}>
+                  Original source: {openRecipe.originalSourceName ? `${openRecipe.originalSourceName} · ` : ""}
+                  <a href={openRecipe.originalSourceUrl} rel="noopener noreferrer" target="_blank">
+                    View original recipe ↗
+                  </a>
+                </p>
+              ) : null}
             </div>
           </article>
         </div>
