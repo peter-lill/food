@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { addPlannerIngredientsToShopping } from "@/lib/planner/planner.actions";
@@ -73,6 +74,7 @@ function aggregateIngredients(recipes: PlannerRecipe[]) {
 
 export function PlannerWorkspace({ data, loadError = false, shoppingError = false }: PlannerWorkspaceProps) {
   const [plan, setPlan] = useState<PlanSelection>(readSavedPlan);
+  const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
   const recipeById = useMemo(
     () => new Map(data.recipes.map((recipe) => [recipe.id, recipe])),
     [data.recipes],
@@ -85,6 +87,21 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(plan));
   }, [plan]);
+
+  useEffect(() => {
+    if (!openRecipe) return;
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenRecipe(null);
+    }
+
+    document.addEventListener("keydown", closeOnEscape);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", closeOnEscape);
+      document.body.style.overflow = "";
+    };
+  }, [openRecipe]);
 
   const plannedRecipes = useMemo(
     () => days.map((day) => recipeById.get(plan[day.key])).filter((recipe): recipe is PlannerRecipe => Boolean(recipe)),
@@ -191,7 +208,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                     </select>
                   </label>
                   {selected ? (
-                    <div className={styles.recipeDetail}>
+                    <button
+                      aria-label={`Open recipe for ${selected.name}`}
+                      className={styles.recipeDetail}
+                      onClick={() => setOpenRecipe(selected)}
+                      type="button"
+                    >
                       <strong>{selected.name}</strong>
                       {selected.description && <p>{selected.description}</p>}
                       <div className={styles.recipeMeta}>
@@ -199,7 +221,8 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                         {selected.proteinGrams && <span>{Math.round(selected.proteinGrams)} g protein</span>}
                         {availability !== null && <span>{availability}% in Pantry</span>}
                       </div>
-                    </div>
+                      <span className={styles.openRecipeLabel}>View recipe →</span>
+                    </button>
                   ) : (
                     <p className={styles.emptyDay}>No meal selected.</p>
                   )}
@@ -262,6 +285,77 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
           </section>
         </aside>
       </div>
+
+      {openRecipe ? (
+        <div className={styles.recipeBackdrop} onClick={() => setOpenRecipe(null)}>
+          <article
+            aria-labelledby="planner-recipe-title"
+            aria-modal="true"
+            className={styles.recipeModal}
+            onClick={(event) => event.stopPropagation()}
+            role="dialog"
+          >
+            <button
+              aria-label="Close recipe"
+              className={styles.closeRecipe}
+              onClick={() => setOpenRecipe(null)}
+              type="button"
+            >
+              ×
+            </button>
+            {openRecipe.imageUrl ? (
+              <div className={styles.recipeImage}>
+                <Image
+                  alt={`Finished ${openRecipe.name}`}
+                  fill
+                  priority
+                  sizes="(max-width: 760px) 100vw, 760px"
+                  src={openRecipe.imageUrl}
+                />
+              </div>
+            ) : (
+              <div className={styles.recipeImageFallback} aria-hidden="true">◇</div>
+            )}
+            <div className={styles.recipeContent}>
+              <div>
+                <p className="eyebrow">RECIPE</p>
+                <h2 id="planner-recipe-title">{openRecipe.name}</h2>
+                {openRecipe.description ? <p className={styles.recipeDescription}>{openRecipe.description}</p> : null}
+              </div>
+              <div className={styles.recipeSummary}>
+                {openRecipe.minutes ? <span><strong>{openRecipe.minutes}</strong> minutes</span> : null}
+                <span><strong>{openRecipe.servings}</strong> servings</span>
+                {openRecipe.proteinGrams ? <span><strong>{Math.round(openRecipe.proteinGrams)} g</strong> protein</span> : null}
+              </div>
+              <div className={styles.recipeColumns}>
+                <section>
+                  <h3>Ingredients</h3>
+                  <ul className={styles.recipeIngredients}>
+                    {openRecipe.ingredients.map((ingredient) => (
+                      <li key={`${ingredient.name}-${ingredient.unit}`}>
+                        <span>{ingredient.name}</span>
+                        <strong>{ingredient.quantity} {ingredient.unit}</strong>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section>
+                  <h3>Method</h3>
+                  {openRecipe.instructions.length > 0 ? (
+                    <ol className={styles.recipeMethod}>
+                      {openRecipe.instructions.map((instruction, index) => (
+                        <li key={`${index}-${instruction}`}>{instruction}</li>
+                      ))}
+                    </ol>
+                  ) : (
+                    <p className={styles.recipeDescription}>No cooking method has been saved for this recipe yet.</p>
+                  )}
+                </section>
+              </div>
+            </div>
+          </article>
+        </div>
+      ) : null}
     </div>
   );
 }

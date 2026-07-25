@@ -10,6 +10,9 @@ export type PlannerRecipe = {
   description: string | null;
   minutes: number | null;
   proteinGrams: number | null;
+  servings: number;
+  imageUrl: string | null;
+  instructions: string[];
   ingredients: PlannerIngredient[];
   source: "database" | "starter";
 };
