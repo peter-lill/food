@@ -176,6 +176,75 @@ function instructionTexts(value: unknown): string[] {
   return result;
 }
 
+function decodeHtml(value: string) {
+  return value
+    .replace(/&nbsp;|&#160;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/&frac12;/gi, "½")
+    .replace(/&frac14;/gi, "¼")
+    .replace(/&frac34;/gi, "¾")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+function textFromHtml(value: string) {
+  return decodeHtml(value)
+    .replace(/<br\s*\/?\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSection(html: string, startLabel: string, endLabels: string[]) {
+  const start = html.search(new RegExp(`>\\s*${startLabel}\\s*<`, "i"));
+  if (start < 0) return "";
+  const remainder = html.slice(start);
+  let end = remainder.length;
+  for (const label of endLabels) {
+    const index = remainder.search(new RegExp(`>\\s*${label}\\s*<`, "i"));
+    if (index > 0) end = Math.min(end, index);
+  }
+  return remainder.slice(0, end);
+}
+
+function ingredientsFromHtml(html: string) {
+  const section = extractSection(html, "Ingredients", ["Method", "Directions", "Instructions"]);
+  if (!section) return [];
+
+  const values = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+    .map((match) => textFromHtml(match[1]))
+    .filter(Boolean);
+
+  return values.map(parseIngredient).filter((entry): entry is ParsedIngredient => Boolean(entry));
+}
+
+function instructionsFromHtml(html: string) {
+  const section = extractSection(html, "Method", ["Tip", "Tips", "Nutrition", "You might also be interested in"]);
+  if (!section) return [];
+
+  const paragraphs = [...section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((match) => textFromHtml(match[1]))
+    .filter((text) => text.length > 15 && !/^step\s*\d+$/i.test(text));
+
+  return [...new Set(paragraphs)];
+}
+
+function deduplicateIngredients(entries: ParsedIngredient[]) {
+  const byName = new Map<string, ParsedIngredient>();
+  for (const entry of entries) {
+    const key = entry.name.toLocaleLowerCase("en-AU");
+    const current = byName.get(key);
+    if (!current) {
+      byName.set(key, entry);
+    } else if (current.unit === entry.unit) {
+      byName.set(key, { ...current, quantity: current.quantity + entry.quantity });
+    }
+  }
+  return [...byName.values()];
+}
+
 export async function importHeartFoundationRecipe(externalRecipeId: string) {
   const sourceRecipe = externalRecipes.find((recipe) => recipe.id === externalRecipeId);
   if (!sourceRecipe || sourceRecipe.sourceName !== "Heart Foundation") {
@@ -212,18 +281,20 @@ export async function importHeartFoundationRecipe(externalRecipeId: string) {
     }
   }
 
-  if (!recipeNode) throw new Error("No Recipe JSON-LD found.");
+  const schemaIngredients = recipeNode && Array.isArray(recipeNode.recipeIngredient)
+    ? recipeNode.recipeIngredient.map(parseIngredient).filter((entry): entry is ParsedIngredient => Boolean(entry))
+    : [];
+  const ingredients = deduplicateIngredients(schemaIngredients.length ? schemaIngredients : ingredientsFromHtml(html));
+  if (!ingredients.length) throw new Error("No importable ingredients found on the source page.");
 
-  const ingredients = (Array.isArray(recipeNode.recipeIngredient) ? recipeNode.recipeIngredient : [])
-    .map(parseIngredient)
-    .filter((entry): entry is ParsedIngredient => Boolean(entry));
-  if (!ingredients.length) throw new Error("No importable ingredients found.");
-
-  const instructions = instructionTexts(recipeNode.recipeInstructions);
-  const description = typeof recipeNode.description === "string" ? recipeNode.description.trim() : sourceRecipe.description;
-  const servings = parseServings(recipeNode.recipeYield);
-  const prepMinutes = parseDuration(recipeNode.prepTime);
-  const cookMinutes = parseDuration(recipeNode.cookTime);
+  const schemaInstructions = recipeNode ? instructionTexts(recipeNode.recipeInstructions) : [];
+  const instructions = schemaInstructions.length ? schemaInstructions : instructionsFromHtml(html);
+  const description = recipeNode && typeof recipeNode.description === "string"
+    ? recipeNode.description.trim()
+    : sourceRecipe.description;
+  const servings = recipeNode ? parseServings(recipeNode.recipeYield) : sourceRecipe.servings ?? 1;
+  const prepMinutes = recipeNode ? parseDuration(recipeNode.prepTime) : null;
+  const cookMinutes = recipeNode ? parseDuration(recipeNode.cookTime) : sourceRecipe.minutes;
 
   return prisma.$transaction(async (tx) => {
     const recipe = existing
