@@ -152,9 +152,10 @@ async function lookupExternalProduct(barcode: string): Promise<ExternalProduct |
   return null;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   const { barcode: rawBarcode } = await context.params;
   const barcode = decodeURIComponent(rawBarcode).trim();
+  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
 
   if (barcode.length < 4 || barcode.length > 80 || /\s/.test(barcode)) {
     return NextResponse.json(
@@ -168,17 +169,21 @@ export async function GET(_request: Request, context: RouteContext) {
     select: { id: true, name: true, brand: true, barcode: true },
   });
 
-  if (existing) return productResponse(existing, "local");
+  if (existing && !refresh) return productResponse(existing, "local");
 
   if (!supportedExternalBarcode.test(barcode)) {
-    return NextResponse.json({ found: false, source: "local" });
+    return existing
+      ? productResponse(existing, "local")
+      : NextResponse.json({ found: false, source: "local" });
   }
 
   try {
     const externalProduct = await lookupExternalProduct(barcode);
 
     if (!externalProduct) {
-      return NextResponse.json({ found: false, source: "external" });
+      return existing
+        ? productResponse(existing, "local")
+        : NextResponse.json({ found: false, source: "external" });
     }
 
     const saved = await prisma.product.upsert({
@@ -198,6 +203,8 @@ export async function GET(_request: Request, context: RouteContext) {
     return productResponse(saved, externalProduct.source);
   } catch (error) {
     console.error("Unable to look up barcode", error);
+
+    if (existing) return productResponse(existing, "local");
 
     return NextResponse.json(
       {

@@ -16,9 +16,16 @@ const navigation = [
   { label: "Health", href: "/health", icon: "♥" },
 ] as const;
 
+const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
+const mobilePrimaryNavigation = navigation.filter((item) => mobilePrimaryLabels.has(item.label));
+const mobileMoreNavigation = navigation.filter((item) => (
+  !mobilePrimaryLabels.has(item.label) && item.label !== "Scan"
+));
+
 export function AppShell({ children }: { children: ReactNode }) {
   const livePathname = usePathname();
   const [pathname, setPathname] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     // The reverse proxy can expose a different pathname snapshot during hydration.
@@ -27,6 +34,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [livePathname]);
 
   const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
+  const mobileMoreActive = mobileMoreNavigation.some((item) => (
+    item.href === "/" ? pathname === "/" : pathname.startsWith(item.href)
+  ));
 
   return (
     <div className="app-frame">
@@ -50,11 +60,54 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
         <main className="content-shell">{children}</main>
       </div>
+      {mobileMenuOpen ? (
+        <div className="mobile-more-backdrop" onClick={() => setMobileMenuOpen(false)}>
+          <nav
+            aria-label="More navigation"
+            className="mobile-more-menu"
+            id="mobile-more-menu"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="mobile-more-heading">
+              <strong>More</strong>
+              <button aria-label="Close more navigation" onClick={() => setMobileMenuOpen(false)} type="button">×</button>
+            </div>
+            {mobileMoreNavigation.map((item) => {
+              const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+              return (
+                <Link
+                  className={active ? "mobile-more-link active" : "mobile-more-link"}
+                  href={item.href}
+                  key={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span>{item.icon}</span>
+                  <strong>{item.label}</strong>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
+      <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan">
+        <span>⌗</span>
+        Scan
+      </Link>
       <nav className="mobile-nav" aria-label="Mobile navigation">
-        {navigation.map((item) => {
+        {mobilePrimaryNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return <Link className={active ? "mobile-link active" : "mobile-link"} href={item.href} key={item.href}><span>{item.icon}</span><small>{item.label}</small></Link>;
         })}
+        <button
+          aria-controls="mobile-more-menu"
+          aria-expanded={mobileMenuOpen}
+          className={mobileMoreActive || mobileMenuOpen ? "mobile-link active" : "mobile-link"}
+          onClick={() => setMobileMenuOpen((open) => !open)}
+          type="button"
+        >
+          <span>•••</span>
+          <small>More</small>
+        </button>
       </nav>
     </div>
   );
