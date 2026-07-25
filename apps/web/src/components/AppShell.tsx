@@ -29,6 +29,24 @@ type InitialUser = {
   email: string;
 } | null;
 
+function FoodMark() {
+  return (
+    <svg aria-hidden="true" height="40" viewBox="0 0 64 64" width="40">
+      <defs>
+        <linearGradient id="food-bowl" x1="10" x2="54" y1="8" y2="58" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#2f7d5b" />
+          <stop offset="1" stopColor="#174a37" />
+        </linearGradient>
+      </defs>
+      <rect width="64" height="64" rx="20" fill="#f4efe5" />
+      <path d="M13 29h38c-1.4 14.2-8.2 22-19 22S14.4 43.2 13 29Z" fill="url(#food-bowl)" />
+      <path d="M19 27c2.5-8.1 8.2-12.4 17.2-12.9" fill="none" stroke="#e99545" strokeWidth="4" strokeLinecap="round" />
+      <path d="M36.4 13.5c4.8-3.8 10.8-2.5 13.4 1.8-3.6 4.7-9.2 5.8-13.6 2.2-1.4-1.1-1.3-2.9.2-4Z" fill="#4f9d69" />
+      <path d="M32 39.8c-5.2-4.8-10.8-8.6-10.8-13.2 0-3.2 2.3-5.5 5.4-5.5 2.2 0 4.2 1.2 5.4 3.2 1.2-2 3.2-3.2 5.4-3.2 3.1 0 5.4 2.3 5.4 5.5 0 4.6-5.6 8.4-10.8 13.2Z" fill="#fff8ed" />
+    </svg>
+  );
+}
+
 export function AppShell({
   children,
   ownerEmails,
@@ -50,7 +68,6 @@ export function AppShell({
   const mobileItemCount = mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPathname(livePathname);
   }, [livePathname]);
 
@@ -61,7 +78,7 @@ export function AppShell({
     <div className="app-frame">
       <aside className="sidebar">
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
-          <span className="wordmark-mark"><img alt="" height="40" src="/brand/food-mark.svg" width="40" /></span>
+          <span className="wordmark-mark"><FoodMark /></span>
           <span><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
         </Link>
         <nav className="side-nav" aria-label="Primary navigation">
