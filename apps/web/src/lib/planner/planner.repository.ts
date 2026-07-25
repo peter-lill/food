@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
 const recipeImages: Record<string, string> = {
@@ -80,6 +81,19 @@ const starterRecipes: PlannerRecipe[] = [
   },
 ];
 
+const catalogueRecipes: PlannerRecipe[] = externalRecipes.map((recipe) => ({
+  id: `external-${recipe.id}`,
+  name: recipe.name,
+  description: `${recipe.description} Source: ${recipe.sourceName}.`,
+  minutes: recipe.minutes,
+  proteinGrams: null,
+  servings: recipe.servings ?? 1,
+  imageUrl: recipe.imageUrl,
+  instructions: [],
+  ingredients: [],
+  source: "external",
+}));
+
 export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
   const [recipes, pantryItems, shoppingLists] = await Promise.all([
     prisma.recipe.findMany({
@@ -127,8 +141,10 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
     };
   });
 
+  const completeRecipes = liveRecipes.length > 0 ? liveRecipes : starterRecipes;
+
   return {
-    recipes: liveRecipes.length > 0 ? liveRecipes : starterRecipes,
+    recipes: [...completeRecipes, ...catalogueRecipes].sort((left, right) => left.name.localeCompare(right.name)),
     pantryItems: pantryItems.map((item) => ({
       name: item.product.name,
       quantity: item.quantity,
