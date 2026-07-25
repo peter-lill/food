@@ -23,7 +23,7 @@ type ScannerControls = {
 
 type BarcodeLookupResponse = {
   found: boolean;
-  source?: "local" | "open-food-facts" | "upcitemdb";
+  source?: "local" | "open-food-facts" | "upcitemdb" | "serpapi";
   product?: ProductCatalogueItem;
   error?: string;
 };

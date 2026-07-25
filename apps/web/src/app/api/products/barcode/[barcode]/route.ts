@@ -10,7 +10,7 @@ type RouteContext = {
   params: Promise<{ barcode: string }>;
 };
 
-type ProductLookupSource = "local" | "open-food-facts" | "upcitemdb";
+type ProductLookupSource = "local" | "open-food-facts" | "upcitemdb" | "serpapi";
 
 type ExternalProduct = {
   name: string;
@@ -38,6 +38,21 @@ type UpcItemDbResponse = {
   code?: string;
   total?: number;
   items?: UpcItemDbItem[];
+};
+
+type SerpApiProductResult = {
+  title?: unknown;
+  source?: unknown;
+  snippet?: unknown;
+  link?: unknown;
+  product_link?: unknown;
+};
+
+type SerpApiResponse = {
+  shopping_results?: unknown;
+  inline_shopping_results?: unknown;
+  organic_results?: unknown;
+  error?: unknown;
 };
 
 function cleanText(value: unknown, maximumLength: number) {
@@ -132,9 +147,62 @@ async function lookupUpcItemDb(
   return name ? { name, brand, source: "upcitemdb" } : null;
 }
 
+function serpApiCandidates(payload: SerpApiResponse) {
+  const resultGroups = [
+    payload.shopping_results,
+    payload.inline_shopping_results,
+    payload.organic_results,
+  ];
+
+  return resultGroups.flatMap((group) => (
+    Array.isArray(group) ? group : []
+  )) as SerpApiProductResult[];
+}
+
+async function lookupSerpApi(
+  barcode: string,
+  signal: AbortSignal,
+): Promise<ExternalProduct | null> {
+  const apiKey = process.env.SERPAPI_KEY?.trim();
+  if (!apiKey) return null;
+
+  const url = new URL("https://serpapi.com/search.json");
+  url.searchParams.set("engine", "google");
+  url.searchParams.set("q", `"${barcode}"`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("gl", "au");
+  url.searchParams.set("hl", "en");
+  url.searchParams.set(
+    "location",
+    process.env.GROCERY_PRICE_SEARCH_LOCATION?.trim() || "Brisbane, Queensland, Australia",
+  );
+
+  const response = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    signal,
+  });
+
+  if (!response.ok) {
+    throw new Error(`SerpApi returned HTTP ${response.status}.`);
+  }
+
+  const payload = await response.json() as SerpApiResponse;
+  if (typeof payload.error === "string" && payload.error.trim()) {
+    throw new Error(`SerpApi returned an error: ${payload.error.trim()}`);
+  }
+
+  const exactResult = serpApiCandidates(payload).find((result) => (
+    JSON.stringify(result).includes(barcode) && cleanText(result.title, 100)
+  ));
+  const name = cleanText(exactResult?.title, 100);
+
+  return name ? { name, brand: null, source: "serpapi" } : null;
+}
+
 async function lookupExternalProduct(barcode: string): Promise<ExternalProduct | null> {
   const providerErrors: Error[] = [];
-  const providers = [lookupOpenFoodFacts, lookupUpcItemDb];
+  const providers = [lookupOpenFoodFacts, lookupUpcItemDb, lookupSerpApi];
 
   for (const provider of providers) {
     try {
