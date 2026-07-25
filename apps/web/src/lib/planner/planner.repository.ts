@@ -137,7 +137,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
 
   const completeRecipes = liveRecipes.length > 0 ? liveRecipes : starterRecipes;
   const catalogueRecipes: PlannerRecipe[] = externalRecipesWithImages
-    .filter((recipe) => !importedNames.has(recipe.name))
+    .filter((recipe) => recipe.sourceName === "Heart Foundation" && !importedNames.has(recipe.name))
     .map((recipe) => ({
       id: `external-${recipe.id}`,
       name: recipe.name,
