@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAuthSession } from "@/lib/auth-session";
 import { importHeartFoundationRecipe } from "@/lib/recipes/import-heart-foundation-recipe";
+import { cacheExternalRecipeImage } from "@/lib/recipes/local-recipe-image";
 
 export const dynamic = "force-dynamic";
 
@@ -25,7 +26,11 @@ export async function POST(request: NextRequest) {
 
   try {
     const recipe = await importHeartFoundationRecipe(externalRecipeId);
-    return NextResponse.json({ recipeId: recipe.id });
+    const imageUrl = await cacheExternalRecipeImage(externalRecipeId).catch((error) => {
+      console.error("Unable to cache imported recipe image", error);
+      return null;
+    });
+    return NextResponse.json({ recipeId: recipe.id, imageUrl });
   } catch (error) {
     console.error("External recipe import failed", error);
     return NextResponse.json(
