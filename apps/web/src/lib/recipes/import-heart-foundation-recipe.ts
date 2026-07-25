@@ -56,10 +56,10 @@ function parseDuration(value: unknown) {
   return Number(match[1] ?? 0) * 1440 + Number(match[2] ?? 0) * 60 + Number(match[3] ?? 0) + Math.round(Number(match[4] ?? 0) / 60);
 }
 
-function parseServings(value: unknown) {
+function parseServings(value: unknown): number | null {
   const text = Array.isArray(value) ? String(value[0] ?? "") : String(value ?? "");
   const match = text.match(/\d+(?:\.\d+)?/);
-  return match ? Math.max(1, Math.round(Number(match[0]))) : 1;
+  return match ? Math.max(1, Math.round(Number(match[0]))) : null;
 }
 
 function parseQuantityToken(token: string) {
@@ -129,7 +129,13 @@ function cleanIngredientName(value: string) {
 function parseIngredient(value: unknown): ParsedIngredient | null {
   if (typeof value !== "string") return null;
 
-  const tokens = normaliseFractions(value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim()).split(" ");
+  const cleanedValue = value
+    .replace(/\.css-[\w-]+\s*\{[^}]*\}\s*/gi, " ")
+    .replace(/\{[^{}]*(?:font-style|font-weight|text-decoration)[^{}]*\}/gi, " ");
+
+  const tokens = normaliseFractions(
+    cleanedValue.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim(),
+  ).split(" ");
   if (!tokens.length) return null;
 
   let quantity = 1;
@@ -191,10 +197,20 @@ function decodeHtml(value: string) {
 
 function textFromHtml(value: string) {
   return decodeHtml(value)
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
     .replace(/<br\s*\/?\s*>/gi, "\n")
     .replace(/<[^>]+>/g, " ")
+    .replace(/\.css-[\w-]+\s*\{[^}]*\}\s*/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function servingsFromHtml(html: string): number | null {
+  const text = textFromHtml(html);
+
+  const match = text.match(/\b(\d+)\s+serves?\b/i);
+  return match ? Math.max(1, Number(match[1])) : null;
 }
 
 function extractSection(html: string, startLabel: string, endLabels: string[]) {
@@ -210,14 +226,49 @@ function extractSection(html: string, startLabel: string, endLabels: string[]) {
 }
 
 function ingredientsFromHtml(html: string) {
-  const section = extractSection(html, "Ingredients", ["Method", "Directions", "Instructions"]);
+  const section = extractSection(
+    html,
+    "Ingredients",
+    ["Method", "Directions", "Instructions", "Tips"],
+  );
   if (!section) return [];
 
-  const values = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+  const listValues = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
     .map((match) => textFromHtml(match[1]))
     .filter(Boolean);
 
-  return values.map(parseIngredient).filter((entry): entry is ParsedIngredient => Boolean(entry));
+  if (listValues.length) {
+    return listValues
+      .map(parseIngredient)
+      .filter((entry): entry is ParsedIngredient => Boolean(entry));
+  }
+
+  // Step-by-step Heart Foundation pages render one ingredient per visual row
+  // rather than using <li> elements.
+  const plain = decodeHtml(
+    section
+      .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
+      .replace(/<img\b[^>]*>/gi, " ")
+      .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ")
+      .replace(/<\/(?:div|p|span|h[1-6]|section|article)>/gi, "\n")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, " "),
+  );
+
+  const values = plain
+    .split(/\n+/)
+    .map((value) => value.replace(/\s+/g, " ").trim())
+    .map((value) => value.replace(/^>\s*/, ""))
+    .filter(Boolean)
+    .filter((value) => !/^ingredients$/i.test(value))
+    .filter((value) => !/^method$/i.test(value))
+    .filter((value) => !/^<span\b/i.test(value))
+    .filter((value) => !/^css-[\w-]+/i.test(value));
+
+  return values
+    .map(parseIngredient)
+    .filter((entry): entry is ParsedIngredient => Boolean(entry));
 }
 
 function instructionsFromHtml(html: string) {
@@ -245,28 +296,76 @@ function deduplicateIngredients(entries: ParsedIngredient[]) {
   return [...byName.values()];
 }
 
-export async function importHeartFoundationRecipe(externalRecipeId: string) {
+async function fetchRecipeSource(url: string) {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (compatible; FoodRecipeImporter/1.0)",
+          Accept: "text/html,application/xhtml+xml",
+          "Accept-Language": "en-AU,en;q=0.9",
+        },
+        cache: "no-store",
+        signal: AbortSignal.timeout(20_000),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Recipe source returned ${response.status}.`);
+      }
+
+      return response;
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 1000));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+export async function importHeartFoundationRecipe(
+  externalRecipeId: string,
+  options: { force?: boolean } = {},
+) {
   const sourceRecipe = externalRecipes.find((recipe) => recipe.id === externalRecipeId);
   if (!sourceRecipe || sourceRecipe.sourceName !== "Heart Foundation") {
     throw new Error("Only Heart Foundation recipes can currently be imported.");
   }
 
+  const sourceKey = `heart-foundation:${sourceRecipe.id}`;
+
   const existing = await prisma.recipe.findFirst({
-    where: { name: sourceRecipe.name },
+    where: {
+      OR: [
+        { sourceKey },
+        {
+          sourceKey: null,
+          name: sourceRecipe.name,
+        },
+      ],
+    },
     include: { ingredients: { include: { ingredient: true } } },
   });
-  if (existing?.ingredients.length) return existing;
+
+  const existingLooksClean =
+    Boolean(existing?.ingredients.length) &&
+    existing?.sourceKey === sourceKey &&
+    existing!.ingredients.every(
+      (entry) =>
+        !/\.css-|font-style|font-weight|text-decoration|\{|\}/i.test(
+          entry.ingredient.name,
+        ),
+    );
+
+  if (existingLooksClean && !options.force) return existing;
 
   const sourceUrl = sourceAliases.get(sourceRecipe.sourceUrl) ?? sourceRecipe.sourceUrl;
-  const response = await fetch(sourceUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; FoodRecipeImporter/1.0)",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-AU,en;q=0.9",
-    },
-    cache: "no-store",
-  });
-  if (!response.ok) throw new Error(`Recipe source returned ${response.status}.`);
+  const response = await fetchRecipeSource(sourceUrl);
 
   const html = await response.text();
   const pattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
@@ -292,7 +391,11 @@ export async function importHeartFoundationRecipe(externalRecipeId: string) {
   const description = recipeNode && typeof recipeNode.description === "string"
     ? recipeNode.description.trim()
     : sourceRecipe.description;
-  const servings = recipeNode ? parseServings(recipeNode.recipeYield) : sourceRecipe.servings ?? 1;
+  const servings =
+    servingsFromHtml(html) ??
+    (recipeNode ? parseServings(recipeNode.recipeYield) : null) ??
+    sourceRecipe.servings ??
+    1;
   const prepMinutes = recipeNode ? parseDuration(recipeNode.prepTime) : null;
   const cookMinutes = recipeNode ? parseDuration(recipeNode.cookTime) : sourceRecipe.minutes;
 
@@ -300,7 +403,16 @@ export async function importHeartFoundationRecipe(externalRecipeId: string) {
     const recipe = existing
       ? await tx.recipe.update({
           where: { id: existing.id },
-          data: { description, servings, prepMinutes, cookMinutes, instructions: instructions.join("\n") },
+          data: {
+            description,
+            servings,
+            prepMinutes,
+            cookMinutes,
+            instructions: instructions.join("\n"),
+            sourceKey,
+            sourceName: sourceRecipe.sourceName,
+            sourceUrl,
+          },
         })
       : await tx.recipe.create({
           data: {
@@ -310,6 +422,9 @@ export async function importHeartFoundationRecipe(externalRecipeId: string) {
             prepMinutes,
             cookMinutes,
             instructions: instructions.join("\n"),
+            sourceKey,
+            sourceName: sourceRecipe.sourceName,
+            sourceUrl,
           },
         });
 

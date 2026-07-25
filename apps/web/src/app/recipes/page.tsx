@@ -15,15 +15,13 @@ export const metadata = {
 };
 
 async function materialiseHeartFoundationRecipes() {
-  const existing = await prisma.recipe.findMany({ select: { name: true } });
-  const existingNames = new Set(existing.map((recipe) => recipe.name));
-  const missing = externalRecipes.filter(
-    (recipe) => recipe.sourceName === "Heart Foundation" && !existingNames.has(recipe.name),
+  const heartFoundationRecipes = externalRecipes.filter(
+    (recipe) => recipe.sourceName === "Heart Foundation",
   );
 
   const batchSize = 4;
-  for (let index = 0; index < missing.length; index += batchSize) {
-    const batch = missing.slice(index, index + batchSize);
+  for (let index = 0; index < heartFoundationRecipes.length; index += batchSize) {
+    const batch = heartFoundationRecipes.slice(index, index + batchSize);
     await Promise.allSettled(
       batch.map(async (recipe) => {
         await importHeartFoundationRecipe(recipe.id);
@@ -46,7 +44,17 @@ export default async function RecipesPage() {
 
   const { recipes: plannerRecipes } = await getPlannerWorkspace();
   const completeRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
-  const completeRecipeNames = new Set(completeRecipes.map((recipe) => recipe.name));
+
+  // Imported Heart Foundation recipes have a stable source identity.
+  // Suppress their external catalogue card once the full local recipe exists.
+  const importedHeartFoundationKeys = new Set(
+    completeRecipes
+      .map((recipe) => recipe.sourceKey)
+      .filter((sourceKey): sourceKey is string =>
+        Boolean(sourceKey?.startsWith("heart-foundation:")),
+      ),
+  );
+
   const catalogueRecipes = [
     ...new Map(
       externalRecipes
@@ -59,7 +67,8 @@ export default async function RecipesPage() {
         // materialised so the recipe is not silently lost from the library.
         .filter(
           (recipe) =>
-            recipe.sourceName !== "Heart Foundation" || !completeRecipeNames.has(recipe.name),
+            recipe.sourceName !== "Heart Foundation" ||
+            !importedHeartFoundationKeys.has(`heart-foundation:${recipe.id}`),
         )
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),

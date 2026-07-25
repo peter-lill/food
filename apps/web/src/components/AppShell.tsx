@@ -60,9 +60,16 @@ export function AppShell({
 }) {
   const livePathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
+  const [hydrated, setHydrated] = useState(false);
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const user = isPending ? initialUser : session?.user ?? null;
+
+  // Keep the server-provided user for the first client render so navigation,
+  // links and ownership state exactly match the SSR output. Once hydrated,
+  // Better Auth becomes the live source of session state.
+  const user = !hydrated || isPending
+    ? initialUser
+    : session?.user ?? null;
   const owner = Boolean(user?.email && ownerEmails.includes(user.email.toLocaleLowerCase()));
   const ownerItems = initialHealthPaired
     ? ownerNavigation
@@ -73,6 +80,7 @@ export function AppShell({
   const mobileItemCount = mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
 
   useEffect(() => {
+    setHydrated(true);
     setPathname(livePathname);
   }, [livePathname]);
 

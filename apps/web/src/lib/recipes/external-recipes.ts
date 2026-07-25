@@ -1,3 +1,16 @@
+import bhfCatalogue from "@/generated/bhf-recipes.json";
+
+export type ExternalRecipeNutrition = {
+  energyKj: number | null;
+  calories: number | null;
+  carbsGrams: number | null;
+  fibreGrams: number | null;
+  fatGrams: number | null;
+  saturatedFatGrams: number | null;
+  sugarGrams: number | null;
+  saltGrams: number | null;
+};
+
 export type ExternalRecipe = {
   id: string;
   name: string;
@@ -12,6 +25,9 @@ export type ExternalRecipe = {
   imageUrl: string | null;
   minutes: number | null;
   servings: number | null;
+  prepMinutes?: number | null;
+  cookMinutes?: number | null;
+  nutrition?: ExternalRecipeNutrition | null;
   licence: string;
   tags: string[];
 };
@@ -165,84 +181,26 @@ const heartFoundationRecipes = makeRecipes("Heart Foundation", [
   ["hf-mushroom-lentil-risotto", "Mixed Mushroom and Lentil Risotto", "https://www.heartfoundation.org.au/recipes/mixed-mushroom-and-lentil-risotto", ["Legumes", "Vegetarian"]],
   ["hf-beef-lentil-bolognese", "Beef and Lentil Bolognese", "https://www.heartfoundation.org.au/recipes/beef-and-lentil-bolognese", ["Lean protein", "Legumes", "High fibre"]],
   ["hf-six-ingredient-salmon", "Six Ingredient Salmon", "https://www.heartfoundation.org.au/recipes/six-ingredient-salmon", ["Fish", "Omega-3", "Quick"]],
-  ["hf-roast-vegetable-frittata", "Roast Vegetable Frittata", "https://www.heartfoundation.org.au/recipes/roast-vegetable-frittata", ["Vegetarian", "Vegetables"]],
+  ["hf-green-goodness-frittata", "Green Goodness Frittata", "https://www.heartfoundation.org.au/recipes/step-by-step/green-goodness-frittata", ["Vegetarian", "Vegetables"]],
 ]);
 
-const bhfBase = "https://www.bhf.org.uk/informationsupport/support/healthy-living/healthy-eating/recipe-finder";
-const bhf = (slug: string) => `${bhfBase}/${slug}`;
-
-const britishHeartFoundationRecipes = makeRecipes("British Heart Foundation", [
-  ["bhf-vegetable-lasagne", "Mediterranean Vegetable Lasagne", bhf("mediterranean-vegetable-lasagne"), ["Vegetarian", "Vegetables"]],
-  ["bhf-bean-chilli", "Vegetarian Bean Chilli", bhf("vegetarian-bean-chilli"), ["Legumes", "High fibre"]],
-  ["bhf-wholewheat-nachos", "Wholewheat Nachos with Guacamole and Tomato Salsa", bhf("wholewheat-nachos-with-guacamole-and-tomato-salsa"), ["Wholegrain", "Vegetarian"]],
-  ["bhf-banana-oat-cookies", "Banana Oat Cookies", bhf("banana-oat-cookies"), ["Oats", "Snack"]],
-  ["bhf-black-bean-burritos", "Black Bean and Sweet Potato Burritos", bhf("black-bean-and-sweet-potato-burritos"), ["Legumes", "High fibre"]],
-  ["bhf-garlicky-mushrooms-beans", "Garlicky Mushrooms with Baked Beans", bhf("garlicky-mushrooms-with-baked-beans"), ["Legumes", "Vegetarian"]],
-  ["bhf-shakshuka", "Shakshuka", bhf("shakshuka"), ["Vegetarian", "Vegetables"]],
-  ["bhf-trout-almond", "Trout Fillets with an Almond Crust", bhf("trout-fillets-with-an-almond-crust"), ["Fish", "Omega-3"]],
-  ["bhf-red-pepper-pasta", "Roasted Tomato and Red Pepper Pasta", bhf("roasted-tomato-and-red-pepper-pasta"), ["Vegetarian", "Pasta"]],
-  ["bhf-carrot-lentil-soup", "Red Pepper, Carrot and Lentil Soup", bhf("red-pepper-carrot-and-lentil-soup"), ["Legumes", "Soup"]],
-  ["bhf-green-pesto-pasta", "Green Pesto Pasta", bhf("green-pesto-pasta"), ["Vegetarian", "Pasta"]],
-  ["bhf-vegetable-frittata", "Mediterranean Vegetable Frittata", bhf("mediterranean-vegetable-frittata"), ["Vegetarian", "Vegetables"]],
-  ["bhf-tuna-pasta", "Low-fat Creamy Tuna Pasta", bhf("low-fat-creamy-tuna-pasta"), ["Fish", "Pasta"]],
-  ["bhf-lentil-stew", "Lentil Stew", bhf("lentil-stew"), ["Legumes", "High fibre"]],
-  ["bhf-green-minestrone", "Green Minestrone Soup", bhf("green-minestrone-soup"), ["Legumes", "Soup"]],
-  ["bhf-fish-tacos", "Fish Tacos", bhf("fish-tacos"), ["Fish", "Vegetables"]],
-  ["bhf-squash-lentils", "Baked Butternut Squash with Lentils", bhf("baked-butternut-squash-with-lentils"), ["Legumes", "High fibre"]],
-  ["bhf-cauliflower-curry", "Cauliflower, Pea and Potato Curry", bhf("cauliflower-pea-and-potato-curry"), ["Vegetarian", "Vegetables"]],
-  ["bhf-avocado-egg-toast", "Avocado and Poached Egg on Toast", bhf("avocado-and-poached-egg-on-toast"), ["Unsaturated fat", "Breakfast"]],
-  ["bhf-leek-mushroom-linguine", "Linguine with Leeks and Mushrooms", bhf("linguine-with-leeks-and-mushrooms"), ["Vegetarian", "Pasta"]],
-  ["bhf-garlic-lemon-prawns", "Garlic and Lemon Prawns with Courgettes", bhf("garlic-and-lemon-prawns-with-courgettes"), ["Seafood", "Vegetables"]],
-  ["bhf-beetroot-hummus", "Beetroot Hummus", bhf("beetroot-hummus"), ["Legumes", "Snack"]],
-  ["bhf-carrot-coriander-soup", "Carrot and Coriander Soup", bhf("carrot-and-coriander-soup"), ["Vegetarian", "Soup"]],
-  ["bhf-curried-lentil-soup", "Curried Lentil Soup with Yogurt Drizzle", bhf("curried-lentil-soup-with-yogurt-drizzle"), ["Legumes", "Soup"]],
-  ["bhf-cabbage-bean-soup", "Tomato, Cabbage and Cannellini Bean Soup", bhf("tomato-cabbage-and-cannellini-beans-soup"), ["Legumes", "Soup"]],
-  ["bhf-salmon-chickpea-traybake", "Indian-spiced Salmon and Chickpea Traybake", bhf("indian-spiced-salmon-and-chickpea-traybake"), ["Fish", "Legumes", "One pan"]],
-  ["bhf-watermelon-bean-salad", "Watermelon, Butter Bean and Orange Salad", bhf("watermelon-butter-bean-and-orange-salad"), ["Legumes", "Salad"]],
-  ["bhf-bulgur-broccoli-salad", "Bulgur Wheat Salad with Broccoli", bhf("bulgur-wheat-salad-with-broccoli"), ["Wholegrain", "Salad"]],
-  ["bhf-quick-fish-stew", "Quick Fish Stew", bhf("quick-fish-stew"), ["Fish", "Quick"]],
-  ["bhf-fishermans-pie", "Fisherman’s Pie", bhf("fishermans-pie"), ["Fish", "Vegetables"]],
-  ["bhf-turkey-bean-bake", "Turkey, Leek and Bean Bake", bhf("turkey-leek-and-bean-bake"), ["Lean protein", "Legumes"]],
-  ["bhf-fish-pie-cauliflower", "Fish Pie with Carrot and Cauliflower Mash", bhf("fish-pie-with-carrot-and-cauliflower-mash"), ["Fish", "Vegetables"]],
-  ["bhf-mushroom-burgers", "Giant Garlic Mushroom Burgers", bhf("giant-garlic-mushroom-burgers"), ["Vegetarian", "Vegetables"]],
-  ["bhf-vegetable-balti", "Vegetable Balti", bhf("vegetable-balti"), ["Vegetarian", "Vegetables"]],
-  ["bhf-yam-pea-soup", "Yam and Gungo Pea Soup", bhf("yam-and-gungo-pigeon-pea-soup"), ["Legumes", "Soup"]],
-  ["bhf-whole-urad-dhal", "Whole Urad Dhal", bhf("whole-urad-dhal"), ["Legumes", "High fibre"]],
-  ["bhf-sardine-spaghetti", "Wholewheat Spaghetti with Sardines and Cherry Tomatoes", bhf("wholewheat-spaghetti-with-sardines-and-cherry-tomatoes"), ["Fish", "Omega-3", "Wholegrain"]],
-  ["bhf-whole-mung-dhal", "Whole Mung Dhal", bhf("whole-mung-dhal"), ["Legumes", "High fibre"]],
-  ["bhf-wholemeal-roti", "Wholemeal Chapati or Roti", bhf("wholemeal-chapati-or-roti"), ["Wholegrain", "Side"]],
-  ["bhf-watercress-soup", "Watercress Soup", bhf("watercress-soup"), ["Vegetarian", "Soup"]],
-  ["bhf-shepherds-pie", "Vegetarian Shepherd’s Pie with Polenta Topping", bhf("vegetarian-shepherds-pie-with-polenta-topping"), ["Legumes", "Vegetarian"]],
-  ["bhf-sweet-potato-chilli", "Vegetarian Chilli with Sweet Potato", bhf("vegetarian-chilli-with-sweet-potato"), ["Legumes", "High fibre"]],
-  ["bhf-tofu-noodles", "Vegetable Stir-fry with Tofu and Noodles", bhf("veggie-stir-fry"), ["Plant protein", "Vegetables"]],
-  ["bhf-vegetable-biryani", "Vegetable Biryani", bhf("vegetable-biryani"), ["Vegetarian", "Wholegrain"]],
-  ["bhf-vegan-jambalaya", "Vegan Jambalaya Rice Pot", bhf("vegan-jambalaya-rice-pot"), ["Legumes", "Vegan"]],
-  ["bhf-tuscan-bean-stew", "Tuscan Bean and Vegetable Stew", bhf("tuscan-bean-and-vegetable-stew"), ["Legumes", "High fibre"]],
-  ["bhf-tuna-fish-cakes", "Tuna Fish Cakes", bhf("tuna-fish-cakes"), ["Fish", "Quick"]],
-  ["bhf-tuna-risotto", "Tuna and Courgette Risotto", bhf("tuna-and-courgette-risotto"), ["Fish", "Vegetables"]],
-  ["bhf-trout-kedgeree", "Trout Kedgeree", bhf("trout-kedgeree"), ["Fish", "Omega-3"]],
-  ["bhf-three-bean-pasta", "Three-bean Pasta Twist Salad", bhf("three-bean-pasta-twist-salad"), ["Legumes", "Salad"]],
-  ["bhf-tandoori-salmon", "Tandoori Salmon Kebabs", bhf("tandoori-salmon-kebabs"), ["Fish", "Omega-3"]],
-  ["bhf-sweet-potato-curry", "Sweet Potato Curry with Spinach and Chickpeas", bhf("sweet-potato-curry-with-spinach-and-chick-peas"), ["Legumes", "High fibre"]],
-  ["bhf-salmon-tagliatelle", "Tagliatelle with Salmon and Courgettes", bhf("tagliatelle-with-salmon-and-courgettes"), ["Fish", "Pasta"]],
-  ["bhf-quinoa-buddha-bowl", "Sweet Potato and Quinoa Buddha Bowl", bhf("sweet-potato-and-quinoa-buddha-bowl"), ["Wholegrain", "Vegetarian"]],
-  ["bhf-summer-rolls", "Summer Rolls", bhf("summer-rolls-recipe"), ["Vegetables", "Light meal"]],
-  ["bhf-tofu-pak-choi", "Stir-fried Tofu with Pak Choi", bhf("stir-fried-tofu-with-pak-choi"), ["Plant protein", "Vegetables"]],
-  ["bhf-moong-dhal", "Moong Dhal", bhf("moong-dhal-mung-dal"), ["Legumes", "High fibre"]],
-  ["bhf-squash-spinach-soup", "Spicy Squash and Spinach Soup", bhf("spicy-squash-and-spinach-soup"), ["Vegetarian", "Soup"]],
-  ["bhf-spicy-lentil-soup", "Spicy Carrot and Lentil Soup", bhf("spicy-carrot-and-lentil-soup"), ["Legumes", "Soup"]],
-  ["bhf-vegetable-couscous", "Spiced Vegetable Couscous", bhf("spiced-vegetable-couscous"), ["Wholegrain", "Vegetables"]],
-  ["bhf-tofu-carrot-burgers", "Spiced Tofu and Carrot Burgers", bhf("spiced-tofu-and-carrot-burgers"), ["Plant protein", "Vegetables"]],
-  ["bhf-vegetarian-fried-rice", "Vegetarian Stir-fried Rice", bhf("special-vegetarian-stir-fried-rice"), ["Vegetarian", "Vegetables"]],
-  ["bhf-spanish-lentils-eggs", "Spanish-style Lentils with Eggs", bhf("spanish-style-lentils-with-eggs"), ["Legumes", "High fibre"]],
-  ["bhf-smoky-cod-stew", "Smoky Cod Stew", bhf("smoky-cod-stew"), ["Fish", "Soup"]],
-  ["bhf-prawn-fajitas", "Sizzling Prawn Fajitas", bhf("sizzling-prawn-fajitas"), ["Seafood", "Vegetables"]],
-  ["bhf-seafood-paella", "Seafood Paella", bhf("seafood-paella"), ["Seafood", "Vegetables"]],
-  ["bhf-seared-salmon", "Seared Salmon with Watercress Sauce", bhf("seared-salmon-with-watercress-sauce"), ["Fish", "Omega-3"]],
-  ["bhf-salmon-beetroot", "Salmon with Honey-roast Beetroot Salad", bhf("salmon-with-honey-roast-beetroot-salad"), ["Fish", "Omega-3", "Salad"]],
-  ["bhf-salmon-traybake", "Salmon Traybake", bhf("salmon-traybake"), ["Fish", "Omega-3", "One pan"]],
-  ["bhf-chickpea-tagine", "Roast Vegetable and Chickpea Tagine", bhf("roast-vegetable-and-chickpea-tagine"), ["Legumes", "Vegetarian"]],
-]);
+const britishHeartFoundationRecipes: ExternalRecipe[] =
+  bhfCatalogue.recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    description: recipe.description,
+    sourceName: "British Heart Foundation",
+    sourceUrl: recipe.sourceUrl,
+    sourceHomeUrl: recipe.sourceHomeUrl,
+    imageUrl: null,
+    minutes: recipe.minutes,
+    servings: recipe.servings,
+    prepMinutes: recipe.prepMinutes,
+    cookMinutes: recipe.cookMinutes,
+    nutrition: recipe.nutrition,
+    licence: recipe.licence,
+    tags: recipe.tags,
+  }));
 
 const mayoRecipes = makeRecipes("Mayo Clinic", [
   ["mayo-white-bean-dip", "Artichoke, Spinach and White Bean Dip", "https://www.mayoclinic.org/healthy-lifestyle/recipes/artichoke-spinach-white-bean-dip/rcp-20152939", ["Legumes", "Vegetables"]],
