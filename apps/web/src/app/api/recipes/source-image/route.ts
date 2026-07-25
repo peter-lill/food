@@ -138,7 +138,7 @@ export async function GET(request: NextRequest) {
         Accept: "text/html,application/xhtml+xml",
         "Accept-Language": "en-AU,en;q=0.9",
       },
-      next: { revalidate: 60 * 60 * 24 * 7 },
+      cache: "no-store",
     });
 
     if (!pageResponse.ok) return new NextResponse(null, { status: 404 });
@@ -152,7 +152,7 @@ export async function GET(request: NextRequest) {
         Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         Referer: sourceUrl.toString(),
       },
-      next: { revalidate: 60 * 60 * 24 * 7 },
+      cache: "no-store",
     });
 
     const contentType = imageResponse.headers.get("content-type") ?? "";
