@@ -39,6 +39,8 @@ export type LiveGroceryRetailerTotal = {
 export type LiveGroceryPriceSearchResponse = {
   status: "success";
   provider: "SerpApi Google Shopping";
+  listId: string;
+  listName: string;
   location: string;
   locationSource: SearchLocationSource;
   allowSubstitutes: boolean;
