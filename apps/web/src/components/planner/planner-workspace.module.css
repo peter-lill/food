@@ -124,6 +124,7 @@
 }
 
 .recipeDetail {
+  position: relative;
   display: grid;
   gap: 7px;
   width: 100%;
@@ -133,15 +134,26 @@
   border-radius: 13px;
   background: var(--surface-soft);
   color: var(--ink);
-  cursor: pointer;
-  font: inherit;
   text-align: left;
 }
 
-.recipeDetail:hover,
-.recipeDetail:focus-visible {
+.recipeDetail:has(.recipeCardAction:hover),
+.recipeDetail:has(.recipeCardAction:focus-visible) {
   border-color: var(--accent);
-  outline: none;
+}
+
+.recipeCardAction {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.recipeCardAction:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: 2px;
 }
 
 .recipeDetail p,
