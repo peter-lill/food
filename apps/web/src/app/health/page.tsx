@@ -1,3 +1,4 @@
+import { requireAuthSession } from "@/lib/auth-session";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
 import {
   formatDistance,
@@ -8,7 +9,8 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function HealthPage() {
-  const summary = await getLatestHealthSummary().catch(() => null);
+  const session = await requireAuthSession();
+  const summary = await getLatestHealthSummary(session.user.id).catch(() => null);
 
   if (!summary) {
     return (
@@ -18,8 +20,8 @@ export default async function HealthPage() {
         <section className="card" style={{ marginTop: 16 }}>
           <h2 className="section-title">No health data synced</h2>
           <p className="subtle">
-            Open the Android companion, enter this Food server address and sync
-            token, then tap <strong>Sync to Food</strong>.
+            Generate a pairing code from Your account, pair the Android companion,
+            then sync Health Connect. Data from that device will be stored against this Food account.
           </p>
         </section>
       </>
