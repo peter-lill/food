@@ -3,6 +3,8 @@ import { getAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
 import { prisma } from "@/lib/prisma";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { importHeartFoundationRecipe } from "@/lib/recipes/import-heart-foundation-recipe";
+import { cacheExternalRecipeImage } from "@/lib/recipes/local-recipe-image";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
 export const dynamic = "force-dynamic";
@@ -12,13 +14,39 @@ export const metadata = {
   description: "Browse complete recipes, ingredients and cooking methods.",
 };
 
-export default async function RecipesPage() {
-  const [{ recipes: plannerRecipes }, session] = await Promise.all([
-    getPlannerWorkspace(),
-    getAuthSession(),
-  ]);
+async function materialiseHeartFoundationRecipes() {
+  const existing = await prisma.recipe.findMany({ select: { name: true } });
+  const existingNames = new Set(existing.map((recipe) => recipe.name));
+  const missing = externalRecipes.filter(
+    (recipe) => recipe.sourceName === "Heart Foundation" && !existingNames.has(recipe.name),
+  );
 
+  const batchSize = 4;
+  for (let index = 0; index < missing.length; index += batchSize) {
+    const batch = missing.slice(index, index + batchSize);
+    await Promise.allSettled(
+      batch.map(async (recipe) => {
+        await importHeartFoundationRecipe(recipe.id);
+        await cacheExternalRecipeImage(recipe.id).catch((error) => {
+          console.error(`Unable to cache image for ${recipe.id}`, error);
+        });
+      }),
+    );
+  }
+}
+
+export default async function RecipesPage() {
+  const session = await getAuthSession();
+
+  try {
+    await materialiseHeartFoundationRecipes();
+  } catch (error) {
+    console.error("Unable to materialise Heart Foundation recipe catalogue", error);
+  }
+
+  const { recipes: plannerRecipes } = await getPlannerWorkspace();
   const completeRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
+  const completeRecipeNames = new Set(completeRecipes.map((recipe) => recipe.name));
   const catalogueRecipes = [
     ...new Map(
       externalRecipes
@@ -26,6 +54,13 @@ export default async function RecipesPage() {
         // dish photo. Do not show blank cards (or generic Mayo branding) in
         // the visual catalogue; keep sources with actual recipe photography.
         .filter((recipe) => recipe.sourceName !== "Mayo Clinic")
+        // Successfully imported Heart Foundation recipes are now full Food
+        // recipe cards. Only keep a source card when an import could not be
+        // materialised so the recipe is not silently lost from the library.
+        .filter(
+          (recipe) =>
+            recipe.sourceName !== "Heart Foundation" || !completeRecipeNames.has(recipe.name),
+        )
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
