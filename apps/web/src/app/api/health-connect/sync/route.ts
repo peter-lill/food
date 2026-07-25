@@ -30,26 +30,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Device token is invalid or expired." }, { status: 401 });
   }
 
+  let userId = "";
+  try {
+    const data = JSON.parse(device.value) as { userId?: unknown };
+    userId = typeof data.userId === "string" ? data.userId : "";
+  } catch {
+    userId = "";
+  }
+  if (!userId) {
+    return NextResponse.json({ error: "Paired device is not linked to a user." }, { status: 401 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const metrics = Array.isArray(body.metrics) ? body.metrics as IncomingMetric[] : [];
   if (metrics.length === 0 || metrics.length > 500) {
     return NextResponse.json({ error: "Provide between 1 and 500 health metrics." }, { status: 400 });
   }
 
-  const parsed = metrics.map((metric) => {
-    const type = typeof metric.type === "string" ? metric.type as HealthMetricType : null;
-    const value = typeof metric.value === "number" ? metric.value : Number(metric.value);
-    const recordedAt = typeof metric.recordedAt === "string" ? new Date(metric.recordedAt) : new Date(NaN);
-    const source = typeof metric.source === "string" ? metric.source.slice(0, 100) : "Android Health Connect";
-
-    if (!type || !validTypes.has(type) || !Number.isFinite(value) || Number.isNaN(recordedAt.getTime())) {
-      throw new Error("One or more metrics are invalid.");
-    }
-
-    return { type, value, recordedAt, source };
-  });
-
   try {
+    const parsed = metrics.map((metric) => {
+      const type = typeof metric.type === "string" ? metric.type as HealthMetricType : null;
+      const value = typeof metric.value === "number" ? metric.value : Number(metric.value);
+      const recordedAt = typeof metric.recordedAt === "string" ? new Date(metric.recordedAt) : new Date(NaN);
+      const rawSource = typeof metric.source === "string" ? metric.source.slice(0, 100) : "Android Health Connect";
+      const source = `user:${userId}:${rawSource}`;
+
+      if (!type || !validTypes.has(type) || !Number.isFinite(value) || Number.isNaN(recordedAt.getTime())) {
+        throw new Error("One or more metrics are invalid.");
+      }
+
+      return { type, value, recordedAt, source };
+    });
+
     const result = await prisma.healthMetric.createMany({ data: parsed });
     return NextResponse.json({ accepted: result.count });
   } catch (error) {
