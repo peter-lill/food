@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
+import { BhfRecipeModal } from "./BhfRecipeModal";
 
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
@@ -347,114 +348,10 @@ export function RecipesGallery({
       ) : null}
 
       {openExternalRecipe ? (
-        <div className={styles.backdrop} onClick={() => setOpenExternalRecipe(null)}>
-          <article
-            aria-labelledby="external-recipe-dialog-title"
-            aria-modal="true"
-            className={styles.modal}
-            onClick={(event) => event.stopPropagation()}
-            role="dialog"
-          >
-            <button
-              aria-label="Close recipe"
-              className={styles.close}
-              onClick={() => setOpenExternalRecipe(null)}
-              type="button"
-            >
-              ×
-            </button>
-
-            <div className={styles.modalContent}>
-              <div>
-                <p className="eyebrow">BRITISH HEART FOUNDATION</p>
-                <h2 className={styles.modalTitle} id="external-recipe-dialog-title">
-                  {openExternalRecipe.name}
-                </h2>
-                <p className="subtle">
-                  Recipe information from the British Heart Foundation.
-                </p>
-              </div>
-
-              <div className={styles.summary}>
-                {openExternalRecipe.servings ? (
-                  <span><strong>{openExternalRecipe.servings}</strong> servings</span>
-                ) : null}
-
-                {openExternalRecipe.prepMinutes ? (
-                  <span><strong>{openExternalRecipe.prepMinutes}</strong> min prep</span>
-                ) : null}
-
-                {openExternalRecipe.cookMinutes ? (
-                  <span><strong>{openExternalRecipe.cookMinutes}</strong> min cook</span>
-                ) : null}
-
-                {openExternalRecipe.minutes ? (
-                  <span><strong>{openExternalRecipe.minutes}</strong> min total</span>
-                ) : null}
-              </div>
-
-              {openExternalRecipe.tags.length > 0 ? (
-                <section className={styles.recipeSection}>
-                  <h3>Categories</h3>
-                  <div className={styles.meta}>
-                    {openExternalRecipe.tags.map((tag) => (
-                      <span key={tag}>{tag}</span>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-
-              {openExternalRecipe.nutrition ? (
-                <section className={styles.recipeSection}>
-                  <h3>Nutrition per serving</h3>
-                  <div className={styles.summary}>
-                    {openExternalRecipe.nutrition.energyKj != null ? (
-                      <span><strong>{Math.round(openExternalRecipe.nutrition.energyKj)}</strong> kJ</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.calories != null ? (
-                      <span><strong>{Math.round(openExternalRecipe.nutrition.calories)}</strong> kcal</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.carbsGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.carbsGrams}</strong> g carbs</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.fibreGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.fibreGrams}</strong> g fibre</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.fatGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.fatGrams}</strong> g fat</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.saturatedFatGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.saturatedFatGrams}</strong> g saturates</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.sugarGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.sugarGrams}</strong> g sugar</span>
-                    ) : null}
-                    {openExternalRecipe.nutrition.saltGrams != null ? (
-                      <span><strong>{openExternalRecipe.nutrition.saltGrams}</strong> g salt</span>
-                    ) : null}
-                  </div>
-                </section>
-              ) : null}
-
-              <section className={styles.recipeSection}>
-                <h3>Full recipe</h3>
-                <p className="subtle">
-                  Ingredients and cooking method remain on the British Heart Foundation website.
-                </p>
-                <p className={styles.attribution}>
-                  Original source: British Heart Foundation ·{" "}
-                  <a
-                    href={openExternalRecipe.sourceUrl}
-                    rel="noopener noreferrer"
-                    target="_blank"
-                  >
-                    View full recipe at BHF ↗
-                  </a>
-                </p>
-              </section>
-            </div>
-          </article>
-        </div>
+        <BhfRecipeModal
+          onClose={() => setOpenExternalRecipe(null)}
+          recipe={openExternalRecipe}
+        />
       ) : null}
 
       {openRecipe ? (

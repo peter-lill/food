@@ -192,7 +192,7 @@ const britishHeartFoundationRecipes: ExternalRecipe[] =
     sourceName: "British Heart Foundation",
     sourceUrl: recipe.sourceUrl,
     sourceHomeUrl: recipe.sourceHomeUrl,
-    imageUrl: null,
+    imageUrl: recipe.imageUrl,
     minutes: recipe.minutes,
     servings: recipe.servings,
     prepMinutes: recipe.prepMinutes,
