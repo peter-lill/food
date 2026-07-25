@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
+import { HealthConnectPairing } from "./HealthConnectPairing";
 import { LocationPreferences } from "./LocationPreferences";
 import styles from "./account.module.css";
 
@@ -53,6 +54,8 @@ export function AccountPanel({
           Manage households
         </Link>
       </section>
+
+      <HealthConnectPairing />
 
       <LocationPreferences
         initialLocation={homeLocation}
