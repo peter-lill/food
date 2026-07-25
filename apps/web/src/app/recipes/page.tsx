@@ -3,6 +3,7 @@ import { getAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
 import { prisma } from "@/lib/prisma";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { withSourceImage } from "@/lib/recipes/recipe-image";
 
 export const dynamic = "force-dynamic";
 
@@ -12,10 +13,12 @@ export const metadata = {
 };
 
 export default async function RecipesPage() {
-  const [{ recipes }, session] = await Promise.all([
+  const [{ recipes: plannerRecipes }, session] = await Promise.all([
     getPlannerWorkspace(),
     getAuthSession(),
   ]);
+  const completeRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
+  const catalogueRecipes = externalRecipes.map(withSourceImage);
   const favourites = session
     ? await prisma.recipeFavourite.findMany({
         where: { userId: session.user.id },
@@ -34,14 +37,14 @@ export default async function RecipesPage() {
           </p>
         </div>
         <span className="badge neutral">
-          {recipes.length + externalRecipes.length} recipe{recipes.length + externalRecipes.length === 1 ? "" : "s"}
+          {completeRecipes.length + catalogueRecipes.length} recipe{completeRecipes.length + catalogueRecipes.length === 1 ? "" : "s"}
         </span>
       </header>
 
       <RecipesGallery
-        externalRecipes={externalRecipes}
+        externalRecipes={catalogueRecipes}
         initialFavouriteIds={favourites.map((favourite) => favourite.externalRecipeId)}
-        recipes={recipes}
+        recipes={completeRecipes}
         signedIn={Boolean(session)}
       />
     </div>
