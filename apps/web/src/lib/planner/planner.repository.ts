@@ -119,7 +119,11 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       minutes: totalMinutes > 0 ? totalMinutes : null,
       proteinGrams: recipe.proteinGrams,
       servings: recipe.servings,
-      imageUrl: recipeImages[recipe.name] ?? externalRecipe?.imageUrl ?? null,
+      imageUrl:
+        recipeImages[recipe.name] ??
+        (externalRecipe?.sourceName === "Heart Foundation"
+          ? `/api/recipes/local-image/${externalRecipe.id}`
+          : externalRecipe?.imageUrl ?? null),
       instructions: recipe.instructions
         ? recipe.instructions
           .split(/\r?\n/)
@@ -135,7 +139,10 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
     };
   });
 
-  const completeRecipes = liveRecipes.length > 0 ? liveRecipes : starterRecipes;
+  const completeRecipes = [
+    ...starterRecipes.filter((recipe) => !importedNames.has(recipe.name)),
+    ...liveRecipes,
+  ];
   const catalogueRecipes: PlannerRecipe[] = externalRecipesWithImages
     .filter((recipe) => recipe.sourceName === "Heart Foundation" && !importedNames.has(recipe.name))
     .map((recipe) => ({
