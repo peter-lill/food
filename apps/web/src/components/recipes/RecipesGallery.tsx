@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
@@ -9,12 +10,28 @@ import styles from "./recipes-gallery.module.css";
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
   externalRecipes: ExternalRecipe[];
+  initialFavouriteIds: string[];
+  signedIn: boolean;
 };
 
-export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps) {
+export function RecipesGallery({
+  recipes,
+  externalRecipes,
+  initialFavouriteIds,
+  signedIn,
+}: RecipesGalleryProps) {
+  const router = useRouter();
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
   const [recipeQuery, setRecipeQuery] = useState("");
   const [recipeSource, setRecipeSource] = useState("All sources");
+  const [favouriteRecipeIds, setFavouriteRecipeIds] = useState<Set<string>>(
+    () => new Set(initialFavouriteIds),
+  );
+  const [pendingFavouriteIds, setPendingFavouriteIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [favouriteError, setFavouriteError] = useState("");
+  const [showFavouritesOnly, setShowFavouritesOnly] = useState(false);
 
   const recipeSources = useMemo(
     () => ["All sources", ...new Set(externalRecipes.map((recipe) => recipe.sourceName))],
@@ -26,6 +43,8 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
     return externalRecipes.filter((recipe) => {
       const matchesSource =
         recipeSource === "All sources" || recipe.sourceName === recipeSource;
+      const matchesFavourite =
+        !showFavouritesOnly || favouriteRecipeIds.has(recipe.id);
       const searchableText = [
         recipe.name,
         recipe.description,
@@ -33,9 +52,59 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
         ...recipe.tags,
       ].join(" ").toLocaleLowerCase();
 
-      return matchesSource && (!query || searchableText.includes(query));
+      return (
+        matchesSource &&
+        matchesFavourite &&
+        (!query || searchableText.includes(query))
+      );
     });
-  }, [externalRecipes, recipeQuery, recipeSource]);
+  }, [
+    externalRecipes,
+    favouriteRecipeIds,
+    recipeQuery,
+    recipeSource,
+    showFavouritesOnly,
+  ]);
+
+  async function toggleFavourite(recipeId: string) {
+    if (!signedIn) {
+      router.push("/sign-in?callbackURL=%2Frecipes");
+      return;
+    }
+    if (pendingFavouriteIds.has(recipeId)) return;
+
+    const wasFavourite = favouriteRecipeIds.has(recipeId);
+    setFavouriteError("");
+    setFavouriteRecipeIds((currentIds) => {
+      const nextIds = new Set(currentIds);
+      if (wasFavourite) nextIds.delete(recipeId);
+      else nextIds.add(recipeId);
+      return nextIds;
+    });
+    setPendingFavouriteIds((currentIds) => new Set(currentIds).add(recipeId));
+
+    try {
+      const response = await fetch(
+        `/api/recipes/favourites/${encodeURIComponent(recipeId)}`,
+        { method: wasFavourite ? "DELETE" : "PUT" },
+      );
+      if (!response.ok) throw new Error("Unable to save that favourite.");
+    } catch {
+      setFavouriteRecipeIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        if (wasFavourite) nextIds.add(recipeId);
+        else nextIds.delete(recipeId);
+        return nextIds;
+      });
+      setFavouriteError("Your favourite could not be saved. Please try again.");
+    } finally {
+      setPendingFavouriteIds((currentIds) => {
+        const nextIds = new Set(currentIds);
+        nextIds.delete(recipeId);
+        return nextIds;
+      });
+    }
+  }
 
   useEffect(() => {
     if (!openRecipe) return;
@@ -55,57 +124,15 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
 
   return (
     <>
-      <div className={styles.gallery}>
-        {recipes.length === 0 ? (
-          <div className={`card ${styles.empty}`}>
-            <strong>No recipes yet.</strong>
-            <p className="subtle">Add a recipe to start building your collection.</p>
-          </div>
-        ) : (
-          recipes.map((recipe) => (
-            <article className={styles.card} key={recipe.id}>
-              {recipe.imageUrl ? (
-                <div className={styles.cardImage}>
-                  <Image
-                    alt={`Finished ${recipe.name}`}
-                    fill
-                    sizes="(max-width: 760px) 126px, (max-width: 1180px) 32vw, 230px"
-                    src={recipe.imageUrl}
-                  />
-                </div>
-              ) : (
-                <div aria-hidden="true" className={styles.imageFallback}>◇</div>
-              )}
-
-              <div className={styles.cardContent}>
-                <h2>{recipe.name}</h2>
-                {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
-                <div className={styles.meta}>
-                  {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
-                  <span>{recipe.servings} serving{recipe.servings === 1 ? "" : "s"}</span>
-                  {recipe.proteinGrams ? <span>{Math.round(recipe.proteinGrams)} g protein</span> : null}
-                </div>
-                <span className={styles.openLabel}>View recipe →</span>
-              </div>
-
-              <button
-                aria-label={`Open recipe for ${recipe.name}`}
-                className={styles.cardAction}
-                onClick={() => setOpenRecipe(recipe)}
-                type="button"
-              />
-            </article>
-          ))
-        )}
-      </div>
-
       {externalRecipes.length > 0 ? (
-        <section className={styles.externalSection}>
+        <section className={styles.catalogueSection}>
           <div className={styles.sectionHeading}>
             <div>
-              <p className="eyebrow">TRUSTED SOURCES</p>
-              <h2>More heart-healthy recipes</h2>
-              <p className="subtle">These attributed recipes open on their original publisher’s website.</p>
+              <p className="eyebrow">LOW-CHOLESTEROL COLLECTION</p>
+              <h2>Explore 150 heart-healthy recipes</h2>
+              <p className="subtle">
+                Search by ingredient or filter trusted publishers. Recipes open on their original website.
+              </p>
             </div>
             <span className="badge neutral">{externalRecipes.length} recipes</span>
           </div>
@@ -120,7 +147,23 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
                 value={recipeQuery}
               />
             </label>
-            <div aria-label="Filter recipes by source" className={styles.sourceFilters}>
+            <div aria-label="Filter recipes" className={styles.sourceFilters}>
+              {signedIn ? (
+                <button
+                  aria-pressed={showFavouritesOnly}
+                  className={
+                    showFavouritesOnly
+                      ? styles.favouriteFilterActive
+                      : styles.favouriteFilter
+                  }
+                  onClick={() => setShowFavouritesOnly((current) => !current)}
+                  type="button"
+                >
+                  <span aria-hidden="true">♥</span>
+                  Favourites
+                  {favouriteRecipeIds.size > 0 ? ` ${favouriteRecipeIds.size}` : ""}
+                </button>
+              ) : null}
               {recipeSources.map((source) => (
                 <button
                   aria-pressed={recipeSource === source}
@@ -136,6 +179,15 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
             <p aria-live="polite" className={styles.resultCount}>
               Showing {filteredExternalRecipes.length} of {externalRecipes.length} recipes
             </p>
+            {!signedIn ? (
+              <p className={styles.signInHint}>
+                <a href="/sign-in?callbackURL=%2Frecipes">Sign in or create an account</a>
+                {" "}to save favourites across your devices.
+              </p>
+            ) : null}
+            {favouriteError ? (
+              <p className={styles.favouriteError} role="alert">{favouriteError}</p>
+            ) : null}
           </div>
 
           <div className={styles.gallery}>
@@ -149,7 +201,7 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
                     style={{ backgroundImage: `url("${recipe.imageUrl}")` }}
                   />
                 ) : (
-                  <div aria-hidden="true" className={styles.imageFallback}>♡</div>
+                  <div aria-hidden="true" className={styles.imageFallback}>◇</div>
                 )}
 
                 <div className={styles.cardContent}>
@@ -174,17 +226,107 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
                   rel="noopener noreferrer"
                   target="_blank"
                 />
+                <button
+                  aria-label={
+                    favouriteRecipeIds.has(recipe.id)
+                      ? `Remove ${recipe.name} from favourites`
+                      : `Save ${recipe.name} as a favourite`
+                  }
+                  aria-pressed={favouriteRecipeIds.has(recipe.id)}
+                  className={
+                    favouriteRecipeIds.has(recipe.id)
+                      ? styles.favouriteButtonActive
+                      : styles.favouriteButton
+                  }
+                  onClick={() => toggleFavourite(recipe.id)}
+                  disabled={pendingFavouriteIds.has(recipe.id)}
+                  title={
+                    !signedIn
+                      ? "Sign in to save as a favourite"
+                      : favouriteRecipeIds.has(recipe.id)
+                      ? "Remove from favourites"
+                      : "Save as favourite"
+                  }
+                  type="button"
+                >
+                  <span aria-hidden="true">
+                    {favouriteRecipeIds.has(recipe.id) ? "♥" : "♡"}
+                  </span>
+                </button>
               </article>
             ))}
             {filteredExternalRecipes.length === 0 ? (
               <div className={`card ${styles.empty}`}>
-                <strong>No matching recipes.</strong>
-                <p className="subtle">Try another ingredient or choose all sources.</p>
+                <strong>
+                  {showFavouritesOnly ? "No favourite recipes yet." : "No matching recipes."}
+                </strong>
+                <p className="subtle">
+                  {showFavouritesOnly
+                    ? "Tap the heart on a recipe to save it here."
+                    : "Try another ingredient or choose all sources."}
+                </p>
               </div>
             ) : null}
           </div>
         </section>
       ) : null}
+
+      <section className={styles.savedSection}>
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className="eyebrow">FULL RECIPE CARDS</p>
+            <h2>Food&apos;s complete recipes</h2>
+            <p className="subtle">
+              These recipe cards are public and include ingredients and cooking methods.
+            </p>
+          </div>
+          <span className="badge neutral">{recipes.length} complete</span>
+        </div>
+
+        <div className={styles.gallery}>
+          {recipes.length === 0 ? (
+            <div className={`card ${styles.empty}`}>
+              <strong>No complete recipe cards yet.</strong>
+              <p className="subtle">Published recipe cards will appear here for everyone.</p>
+            </div>
+          ) : (
+            recipes.map((recipe) => (
+              <article className={styles.card} key={recipe.id}>
+                {recipe.imageUrl ? (
+                  <div className={styles.cardImage}>
+                    <Image
+                      alt={`Finished ${recipe.name}`}
+                      fill
+                      sizes="(max-width: 760px) 126px, (max-width: 1180px) 32vw, 230px"
+                      src={recipe.imageUrl}
+                    />
+                  </div>
+                ) : (
+                  <div aria-hidden="true" className={styles.imageFallback}>◇</div>
+                )}
+
+                <div className={styles.cardContent}>
+                  <h2>{recipe.name}</h2>
+                  {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
+                  <div className={styles.meta}>
+                    {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
+                    <span>{recipe.servings} serving{recipe.servings === 1 ? "" : "s"}</span>
+                    {recipe.proteinGrams ? <span>{Math.round(recipe.proteinGrams)} g protein</span> : null}
+                  </div>
+                  <span className={styles.openLabel}>View recipe →</span>
+                </div>
+
+                <button
+                  aria-label={`Open recipe for ${recipe.name}`}
+                  className={styles.cardAction}
+                  onClick={() => setOpenRecipe(recipe)}
+                  type="button"
+                />
+              </article>
+            ))
+          )}
+        </div>
+      </section>
 
       {openRecipe ? (
         <div className={styles.backdrop} onClick={() => setOpenRecipe(null)}>
