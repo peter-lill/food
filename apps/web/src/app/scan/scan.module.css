@@ -1,0 +1,7 @@
+.workspace {
+  width: min(100%, 760px);
+}
+
+.workspace :global(.pantry-add-card) {
+  position: static;
+}

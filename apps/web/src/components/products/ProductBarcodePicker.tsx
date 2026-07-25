@@ -36,6 +36,7 @@ type ProductBarcodePickerProps = {
   barcodeError?: string;
   nameLabel?: string;
   namePlaceholder?: string;
+  autoOpenScanner?: boolean;
 };
 
 const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
@@ -79,6 +80,7 @@ export function ProductBarcodePicker({
   barcodeError,
   nameLabel = "Product",
   namePlaceholder = "e.g. Greek yoghurt",
+  autoOpenScanner = false,
 }: ProductBarcodePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -88,7 +90,7 @@ export function ProductBarcodePicker({
   const productsRef = useRef(products);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
-  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(autoOpenScanner);
   const [scanTone, setScanTone] = useState<ScanTone>("neutral");
   const [scanStatus, setScanStatus] = useState("Camera ready when you are.");
 
@@ -128,7 +130,13 @@ export function ProductBarcodePicker({
 
     const Detector = getBarcodeDetector();
     const mediaDevices = navigator.mediaDevices;
-    if (!mediaDevices?.getUserMedia) return;
+    if (!mediaDevices?.getUserMedia) {
+      const unavailableTimer = window.setTimeout(() => {
+        setScanTone("error");
+        setScanStatus("This browser cannot access the camera. Enter the barcode manually instead.");
+      }, 0);
+      return () => window.clearTimeout(unavailableTimer);
+    }
 
     const activeMediaDevices = mediaDevices;
     let cancelled = false;
