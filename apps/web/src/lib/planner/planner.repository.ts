@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { withSourceImage } from "@/lib/recipes/recipe-image";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
 const recipeImages: Record<string, string | null> = {
@@ -7,6 +8,9 @@ const recipeImages: Record<string, string | null> = {
   "Salmon, rice and greens": "/recipes/salmon-rice-greens.webp",
   "Lean beef burrito bowl": "/recipes/lean-beef-burrito-bowl.webp",
 };
+
+const externalRecipesWithImages = externalRecipes.map(withSourceImage);
+const externalRecipeByName = new Map(externalRecipesWithImages.map((recipe) => [recipe.name, recipe]));
 
 const starterRecipes: PlannerRecipe[] = [
   {
@@ -81,19 +85,6 @@ const starterRecipes: PlannerRecipe[] = [
   },
 ];
 
-const catalogueRecipes: PlannerRecipe[] = externalRecipes.map((recipe) => ({
-  id: `external-${recipe.id}`,
-  name: recipe.name,
-  description: `${recipe.description} Source: ${recipe.sourceName}.`,
-  minutes: recipe.minutes,
-  proteinGrams: null,
-  servings: recipe.servings ?? 1,
-  imageUrl: recipe.imageUrl,
-  instructions: [],
-  ingredients: [],
-  source: "external",
-}));
-
 export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
   const [recipes, pantryItems, shoppingLists] = await Promise.all([
     prisma.recipe.findMany({
@@ -116,8 +107,11 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
     }),
   ]);
 
+  const importedNames = new Set(recipes.map((recipe) => recipe.name));
+
   const liveRecipes: PlannerRecipe[] = recipes.map((recipe) => {
     const totalMinutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
+    const externalRecipe = externalRecipeByName.get(recipe.name);
     return {
       id: recipe.id,
       name: recipe.name,
@@ -125,7 +119,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       minutes: totalMinutes > 0 ? totalMinutes : null,
       proteinGrams: recipe.proteinGrams,
       servings: recipe.servings,
-      imageUrl: recipeImages[recipe.name] ?? null,
+      imageUrl: recipeImages[recipe.name] ?? externalRecipe?.imageUrl ?? null,
       instructions: recipe.instructions
         ? recipe.instructions
           .split(/\r?\n/)
@@ -142,6 +136,20 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
   });
 
   const completeRecipes = liveRecipes.length > 0 ? liveRecipes : starterRecipes;
+  const catalogueRecipes: PlannerRecipe[] = externalRecipesWithImages
+    .filter((recipe) => !importedNames.has(recipe.name))
+    .map((recipe) => ({
+      id: `external-${recipe.id}`,
+      name: recipe.name,
+      description: `${recipe.description} Source: ${recipe.sourceName}.`,
+      minutes: recipe.minutes,
+      proteinGrams: null,
+      servings: recipe.servings ?? 1,
+      imageUrl: recipe.imageUrl,
+      instructions: [],
+      ingredients: [],
+      source: "external",
+    }));
 
   return {
     recipes: [...completeRecipes, ...catalogueRecipes].sort((left, right) => left.name.localeCompare(right.name)),
