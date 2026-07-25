@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { addPlannerIngredientsToShopping } from "@/lib/planner/planner.actions";
 import type {
@@ -73,8 +74,11 @@ function aggregateIngredients(recipes: PlannerRecipe[]) {
 }
 
 export function PlannerWorkspace({ data, loadError = false, shoppingError = false }: PlannerWorkspaceProps) {
+  const router = useRouter();
   const [plan, setPlan] = useState<PlanSelection>(readSavedPlan);
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+  const [importingDay, setImportingDay] = useState<string | null>(null);
+  const [importError, setImportError] = useState("");
   const recipeById = useMemo(
     () => new Map(data.recipes.map((recipe) => [recipe.id, recipe])),
     [data.recipes],
@@ -119,15 +123,43 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
   );
   const databaseRecipeCount = data.recipes.filter((recipe) => recipe.source === "database").length;
 
-  function assignRecipe(dayKey: string, recipeId: string) {
-    setPlan((current) => {
-      if (!recipeId) {
+  async function assignRecipe(dayKey: string, recipeId: string) {
+    setImportError("");
+
+    if (!recipeId) {
+      setPlan((current) => {
         const next = { ...current };
         delete next[dayKey];
         return next;
-      }
-      return { ...current, [dayKey]: recipeId };
-    });
+      });
+      return;
+    }
+
+    if (!recipeId.startsWith("external-")) {
+      setPlan((current) => ({ ...current, [dayKey]: recipeId }));
+      return;
+    }
+
+    const externalRecipeId = recipeId.slice("external-".length);
+    setPlan((current) => ({ ...current, [dayKey]: recipeId }));
+    setImportingDay(dayKey);
+
+    try {
+      const response = await fetch("/api/recipes/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ externalRecipeId }),
+      });
+      const result = await response.json() as { recipeId?: string; error?: string };
+      if (!response.ok || !result.recipeId) throw new Error(result.error ?? "Unable to import recipe.");
+
+      setPlan((current) => ({ ...current, [dayKey]: result.recipeId as string }));
+      router.refresh();
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "Unable to import this recipe.");
+    } finally {
+      setImportingDay(null);
+    }
   }
 
   if (loadError) {
@@ -159,6 +191,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
           <p>Select an available Shopping list and try again.</p>
         </div>
       )}
+      {importError ? (
+        <div className="card pantry-error" role="alert">
+          <strong>Recipe could not be imported.</strong>
+          <p>{importError}</p>
+        </div>
+      ) : null}
 
       <section className={styles.summaryGrid} aria-label="Planner summary">
         <article className="card">
@@ -202,12 +240,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                   </div>
                   <label className={styles.selectLabel}>
                     <span>Meal</span>
-                    <select value={plan[day.key] ?? ""} onChange={(event) => assignRecipe(day.key, event.target.value)}>
+                    <select value={plan[day.key] ?? ""} disabled={importingDay === day.key} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
                       <option value="">Choose a recipe</option>
                       {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
                     </select>
                   </label>
-                  {selected ? (
+                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected ? (
                     <div className={styles.recipeDetail}>
                       <strong>{selected.name}</strong>
                       {selected.description && <p>{selected.description}</p>}
