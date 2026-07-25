@@ -208,12 +208,7 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                     </select>
                   </label>
                   {selected ? (
-                    <button
-                      aria-label={`Open recipe for ${selected.name}`}
-                      className={styles.recipeDetail}
-                      onClick={() => setOpenRecipe(selected)}
-                      type="button"
-                    >
+                    <div className={styles.recipeDetail}>
                       <strong>{selected.name}</strong>
                       {selected.description && <p>{selected.description}</p>}
                       <div className={styles.recipeMeta}>
@@ -222,7 +217,13 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                         {availability !== null && <span>{availability}% in Pantry</span>}
                       </div>
                       <span className={styles.openRecipeLabel}>View recipe →</span>
-                    </button>
+                      <button
+                        aria-label={`Open recipe for ${selected.name}`}
+                        className={styles.recipeCardAction}
+                        onClick={() => setOpenRecipe(selected)}
+                        type="button"
+                      />
+                    </div>
                   ) : (
                     <p className={styles.emptyDay}>No meal selected.</p>
                   )}
