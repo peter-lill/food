@@ -2,6 +2,7 @@ import type {
   SupermarketRetailer,
   SupermarketShoppingItem,
 } from "./supermarket-comparison.types";
+import type { SearchLocationSource } from "../current-location";
 
 export type GroceryPriceMatchKind = "exact" | "substitute";
 
@@ -39,6 +40,7 @@ export type LiveGroceryPriceSearchResponse = {
   status: "success";
   provider: "SerpApi Google Shopping";
   location: string;
+  locationSource: SearchLocationSource;
   allowSubstitutes: boolean;
   searchedAt: string;
   items: LiveGroceryPriceItemResult[];

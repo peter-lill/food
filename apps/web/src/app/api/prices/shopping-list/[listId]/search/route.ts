@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import {
+  resolveUserSearchLocation,
+  type CurrentSearchLocation,
+  type ResolvedSearchLocation,
+} from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
 import {
   supermarketRetailers,
@@ -85,6 +91,8 @@ const stopWords = new Set([
 
 type SearchRequestBody = {
   allowSubstitutes?: unknown;
+  currentLocation?: unknown;
+  location?: unknown;
 };
 
 type SerpShoppingResult = {
@@ -145,6 +153,33 @@ const priceSearchGlobal = globalThis as PriceSearchGlobal;
 const priceSearchCache = priceSearchGlobal.foodGroceryPriceSearchCache
   ?? new Map<string, PriceSearchCacheEntry>();
 priceSearchGlobal.foodGroceryPriceSearchCache = priceSearchCache;
+
+function currentLocationFromRequest(value: unknown): CurrentSearchLocation | null {
+  if (!value || typeof value !== "object") return null;
+
+  const candidate = value as Record<string, unknown>;
+  const latitude = candidate.latitude;
+  const longitude = candidate.longitude;
+  const accuracy = candidate.accuracy;
+
+  if (
+    typeof latitude !== "number" ||
+    !Number.isFinite(latitude) ||
+    typeof longitude !== "number" ||
+    !Number.isFinite(longitude)
+  ) {
+    return null;
+  }
+
+  return {
+    latitude,
+    longitude,
+    accuracy:
+      typeof accuracy === "number" && Number.isFinite(accuracy)
+        ? accuracy
+        : null,
+  };
+}
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
@@ -522,8 +557,18 @@ function removeExpiredCacheEntries() {
   }
 }
 
-async function searchGoogleShopping(query: string, apiKey: string, location: string) {
-  const key = `${normalise(location)}|${normalise(query)}`;
+async function searchGoogleShopping(
+  query: string,
+  apiKey: string,
+  location: ResolvedSearchLocation,
+) {
+  const locationKey =
+    location.source === "current" &&
+    location.latitude !== null &&
+    location.longitude !== null
+      ? `${location.latitude.toFixed(3)},${location.longitude.toFixed(3)}`
+      : normalise(location.label);
+  const key = `${locationKey}|${normalise(query)}`;
   const cached = priceSearchCache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
     return {
@@ -533,10 +578,22 @@ async function searchGoogleShopping(query: string, apiKey: string, location: str
   }
 
   const url = new URL("https://serpapi.com/search.json");
-  url.searchParams.set("engine", "google_shopping_light");
+  if (
+    location.source === "current" &&
+    location.latitude !== null &&
+    location.longitude !== null
+  ) {
+    url.searchParams.set("engine", "google");
+    url.searchParams.set("tbm", "shop");
+    url.searchParams.set("lat", String(location.latitude));
+    url.searchParams.set("lon", String(location.longitude));
+    url.searchParams.set("radius", String(location.radius ?? 100));
+  } else {
+    url.searchParams.set("engine", "google_shopping_light");
+    url.searchParams.set("location", location.label);
+  }
   url.searchParams.set("q", query);
   url.searchParams.set("api_key", apiKey);
-  url.searchParams.set("location", location);
   url.searchParams.set("gl", "au");
   url.searchParams.set("hl", "en");
   url.searchParams.set("google_domain", "google.com.au");
@@ -602,10 +659,16 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ listId: string }> },
 ) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return NextResponse.json(
+      { status: "error", error: "Sign in to search local grocery prices." },
+      { status: 401 },
+    );
+  }
+
   const { listId } = await params;
   const apiKey = process.env.SERPAPI_KEY?.trim();
-  const location = process.env.GROCERY_PRICE_SEARCH_LOCATION?.trim()
-    || "Brisbane, Queensland, Australia";
 
   if (!apiKey) {
     return NextResponse.json(
@@ -624,6 +687,13 @@ export async function POST(
     body = {};
   }
   const allowSubstitutes = body.allowSubstitutes !== false;
+  const requestedLocation =
+    currentLocationFromRequest(body.currentLocation) ??
+    (typeof body.location === "string" ? body.location : null);
+  const location = await resolveUserSearchLocation(
+    session.user.id,
+    requestedLocation,
+  );
 
   const list = await prisma.shoppingList.findUnique({
     where: { id: listId },
@@ -734,7 +804,8 @@ export async function POST(
   const response: LiveGroceryPriceSearchResponse = {
     status: "success",
     provider: "SerpApi Google Shopping",
-    location,
+    location: location.label,
+    locationSource: location.source,
     allowSubstitutes,
     searchedAt: new Date().toISOString(),
     items: itemResults,

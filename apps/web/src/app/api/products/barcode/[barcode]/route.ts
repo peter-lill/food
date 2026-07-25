@@ -1,4 +1,10 @@
 import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import {
+  resolveUserSearchLocation,
+  type CurrentSearchLocation,
+  type ResolvedSearchLocation,
+} from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -162,6 +168,7 @@ function serpApiCandidates(payload: SerpApiResponse) {
 async function lookupSerpApi(
   barcode: string,
   signal: AbortSignal,
+  location: ResolvedSearchLocation,
 ): Promise<ExternalProduct | null> {
   const apiKey = process.env.SERPAPI_KEY?.trim();
   if (!apiKey) return null;
@@ -172,10 +179,17 @@ async function lookupSerpApi(
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("gl", "au");
   url.searchParams.set("hl", "en");
-  url.searchParams.set(
-    "location",
-    process.env.GROCERY_PRICE_SEARCH_LOCATION?.trim() || "Brisbane, Queensland, Australia",
-  );
+  if (
+    location.source === "current" &&
+    location.latitude !== null &&
+    location.longitude !== null
+  ) {
+    url.searchParams.set("lat", String(location.latitude));
+    url.searchParams.set("lon", String(location.longitude));
+    url.searchParams.set("radius", String(location.radius ?? 100));
+  } else {
+    url.searchParams.set("location", location.label);
+  }
 
   const response = await fetch(url, {
     cache: "no-store",
@@ -200,9 +214,21 @@ async function lookupSerpApi(
   return name ? { name, brand: null, source: "serpapi" } : null;
 }
 
-async function lookupExternalProduct(barcode: string): Promise<ExternalProduct | null> {
+type ProductProvider = (
+  barcode: string,
+  signal: AbortSignal,
+) => Promise<ExternalProduct | null>;
+
+async function lookupExternalProduct(
+  barcode: string,
+  location: ResolvedSearchLocation,
+): Promise<ExternalProduct | null> {
   const providerErrors: Error[] = [];
-  const providers = [lookupOpenFoodFacts, lookupUpcItemDb, lookupSerpApi];
+  const providers: ProductProvider[] = [
+    lookupOpenFoodFacts,
+    lookupUpcItemDb,
+    (code, signal) => lookupSerpApi(code, signal, location),
+  ];
 
   for (const provider of providers) {
     try {
@@ -220,10 +246,37 @@ async function lookupExternalProduct(barcode: string): Promise<ExternalProduct |
   return null;
 }
 
+function currentLocationFromUrl(url: URL): CurrentSearchLocation | null {
+  if (url.searchParams.get("useCurrentLocation") !== "1") return null;
+
+  const latitudeValue = url.searchParams.get("latitude");
+  const longitudeValue = url.searchParams.get("longitude");
+  const accuracyValue = url.searchParams.get("accuracy");
+  if (latitudeValue === null || longitudeValue === null) return null;
+
+  const latitude = Number(latitudeValue);
+  const longitude = Number(longitudeValue);
+  const accuracy = Number(accuracyValue);
+
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+
+  return {
+    latitude,
+    longitude,
+    accuracy: Number.isFinite(accuracy) && accuracy > 0 ? accuracy : null,
+  };
+}
+
 export async function GET(request: Request, context: RouteContext) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) {
+    return NextResponse.json({ error: "Sign in to scan products." }, { status: 401 });
+  }
+
   const { barcode: rawBarcode } = await context.params;
   const barcode = decodeURIComponent(rawBarcode).trim();
-  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
+  const requestUrl = new URL(request.url);
+  const refresh = requestUrl.searchParams.get("refresh") === "1";
 
   if (barcode.length < 4 || barcode.length > 80 || /\s/.test(barcode)) {
     return NextResponse.json(
@@ -246,7 +299,11 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   try {
-    const externalProduct = await lookupExternalProduct(barcode);
+    const location = await resolveUserSearchLocation(
+      session.user.id,
+      currentLocationFromUrl(requestUrl),
+    );
+    const externalProduct = await lookupExternalProduct(barcode, location);
 
     if (!externalProduct) {
       return existing

@@ -1,6 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  getCurrentLocation,
+  type CurrentLocation,
+} from "@/lib/current-location";
 import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 import styles from "./ProductBarcodePicker.module.css";
 
@@ -63,9 +67,20 @@ function productByName(products: ProductCatalogueItem[], name: string) {
 
 async function lookupProductByBarcode(
   barcode: string,
-  options: { refresh?: boolean } = {},
+  options: {
+    currentLocation?: CurrentLocation | null;
+    refresh?: boolean;
+  } = {},
 ): Promise<BarcodeLookupResponse> {
-  const search = options.refresh ? "?refresh=1" : "";
+  const searchParams = new URLSearchParams();
+  if (options.refresh) searchParams.set("refresh", "1");
+  if (options.currentLocation) {
+    searchParams.set("useCurrentLocation", "1");
+    searchParams.set("latitude", String(options.currentLocation.latitude));
+    searchParams.set("longitude", String(options.currentLocation.longitude));
+    searchParams.set("accuracy", String(options.currentLocation.accuracy));
+  }
+  const search = searchParams.size > 0 ? `?${searchParams.toString()}` : "";
   const response = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}${search}`, {
     cache: "no-store",
     headers: { Accept: "application/json" },
@@ -93,12 +108,18 @@ export function ProductBarcodePicker({
   const barcodeRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const lastBarcodeRef = useRef("");
+  const currentLocationRef = useRef<CurrentLocation | null>(null);
   const productsRef = useRef(products);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(autoOpenScanner);
   const [scanTone, setScanTone] = useState<ScanTone>("neutral");
   const [scanStatus, setScanStatus] = useState("Camera ready when you are.");
+  const [locationPending, setLocationPending] = useState(false);
+  const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
+  const [locationStatus, setLocationStatus] = useState(
+    "Using your home or default search area.",
+  );
 
   const visibleProducts = useMemo(() => {
     const query = productQuery.trim().toLocaleLowerCase("en-AU");
@@ -167,7 +188,10 @@ export function ProductBarcodePicker({
         : `Looking up barcode ${barcode}…`);
 
       try {
-        const lookup = await lookupProductByBarcode(barcode, { refresh: true });
+        const lookup = await lookupProductByBarcode(barcode, {
+          currentLocation: currentLocationRef.current,
+          refresh: true,
+        });
         if (cancelled) return;
 
         if (lookup.found && lookup.product) {
@@ -351,6 +375,35 @@ export function ProductBarcodePicker({
     setScanStatus("Starting the rear camera…");
   }
 
+  async function toggleCurrentLocation() {
+    if (currentLocationRef.current) {
+      currentLocationRef.current = null;
+      setUsingCurrentLocation(false);
+      setLocationStatus("Using your home or default search area.");
+      return;
+    }
+
+    setLocationPending(true);
+    setLocationStatus("Waiting for device location…");
+
+    try {
+      const location = await getCurrentLocation();
+      currentLocationRef.current = location;
+      setUsingCurrentLocation(true);
+      setLocationStatus(
+        `Using your current location for local lookups (accuracy about ${Math.round(location.accuracy)} m).`,
+      );
+    } catch (error) {
+      setLocationStatus(
+        error instanceof Error
+          ? error.message
+          : "Your current location could not be determined.",
+      );
+    } finally {
+      setLocationPending(false);
+    }
+  }
+
   return (
     <div className={`${styles.picker} ${fullPageScanner ? styles.fullPage : ""}`} ref={containerRef}>
       <datalist id="food-product-catalogue">
@@ -451,6 +504,21 @@ export function ProductBarcodePicker({
               <span>No image is captured or uploaded. New barcodes are checked against external product catalogues.</span>
             </div>
             <span className="badge neutral">Rear camera</span>
+          </div>
+          <div className={styles.lookupLocation}>
+            <span>{locationStatus}</span>
+            <button
+              className="secondary-button"
+              disabled={locationPending}
+              onClick={() => void toggleCurrentLocation()}
+              type="button"
+            >
+              {locationPending
+                ? "Finding location…"
+                : usingCurrentLocation
+                  ? "Use home instead"
+                  : "Use current location"}
+            </button>
           </div>
           <div className={styles.videoFrame}>
             <video aria-label="Live camera preview" autoPlay muted playsInline ref={videoRef} />

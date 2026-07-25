@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { authClient } from "@/lib/auth-client";
 
-const navigation = [
+const ownerNavigation = [
   { label: "Today", href: "/", icon: "◉" },
   { label: "Planner", href: "/planner", icon: "▦" },
   { label: "Pantry", href: "/pantry", icon: "□" },
@@ -16,16 +17,43 @@ const navigation = [
   { label: "Health", href: "/health", icon: "♥" },
 ] as const;
 
-const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
-const mobilePrimaryNavigation = navigation.filter((item) => mobilePrimaryLabels.has(item.label));
-const mobileMoreNavigation = navigation.filter((item) => (
-  !mobilePrimaryLabels.has(item.label) && item.label !== "Scan"
-));
+const memberNavigation = [
+  { label: "Recipes", href: "/recipes", icon: "◇" },
+  { label: "Households", href: "/households", icon: "⌂" },
+] as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
+const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
+
+export function AppShell({
+  children,
+  ownerEmails,
+}: {
+  children: ReactNode;
+  ownerEmails: string[];
+}) {
   const livePathname = usePathname();
+  const { data: session } = authClient.useSession();
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const owner = Boolean(
+    session?.user.email &&
+      ownerEmails.includes(session.user.email.toLocaleLowerCase()),
+  );
+  const navigation = owner
+    ? ownerNavigation
+    : session
+      ? memberNavigation
+      : memberNavigation.slice(0, 1);
+  const mobilePrimaryNavigation = owner
+    ? navigation.filter((item) => mobilePrimaryLabels.has(item.label))
+    : navigation;
+  const mobileMoreNavigation = owner
+    ? navigation.filter((item) => (
+        !mobilePrimaryLabels.has(item.label) && item.label !== "Scan"
+      ))
+    : [];
+  const mobileItemCount =
+    mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
 
   useEffect(() => {
     // The reverse proxy can expose a different pathname snapshot during hydration.
@@ -41,7 +69,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-frame">
       <aside className="sidebar">
-        <Link href="/" className="wordmark" aria-label="Food home">
+        <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
           <span className="wordmark-mark">F</span>
           <span><strong>Food</strong><small>Daily companion</small></span>
         </Link>
@@ -51,12 +79,17 @@ export function AppShell({ children }: { children: ReactNode }) {
             return <Link className={active ? "side-link active" : "side-link"} href={item.href} key={item.href}><span>{item.icon}</span>{item.label}</Link>;
           })}
         </nav>
-        <div className="sidebar-note"><span className="status-dot" /> Android health sync connected</div>
+        <div className="sidebar-note">
+          <span className="status-dot" />
+          {session ? `Signed in as ${session.user.name}` : "Recipes are open to everyone"}
+        </div>
       </aside>
       <div className="workspace">
         <header className="workspace-header">
           <div><span className="eyebrow">FOOD</span><strong>{current?.label ?? "Workspace"}</strong></div>
-          <Link className="header-action" href="/health">View health</Link>
+          <Link className="header-action" href={session ? "/account" : "/sign-in"}>
+            {session ? "Your account" : "Sign in"}
+          </Link>
         </header>
         <main className="content-shell">{children}</main>
       </div>
@@ -89,27 +122,33 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       ) : null}
-      {pathname.startsWith("/scan") ? null : (
+      {!owner || pathname.startsWith("/scan") ? null : (
         <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan">
           <span>⌗</span>
           Scan
         </Link>
       )}
-      <nav className="mobile-nav" aria-label="Mobile navigation">
+      <nav
+        className="mobile-nav"
+        aria-label="Mobile navigation"
+        style={{ "--mobile-nav-items": mobileItemCount } as CSSProperties}
+      >
         {mobilePrimaryNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           return <Link className={active ? "mobile-link active" : "mobile-link"} href={item.href} key={item.href}><span>{item.icon}</span><small>{item.label}</small></Link>;
         })}
-        <button
-          aria-controls="mobile-more-menu"
-          aria-expanded={mobileMenuOpen}
-          className={mobileMoreActive || mobileMenuOpen ? "mobile-link active" : "mobile-link"}
-          onClick={() => setMobileMenuOpen((open) => !open)}
-          type="button"
-        >
-          <span>•••</span>
-          <small>More</small>
-        </button>
+        {mobileMoreNavigation.length > 0 ? (
+          <button
+            aria-controls="mobile-more-menu"
+            aria-expanded={mobileMenuOpen}
+            className={mobileMoreActive || mobileMenuOpen ? "mobile-link active" : "mobile-link"}
+            onClick={() => setMobileMenuOpen((open) => !open)}
+            type="button"
+          >
+            <span>•••</span>
+            <small>More</small>
+          </button>
+        ) : null}
       </nav>
     </div>
   );

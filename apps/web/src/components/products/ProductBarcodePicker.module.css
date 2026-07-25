@@ -63,12 +63,32 @@
 
 .catalogueHeading span,
 .scannerHeading span,
+.lookupLocation span,
 .scanStatus,
 .cameraNote,
 .catalogueEmpty {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+}
+
+.lookupLocation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.lookupLocation span {
+  min-width: 0;
+}
+
+.lookupLocation button {
+  flex: none;
 }
 
 .productList {
@@ -223,9 +243,15 @@
   }
 
   .fullPage .scannerHeading,
+  .fullPage .lookupLocation,
   .fullPage .scanStatus,
   .fullPage .cameraNote {
     margin-inline: 14px;
+  }
+
+  .lookupLocation {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .fullPage .videoFrame,

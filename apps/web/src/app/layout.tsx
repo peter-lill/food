@@ -12,11 +12,16 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const ownerEmails = (process.env.FOOD_OWNER_EMAILS ?? "")
+    .split(",")
+    .map((email) => email.trim().toLocaleLowerCase())
+    .filter(Boolean);
+
   return (
     <html lang="en">
       <body>
         <SavedProductDeleteController />
-        <AppShell>{children}</AppShell>
+        <AppShell ownerEmails={ownerEmails}>{children}</AppShell>
       </body>
     </html>
   );

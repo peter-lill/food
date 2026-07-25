@@ -23,6 +23,27 @@ npm run dev
 
 Open `http://localhost:3100`.
 
+## Accounts and households
+
+Recipes are public. People can create an email/password account to save personal
+favourites and a home shopping location across devices, create households and
+invite verified users to join. Household membership does not expose another
+person’s favourites or account preferences. A user can make their saved home
+location the default from the account page, while explicitly choosing device
+location for an individual barcode or grocery-price search.
+
+Set these values in `.env` before enabling account registration:
+
+- `BETTER_AUTH_URL`: the public origin, such as `https://food.coffeehq.coffee`
+- `BETTER_AUTH_SECRET`: a cryptographically random secret of at least 32 characters
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM`: the
+  SMTP connection used for verification, password-reset and household invitations
+- `FOOD_OWNER_EMAILS`: comma-separated verified accounts allowed to use the
+  existing private planner, pantry, scan, receipts, prices, shopping and health tools
+
+Run `npm run db:migrate:deploy` during production deployment before starting the
+new application build.
+
 The Pantry screen stores products, quantities, locations, purchase dates and expiry dates in PostgreSQL. The seed command adds sample Pantry stock only when the database has no existing Pantry items. Pantry entry supports selecting a saved product or continuously scanning EAN, UPC and Code 128 barcodes with the device camera. Known products are resolved from Food first; first-time numeric product barcodes are looked up through Open Food Facts and then UPCitemdb when needed. Returned product names and brands are cached locally, so subsequent scans do not call an external provider. The live camera stream is processed in the browser; no photo is taken or uploaded. Products absent from both lookup services can still be named manually once and reused later.
 
 The Receipts screen supports manual receipt entry and line-by-line review. Every line must be classified before food items can be imported into Pantry. Receipt fingerprints and finalisation status prevent the same receipt from creating Pantry stock twice.
@@ -31,7 +52,7 @@ The Prices screen derives product and retailer price history from imported recei
 
 The Prices screen also supports manual Woolworths, Coles and ALDI catalogue or shelf-price capture. It can compare individual products, estimate a remaining Shopping list at each retailer, show catalogue coverage and calculate an item-by-item split-shop estimate. Automatic product matching should be checked before relying on whole-list totals.
 
-For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY_PRICE_SEARCH_LOCATION`. Food sends one Google Shopping query for each uncached remaining item, limits a search to 25 items and caches returned retailer prices for six hours. Exact products are preferred. When enabled, substitutes may use another brand or pack size only when the product type and stated requirements such as lactose-free, gluten-free, full-cream, light, unsweetened, fresh or frozen remain compatible. Every substitute is labelled and shows the actual selected product. SerpApi's Google Shopping results may vary by store, postcode, stock and promotion timing.
+For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY_PRICE_SEARCH_LOCATION`. The environment location is the fallback for accounts without a saved home location. A user may search from their home/default area or explicitly grant browser location access for the current search. Food sends one Google Shopping query for each uncached remaining item, limits a search to 25 items and caches returned retailer prices for six hours. Exact products are preferred. When enabled, substitutes may use another brand or pack size only when the product type and stated requirements such as lactose-free, gluten-free, full-cream, light, unsweetened, fresh or frozen remain compatible. Every substitute is labelled and shows the actual selected product. SerpApi's Google Shopping results may vary by store, postcode, stock and promotion timing.
 
 The Shopping screen stores multiple lists and their items in PostgreSQL. Items can be grouped, checked off, edited and cleared, with low-stock Pantry items available as quick-add suggestions. Shopping entry uses the same saved-product, two-stage external lookup and continuous barcode scanner as Pantry, allowing an empty package to be scanned directly onto a replacement list. Scanned products remain in the reusable catalogue after Pantry stock is consumed. No extra migration is required for this feature.
 

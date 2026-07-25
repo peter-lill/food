@@ -44,6 +44,68 @@
   cursor: pointer;
 }
 
+.locationChoice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.locationChoice legend {
+  margin-bottom: 7px;
+  color: var(--accent-dark);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.locationOption,
+.locationOptionActive {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 60px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .72);
+  cursor: pointer;
+}
+
+.locationOptionActive {
+  border-color: rgba(57, 120, 72, .48);
+  background: var(--accent-pale);
+  box-shadow: inset 0 0 0 1px rgba(57, 120, 72, .12);
+}
+
+.locationOption input,
+.locationOptionActive input {
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: var(--accent);
+}
+
+.locationOption span,
+.locationOptionActive span {
+  display: grid;
+  gap: 3px;
+}
+
+.locationOption strong,
+.locationOptionActive strong {
+  font-size: 12px;
+}
+
+.locationOption small,
+.locationOptionActive small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
 .substituteToggle input {
   width: 18px;
   height: 18px;
@@ -298,6 +360,7 @@
 }
 
 @media (max-width: 560px) {
+  .locationChoice,
   .liveSummaryGrid,
   .liveMatchGrid {
     grid-template-columns: 1fr;

@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import {
+  getCurrentLocation,
+  type SearchLocationSource,
+} from "@/lib/current-location";
 import type {
   LiveGroceryPriceErrorResponse,
   LiveGroceryPriceSearchResponse,
@@ -25,9 +29,20 @@ function searchedTime(value: string) {
   });
 }
 
+function locationSourceLabel(
+  source: SearchLocationSource,
+) {
+  if (source === "current") return "Current location";
+  if (source === "home") return "Home location";
+  if (source === "temporary") return "Selected location";
+  return "Default search location";
+}
+
 export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingList }) {
   const [allowSubstitutes, setAllowSubstitutes] = useState(true);
+  const [locationMode, setLocationMode] = useState<"home" | "current">("home");
   const [loading, setLoading] = useState(false);
+  const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LiveGroceryPriceSearchResponse | null>(null);
 
@@ -36,6 +51,11 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
     setError("");
 
     try {
+      setLocating(locationMode === "current");
+      const currentLocation =
+        locationMode === "current" ? await getCurrentLocation() : null;
+      setLocating(false);
+
       const response = await fetch(`/api/prices/shopping-list/${encodeURIComponent(list.id)}/search`, {
         method: "POST",
         cache: "no-store",
@@ -43,7 +63,7 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
           Accept: "application/json",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ allowSubstitutes }),
+        body: JSON.stringify({ allowSubstitutes, currentLocation }),
       });
       const payload = await response.json() as LiveGroceryPriceSearchResponse | LiveGroceryPriceErrorResponse;
 
@@ -55,6 +75,7 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "Current grocery prices could not be searched.");
     } finally {
+      setLocating(false);
       setLoading(false);
     }
   }
@@ -80,9 +101,45 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
           onClick={() => void searchPrices()}
           type="button"
         >
-          {loading ? "Searching prices…" : result ? "Refresh current prices" : "Search current prices"}
+          {locating
+            ? "Finding your location…"
+            : loading
+              ? "Searching prices…"
+              : result
+                ? "Refresh current prices"
+                : "Search current prices"}
         </button>
       </div>
+
+      <fieldset className={styles.locationChoice}>
+        <legend>Search area</legend>
+        <label className={locationMode === "home" ? styles.locationOptionActive : styles.locationOption}>
+          <input
+            checked={locationMode === "home"}
+            disabled={loading}
+            name={`price-location-${list.id}`}
+            onChange={() => setLocationMode("home")}
+            type="radio"
+          />
+          <span>
+            <strong>Home or saved default</strong>
+            <small>Uses your account home location, then the server fallback.</small>
+          </span>
+        </label>
+        <label className={locationMode === "current" ? styles.locationOptionActive : styles.locationOption}>
+          <input
+            checked={locationMode === "current"}
+            disabled={loading}
+            name={`price-location-${list.id}`}
+            onChange={() => setLocationMode("current")}
+            type="radio"
+          />
+          <span>
+            <strong>Where I am now</strong>
+            <small>Requests device location once when this search starts.</small>
+          </span>
+        </label>
+      </fieldset>
 
       <label className={styles.substituteToggle}>
         <input
@@ -118,7 +175,9 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
           </div>
 
           <div className={styles.liveMeta}>
-            <span>Location: {result.location}</span>
+            <span>
+              {locationSourceLabel(result.locationSource)}: {result.location}
+            </span>
             <span>Checked {searchedTime(result.searchedAt)}</span>
             <span>{result.liveItemCount} refreshed · {result.cachedItemCount} from six-hour cache</span>
             {bestCompleteRetailer ? <strong>Best complete store: {bestCompleteRetailer.retailer} at {money(bestCompleteRetailer.total)}</strong> : null}
