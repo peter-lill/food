@@ -17,8 +17,17 @@ export default async function RecipesPage() {
     getPlannerWorkspace(),
     getAuthSession(),
   ]);
+
   const completeRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
-  const catalogueRecipes = externalRecipes.map(withSourceImage);
+  const catalogueRecipes = [
+    ...new Map(
+      externalRecipes
+        .map(withSourceImage)
+        .map((recipe) => [recipe.id, recipe] as const),
+    ).values(),
+  ];
+  const totalRecipeCount = completeRecipes.length + catalogueRecipes.length;
+
   const favourites = session
     ? await prisma.recipeFavourite.findMany({
         where: { userId: session.user.id },
@@ -37,7 +46,7 @@ export default async function RecipesPage() {
           </p>
         </div>
         <span className="badge neutral">
-          {completeRecipes.length + catalogueRecipes.length} recipe{completeRecipes.length + catalogueRecipes.length === 1 ? "" : "s"}
+          {totalRecipeCount} recipe{totalRecipeCount === 1 ? "" : "s"}
         </span>
       </header>
 
