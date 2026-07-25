@@ -60,8 +60,12 @@ function productByName(products: ProductCatalogueItem[], name: string) {
   return products.find((product) => product.name.toLocaleLowerCase("en-AU") === normalised) ?? null;
 }
 
-async function lookupProductByBarcode(barcode: string): Promise<BarcodeLookupResponse> {
-  const response = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}`, {
+async function lookupProductByBarcode(
+  barcode: string,
+  options: { refresh?: boolean } = {},
+): Promise<BarcodeLookupResponse> {
+  const search = options.refresh ? "?refresh=1" : "";
+  const response = await fetch(`/api/products/barcode/${encodeURIComponent(barcode)}${search}`, {
     cache: "no-store",
     headers: { Accept: "application/json" },
   });
@@ -154,46 +158,41 @@ export function ProductBarcodePicker({
       if (barcodeRef.current) barcodeRef.current.value = barcode;
 
       const knownProduct = productByBarcode(productsRef.current, barcode);
+      if (nameRef.current) nameRef.current.value = knownProduct?.name ?? "";
+      setScanTone("neutral");
+      setScanStatus(knownProduct
+        ? `Checking the product catalogue for a newer description of ${knownProduct.name}…`
+        : `Looking up barcode ${barcode}…`);
 
-      if (knownProduct) {
-        if (nameRef.current) nameRef.current.value = knownProduct.name;
-        setScanTone("success");
-        setScanStatus(`${knownProduct.name} recognised. The camera remains live for the next item.`);
-      } else {
-        if (nameRef.current) nameRef.current.value = "";
-        setScanTone("neutral");
-        setScanStatus(`Looking up barcode ${barcode}…`);
+      try {
+        const lookup = await lookupProductByBarcode(barcode, { refresh: true });
+        if (cancelled) return;
 
-        try {
-          const lookup = await lookupProductByBarcode(barcode);
-          if (cancelled) return;
-
-          if (lookup.found && lookup.product) {
-            const product = lookup.product;
-            productsRef.current = [
-              product,
-              ...productsRef.current.filter((item) => (
-                item.id !== product.id && item.barcode !== product.barcode
-              )),
-            ];
-            if (nameRef.current) nameRef.current.value = product.name;
-            setScanTone("success");
-            setScanStatus(
-              `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue. The camera remains live.`,
-            );
-          } else {
-            setScanTone("neutral");
-            setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
-            nameRef.current?.focus();
-          }
-        } catch (error) {
-          if (cancelled) return;
-          const message = error instanceof Error ? error.message : "Product lookup failed.";
-          console.error("Unable to look up scanned product", error);
-          setScanTone("error");
-          setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
+        if (lookup.found && lookup.product) {
+          const product = lookup.product;
+          productsRef.current = [
+            product,
+            ...productsRef.current.filter((item) => (
+              item.id !== product.id && item.barcode !== product.barcode
+            )),
+          ];
+          if (nameRef.current) nameRef.current.value = product.name;
+          setScanTone("success");
+          setScanStatus(lookup.source === "local"
+            ? `${product.name} recognised. No newer catalogue description was available.`
+            : `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue and saved. The camera remains live.`);
+        } else {
+          setScanTone("neutral");
+          setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
           nameRef.current?.focus();
         }
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : "Product lookup failed.";
+        console.error("Unable to look up scanned product", error);
+        setScanTone("error");
+        setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
+        nameRef.current?.focus();
       }
 
       navigator.vibrate?.(70);
