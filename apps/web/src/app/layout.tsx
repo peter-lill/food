@@ -6,6 +6,7 @@ import "./saved-product-delete.css";
 import "./v2.css";
 import { AppShell } from "@/components/AppShell";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
+import { getAuthSession } from "@/lib/auth-session";
 
 export const metadata: Metadata = {
   title: "Food",
@@ -15,17 +16,21 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const ownerEmails = (process.env.FOOD_OWNER_EMAILS ?? "")
     .split(",")
     .map((email) => email.trim().toLocaleLowerCase())
     .filter(Boolean);
+  const session = await getAuthSession();
+  const initialUser = session
+    ? { name: session.user.name, email: session.user.email }
+    : null;
 
   return (
     <html lang="en">
       <body>
         <SavedProductDeleteController />
-        <AppShell ownerEmails={ownerEmails}>{children}</AppShell>
+        <AppShell initialUser={initialUser} ownerEmails={ownerEmails}>{children}</AppShell>
       </body>
     </html>
   );
