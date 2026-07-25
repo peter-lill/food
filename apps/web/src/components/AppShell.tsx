@@ -89,10 +89,12 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
         </div>
       ) : null}
-      <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan">
-        <span>⌗</span>
-        Scan
-      </Link>
+      {pathname.startsWith("/scan") ? null : (
+        <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan">
+          <span>⌗</span>
+          Scan
+        </Link>
+      )}
       <nav className="mobile-nav" aria-label="Mobile navigation">
         {mobilePrimaryNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);

@@ -153,9 +153,11 @@ function ActionMessage({ state }: { state: PantryActionState }) {
 export function AddPantryForm({
   products,
   autoOpenScanner = false,
+  fullPageScanner = false,
 }: {
   products: ProductCatalogueItem[];
   autoOpenScanner?: boolean;
+  fullPageScanner?: boolean;
 }) {
   const [state, action] = useActionState(createPantryItem, initialPantryActionState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -166,16 +168,19 @@ export function AddPantryForm({
 
   return (
     <section className="card pantry-add-card">
-      <div>
-        <p className="eyebrow">ADD STOCK</p>
-        <h2 className="section-title">Add a pantry item</h2>
-        <p className="subtle pantry-copy">Choose a saved product or keep the camera live and scan each barcode as you put groceries away.</p>
-      </div>
+      {!fullPageScanner ? (
+        <div>
+          <p className="eyebrow">ADD STOCK</p>
+          <h2 className="section-title">Add a pantry item</h2>
+          <p className="subtle pantry-copy">Choose a saved product or keep the camera live and scan each barcode as you put groceries away.</p>
+        </div>
+      ) : null}
 
       <form action={action} className="pantry-form" ref={formRef}>
         <ProductBarcodePicker
           autoOpenScanner={autoOpenScanner}
           barcodeError={state.fieldErrors?.barcode}
+          fullPageScanner={fullPageScanner}
           nameError={state.fieldErrors?.name}
           products={products}
         />

@@ -1,7 +1,11 @@
 .workspace {
-  width: min(100%, 760px);
+  width: 100%;
 }
 
 .workspace :global(.pantry-add-card) {
   position: static;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
