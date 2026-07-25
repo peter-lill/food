@@ -15,6 +15,8 @@ export type PlannerRecipe = {
   instructions: string[];
   ingredients: PlannerIngredient[];
   source: "database" | "starter" | "external";
+  originalSourceName?: string | null;
+  originalSourceUrl?: string | null;
 };
 
 export type PlannerPantryItem = {
