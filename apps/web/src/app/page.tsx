@@ -1,10 +1,21 @@
 import Link from "next/link";
-import { recipes } from "@/lib/demo";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { formatLitres } from "@/lib/health/health.format";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
 import { getPantryItems } from "@/lib/pantry/pantry.repository";
 
 export const dynamic = "force-dynamic";
+
+function randomRecipes(count: number) {
+  const pool = externalRecipes.filter((recipe) => recipe.sourceName !== "Mayo Clinic");
+
+  for (let index = pool.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [pool[index], pool[randomIndex]] = [pool[randomIndex], pool[index]];
+  }
+
+  return pool.slice(0, count);
+}
 
 export default async function Dashboard() {
   const [health, pantryItems] = await Promise.all([
@@ -12,7 +23,8 @@ export default async function Dashboard() {
     getPantryItems().catch(() => []),
   ]);
   const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 4);
-  const tonight = recipes[1] ?? recipes[0];
+  const inspiration = randomRecipes(3);
+  const tonight = inspiration[0];
 
   return (
     <>
@@ -28,10 +40,10 @@ export default async function Dashboard() {
         </div>
         {tonight ? (
           <aside className="v2-tonight">
-            <small>TONIGHT&apos;S IDEA</small>
+            <small>TONIGHT&apos;S IDEA · {tonight.sourceName.toUpperCase()}</small>
             <strong>{tonight.name}</strong>
-            <span>{tonight.minutes} minutes · {tonight.protein} g protein</span>
-            <Link href="/recipes">Open recipe →</Link>
+            <span>{tonight.tags.slice(0, 2).join(" · ")}</span>
+            <a href={tonight.sourceUrl} rel="noopener noreferrer" target="_blank">Open recipe →</a>
           </aside>
         ) : null}
       </section>
@@ -47,7 +59,15 @@ export default async function Dashboard() {
         <article className="v2-panel">
           <div className="v2-panel-heading"><div><p className="eyebrow">QUICK INSPIRATION</p><h2>Recipe ideas</h2></div><Link href="/recipes">View all</Link></div>
           <div className="v2-recipe-list">
-            {recipes.map((recipe) => <Link className="v2-recipe" href="/recipes" key={recipe.name}><span><strong>{recipe.name}</strong><small>{recipe.minutes} minutes · {recipe.protein} g protein</small></span><span className="v2-recipe-arrow">→</span></Link>)}
+            {inspiration.map((recipe) => (
+              <a className="v2-recipe" href={recipe.sourceUrl} key={recipe.id} rel="noopener noreferrer" target="_blank">
+                <span>
+                  <strong>{recipe.name}</strong>
+                  <small>{recipe.sourceName} · {recipe.tags.slice(0, 2).join(" · ")}</small>
+                </span>
+                <span className="v2-recipe-arrow">→</span>
+              </a>
+            ))}
           </div>
         </article>
 
