@@ -170,7 +170,7 @@ async function lookupSerpApi(
   signal: AbortSignal,
   location: ResolvedSearchLocation,
 ): Promise<ExternalProduct | null> {
-  const apiKey = process.env.SERPAPI_KEY?.trim();
+  const apiKey = process.env.SERPAPI_API_KEY?.trim();
   if (!apiKey) return null;
 
   const url = new URL("https://serpapi.com/search.json");
