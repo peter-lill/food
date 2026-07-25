@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getAuthSession } from "@/lib/auth-session";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { formatLitres } from "@/lib/health/health.format";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
@@ -18,20 +19,22 @@ function randomRecipes(count: number) {
 }
 
 export default async function Dashboard() {
+  const session = await getAuthSession();
   const [health, pantryItems] = await Promise.all([
-    getLatestHealthSummary().catch(() => null),
+    session ? getLatestHealthSummary(session.user.id).catch(() => null) : Promise.resolve(null),
     getPantryItems().catch(() => []),
   ]);
   const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 4);
   const inspiration = randomRecipes(3);
   const tonight = inspiration[0];
+  const firstName = session?.user.name?.trim().split(/\s+/)[0] || "there";
 
   return (
     <>
       <section className="v2-hero">
         <div className="v2-hero-copy">
           <p className="v2-kicker">YOUR KITCHEN, ORGANISED</p>
-          <h1>Good evening, Peter.</h1>
+          <h1>Good evening, {firstName}.</h1>
           <p>Plan the week, use what you already have and make heart-conscious meals without turning dinner into admin.</p>
           <div className="v2-hero-actions">
             <Link className="v2-primary" href="/planner">Plan this week</Link>
