@@ -14,10 +14,11 @@ export function HealthConnectPairing() {
   const [pairing, setPairing] = useState<PairingResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
 
   useEffect(() => {
     if (!pairing) return;
+    setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
   }, [pairing]);
