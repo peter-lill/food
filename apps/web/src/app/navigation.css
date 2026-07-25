@@ -15,7 +15,7 @@ button.mobile-link {
 
 @media (max-width: 900px) {
   .mobile-nav {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--mobile-nav-items, 5), minmax(0, 1fr));
   }
 
   .mobile-link {

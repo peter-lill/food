@@ -1,0 +1,280 @@
+.accountGrid,
+.householdLayout {
+  display: grid;
+  gap: 18px;
+}
+
+.accountGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.locationCard {
+  grid-column: 1 / -1;
+}
+
+.accountCard,
+.invitationCard,
+.emptyHousehold {
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: 0 12px 34px rgba(37, 65, 48, .07);
+}
+
+.accountCard h1,
+.accountCard h2,
+.invitationCard h1 {
+  margin: 5px 0 10px;
+  letter-spacing: -.04em;
+}
+
+.accountCard h1,
+.invitationCard h1 {
+  font-size: clamp(28px, 5vw, 40px);
+}
+
+.email {
+  margin: 0 0 14px;
+  color: var(--accent-dark);
+  font-weight: 800;
+}
+
+.primaryLink,
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 15px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--accent-dark);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.secondaryButton {
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+  color: var(--accent-dark);
+}
+
+.primaryButton:disabled,
+.secondaryButton:disabled {
+  cursor: wait;
+  opacity: .6;
+}
+
+.inlineForm,
+.inviteForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.inlineForm label,
+.inviteForm label {
+  display: grid;
+  gap: 7px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inlineForm input,
+.inviteForm input,
+.locationForm input:not([type="checkbox"]),
+.cardHeading select {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.locationForm {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(120px, .7fr);
+  align-items: end;
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.locationForm > label:not(.lockLocation) {
+  display: grid;
+  gap: 7px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.lockLocation {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: start;
+  gap: 11px;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface-soft);
+  cursor: pointer;
+}
+
+.lockLocation input {
+  width: 20px;
+  height: 20px;
+  margin: 1px 0 0;
+  accent-color: var(--accent-dark);
+}
+
+.lockLocation span {
+  display: grid;
+  gap: 3px;
+}
+
+.lockLocation small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.cardHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.memberList {
+  display: grid;
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.memberRow {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+  font-weight: 900;
+}
+
+.memberRow > span:nth-child(2) {
+  display: grid;
+  gap: 2px;
+}
+
+.memberRow small {
+  color: var(--muted);
+}
+
+.role {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pendingInvites {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pendingInvites strong {
+  width: 100%;
+  color: var(--ink);
+}
+
+.pendingInvites span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.emptyHousehold {
+  color: var(--muted);
+  text-align: center;
+}
+
+.emptyHousehold p {
+  margin-bottom: 0;
+}
+
+.error,
+.success {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 11px;
+  font-size: 13px;
+}
+
+.error {
+  background: #fff0f1;
+  color: #8d2737;
+}
+
+.success {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.invitationCard {
+  width: min(100%, 620px);
+  margin: 24px auto;
+}
+
+.invitationCard > p:not(.error) {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.invitationActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 760px) {
+  .accountGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .inlineForm,
+  .inviteForm,
+  .locationForm {
+    grid-template-columns: 1fr;
+  }
+
+  .cardHeading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

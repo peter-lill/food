@@ -1,0 +1,136 @@
+.authCard {
+  width: min(100%, 520px);
+  margin: 24px auto;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background: var(--surface);
+  box-shadow: 0 20px 58px rgba(37, 65, 48, .11);
+}
+
+.authHeading {
+  padding: 30px 30px 24px;
+  background: linear-gradient(145deg, var(--accent-pale), var(--surface));
+}
+
+.authHeading h1 {
+  margin: 5px 0 10px;
+  font-size: clamp(30px, 6vw, 42px);
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+.authHeading > p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.authForm {
+  display: grid;
+  gap: 16px;
+  padding: 26px 30px 20px;
+}
+
+.authForm label {
+  display: grid;
+  gap: 7px;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.authForm input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.authForm input:focus-visible {
+  border-color: var(--accent);
+  outline: 3px solid color-mix(in srgb, var(--accent) 20%, transparent);
+}
+
+.authForm small {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.primaryButton {
+  min-height: 48px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--accent-dark);
+  color: white;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+}
+
+.primaryButton:disabled {
+  cursor: wait;
+  opacity: .62;
+}
+
+.error,
+.success {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.error {
+  background: #fff0f1;
+  color: #8d2737;
+}
+
+.success {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+.authActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 18px;
+  padding: 0 30px 28px;
+}
+
+.authActions button,
+.authActions a {
+  border: 0;
+  background: transparent;
+  color: var(--accent-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+@media (max-width: 560px) {
+  .authCard {
+    margin: 0;
+    border-radius: 20px;
+  }
+
+  .authHeading,
+  .authForm {
+    padding-inline: 20px;
+  }
+
+  .authActions {
+    padding-inline: 20px;
+  }
+}
