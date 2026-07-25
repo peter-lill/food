@@ -30,6 +30,11 @@ function normaliseImageUrl(value: unknown, baseUrl: URL) {
   }
 }
 
+function isGenericImage(url: string) {
+  const value = url.toLowerCase();
+  return /logo|icon|avatar|spinner|placeholder|social-share|default[-_]?image|brandmark/.test(value);
+}
+
 function recipeImageFromJsonLd(value: unknown, baseUrl: URL): string | null {
   if (Array.isArray(value)) {
     for (const item of value) {
@@ -51,12 +56,12 @@ function recipeImageFromJsonLd(value: unknown, baseUrl: URL): string | null {
     for (const candidate of candidates) {
       if (typeof candidate === "string") {
         const image = normaliseImageUrl(candidate, baseUrl);
-        if (image) return image;
+        if (image && !isGenericImage(image)) return image;
       }
       if (candidate && typeof candidate === "object") {
         const imageRecord = candidate as Record<string, unknown>;
         const image = normaliseImageUrl(imageRecord.url ?? imageRecord.contentUrl, baseUrl);
-        if (image) return image;
+        if (image && !isGenericImage(image)) return image;
       }
     }
   }
@@ -82,12 +87,29 @@ function extractImageUrl(html: string, sourceUrl: URL) {
   const metaPatterns = [
     /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
     /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image(?::secure_url)?["']/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["']/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["']/i,
     /<link[^>]+rel=["']image_src["'][^>]+href=["']([^"']+)["']/i,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']image_src["']/i,
   ];
 
   for (const pattern of metaPatterns) {
     const image = normaliseImageUrl(html.match(pattern)?.[1], sourceUrl);
-    if (image) return image;
+    if (image && !isGenericImage(image)) return image;
+  }
+
+  const imagePatterns = [
+    /<img[^>]+(?:data-lazy-src|data-src|data-original)=["']([^"']+)["']/gi,
+    /<img[^>]+srcset=["']([^"']+)["']/gi,
+    /<img[^>]+src=["']([^"']+)["']/gi,
+  ];
+
+  for (const pattern of imagePatterns) {
+    for (const match of html.matchAll(pattern)) {
+      const raw = match[1]?.split(",").at(-1)?.trim().split(/\s+/)[0];
+      const image = normaliseImageUrl(raw, sourceUrl);
+      if (image && !isGenericImage(image)) return image;
+    }
   }
 
   return null;
@@ -122,8 +144,10 @@ export async function cacheExternalRecipeImage(externalRecipeId: string) {
   const contentType = imageResponse.headers.get("content-type") ?? "";
   if (!imageResponse.ok || !contentType.startsWith("image/")) return null;
 
-  await mkdir(cacheDirectory, { recursive: true });
   const bytes = Buffer.from(await imageResponse.arrayBuffer());
+  if (bytes.length === 0) return null;
+
+  await mkdir(cacheDirectory, { recursive: true });
   await Promise.all([
     writeFile(path.join(cacheDirectory, `${externalRecipeId}.bin`), bytes),
     writeFile(
@@ -145,6 +169,7 @@ export async function readCachedRecipeImage(externalRecipeId: string) {
       readFile(path.join(cacheDirectory, `${externalRecipeId}.bin`)),
       readFile(path.join(cacheDirectory, `${externalRecipeId}.json`), "utf8"),
     ]);
+    if (bytes.length === 0) return null;
     const metadata = JSON.parse(metadataText) as { contentType?: string };
     return { bytes, contentType: metadata.contentType ?? "application/octet-stream" };
   } catch {
