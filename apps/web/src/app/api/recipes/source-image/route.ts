@@ -13,6 +13,13 @@ const allowedHosts = new Set([
   "mayoclinic.org",
 ]);
 
+const sourceAliases = new Map([
+  [
+    "https://www.heartfoundation.org.au/recipes/six-ingredient-salmon",
+    "https://www.heartfoundation.org.au/recipes/speedy-salmon-stirfry",
+  ],
+]);
+
 function decodeHtml(value: string) {
   return value
     .replace(/&amp;/g, "&")
@@ -133,7 +140,7 @@ export async function GET(request: NextRequest) {
 
   let sourceUrl: URL;
   try {
-    sourceUrl = new URL(source);
+    sourceUrl = new URL(sourceAliases.get(source) ?? source);
   } catch {
     return new NextResponse(null, { status: 400 });
   }
