@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { readCachedRecipeImage } from "@/lib/recipes/local-recipe-image";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
@@ -109,9 +110,14 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
 
   const importedNames = new Set(recipes.map((recipe) => recipe.name));
 
-  const liveRecipes: PlannerRecipe[] = recipes.map((recipe) => {
+  const liveRecipes: PlannerRecipe[] = await Promise.all(recipes.map(async (recipe) => {
     const totalMinutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
     const externalRecipe = externalRecipeByName.get(recipe.name);
+    const hasCachedHeartFoundationImage =
+      externalRecipe?.sourceName === "Heart Foundation"
+        ? Boolean(await readCachedRecipeImage(externalRecipe.id))
+        : false;
+
     return {
       id: recipe.id,
       name: recipe.name,
@@ -122,7 +128,9 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       imageUrl:
         recipeImages[recipe.name] ??
         (externalRecipe?.sourceName === "Heart Foundation"
-          ? `/api/recipes/local-image/${externalRecipe.id}`
+          ? hasCachedHeartFoundationImage
+            ? `/api/recipes/local-image/${externalRecipe.id}`
+            : null
           : externalRecipe?.imageUrl ?? null),
       instructions: recipe.instructions
         ? recipe.instructions
@@ -139,7 +147,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
         unit: entry.unit,
       })),
     };
-  });
+  }));
 
   const completeRecipes = [
     ...starterRecipes.filter((recipe) => !importedNames.has(recipe.name)),
