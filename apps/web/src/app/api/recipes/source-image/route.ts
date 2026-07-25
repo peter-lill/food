@@ -92,7 +92,6 @@ function imageFromJsonLd(value: unknown, baseUrl: URL): string | null {
 }
 
 function extractImageUrl(html: string, baseUrl: URL) {
-  // Recipe schema is the most reliable source of the actual dish photo.
   const jsonLdPattern = /<script[^>]+type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
   for (const match of html.matchAll(jsonLdPattern)) {
     try {
@@ -102,6 +101,11 @@ function extractImageUrl(html: string, baseUrl: URL) {
       // Continue when a source publishes malformed JSON-LD.
     }
   }
+
+  // Mayo Clinic frequently publishes a generic Mayo brand/share image in its
+  // page metadata. If the actual Recipe schema did not provide a dish photo,
+  // show no image rather than presenting branding as the meal.
+  if (baseUrl.hostname.includes("mayoclinic.org")) return null;
 
   const metaPatterns = [
     /<meta[^>]+property=["']og:image(?::secure_url)?["'][^>]+content=["']([^"']+)["']/i,
