@@ -1,5 +1,6 @@
 import { RecipesGallery } from "@/components/recipes/RecipesGallery";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
 
 export const dynamic = "force-dynamic";
 
@@ -22,11 +23,11 @@ export default async function RecipesPage() {
           </p>
         </div>
         <span className="badge neutral">
-          {recipes.length} recipe{recipes.length === 1 ? "" : "s"}
+          {recipes.length + externalRecipes.length} recipe{recipes.length + externalRecipes.length === 1 ? "" : "s"}
         </span>
       </header>
 
-      <RecipesGallery recipes={recipes} />
+      <RecipesGallery externalRecipes={externalRecipes} recipes={recipes} />
     </div>
   );
 }
