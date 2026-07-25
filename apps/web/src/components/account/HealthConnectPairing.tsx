@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import styles from "./account.module.css";
+import accountStyles from "./account.module.css";
+import styles from "./health-connect-pairing.module.css";
 
 type PairingResponse = {
   code: string;
@@ -48,8 +49,8 @@ export function HealthConnectPairing() {
   }
 
   return (
-    <section className={`${styles.accountCard} ${styles.healthConnectCard}`}>
-      <div className={styles.healthConnectIntro}>
+    <section className={styles.card}>
+      <div className={styles.intro}>
         <div>
           <p className="eyebrow">ANDROID HEALTH CONNECT</p>
           <h2>Connect your phone</h2>
@@ -57,18 +58,17 @@ export function HealthConnectPairing() {
             Generate a one-time code, then scan it in the Food Android app to authorise Health Connect syncing.
           </p>
         </div>
-        <span className={styles.healthConnectBadge}>Health Connect</span>
+        <span className={styles.badge}>Health Connect</span>
       </div>
 
       {pairing && secondsRemaining > 0 ? (
-        <div className={styles.pairingLayout}>
+        <div className={styles.layout}>
           <div className={styles.qrFrame}>
-            {/* The QR contains only an expiring one-time pairing URI. */}
             <img alt="Health Connect pairing QR code" height="260" src={qrUrl} width="260" />
           </div>
-          <div className={styles.pairingDetails}>
-            <span className={styles.pairingLabel}>Manual pairing code</span>
-            <strong className={styles.pairingCode}>{pairing.code.match(/.{1,5}/g)?.join(" ")}</strong>
+          <div className={styles.details}>
+            <span className={styles.label}>Manual pairing code</span>
+            <strong className={styles.code}>{pairing.code.match(/.{1,5}/g)?.join(" ")}</strong>
             <p className="subtle">Expires in {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}</p>
             <ol>
               <li>Open Food on your Android phone.</li>
@@ -76,21 +76,21 @@ export function HealthConnectPairing() {
               <li>Scan this QR code or enter the code above.</li>
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
-            <button className={styles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
+            <button className={accountStyles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
               Generate a new code
             </button>
           </div>
         </div>
       ) : (
-        <div className={styles.healthConnectEmpty}>
+        <div className={styles.empty}>
           <p>No active pairing code. Codes expire after 10 minutes and can only be used once.</p>
-          <button className={styles.primaryButton} disabled={pending} onClick={generateCode} type="button">
+          <button className={accountStyles.primaryButton} disabled={pending} onClick={generateCode} type="button">
             {pending ? "Generating…" : "Generate pairing code"}
           </button>
         </div>
       )}
 
-      {error ? <p className={styles.error} role="alert">{error}</p> : null}
+      {error ? <p className={accountStyles.error} role="alert">{error}</p> : null}
     </section>
   );
 }
