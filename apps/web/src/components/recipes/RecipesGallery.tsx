@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
@@ -13,6 +13,29 @@ type RecipesGalleryProps = {
 
 export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps) {
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+  const [recipeQuery, setRecipeQuery] = useState("");
+  const [recipeSource, setRecipeSource] = useState("All sources");
+
+  const recipeSources = useMemo(
+    () => ["All sources", ...new Set(externalRecipes.map((recipe) => recipe.sourceName))],
+    [externalRecipes],
+  );
+  const filteredExternalRecipes = useMemo(() => {
+    const query = recipeQuery.trim().toLocaleLowerCase();
+
+    return externalRecipes.filter((recipe) => {
+      const matchesSource =
+        recipeSource === "All sources" || recipe.sourceName === recipeSource;
+      const searchableText = [
+        recipe.name,
+        recipe.description,
+        recipe.sourceName,
+        ...recipe.tags,
+      ].join(" ").toLocaleLowerCase();
+
+      return matchesSource && (!query || searchableText.includes(query));
+    });
+  }, [externalRecipes, recipeQuery, recipeSource]);
 
   useEffect(() => {
     if (!openRecipe) return;
@@ -87,8 +110,36 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
             <span className="badge neutral">{externalRecipes.length} recipes</span>
           </div>
 
+          <div className={styles.recipeTools}>
+            <label className={styles.searchField}>
+              <span>Search recipes</span>
+              <input
+                onChange={(event) => setRecipeQuery(event.target.value)}
+                placeholder="Try oats, salmon, lentils…"
+                type="search"
+                value={recipeQuery}
+              />
+            </label>
+            <div aria-label="Filter recipes by source" className={styles.sourceFilters}>
+              {recipeSources.map((source) => (
+                <button
+                  aria-pressed={recipeSource === source}
+                  className={recipeSource === source ? styles.sourceFilterActive : styles.sourceFilter}
+                  key={source}
+                  onClick={() => setRecipeSource(source)}
+                  type="button"
+                >
+                  {source}
+                </button>
+              ))}
+            </div>
+            <p aria-live="polite" className={styles.resultCount}>
+              Showing {filteredExternalRecipes.length} of {externalRecipes.length} recipes
+            </p>
+          </div>
+
           <div className={styles.gallery}>
-            {externalRecipes.map((recipe) => (
+            {filteredExternalRecipes.map((recipe) => (
               <article className={styles.card} key={recipe.id}>
                 {recipe.imageUrl ? (
                   <div
@@ -125,6 +176,12 @@ export function RecipesGallery({ recipes, externalRecipes }: RecipesGalleryProps
                 />
               </article>
             ))}
+            {filteredExternalRecipes.length === 0 ? (
+              <div className={`card ${styles.empty}`}>
+                <strong>No matching recipes.</strong>
+                <p className="subtle">Try another ingredient or choose all sources.</p>
+              </div>
+            ) : null}
           </div>
         </section>
       ) : null}
