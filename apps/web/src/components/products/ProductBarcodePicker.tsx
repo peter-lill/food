@@ -17,6 +17,10 @@ type BarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
+type ScannerControls = {
+  stop(): void;
+};
+
 type BarcodeLookupResponse = {
   found: boolean;
   source?: "local" | "open-food-facts" | "upcitemdb";
@@ -124,17 +128,70 @@ export function ProductBarcodePicker({
 
     const Detector = getBarcodeDetector();
     const mediaDevices = navigator.mediaDevices;
-    if (!Detector || !mediaDevices?.getUserMedia) return;
+    if (!mediaDevices?.getUserMedia) return;
 
-    const ActiveDetector = Detector;
     const activeMediaDevices = mediaDevices;
     let cancelled = false;
     let stream: MediaStream | null = null;
     let videoElement: HTMLVideoElement | null = null;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let fallbackControls: ScannerControls | null = null;
     let emptyPasses = 0;
 
-    async function startScanner() {
+    async function processBarcode(rawBarcode: string) {
+      const barcode = normaliseBarcode(rawBarcode);
+      if (!barcode || barcode === lastBarcodeRef.current || cancelled) return;
+
+      lastBarcodeRef.current = barcode;
+      if (barcodeRef.current) barcodeRef.current.value = barcode;
+
+      const knownProduct = productByBarcode(productsRef.current, barcode);
+
+      if (knownProduct) {
+        if (nameRef.current) nameRef.current.value = knownProduct.name;
+        setScanTone("success");
+        setScanStatus(`${knownProduct.name} recognised. The camera remains live for the next item.`);
+      } else {
+        if (nameRef.current) nameRef.current.value = "";
+        setScanTone("neutral");
+        setScanStatus(`Looking up barcode ${barcode}…`);
+
+        try {
+          const lookup = await lookupProductByBarcode(barcode);
+          if (cancelled) return;
+
+          if (lookup.found && lookup.product) {
+            const product = lookup.product;
+            productsRef.current = [
+              product,
+              ...productsRef.current.filter((item) => (
+                item.id !== product.id && item.barcode !== product.barcode
+              )),
+            ];
+            if (nameRef.current) nameRef.current.value = product.name;
+            setScanTone("success");
+            setScanStatus(
+              `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue. The camera remains live.`,
+            );
+          } else {
+            setScanTone("neutral");
+            setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
+            nameRef.current?.focus();
+          }
+        } catch (error) {
+          if (cancelled) return;
+          const message = error instanceof Error ? error.message : "Product lookup failed.";
+          console.error("Unable to look up scanned product", error);
+          setScanTone("error");
+          setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
+          nameRef.current?.focus();
+        }
+      }
+
+      navigator.vibrate?.(70);
+    }
+
+    async function startNativeScanner(ActiveDetector: BarcodeDetectorConstructor) {
       try {
         const supportedFormats = ActiveDetector.getSupportedFormats
           ? await ActiveDetector.getSupportedFormats()
@@ -177,56 +234,7 @@ export function ProductBarcodePicker({
               if (emptyPasses >= 6) lastBarcodeRef.current = "";
             } else {
               emptyPasses = 0;
-
-              if (barcode !== lastBarcodeRef.current) {
-                lastBarcodeRef.current = barcode;
-                if (barcodeRef.current) barcodeRef.current.value = barcode;
-
-                const knownProduct = productByBarcode(productsRef.current, barcode);
-
-                if (knownProduct) {
-                  if (nameRef.current) nameRef.current.value = knownProduct.name;
-                  setScanTone("success");
-                  setScanStatus(`${knownProduct.name} recognised. The camera remains live for the next item.`);
-                } else {
-                  if (nameRef.current) nameRef.current.value = "";
-                  setScanTone("neutral");
-                  setScanStatus(`Looking up barcode ${barcode}…`);
-
-                  try {
-                    const lookup = await lookupProductByBarcode(barcode);
-                    if (cancelled) return;
-
-                    if (lookup.found && lookup.product) {
-                      const product = lookup.product;
-                      productsRef.current = [
-                        product,
-                        ...productsRef.current.filter((item) => (
-                          item.id !== product.id && item.barcode !== product.barcode
-                        )),
-                      ];
-                      if (nameRef.current) nameRef.current.value = product.name;
-                      setScanTone("success");
-                      setScanStatus(
-                        `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue. The camera remains live.`,
-                      );
-                    } else {
-                      setScanTone("neutral");
-                      setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
-                      nameRef.current?.focus();
-                    }
-                  } catch (error) {
-                    if (cancelled) return;
-                    const message = error instanceof Error ? error.message : "Product lookup failed.";
-                    console.error("Unable to look up scanned product", error);
-                    setScanTone("error");
-                    setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
-                    nameRef.current?.focus();
-                  }
-                }
-
-                navigator.vibrate?.(70);
-              }
+              await processBarcode(barcode);
             }
           } catch (error) {
             console.error("Unable to detect barcode", error);
@@ -243,11 +251,51 @@ export function ProductBarcodePicker({
       }
     }
 
-    void startScanner();
+    async function startFallbackScanner() {
+      try {
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        if (cancelled || !videoRef.current) return;
+
+        const reader = new BrowserMultiFormatReader();
+        fallbackControls = await reader.decodeFromConstraints(
+          {
+            audio: false,
+            video: {
+              facingMode: { ideal: "environment" },
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+            },
+          },
+          videoRef.current,
+          (result) => {
+            if (result) void processBarcode(result.getText());
+          },
+        );
+
+        if (cancelled) {
+          fallbackControls.stop();
+          return;
+        }
+
+        setScanTone("neutral");
+        setScanStatus("Camera is live. Hold a barcode inside the frame.");
+      } catch (error) {
+        console.error("Unable to start fallback barcode scanner", error);
+        setScanTone("error");
+        setScanStatus("Camera access failed. Check browser permission for food.coffeehq.coffee or enter the barcode manually.");
+      }
+    }
+
+    if (Detector) {
+      void startNativeScanner(Detector);
+    } else {
+      void startFallbackScanner();
+    }
 
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
+      fallbackControls?.stop();
       stream?.getTracks().forEach((track) => track.stop());
       if (videoElement) videoElement.srcObject = null;
     };
@@ -283,12 +331,6 @@ export function ProductBarcodePicker({
   function openScanner() {
     setCatalogueOpen(false);
     setScannerOpen(true);
-
-    if (!getBarcodeDetector()) {
-      setScanTone("error");
-      setScanStatus("Live barcode detection is not supported by this browser. Enter the barcode manually instead.");
-      return;
-    }
 
     if (!navigator.mediaDevices?.getUserMedia) {
       setScanTone("error");
