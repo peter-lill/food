@@ -3,12 +3,16 @@ import "./globals.css";
 import "./shopping.css";
 import "./navigation.css";
 import "./saved-product-delete.css";
+import "./v2.css";
 import { AppShell } from "@/components/AppShell";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
 
 export const metadata: Metadata = {
   title: "Food",
   description: "Personal food, shopping and nutrition companion",
+  icons: {
+    icon: "/brand/food-mark.svg",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
