@@ -12,6 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "products:backfill": "tsx scripts/backfill-product-intelligence.ts",
+    "products:backfill:apply": "tsx scripts/backfill-product-intelligence.ts --apply",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
   "dependencies": {
