@@ -13,23 +13,37 @@ type ShoppingRecord = {
 
 function cleanCanonicalName(name: string) {
   const parsed = parseProductName(name);
-  return parsed.canonicalName
+  let canonical = parsed.canonicalName
     .replace(/\bwedges?\b/gi, "")
-    .replace(/\bleaves\s*$/i, " leaves")
+    .replace(/\bskinless\b/gi, "")
+    .replace(/\bfillets?\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  if (/\bsalmon\b/i.test(canonical)) canonical = "salmon";
+  if (/^lemons?$/i.test(canonical)) canonical = "lemon";
+
+  return canonical;
+}
+
+function normalisedUnit(unit: string | null) {
+  const value = normaliseProductText(unit ?? "item");
+  if (["item", "items", "each", "ea"].includes(value)) return "each";
+  if (["gram", "grams"].includes(value)) return "g";
+  if (["kilogram", "kilograms"].includes(value)) return "kg";
+  if (["millilitre", "millilitres"].includes(value)) return "ml";
+  if (["litre", "litres"].includes(value)) return "l";
+  return value;
 }
 
 function mergeKey(item: ShoppingRecord) {
-  const canonical = cleanCanonicalName(item.name);
-  const identity = item.productId ?? normaliseProductText(canonical);
-  const unit = normaliseProductText(item.unit ?? "item");
-  return `${item.checked ? "checked" : "open"}|${identity}|${unit}`;
+  const identity = normaliseProductText(cleanCanonicalName(item.name));
+  return `${item.checked ? "checked" : "open"}|${identity}|${normalisedUnit(item.unit)}`;
 }
 
 function splitCompoundName(item: ShoppingRecord) {
   const normalised = normaliseProductText(item.name);
-  if (normalised === "mint leaves and lemon wedges") {
+  if (normalised.includes("mint leaves") && normalised.includes("lemon wedges")) {
     return ["Mint leaves", "Lemon"];
   }
   return null;
@@ -112,6 +126,7 @@ export async function consolidateShoppingItems() {
         data: {
           name: canonicalName || keeper.name,
           quantity,
+          unit: normalisedUnit(keeper.unit),
           productId,
         },
       }),
