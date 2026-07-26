@@ -3,8 +3,6 @@ import { normaliseProductText, parseProductName } from "../src/lib/products/prod
 
 const apply = process.argv.includes("--apply");
 
-type ProductRecord = Awaited<ReturnType<typeof loadProducts>>[number];
-
 function loadProducts() {
   return prisma.product.findMany({
     include: {
@@ -25,6 +23,12 @@ function loadProducts() {
   });
 }
 
+type ProductRecord = Awaited<ReturnType<typeof loadProducts>>[number];
+
+function hasValue(value: unknown) {
+  return value !== null && value !== undefined && value !== "";
+}
+
 function completeness(product: ProductRecord) {
   const populated = [
     product.barcode,
@@ -34,7 +38,7 @@ function completeness(product: ProductRecord) {
     product.imageUrl,
     product.packSize,
     product.calories,
-  ].filter((value) => value !== null && value !== "").length;
+  ].filter(hasValue).length;
   const links = Object.values(product._count).reduce((sum, value) => sum + value, 0);
   return populated * 100 + links * 4 + product.aliases.length;
 }
@@ -44,6 +48,14 @@ function chooseSurvivor(products: ProductRecord[]) {
     const difference = completeness(right) - completeness(left);
     return difference || left.createdAt.getTime() - right.createdAt.getTime();
   })[0];
+}
+
+function firstString(products: ProductRecord[], selector: (product: ProductRecord) => string | null) {
+  return products.map(selector).find((value): value is string => Boolean(value?.trim())) ?? null;
+}
+
+function firstNumber(products: ProductRecord[], selector: (product: ProductRecord) => number | null) {
+  return products.map(selector).find((value): value is number => value !== null && Number.isFinite(value)) ?? null;
 }
 
 function uniqueAliases(products: ProductRecord[], canonicalName: string) {
@@ -69,6 +81,7 @@ async function mergeGroup(key: string, products: ProductRecord[]) {
   const duplicates = products.filter((product) => product.id !== survivor.id);
   const duplicateIds = duplicates.map((product) => product.id);
   const aliases = uniqueAliases(products, parsed.canonicalName);
+  const best = [...products].sort((left, right) => completeness(right) - completeness(left));
 
   console.log(`\n${parsed.canonicalName} [${key}]`);
   console.log(`  keep: ${survivor.name} (${survivor.id})`);
@@ -76,14 +89,12 @@ async function mergeGroup(key: string, products: ProductRecord[]) {
 
   if (!apply || duplicateIds.length === 0) return;
 
-  const best = [...products].sort((left, right) => completeness(right) - completeness(left));
-  const firstValue = <T>(selector: (product: ProductRecord) => T | null) =>
-    best.map(selector).find((value): value is T => value !== null && value !== "") ?? null;
+  const preservedBarcode = survivor.barcode ?? firstString(best, (product) => product.barcode);
 
   await prisma.$transaction(async (tx) => {
     await tx.product.updateMany({
       where: { id: { in: duplicateIds } },
-      data: { slug: null },
+      data: { slug: null, barcode: null },
     });
 
     await Promise.all([
@@ -109,9 +120,7 @@ async function mergeGroup(key: string, products: ProductRecord[]) {
       });
     }
 
-    await tx.productAlias.deleteMany({
-      where: { productId: { in: duplicateIds } },
-    });
+    await tx.productAlias.deleteMany({ where: { productId: { in: duplicateIds } } });
 
     await tx.product.update({
       where: { id: survivor.id },
@@ -119,14 +128,14 @@ async function mergeGroup(key: string, products: ProductRecord[]) {
         name: parsed.canonicalName,
         canonicalName: parsed.canonicalName,
         slug: parsed.canonicalKey,
-        brand: survivor.brand ?? firstValue((product) => product.brand),
-        barcode: survivor.barcode ?? firstValue((product) => product.barcode),
-        category: survivor.category ?? firstValue((product) => product.category),
-        description: survivor.description ?? firstValue((product) => product.description),
-        imageUrl: survivor.imageUrl ?? firstValue((product) => product.imageUrl),
-        packSize: survivor.packSize ?? firstValue((product) => product.packSize),
-        packQuantity: survivor.packQuantity ?? firstValue((product) => product.packQuantity),
-        packUnit: survivor.packUnit ?? firstValue((product) => product.packUnit),
+        brand: survivor.brand ?? firstString(best, (product) => product.brand),
+        barcode: preservedBarcode,
+        category: survivor.category ?? firstString(best, (product) => product.category),
+        description: survivor.description ?? firstString(best, (product) => product.description),
+        imageUrl: survivor.imageUrl ?? firstString(best, (product) => product.imageUrl),
+        packSize: survivor.packSize ?? firstString(best, (product) => product.packSize),
+        packQuantity: survivor.packQuantity ?? firstNumber(best, (product) => product.packQuantity),
+        packUnit: survivor.packUnit ?? firstString(best, (product) => product.packUnit),
       },
     });
 
