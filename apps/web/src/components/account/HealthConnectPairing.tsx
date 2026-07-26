@@ -36,10 +36,18 @@ export function HealthConnectPairing() {
   async function generateCode() {
     setPending(true);
     setError("");
+    setPairing(null);
+
     try {
-      const response = await fetch("/api/health-connect/pairing", {
+      const response = await fetch("/api/health-connect/pairing/generate", {
         method: "POST",
-        headers: { Accept: "application/json" },
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       });
 
       const contentType = response.headers.get("content-type") ?? "";
@@ -75,7 +83,7 @@ export function HealthConnectPairing() {
           <p className="eyebrow">ANDROID HEALTH CONNECT</p>
           <h2>Connect your phone</h2>
           <p className="subtle">
-            Generate a one-time code, then scan it in the Food Android app to authorise Health Connect syncing.
+            Generate a one-time code for the signed-in account. Each Android phone exchanges the code for its own device token, so multiple phones can be linked independently.
           </p>
         </div>
         <span className={styles.badge}>Health Connect</span>
@@ -94,6 +102,7 @@ export function HealthConnectPairing() {
               <li>Open Food on your Android phone.</li>
               <li>Choose Health Connect, then Pair device.</li>
               <li>Scan this QR code or enter the code above.</li>
+              <li>The app exchanges it once for a unique token for that phone.</li>
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
             <button className={accountStyles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
