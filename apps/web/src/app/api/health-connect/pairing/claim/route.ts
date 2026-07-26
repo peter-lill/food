@@ -1,4 +1,4 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -7,16 +7,15 @@ export const dynamic = "force-dynamic";
 
 const deviceTokenLifetimeDays = 3650;
 
+type PendingPairing = {
+  id: string;
+  userId: string;
+};
+
 function normaliseCode(value: unknown) {
   return typeof value === "string"
     ? value.replace(/\s+/g, "").trim().toUpperCase()
     : "";
-}
-
-function codesMatch(left: string, right: string) {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return leftBuffer.length === rightBuffer.length && timingSafeEqual(leftBuffer, rightBuffer);
 }
 
 export async function POST(request: Request) {
@@ -37,23 +36,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "A pairing code is required." }, { status: 400 });
   }
 
-  const pendingPairings = await prisma.verification.findMany({
-    where: {
-      identifier: { startsWith: "health-connect-pairing-user:" },
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: { createdAt: "desc" },
-    take: 100,
-  });
-
-  const pairing = pendingPairings.find((entry) => {
-    try {
-      const value = JSON.parse(entry.value) as { code?: unknown };
-      return typeof value.code === "string" && codesMatch(code, normaliseCode(value.code));
-    } catch {
-      return false;
-    }
-  });
+  const pairings = await prisma.$queryRaw<PendingPairing[]>`
+    SELECT "id", "userId"
+    FROM "HealthConnectPairing"
+    WHERE "code" = ${code}
+      AND "expiresAt" > NOW()
+      AND "consumedAt" IS NULL
+    LIMIT 1
+  `;
+  const pairing = pairings[0];
 
   if (!pairing) {
     return NextResponse.json(
@@ -62,39 +53,29 @@ export async function POST(request: Request) {
     );
   }
 
-  let userId = "";
-  try {
-    const value = JSON.parse(pairing.value) as { userId?: unknown };
-    userId = typeof value.userId === "string" ? value.userId : "";
-  } catch {
-    userId = "";
-  }
-
-  if (!userId) {
-    return NextResponse.json({ error: "The pairing code is not linked to an account." }, { status: 422 });
-  }
-
   const deviceToken = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(deviceToken).digest("hex");
   const pairedAt = new Date();
   const expiresAt = new Date(pairedAt.getTime() + deviceTokenLifetimeDays * 24 * 60 * 60 * 1000);
   const origin = new URL(request.url).origin;
+  const deviceId = randomUUID();
 
-  await prisma.$transaction([
-    prisma.verification.delete({ where: { id: pairing.id } }),
-    prisma.verification.create({
-      data: {
-        id: randomUUID(),
-        identifier: `health-connect-device:${tokenHash}`,
-        value: JSON.stringify({
-          userId,
-          deviceName,
-          pairedAt: pairedAt.toISOString(),
-        }),
-        expiresAt,
-      },
-    }),
-  ]);
+  await prisma.$transaction(async (transaction) => {
+    const consumed = await transaction.$executeRaw`
+      UPDATE "HealthConnectPairing"
+      SET "consumedAt" = ${pairedAt}
+      WHERE "id" = ${pairing.id}
+        AND "consumedAt" IS NULL
+    `;
+    if (consumed !== 1) throw new Error("The pairing code has already been used.");
+
+    await transaction.$executeRaw`
+      INSERT INTO "HealthConnectDevice"
+        ("id", "userId", "tokenHash", "deviceName", "pairedAt", "expiresAt")
+      VALUES
+        (${deviceId}, ${pairing.userId}, ${tokenHash}, ${deviceName}, ${pairedAt}, ${expiresAt})
+    `;
+  });
 
   return NextResponse.json(
     {
