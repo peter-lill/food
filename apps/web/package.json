@@ -14,6 +14,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "products:backfill": "tsx scripts/backfill-product-intelligence.ts",
     "products:backfill:apply": "tsx scripts/backfill-product-intelligence.ts --apply",
+    "products:images": "tsx scripts/enrich-product-images.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
   "dependencies": {
