@@ -12,7 +12,7 @@ const countVariableTerms = [
   "apple", "apricot", "avocado", "banana", "breast", "burger patty",
   "chop", "drumstick", "egg", "fillet", "kiwifruit", "lemon", "lime",
   "mandarin", "mango", "nectarine", "onion", "orange", "peach", "pear",
-  "portion", "steak", "tomato",
+  "portion", "salmon", "steak", "tomato",
 ];
 
 const bunchTerms = [
@@ -29,35 +29,8 @@ const weightVariableTerms = [
   "grapes", "mince", "mushroom", "nuts", "prawns", "spinach",
 ];
 
-const significantProductForms = [
-  "juice", "rind", "zest", "paste", "passata", "powder", "flakes",
-];
-
 function cleanIdentityName(value: string) {
-  const parsed = parseProductName(value);
-  let name = parsed.canonicalName
-    .replace(/\b(?:roughly|finely|thinly|thickly)\b/gi, "")
-    .replace(/\b(?:chopped|diced|sliced|grated|quartered|halved)\b/gi, "")
-    .replace(/\bwedges?\b/gi, "")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const normalised = normaliseProductText(name);
-
-  // A fillet is a naturally variable count item. Recipe portion weights do not
-  // create a separate grocery identity.
-  if (normalised.includes("salmon") && normalised.includes("fillet")) {
-    return normalised.includes("skinless")
-      ? "skinless salmon fillets"
-      : "salmon fillets";
-  }
-
-  if (/^lemons?$/.test(normalised)) return "lemon";
-  if (/^limes?$/.test(normalised)) return "lime";
-  if (/^red onions?$/.test(normalised)) return "red onion";
-  if (/^brown onions?$/.test(normalised)) return "brown onion";
-
-  return normalised;
+  return normaliseProductText(parseProductName(value).canonicalName);
 }
 
 export function foodItemIdentity(value: string) {
@@ -80,17 +53,7 @@ export function shoppingIdentity(value: string) {
 }
 
 export function pantryIdentity(value: string) {
-  const identity = foodItemIdentity(value);
-  const shape = foodItemShape(value);
-
-  // Naturally variable count items share an inventory identity even when a
-  // recipe supplied an indicative gram weight for each piece.
-  if (shape === "COUNT_VARIABLE") return identity;
-
-  // These forms are genuinely different things in a kitchen and must remain
-  // distinct (for example Lemon, Lemon Juice and Lemon Rind).
-  const significantForm = significantProductForms.find((form) => identity.includes(form));
-  return significantForm ? identity : identity;
+  return foodItemIdentity(value);
 }
 
 export function normaliseGroceryUnit(value: string | null | undefined) {
