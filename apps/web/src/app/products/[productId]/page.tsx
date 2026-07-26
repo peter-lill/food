@@ -9,6 +9,13 @@ type ProductPageProps = {
   params: Promise<{ productId: string }>;
 };
 
+type ProductKnowledge = {
+  overview: string;
+  origin?: string;
+  uses: string[];
+  storage: string[];
+};
+
 function money(value: number) {
   return new Intl.NumberFormat("en-AU", {
     style: "currency",
@@ -22,18 +29,76 @@ function date(value: Date | null) {
     : "Not recorded";
 }
 
+function normalise(value: string) {
+  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function knowledgeFor(name: string): ProductKnowledge | null {
+  const value = normalise(name);
+
+  if (value.includes("fish oil")) {
+    return {
+      overview: "Fish oil is an oil derived from oily fish and is commonly sold as liquid or soft-gel capsules. Products vary in their concentrations of EPA and DHA, capsule size, flavouring and serving instructions.",
+      origin: "Commercial fish-oil products are generally produced from oily fish or fish-processing material, then purified and concentrated before packaging.",
+      uses: ["Dietary supplement", "Source of omega-3 fatty acids", "Available as capsules or liquid"],
+      storage: ["Follow the package directions", "Keep tightly closed", "Protect from heat and direct sunlight", "Discard products with an unusual rancid smell"],
+    };
+  }
+
+  if (value.includes("black bean")) {
+    return {
+      overview: "Black beans are small dark legumes with a mild, earthy flavour and a creamy texture when cooked. They are sold dried or canned and are commonly used as an affordable source of plant protein and fibre.",
+      origin: "Black beans are strongly associated with cuisines of Latin America and the Caribbean and are now grown and eaten in many regions.",
+      uses: ["Burrito bowls and tacos", "Soups and stews", "Salads", "Bean patties", "Rice dishes"],
+      storage: ["Store dried beans in a cool, dry container", "Refrigerate opened canned beans", "Rinse canned beans before use when appropriate", "Cooked beans can be frozen in portions"],
+    };
+  }
+
+  if (value.includes("salmon")) {
+    return {
+      overview: "Salmon is an oily fish with rich, firm flesh. It is commonly sold as fillets or portions and is available fresh, frozen, smoked and canned.",
+      origin: "Retail salmon may be farmed or wild caught and can come from different species and regions. Check the specific package for country-of-origin and production details.",
+      uses: ["Pan-frying", "Baking", "Grilling", "Rice bowls", "Salads", "Pasta"],
+      storage: ["Keep chilled and use by the package date", "Freeze promptly when not using fresh", "Thaw in the refrigerator", "Keep cooked fish refrigerated"],
+    };
+  }
+
+  if (value === "carrot" || value.includes("carrots")) {
+    return {
+      overview: "Carrots are crisp root vegetables with a mild sweetness. They can be eaten raw or cooked and are sold loose, bagged, whole, baby-cut, frozen or canned.",
+      uses: ["Salads and slaws", "Roasting", "Soups and stews", "Stir-fries", "Grating into baking"],
+      storage: ["Keep refrigerated", "Remove leafy tops before long storage", "Store dry in a produce drawer or container"],
+    };
+  }
+
+  if (value === "lemon" || value.includes("lemons")) {
+    return {
+      overview: "Lemons are acidic citrus fruit used for their juice, zest and rind. The whole fruit, juice and rind can serve different purposes in recipes even though they come from the same ingredient.",
+      uses: ["Juice in dressings and marinades", "Zest in baking and sauces", "Serving with seafood", "Adding acidity without extra salt"],
+      storage: ["Store at room temperature for short use", "Refrigerate for longer storage", "Freeze juice or zest in portions"],
+    };
+  }
+
+  return null;
+}
+
 export default async function ProductPage({ params }: ProductPageProps) {
   const { productId } = await params;
   const product = await getProductHubDetail(decodeURIComponent(productId));
   if (!product) notFound();
 
-  const displayName = product.canonicalName ?? product.name;
+  const displayName = product.name;
+  const canonicalName = product.canonicalName && normalise(product.canonicalName) !== normalise(product.name)
+    ? product.canonicalName
+    : null;
+  const knowledge = knowledgeFor(canonicalName ?? displayName);
   const latestPrice = product.priceObservations[0] ?? null;
   const pantryQuantity = product.inventory.reduce((total, item) => total + item.quantity, 0);
   const retailerCount = new Set([
     ...product.storeProducts.map((listing) => listing.retailer),
     ...product.priceObservations.map((observation) => observation.retailer),
   ]).size;
+  const productImage = `/api/products/${encodeURIComponent(product.id)}/image`;
 
   const nutrition = [
     ["Energy", product.calories === null ? null : `${Math.round(product.calories)} kcal`],
@@ -56,31 +121,29 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
-              {product.imageUrl ? (
-                <img alt={displayName} src={product.imageUrl} />
-              ) : (
-                <span aria-hidden="true">◈</span>
-              )}
+              <span aria-hidden="true">◈</span>
+              <img alt={displayName} src={productImage} />
             </div>
             <div>
-              <p className="eyebrow">{product.category ?? "CANONICAL PRODUCT"}</p>
+              <p className="eyebrow">{product.category ?? canonicalName ?? "PRODUCT"}</p>
               <h1 className="page-title">{displayName}</h1>
+              {canonicalName ? <p><strong>Product family:</strong> {canonicalName}</p> : null}
               {product.brand ? <p><strong>{product.brand}</strong></p> : null}
               <p className="subtle">
-                {product.description ?? "A shared Food product used across recipes, pantry, shopping and price history."}
+                {product.description ?? knowledge?.overview ?? "A product record shared across Pantry, Shopping, Recipes, Receipts and price history."}
               </p>
               <div className={styles.identityMeta}>
                 {product.packSize ? <span>{product.packSize}</span> : null}
                 {product.barcode ? <span>Barcode {product.barcode}</span> : null}
-                <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span>
-                <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span>
+                {product.recipes.length ? <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span> : null}
+                {retailerCount ? <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span> : null}
               </div>
             </div>
           </div>
         </div>
 
         <aside className={styles.panel}>
-          <p className="eyebrow">AT A GLANCE</p>
+          <p className="eyebrow">YOUR PRODUCT</p>
           <div className={styles.metricGrid}>
             <div className={styles.metric}>
               <small>Latest price</small>
@@ -93,23 +156,52 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <small>{product.inventory.length ? `${product.inventory.length} stock record${product.inventory.length === 1 ? "" : "s"}` : "Not stocked"}</small>
             </div>
             <div className={styles.metric}>
-              <small>Aliases</small>
-              <strong>{product.aliases.length}</strong>
-              <small>Search names</small>
+              <small>Known names</small>
+              <strong>{product.aliases.length + (canonicalName ? 1 : 0)}</strong>
+              <small>Aliases and family</small>
             </div>
             <div className={styles.metric}>
-              <small>Price observations</small>
+              <small>Price records</small>
               <strong>{product.priceObservations.length}</strong>
-              <small>Latest 100 shown</small>
+              <small>Latest 100 retained</small>
             </div>
           </div>
         </aside>
       </section>
 
       <section className={styles.sections}>
+        {knowledge ? (
+          <article className={styles.panel}>
+            <h2>About {canonicalName ?? displayName}</h2>
+            <p className="subtle">{knowledge.overview}</p>
+            {knowledge.origin ? <><h3>Origin and production</h3><p className="subtle">{knowledge.origin}</p></> : null}
+          </article>
+        ) : null}
+
+        {knowledge ? (
+          <article className={styles.panel}>
+            <h2>Common uses</h2>
+            <div className={styles.tags}>{knowledge.uses.map((use) => <span key={use}>{use}</span>)}</div>
+            <h3>Storage</h3>
+            <ul className={styles.list}>{knowledge.storage.map((tip) => <li className={styles.listItem} key={tip}><span>{tip}</span></li>)}</ul>
+          </article>
+        ) : null}
+
         <article className={styles.panel}>
-          <h2>Current retailer listings</h2>
-          {product.storeProducts.length ? (
+          <h2>Product identity</h2>
+          <ul className={styles.list}>
+            <li className={styles.listItem}><span>Detailed name</span><strong>{displayName}</strong></li>
+            {canonicalName ? <li className={styles.listItem}><span>Product family</span><strong>{canonicalName}</strong></li> : null}
+            {product.brand ? <li className={styles.listItem}><span>Brand</span><strong>{product.brand}</strong></li> : null}
+            {product.packSize ? <li className={styles.listItem}><span>Pack size</span><strong>{product.packSize}</strong></li> : null}
+            {product.barcode ? <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode}</strong></li> : null}
+            {product.category ? <li className={styles.listItem}><span>Category</span><strong>{product.category}</strong></li> : null}
+          </ul>
+        </article>
+
+        {product.storeProducts.length ? (
+          <article className={styles.panel}>
+            <h2>Current retailer listings</h2>
             <ul className={styles.list}>
               {product.storeProducts.map((listing) => (
                 <li className={styles.listItem} key={listing.id}>
@@ -129,12 +221,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </li>
               ))}
             </ul>
-          ) : <p className="subtle">No store listings have been linked yet.</p>}
-        </article>
+          </article>
+        ) : null}
 
-        <article className={styles.panel}>
-          <h2>Recent price history</h2>
-          {product.priceObservations.length ? (
+        {product.priceObservations.length ? (
+          <article className={styles.panel}>
+            <h2>Recent price history</h2>
             <ul className={styles.list}>
               {product.priceObservations.slice(0, 12).map((observation) => (
                 <li className={styles.listItem} key={observation.id}>
@@ -149,12 +241,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </li>
               ))}
             </ul>
-          ) : <p className="subtle">No price observations have been recorded yet.</p>}
-        </article>
+          </article>
+        ) : null}
 
-        <article className={styles.panel}>
-          <h2>Used in recipes</h2>
-          {product.recipes.length ? (
+        {product.recipes.length ? (
+          <article className={styles.panel}>
+            <h2>Used in recipes</h2>
             <ul className={styles.list}>
               {product.recipes.map((recipe) => (
                 <li className={styles.listItem} key={recipe.id}>
@@ -163,12 +255,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </li>
               ))}
             </ul>
-          ) : <p className="subtle">No recipes are linked to this product yet.</p>}
-        </article>
+          </article>
+        ) : null}
 
-        <article className={styles.panel}>
-          <h2>Pantry stock</h2>
-          {product.inventory.length ? (
+        {product.inventory.length ? (
+          <article className={styles.panel}>
+            <h2>Pantry stock</h2>
             <ul className={styles.list}>
               {product.inventory.map((item) => (
                 <li className={styles.listItem} key={item.id}>
@@ -180,12 +272,12 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </li>
               ))}
             </ul>
-          ) : <p className="subtle">This product is not currently in the pantry.</p>}
-        </article>
+          </article>
+        ) : null}
 
-        <article className={styles.panel}>
-          <h2>Nutrition</h2>
-          {nutrition.length ? (
+        {nutrition.length ? (
+          <article className={styles.panel}>
+            <h2>Nutrition</h2>
             <div className={styles.metricGrid}>
               {nutrition.map(([label, value]) => (
                 <div className={styles.metric} key={label}>
@@ -194,19 +286,17 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 </div>
               ))}
             </div>
-          ) : <p className="subtle">Nutrition has not been enriched yet.</p>}
-        </article>
+          </article>
+        ) : null}
 
-        <article className={styles.panel}>
-          <h2>Aliases and dietary data</h2>
-          {product.aliases.length ? (
-            <div className={styles.tags}>
-              {product.aliases.map((alias) => <span key={alias.id}>{alias.alias}</span>)}
-            </div>
-          ) : <p className="subtle">No aliases have been recorded yet.</p>}
-          {product.dietaryTags.length ? <div className={styles.tags}>{product.dietaryTags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
-          {product.allergens.length ? <p className="subtle">Allergens: {product.allergens.join(", ")}</p> : null}
-        </article>
+        {product.aliases.length || product.dietaryTags.length || product.allergens.length ? (
+          <article className={styles.panel}>
+            <h2>Recognised names and dietary data</h2>
+            {product.aliases.length ? <div className={styles.tags}>{product.aliases.map((alias) => <span key={alias.id}>{alias.alias}</span>)}</div> : null}
+            {product.dietaryTags.length ? <div className={styles.tags}>{product.dietaryTags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
+            {product.allergens.length ? <p className="subtle">Allergens: {product.allergens.join(", ")}</p> : null}
+          </article>
+        ) : null}
       </section>
     </div>
   );
