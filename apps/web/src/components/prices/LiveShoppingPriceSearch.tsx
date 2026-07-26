@@ -44,6 +44,17 @@ function locationSourceLabel(
   return "Default search location";
 }
 
+function hasTransientSearchFailure(result: LiveGroceryPriceSearchResponse) {
+  return result.items.some((item) => {
+    const error = item.error?.toLocaleLowerCase("en-AU") ?? "";
+    return error.includes("aborted") || error.includes("timeout") || error.includes("timed out");
+  });
+}
+
+function wait(milliseconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
 export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingList }) {
   const [allowSubstitutes, setAllowSubstitutes] = useState(true);
   const [locationMode, setLocationMode] = useState<"home" | "current">("home");
@@ -51,6 +62,25 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState<LiveGroceryPriceSearchResponse | null>(null);
+
+  async function requestPrices(currentLocation: Awaited<ReturnType<typeof getCurrentLocation>> | null) {
+    const response = await fetch(`/api/prices/shopping-list/${encodeURIComponent(list.id)}/search`, {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ allowSubstitutes, currentLocation }),
+    });
+    const payload = await response.json() as LiveGroceryPriceSearchResponse | LiveGroceryPriceErrorResponse;
+
+    if (!response.ok || payload.status === "error") {
+      throw new Error(payload.status === "error" ? payload.error : `Price search returned HTTP ${response.status}.`);
+    }
+
+    return payload;
+  }
 
   async function searchPrices() {
     setLoading(true);
@@ -62,19 +92,14 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
         locationMode === "current" ? await getCurrentLocation() : null;
       setLocating(false);
 
-      const response = await fetch(`/api/prices/shopping-list/${encodeURIComponent(list.id)}/search`, {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ allowSubstitutes, currentLocation }),
-      });
-      const payload = await response.json() as LiveGroceryPriceSearchResponse | LiveGroceryPriceErrorResponse;
+      let payload = await requestPrices(currentLocation);
 
-      if (!response.ok || payload.status === "error") {
-        throw new Error(payload.status === "error" ? payload.error : `Price search returned HTTP ${response.status}.`);
+      // Successful searches are cached server-side. A second pass therefore
+      // returns those immediately and gives only transiently timed-out items a
+      // practical second opportunity without extending the whole request.
+      if (hasTransientSearchFailure(payload)) {
+        await wait(750);
+        payload = await requestPrices(currentLocation);
       }
 
       setResult(payload);
@@ -86,16 +111,16 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
     }
   }
 
+  const completeRetailers = result?.retailerTotals
+    .filter((retailer) => retailer.missingCount === 0)
+    .sort((left, right) => left.total - right.total) ?? [];
+  const bestCompleteRetailer = completeRetailers[0] ?? null;
   const visibleRetailers = result?.retailerTotals
     .filter((retailer) => retailer.matchedCount > 0)
     .sort((left, right) => {
-      if (left.missingCount === 0 && right.missingCount !== 0) return -1;
-      if (left.missingCount !== 0 && right.missingCount === 0) return 1;
-      return left.total - right.total;
+      const completionDifference = Number(left.missingCount > 0) - Number(right.missingCount > 0);
+      return completionDifference || left.total - right.total;
     }) ?? [];
-  const completeRetailers = visibleRetailers
-    .filter((retailer) => retailer.missingCount === 0);
-  const bestCompleteRetailer = completeRetailers[0] ?? null;
 
   return (
     <section className={`card ${styles.liveSearch}`}>
