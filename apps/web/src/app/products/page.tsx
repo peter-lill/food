@@ -27,10 +27,10 @@ function normaliseView(value: string | undefined): ProductView {
 
 const views: Array<{ value: ProductView; label: string }> = [
   { value: "all", label: "All products" },
-  { value: "pantry", label: "In pantry" },
+  { value: "pantry", label: "In Pantry" },
   { value: "priced", label: "With prices" },
   { value: "recipes", label: "Used in recipes" },
-  { value: "needs-details", label: "Needs details" },
+  { value: "needs-details", label: "Missing information" },
 ];
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
@@ -97,7 +97,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.cataloguePanel}>
         <div className={styles.toolbar}>
-          <div>
+          <div className={styles.toolbarTitle}>
             <p className="eyebrow">PRODUCT CATALOGUE</p>
             <h2>{products.length} {products.length === 1 ? "product" : "products"}</h2>
           </div>
@@ -137,24 +137,24 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const displayName = product.canonicalName ?? product.name;
             const latestPrice = money(product.latestPrice);
-            const needsDetails = !product.imageUrl || !product.category || (!product.barcode && !product.brand);
+            const imageUrl = product.imageUrl ?? `/api/products/${encodeURIComponent(product.id)}/image`;
 
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.thumb}>
-                  {product.imageUrl ? <img alt={displayName} src={product.imageUrl} /> : <span>◈</span>}
-                  {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
+                  <span className={styles.imageFallback} aria-hidden="true">◈</span>
+                  <img alt={displayName} loading="lazy" src={imageUrl} />
+                  {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In Pantry</span> : null}
                 </div>
                 <div className={styles.cardBody}>
                   <div className={styles.cardTopline}>
-                    <span>{product.category ?? "Uncategorised"}</span>
-                    {needsDetails ? <small>Needs details</small> : null}
+                    <span>{product.category ?? product.brand ?? "Product"}</span>
                   </div>
                   <h2>{displayName}</h2>
                   <p className={styles.brandLine}>
                     {[product.brand, product.barcode ? `Barcode ${product.barcode}` : null]
                       .filter(Boolean)
-                      .join(" · ") || "Product record ready to enrich"}
+                      .join(" · ") || "Food product"}
                   </p>
                   <div className={styles.priceRow}>
                     <div><small>Latest price</small><strong>{latestPrice ?? "Not priced"}</strong></div>
