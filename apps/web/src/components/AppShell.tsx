@@ -9,6 +9,7 @@ const ownerNavigation = [
   { label: "Today", href: "/", icon: "◉" },
   { label: "Planner", href: "/planner", icon: "▦" },
   { label: "Pantry", href: "/pantry", icon: "□" },
+  { label: "Products", href: "/products", icon: "◈" },
   { label: "Scan", href: "/scan", icon: "⌗" },
   { label: "Receipts", href: "/receipts", icon: "≡" },
   { label: "Prices", href: "/prices", icon: "$" },
