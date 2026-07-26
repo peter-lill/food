@@ -2,7 +2,10 @@ import { RecipesGallery } from "@/components/recipes/RecipesGallery";
 import { getAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
 import { prisma } from "@/lib/prisma";
-import { externalRecipes } from "@/lib/recipes/external-recipes";
+import {
+  externalRecipes,
+  type ExternalRecipe,
+} from "@/lib/recipes/external-recipes";
 import { importHeartFoundationRecipe } from "@/lib/recipes/import-heart-foundation-recipe";
 import { cacheExternalRecipeImage } from "@/lib/recipes/local-recipe-image";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
@@ -44,6 +47,19 @@ function isAustralianHeartFoundationRecipe(recipe: {
   );
 }
 
+function prepareCatalogueRecipe(recipe: ExternalRecipe): ExternalRecipe {
+  const preparedRecipe = withSourceImage(recipe);
+
+  if (preparedRecipe.sourceName !== "Heart Foundation") {
+    return preparedRecipe;
+  }
+
+  return {
+    ...preparedRecipe,
+    sourceName: "Australian Heart Foundation",
+  };
+}
+
 export default async function RecipesPage() {
   const session = await getAuthSession();
 
@@ -59,18 +75,11 @@ export default async function RecipesPage() {
     (recipe) => !isAustralianHeartFoundationRecipe(recipe),
   );
 
-  const catalogueRecipes = [
+  const catalogueRecipes: ExternalRecipe[] = [
     ...new Map(
       externalRecipes
         .filter((recipe) => recipe.sourceName !== "Mayo Clinic")
-        .map((recipe) =>
-          recipe.sourceName === "Heart Foundation"
-            ? {
-                ...withSourceImage(recipe),
-                sourceName: "Australian Heart Foundation",
-              }
-            : withSourceImage(recipe),
-        )
+        .map(prepareCatalogueRecipe)
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
   ];
