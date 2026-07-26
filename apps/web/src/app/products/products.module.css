@@ -53,9 +53,9 @@
 .card {
   position: relative;
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 92px minmax(0, 1fr);
   gap: 16px;
-  min-height: 154px;
+  min-height: 166px;
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 22px;
@@ -72,11 +72,11 @@
 .thumb {
   display: grid;
   place-items: center;
-  width: 72px;
-  height: 72px;
+  width: 92px;
+  height: 92px;
   overflow: hidden;
-  border-radius: 18px;
-  background: #f2eee4;
+  border-radius: 20px;
+  background: linear-gradient(145deg, #f6f1e6, #ece5d6);
   color: var(--accent);
   font-size: 1.8rem;
 }
@@ -84,7 +84,9 @@
 .thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  padding: 6px;
+  background: #fff;
 }
 
 .cardBody {
@@ -144,6 +146,33 @@
   border: 1px solid var(--border);
   border-radius: 24px;
   background: var(--surface);
+}
+
+.identityLayout {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  align-items: center;
+  gap: 24px;
+}
+
+.productVisual {
+  display: grid;
+  place-items: center;
+  width: 190px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 26px;
+  background: linear-gradient(145deg, #f6f1e6, #ebe4d4);
+  color: var(--accent);
+  font-size: 3rem;
+}
+
+.productVisual img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 12px;
+  background: #fff;
 }
 
 .identity h1 {
@@ -206,6 +235,7 @@
 .listItem {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 16px;
   padding: 12px 0;
   border-bottom: 1px solid var(--border);
@@ -216,7 +246,35 @@
 }
 
 .listItem small {
+  display: block;
   color: var(--text-soft);
+}
+
+.listingIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.listingImage {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--surface-muted);
+  color: var(--accent);
+}
+
+.listingImage img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 4px;
+  background: #fff;
 }
 
 .tags {
@@ -234,6 +292,14 @@
 @media (max-width: 1100px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .identityLayout {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+
+  .productVisual {
+    width: 150px;
   }
 }
 
@@ -259,6 +325,21 @@
   }
 
   .card {
-    min-height: 136px;
+    grid-template-columns: 84px minmax(0, 1fr);
+    min-height: 150px;
+  }
+
+  .thumb {
+    width: 84px;
+    height: 84px;
+  }
+
+  .identityLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .productVisual {
+    width: min(100%, 260px);
+    margin-inline: auto;
   }
 }
