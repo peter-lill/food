@@ -54,17 +54,28 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <section className={styles.detailHero}>
         <div className={styles.identity}>
-          <p className="eyebrow">{product.category ?? "CANONICAL PRODUCT"}</p>
-          <h1 className="page-title">{displayName}</h1>
-          {product.brand ? <p><strong>{product.brand}</strong></p> : null}
-          <p className="subtle">
-            {product.description ?? "A shared Food product used across recipes, pantry, shopping and price history."}
-          </p>
-          <div className={styles.identityMeta}>
-            {product.packSize ? <span>{product.packSize}</span> : null}
-            {product.barcode ? <span>Barcode {product.barcode}</span> : null}
-            <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span>
-            <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span>
+          <div className={styles.identityLayout}>
+            <div className={styles.productVisual}>
+              {product.imageUrl ? (
+                <img alt={displayName} src={product.imageUrl} />
+              ) : (
+                <span aria-hidden="true">◈</span>
+              )}
+            </div>
+            <div>
+              <p className="eyebrow">{product.category ?? "CANONICAL PRODUCT"}</p>
+              <h1 className="page-title">{displayName}</h1>
+              {product.brand ? <p><strong>{product.brand}</strong></p> : null}
+              <p className="subtle">
+                {product.description ?? "A shared Food product used across recipes, pantry, shopping and price history."}
+              </p>
+              <div className={styles.identityMeta}>
+                {product.packSize ? <span>{product.packSize}</span> : null}
+                {product.barcode ? <span>Barcode {product.barcode}</span> : null}
+                <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span>
+                <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -102,9 +113,14 @@ export default async function ProductPage({ params }: ProductPageProps) {
             <ul className={styles.list}>
               {product.storeProducts.map((listing) => (
                 <li className={styles.listItem} key={listing.id}>
-                  <div>
-                    <strong>{listing.retailer}</strong>
-                    <small>{listing.retailerProductName}</small>
+                  <div className={styles.listingIdentity}>
+                    <div className={styles.listingImage}>
+                      {listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}
+                    </div>
+                    <div>
+                      <strong>{listing.retailer}</strong>
+                      <small>{listing.retailerProductName}</small>
+                    </div>
                   </div>
                   <div>
                     <strong>{listing.packSize ?? "—"}</strong>
