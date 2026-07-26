@@ -43,38 +43,12 @@ type OpenFoodFactsResponse = {
   };
 };
 
-type SerpApiResult = {
-  title?: unknown;
-  source?: unknown;
-  seller?: unknown;
-  thumbnail?: unknown;
-  image?: unknown;
-  serpapi_thumbnail?: unknown;
-};
-
-type SerpApiResponse = {
-  shopping_results?: unknown;
-  inline_shopping_results?: unknown;
-  error?: unknown;
-};
-
 type ProductIdentity = {
   name: string;
   canonicalName: string | null;
   brand: string | null;
   barcode: string | null;
 };
-
-type ImageCandidate = {
-  imageUrl: string;
-  title: string;
-  source: string;
-  score: number;
-};
-
-function cleanText(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-}
 
 function normalise(value: string) {
   return value
@@ -163,7 +137,8 @@ async function imageFromOpenFoodFacts(barcode: string) {
     const response = await fetch(
       `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`,
       {
-        cache: "no-store",
+        cache: "force-cache",
+        next: { revalidate: 604_800 },
         headers: {
           Accept: "application/json",
           "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
@@ -180,49 +155,10 @@ async function imageFromOpenFoodFacts(barcode: string) {
   });
 }
 
-async function imageFromShoppingSearch(identity: ProductIdentity) {
-  const apiKey = process.env.SERPAPI_API_KEY?.trim();
-  const productName = identity.canonicalName ?? identity.name;
-  const query = [identity.brand, productName, identity.barcode].filter(Boolean).join(" ");
-  if (!apiKey || !query.trim()) return null;
-
-  return withTimeout(async (signal) => {
-    const url = new URL("https://serpapi.com/search.json");
-    url.searchParams.set("engine", "google_shopping");
-    url.searchParams.set("q", query);
-    url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("gl", "au");
-    url.searchParams.set("hl", "en");
-
-    const response = await fetch(url, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-      signal,
-    });
-    if (!response.ok) return null;
-
-    const payload = await response.json() as SerpApiResponse;
-    if (typeof payload.error === "string" && payload.error.trim()) return null;
-    const results = [
-      ...(Array.isArray(payload.shopping_results) ? payload.shopping_results : []),
-      ...(Array.isArray(payload.inline_shopping_results) ? payload.inline_shopping_results : []),
-    ] as SerpApiResult[];
-
-    const candidates = results
-      .map((result): ImageCandidate | null => {
-        const title = cleanText(result.title);
-        const source = cleanText(result.source) || cleanText(result.seller);
-        const imageUrl = safeImageUrl(result.image)
-          ?? safeImageUrl(result.thumbnail)
-          ?? safeImageUrl(result.serpapi_thumbnail);
-        if (!title || !imageUrl) return null;
-        const score = scoreTitle(identity, title, source);
-        return Number.isFinite(score) ? { imageUrl, title, source, score } : null;
-      })
-      .filter((candidate): candidate is ImageCandidate => candidate !== null)
-      .sort((left, right) => right.score - left.score);
-
-    return candidates[0]?.imageUrl ?? null;
+function noImageResponse() {
+  return new NextResponse(null, {
+    status: 404,
+    headers: { "Cache-Control": "private, max-age=604800" },
   });
 }
 
@@ -253,7 +189,14 @@ export async function GET(request: Request, context: RouteContext) {
     },
   });
 
-  if (!product) return new NextResponse(null, { status: 404 });
+  if (!product) return noImageResponse();
+
+  const existing = trustedExistingImage(product.imageUrl);
+  if (existing) {
+    const response = NextResponse.redirect(existing, 307);
+    response.headers.set("Cache-Control", "private, max-age=86400");
+    return response;
+  }
 
   const identity: ProductIdentity = {
     name: product.name,
@@ -282,9 +225,6 @@ export async function GET(request: Request, context: RouteContext) {
         .sort((left, right) => right.score - left.score);
       imageUrl = storeCandidates[0]?.imageUrl ?? null;
     }
-
-    if (!imageUrl) imageUrl = trustedExistingImage(product.imageUrl);
-    if (!imageUrl) imageUrl = await imageFromShoppingSearch(identity);
   } catch (error) {
     console.warn("Product image enrichment failed", {
       productId: product.id,
@@ -292,14 +232,12 @@ export async function GET(request: Request, context: RouteContext) {
     });
   }
 
-  if (!imageUrl) return new NextResponse(null, { status: 404 });
+  if (!imageUrl) return noImageResponse();
 
-  if (imageUrl !== product.imageUrl) {
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { imageUrl },
-    }).catch(() => undefined);
-  }
+  await prisma.product.update({
+    where: { id: product.id },
+    data: { imageUrl },
+  }).catch(() => undefined);
 
   const response = NextResponse.redirect(imageUrl, 307);
   response.headers.set("Cache-Control", "private, max-age=86400");
