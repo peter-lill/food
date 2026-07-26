@@ -4,10 +4,15 @@ import { useActionState, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
   generateHealthConnectPairingCode,
-  initialPairingActionState,
+  type PairingActionState,
 } from "@/lib/health/health-connect-pairing.actions";
 import accountStyles from "./account.module.css";
 import styles from "./health-connect-pairing.module.css";
+
+const initialPairingActionState: PairingActionState = {
+  status: "idle",
+  message: "",
+};
 
 function GenerateButton({ secondary = false }: { secondary?: boolean }) {
   const { pending } = useFormStatus();
