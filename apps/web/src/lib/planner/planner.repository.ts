@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
+import {
+  sanitiseIngredientName,
+  sanitiseInstruction,
+  sanitiseRecipeText,
+} from "@/lib/recipes/recipe-text-sanitizer";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
 const recipeImages: Record<string, string | null> = {
@@ -115,8 +120,8 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
 
     return {
       id: recipe.id,
-      name: recipe.name,
-      description: recipe.description,
+      name: sanitiseRecipeText(recipe.name),
+      description: sanitiseRecipeText(recipe.description),
       minutes: totalMinutes > 0 ? totalMinutes : null,
       proteinGrams: recipe.proteinGrams,
       servings: recipe.servings,
@@ -128,18 +133,20 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       instructions: recipe.instructions
         ? recipe.instructions
           .split(/\r?\n/)
-          .map((step) => step.replace(/^\s*\d+[.)]\s*/, "").trim())
+          .map(sanitiseInstruction)
           .filter(Boolean)
         : [],
       source: "database",
       sourceKey: recipe.sourceKey,
       originalSourceName: externalRecipe?.sourceName ?? null,
       originalSourceUrl: externalRecipe?.sourceUrl ?? null,
-      ingredients: recipe.ingredients.map((entry) => ({
-        name: entry.ingredient.name,
-        quantity: entry.quantity,
-        unit: entry.unit,
-      })),
+      ingredients: recipe.ingredients
+        .map((entry) => ({
+          name: sanitiseIngredientName(entry.ingredient.name),
+          quantity: entry.quantity,
+          unit: entry.unit,
+        }))
+        .filter((entry) => entry.name.length > 0),
     };
   });
 
@@ -152,7 +159,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
     .map((recipe) => ({
       id: `external-${recipe.id}`,
       name: recipe.name,
-      description: `${recipe.description} Source: ${recipe.sourceName}.`,
+      description: `${recipe.description} Source: Australian Heart Foundation.`,
       minutes: recipe.minutes,
       proteinGrams: null,
       servings: recipe.servings ?? 1,
@@ -160,7 +167,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       instructions: [],
       ingredients: [],
       source: "external",
-      originalSourceName: recipe.sourceName,
+      originalSourceName: "Australian Heart Foundation",
       originalSourceUrl: recipe.sourceUrl,
     }));
 
