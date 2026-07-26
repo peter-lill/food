@@ -224,6 +224,54 @@
   margin: 0;
 }
 
+.fullPage .scanner {
+  position: relative;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: #050806;
+}
+
+.fullPage .scannerHeading,
+.fullPage .lookupLocation,
+.fullPage .cameraNote {
+  display: none;
+}
+
+.fullPage .videoFrame {
+  border-radius: 0;
+}
+
+.fullPage .scanStatus {
+  position: absolute;
+  z-index: 4;
+  left: 50%;
+  bottom: 22px;
+  width: min(calc(100% - 32px), 620px);
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 12px 16px;
+  border: 1px solid rgba(255, 255, 255, .28);
+  border-radius: 999px;
+  background: rgba(8, 18, 13, .76);
+  color: #fff;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 750;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .28);
+}
+
+.fullPage .scanStatus.success {
+  background: rgba(5, 111, 71, .9);
+  color: #fff;
+}
+
+.fullPage .scanStatus.error {
+  background: rgba(157, 45, 52, .92);
+  color: #fff;
+}
+
 @media (max-width: 720px) {
   .productRow {
     grid-template-columns: 1fr;
@@ -242,13 +290,6 @@
     padding-inline: 0;
   }
 
-  .fullPage .scannerHeading,
-  .fullPage .lookupLocation,
-  .fullPage .scanStatus,
-  .fullPage .cameraNote {
-    margin-inline: 14px;
-  }
-
   .lookupLocation {
     align-items: stretch;
     flex-direction: column;
@@ -256,8 +297,13 @@
 
   .fullPage .videoFrame,
   .fullPage .videoFrame video {
-    min-height: calc(100dvh - 190px);
+    min-height: calc(100dvh - 78px);
     border-radius: 0;
+  }
+
+  .fullPage .productRow,
+  .fullPage .pickerActions {
+    margin-inline: 14px;
   }
 }
 
