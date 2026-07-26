@@ -1,5 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
+import {
+  formatMeasurement,
+  formatProductName,
+  formatProductQuantity,
+} from "@/lib/products/product-formatter";
 import { parseProductName } from "@/lib/products/product-normalisation";
 import { consolidateShoppingItems } from "./shopping-consolidation";
 import type { ShoppingWorkspaceData } from "./shopping.types";
@@ -8,33 +13,10 @@ const categoryKeywords: Array<[string, string[]]> = [
   [
     "Fruit & vegetables",
     [
-      "apple",
-      "avocado",
-      "banana",
-      "basil",
-      "beans",
-      "berry",
-      "berries",
-      "broccoli",
-      "capsicum",
-      "carrot",
-      "coriander",
-      "corn",
-      "cucumber",
-      "garlic",
-      "herb",
-      "lemon",
-      "lettuce",
-      "lime",
-      "mint",
-      "mushroom",
-      "onion",
-      "parsley",
-      "peas",
-      "potato",
-      "salad",
-      "spinach",
-      "tomato",
+      "apple", "avocado", "banana", "basil", "beans", "berry", "berries",
+      "broccoli", "capsicum", "carrot", "coriander", "corn", "cucumber",
+      "garlic", "herb", "lemon", "lettuce", "lime", "mint", "mushroom",
+      "onion", "parsley", "peas", "potato", "salad", "spinach", "tomato",
       "vegetable",
     ],
   ],
@@ -51,42 +33,31 @@ export function getShoppingCategory(name: string) {
   return categoryKeywords.find(([, keywords]) => keywords.some((keyword) => normalised.includes(keyword)))?.[0] ?? "Pantry & other";
 }
 
-function sentenceCase(value: string) {
-  return value ? value.charAt(0).toLocaleUpperCase("en-AU") + value.slice(1) : value;
-}
-
-function formatNumber(value: number) {
-  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
-}
-
 function shoppingItemDisplay(item: {
   name: string;
   quantity: number | null;
   unit: string | null;
-  product: { name: string; canonicalName: string | null } | null;
 }) {
   const parsed = parseProductName(item.name);
-  const displayName = sentenceCase(
-    item.product?.canonicalName ?? item.product?.name ?? parsed.canonicalName,
-  );
   const details: string[] = [];
+  const quantity = formatProductQuantity(item.quantity, item.unit);
 
-  if (item.quantity !== null) {
-    details.push(`${formatNumber(item.quantity)} ${item.unit?.trim() || "item"}`);
-  } else if (parsed.quantity !== null) {
-    details.push(`${formatNumber(parsed.quantity)} ${parsed.unit ?? "item"}`);
+  if (quantity) details.push(quantity);
+  else if (parsed.quantity !== null) {
+    const parsedQuantity = formatProductQuantity(parsed.quantity, parsed.unit);
+    if (parsedQuantity) details.push(parsedQuantity);
   }
 
   if (parsed.packQuantity !== null && parsed.packUnit) {
-    details.push(`${formatNumber(parsed.packQuantity)} ${parsed.packUnit}`);
+    details.push(formatMeasurement(parsed.packQuantity, parsed.packUnit));
   }
 
   if (parsed.variants.length) {
-    details.push(parsed.variants.map(sentenceCase).join(", "));
+    details.push(parsed.variants.map(formatProductName).join(", "));
   }
 
   return {
-    displayName,
+    displayName: formatProductName(item.name),
     detail: details.length ? details.join(" · ") : null,
   };
 }
@@ -148,7 +119,7 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
     })),
     pantrySuggestions: pantryItems.map((item) => ({
       id: item.id,
-      name: item.product.name,
+      name: formatProductName(item.product.canonicalName ?? item.product.name),
       quantity: item.quantity,
       unit: item.unit,
       location: item.location,
