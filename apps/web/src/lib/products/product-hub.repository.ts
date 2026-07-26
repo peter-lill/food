@@ -55,6 +55,7 @@ export type ProductHubDetail = {
     brand: string | null;
     packSize: string | null;
     productUrl: string | null;
+    imageUrl: string | null;
     aisle: string | null;
     lastSeenAt: Date | null;
   }>;
@@ -70,6 +71,13 @@ export type ProductHubDetail = {
     observedAt: Date;
   }>;
 };
+
+function bestProductImage(
+  productImageUrl: string | null,
+  storeProducts: Array<{ imageUrl: string | null }>,
+) {
+  return productImageUrl ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl ?? null;
+}
 
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
   const search = query?.trim();
@@ -95,7 +103,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
           },
         },
       },
-      storeProducts: { select: { retailer: true } },
+      storeProducts: { select: { retailer: true, imageUrl: true } },
       priceObservations: {
         orderBy: { observedAt: "desc" },
         take: 1,
@@ -122,7 +130,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       slug: product.slug,
       brand: product.brand,
       category: product.category,
-      imageUrl: product.imageUrl,
+      imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
       barcode: product.barcode,
       aliasCount: product.aliases.length,
       recipeCount: recipeIds.size,
@@ -178,7 +186,7 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     barcode: product.barcode,
     category: product.category,
     description: product.description,
-    imageUrl: product.imageUrl,
+    imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
     packSize: product.packSize,
     calories: product.calories,
     proteinGrams: product.proteinGrams,
@@ -206,6 +214,7 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
       brand: listing.brand,
       packSize: listing.packSize,
       productUrl: listing.productUrl,
+      imageUrl: listing.imageUrl,
       aisle: listing.aisle,
       lastSeenAt: listing.lastSeenAt,
     })),
