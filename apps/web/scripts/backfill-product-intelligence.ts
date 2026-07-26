@@ -12,6 +12,25 @@ type SourceRecord = {
   source: "ingredient" | "shopping" | "receipt";
 };
 
+type BackfillAction = "create" | "link";
+
+type BackfillResult = {
+  action: BackfillAction;
+  productId: string | null;
+  productName: string;
+  parsed: ReturnType<typeof parseProductName>;
+};
+
+type BackfillSummary = {
+  total: number;
+  create: number;
+  link: number;
+  ingredient: number;
+  shopping: number;
+  receipt: number;
+  failed: number;
+};
+
 function uniqueAliases(values: string[]) {
   const aliases = new Map<string, string>();
 
@@ -73,13 +92,14 @@ async function findExistingProduct(slug: string, aliases: string[]) {
   });
 }
 
-async function createOrUpdateProduct(record: SourceRecord) {
+async function createOrUpdateProduct(record: SourceRecord): Promise<BackfillResult> {
   const parsed = parseProductName(record.name);
   const existing = await findExistingProduct(parsed.slug, parsed.aliases);
+  const action: BackfillAction = existing ? "link" : "create";
 
   if (!apply) {
     return {
-      action: existing ? "link" : "create",
+      action,
       productId: existing?.id ?? null,
       productName: existing?.name ?? parsed.canonicalName,
       parsed,
@@ -137,7 +157,7 @@ async function createOrUpdateProduct(record: SourceRecord) {
   }
 
   return {
-    action: existing ? "link" : "create",
+    action,
     productId: product.id,
     productName: product.name,
     parsed,
@@ -146,7 +166,7 @@ async function createOrUpdateProduct(record: SourceRecord) {
 
 async function main() {
   const records = await sourceRecords();
-  const summary = {
+  const summary: BackfillSummary = {
     total: records.length,
     create: 0,
     link: 0,
