@@ -6,6 +6,7 @@ import {
 } from "@/lib/products/food-item-intelligence";
 import { formatProductName } from "@/lib/products/product-formatter";
 import { normaliseProductText } from "@/lib/products/product-normalisation";
+import { optimiseShoppingFulfilment } from "./shopping-optimisation";
 
 type ShoppingRecord = {
   id: string;
@@ -23,8 +24,7 @@ type ShoppingRecord = {
 
 function sourceName(item: ShoppingRecord) {
   // Shopping represents the household's request. Keep that request authoritative
-  // so an older broad Product link cannot collapse Lemon Juice or Lemon Rind
-  // into a whole Lemon.
+  // so an older broad Product link cannot change a standalone derived product.
   return item.name.trim() || item.product?.canonicalName || item.product?.name || "Unknown Item";
 }
 
@@ -78,6 +78,27 @@ async function splitKnownCompoundItems(items: ShoppingRecord[]) {
   }
 
   return changed;
+}
+
+async function applyShoppingOptimisation(items: ShoppingRecord[]) {
+  const updates = optimiseShoppingFulfilment(items);
+  if (!updates.length) return false;
+
+  await prisma.$transaction(
+    updates.map((update) => prisma.shoppingItem.update({
+      where: { id: update.id },
+      data: {
+        name: formatProductName(update.name),
+        quantity: update.quantity,
+        unit: update.unit,
+        // The source purchase may differ from a previously linked derived
+        // Product, so allow the canonical product resolver to relink it later.
+        productId: null,
+      },
+    })),
+  );
+
+  return true;
 }
 
 async function readShoppingItems(): Promise<ShoppingRecord[]> {
@@ -167,14 +188,16 @@ async function normaliseSingleItems(items: ShoppingRecord[]) {
 }
 
 export async function consolidateShoppingItems() {
-  for (let pass = 0; pass < 4; pass += 1) {
+  for (let pass = 0; pass < 5; pass += 1) {
     const beforeSplit = await readShoppingItems();
     const splitChanged = await splitKnownCompoundItems(beforeSplit);
     const afterSplit = splitChanged ? await readShoppingItems() : beforeSplit;
-    const mergeChanged = await mergeDuplicateItems(afterSplit);
-    const afterMerge = mergeChanged ? await readShoppingItems() : afterSplit;
+    const optimisationChanged = await applyShoppingOptimisation(afterSplit);
+    const afterOptimisation = optimisationChanged ? await readShoppingItems() : afterSplit;
+    const mergeChanged = await mergeDuplicateItems(afterOptimisation);
+    const afterMerge = mergeChanged ? await readShoppingItems() : afterOptimisation;
     const normaliseChanged = await normaliseSingleItems(afterMerge);
 
-    if (!splitChanged && !mergeChanged && !normaliseChanged) break;
+    if (!splitChanged && !optimisationChanged && !mergeChanged && !normaliseChanged) break;
   }
 }
