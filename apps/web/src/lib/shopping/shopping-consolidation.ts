@@ -22,7 +22,10 @@ type ShoppingRecord = {
 };
 
 function sourceName(item: ShoppingRecord) {
-  return item.product?.canonicalName ?? item.product?.name ?? item.name;
+  // Shopping represents the household's request. Keep that request authoritative
+  // so an older broad Product link cannot collapse Lemon Juice or Lemon Rind
+  // into a whole Lemon.
+  return item.name.trim() || item.product?.canonicalName || item.product?.name || "Unknown Item";
 }
 
 function canonicalIdentity(item: ShoppingRecord) {
