@@ -8,13 +8,66 @@ import java.time.format.DateTimeFormatter
 import org.json.JSONObject
 
 class HealthSyncClient {
+    fun pair(
+        baseUrl: String,
+        code: String,
+        deviceName: String,
+    ): PairResult {
+        require(baseUrl.isNotBlank()) { "Food server address is required." }
+        require(code.isNotBlank()) { "Pairing code is required." }
+
+        val endpoint = URL(baseUrl.trimEnd('/') + "/api/health-connect/pairing/claim")
+        val connection = (endpoint.openConnection() as HttpURLConnection).apply {
+            requestMethod = "POST"
+            connectTimeout = 15_000
+            readTimeout = 15_000
+            doOutput = true
+            setRequestProperty("Content-Type", "application/json")
+            setRequestProperty("Accept", "application/json")
+        }
+
+        val payload = JSONObject().apply {
+            put("code", code.replace(" ", "").trim().uppercase())
+            put("deviceName", deviceName.ifBlank { "Android device" })
+        }
+
+        return try {
+            OutputStreamWriter(connection.outputStream).use { writer ->
+                writer.write(payload.toString())
+            }
+
+            val status = connection.responseCode
+            val stream = if (status in 200..299) connection.inputStream else connection.errorStream
+            val body = stream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
+            if (status in 200..299) {
+                val json = JSONObject(body)
+                val token = json.optString("deviceToken")
+                if (token.isBlank()) PairResult.Failure("The server did not return a device token.")
+                else PairResult.Success(
+                    token = token,
+                    deviceName = json.optString("deviceName", deviceName),
+                )
+            } else {
+                val message = runCatching {
+                    JSONObject(body).optString("error")
+                }.getOrNull().orEmpty().ifBlank { "Server returned HTTP $status." }
+                PairResult.Failure(message)
+            }
+        } catch (error: Exception) {
+            PairResult.Failure(error.message ?: error.javaClass.simpleName)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
     fun sync(
         baseUrl: String,
         token: String,
         summary: DailyHealthSummary,
     ): SyncResult {
         require(baseUrl.isNotBlank()) { "Food server address is required." }
-        require(token.isNotBlank()) { "Sync token is required." }
+        require(token.isNotBlank()) { "Device token is required. Pair this phone first." }
 
         val endpoint = URL(baseUrl.trimEnd('/') + "/api/health/sync")
         val connection = (endpoint.openConnection() as HttpURLConnection).apply {
@@ -64,6 +117,11 @@ class HealthSyncClient {
             connection.disconnect()
         }
     }
+}
+
+sealed interface PairResult {
+    data class Success(val token: String, val deviceName: String) : PairResult
+    data class Failure(val message: String) : PairResult
 }
 
 sealed interface SyncResult {
