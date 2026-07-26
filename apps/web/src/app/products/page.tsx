@@ -135,7 +135,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <div className={styles.grid} aria-label="Products">
           {products.length ? products.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
-            const displayName = product.canonicalName ?? product.name;
+            const displayName = product.name;
+            const canonicalLabel = product.canonicalName && product.canonicalName !== product.name
+              ? product.canonicalName
+              : null;
             const latestPrice = money(product.latestPrice);
             const imageUrl = `/api/products/${encodeURIComponent(product.id)}/image`;
 
@@ -148,7 +151,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 </div>
                 <div className={styles.cardBody}>
                   <div className={styles.cardTopline}>
-                    <span>{product.category ?? product.brand ?? "Product"}</span>
+                    <span>{canonicalLabel ?? product.category ?? product.brand ?? "Product"}</span>
                   </div>
                   <h2>{displayName}</h2>
                   <p className={styles.brandLine}>
