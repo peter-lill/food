@@ -1,5 +1,6 @@
 package au.com.food.healthsync
 
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -17,13 +18,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import au.com.food.healthsync.health.DailyHealthSummary
 import au.com.food.healthsync.health.HealthConnectService
 import au.com.food.healthsync.sync.HealthSyncClient
+import au.com.food.healthsync.sync.PairResult
 import au.com.food.healthsync.sync.SyncResult
 import au.com.food.healthsync.sync.SyncSettings
 import kotlinx.coroutines.Dispatchers
@@ -102,10 +103,12 @@ private fun FoodMobile(
     val saved = remember { syncSettings.load() }
     var state by remember { mutableStateOf<HealthState>(HealthState.Loading) }
     var view by remember { mutableStateOf(MobileView.TODAY) }
-    var baseUrl by remember { mutableStateOf(saved.baseUrl) }
+    var baseUrl by remember { mutableStateOf(saved.baseUrl.ifBlank { "https://food.coffeehq.coffee" }) }
     var token by remember { mutableStateOf(saved.token) }
-    var syncMessage by remember { mutableStateOf("Not synced yet") }
+    var pairingCode by remember { mutableStateOf("") }
+    var syncMessage by remember { mutableStateOf(if (saved.token.isBlank()) "Pair this phone to begin." else "Ready to sync") }
     var syncing by remember { mutableStateOf(false) }
+    var pairing by remember { mutableStateOf(false) }
 
     suspend fun refresh() {
         state = HealthState.Loading
@@ -162,13 +165,34 @@ private fun FoodMobile(
             MobileView.SYNC -> SyncView(
                 state = state,
                 baseUrl = baseUrl,
-                token = token,
+                pairingCode = pairingCode,
+                paired = token.isNotBlank(),
                 syncMessage = syncMessage,
                 syncing = syncing,
+                pairing = pairing,
                 onBaseUrlChange = { baseUrl = it },
-                onTokenChange = { token = it },
+                onPairingCodeChange = { pairingCode = it.uppercase().filter { character -> character.isLetterOrDigit() }.take(10) },
                 onRefresh = { scope.launch { refresh() } },
                 onRequestPermissions = onRequestPermissions,
+                onPair = {
+                    pairing = true
+                    syncMessage = "Pairing this phone…"
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            HealthSyncClient().pair(baseUrl, pairingCode, Build.MODEL)
+                        }
+                        when (result) {
+                            is PairResult.Success -> {
+                                token = result.token
+                                syncSettings.save(baseUrl, result.token)
+                                pairingCode = ""
+                                syncMessage = "Paired as ${result.deviceName}."
+                            }
+                            is PairResult.Failure -> syncMessage = "Pairing failed: ${result.message}"
+                        }
+                        pairing = false
+                    }
+                },
                 onSync = { summary ->
                     syncSettings.save(baseUrl, token)
                     syncing = true
@@ -191,7 +215,7 @@ private fun FoodMobile(
 @Composable
 private fun TodayView(state: HealthState, onRequestPermissions: () -> Unit, onRefresh: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Good evening, Peter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+        Text("Your health today", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
         Text("Your health summary from Health Connect.", color = FoodMuted)
         when (state) {
             HealthState.Loading -> LoadingCard()
@@ -206,21 +230,21 @@ private fun TodayView(state: HealthState, onRequestPermissions: () -> Unit, onRe
                 OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) { Text("Try again") }
             }
             is HealthState.Ready -> {
-                val s = state.summary
+                val summary = state.summary
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    MetricTile("Hydration", formatLitres(s.hydrationMl), Modifier.weight(1f))
-                    MetricTile("Steps", "%,d".format(Locale.getDefault(), s.steps), Modifier.weight(1f))
+                    MetricTile("Hydration", formatLitres(summary.hydrationMl), Modifier.weight(1f))
+                    MetricTile("Steps", "%,d".format(Locale.getDefault(), summary.steps), Modifier.weight(1f))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    MetricTile("Active", formatNumber(s.activeCaloriesKcal, "kcal"), Modifier.weight(1f))
-                    MetricTile("Exercise", formatMinutes(s.exerciseMinutes), Modifier.weight(1f))
+                    MetricTile("Active", formatNumber(summary.activeCaloriesKcal, "kcal"), Modifier.weight(1f))
+                    MetricTile("Exercise", formatMinutes(summary.exerciseMinutes), Modifier.weight(1f))
                 }
                 FoodCard {
                     Text("Today at a glance", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
-                    SummaryRow("Distance", formatDistance(s.distanceMetres))
-                    SummaryRow("Sleep", formatMinutes(s.sleepMinutes))
-                    SummaryRow("Weight", s.weightKg?.let { String.format(Locale.getDefault(), "%.1f kg", it) } ?: "No recent record")
-                    Text("Refreshed ${formatDate(s)}", color = FoodMuted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))
+                    SummaryRow("Distance", formatDistance(summary.distanceMetres))
+                    SummaryRow("Sleep", formatMinutes(summary.sleepMinutes))
+                    SummaryRow("Weight", summary.weightKg?.let { String.format(Locale.getDefault(), "%.1f kg", it) } ?: "No recent record")
+                    Text("Refreshed ${formatDate(summary)}", color = FoodMuted, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(top = 8.dp))
                 }
                 Button(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Refresh Health Connect") }
             }
@@ -232,33 +256,68 @@ private fun TodayView(state: HealthState, onRequestPermissions: () -> Unit, onRe
 private fun SyncView(
     state: HealthState,
     baseUrl: String,
-    token: String,
+    pairingCode: String,
+    paired: Boolean,
     syncMessage: String,
     syncing: Boolean,
+    pairing: Boolean,
     onBaseUrlChange: (String) -> Unit,
-    onTokenChange: (String) -> Unit,
+    onPairingCodeChange: (String) -> Unit,
     onRefresh: () -> Unit,
     onRequestPermissions: () -> Unit,
+    onPair: () -> Unit,
     onSync: (DailyHealthSummary) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Text("Sync with Food", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
-        Text("Send today's Health Connect summary to your Food website.", color = FoodMuted)
+        Text(if (paired) "Sync with Food" else "Pair with Food", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+        Text(
+            if (paired) "Send today's Health Connect summary to your Food account."
+            else "Generate a code on Food's Account page, then enter it here.",
+            color = FoodMuted,
+        )
         FoodCard {
-            OutlinedTextField(value = baseUrl, onValueChange = onBaseUrlChange, label = { Text("Food server") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri), singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(value = token, onValueChange = onTokenChange, label = { Text("Sync token") }, visualTransformation = PasswordVisualTransformation(), singleLine = true, modifier = Modifier.fillMaxWidth().padding(top = 10.dp))
-            Text("Use https://food.coffeehq.coffee or your computer's LAN address.", color = FoodMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = onBaseUrlChange,
+                label = { Text("Food server") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            if (!paired) {
+                OutlinedTextField(
+                    value = pairingCode,
+                    onValueChange = onPairingCodeChange,
+                    label = { Text("Pairing code") },
+                    supportingText = { Text("Enter the 10-character code shown on the Food Account page.") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                )
+                Button(
+                    enabled = !pairing && baseUrl.isNotBlank() && pairingCode.length == 10,
+                    onClick = onPair,
+                    modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                ) { Text(if (pairing) "Pairing…" else "Pair device") }
+            } else {
+                Text("Connected to your Food account", color = FoodGreen, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 10.dp))
+            }
         }
-        when (state) {
-            is HealthState.Ready -> Button(enabled = !syncing && baseUrl.isNotBlank() && token.isNotBlank(), onClick = { onSync(state.summary) }, modifier = Modifier.fillMaxWidth()) { Text(if (syncing) "Syncing…" else "Sync now") }
-            is HealthState.PermissionRequired -> Button(onClick = onRequestPermissions, modifier = Modifier.fillMaxWidth()) { Text("Grant Health Connect access") }
-            is HealthState.Error -> OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Retry Health Connect") }
-            HealthState.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
+        if (paired) {
+            when (state) {
+                is HealthState.Ready -> Button(enabled = !syncing, onClick = { onSync(state.summary) }, modifier = Modifier.fillMaxWidth()) { Text(if (syncing) "Syncing…" else "Sync now") }
+                is HealthState.PermissionRequired -> Button(onClick = onRequestPermissions, modifier = Modifier.fillMaxWidth()) { Text("Grant Health Connect access") }
+                is HealthState.Error -> OutlinedButton(onClick = onRefresh, modifier = Modifier.fillMaxWidth()) { Text("Retry Health Connect") }
+                HealthState.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            }
         }
         FoodCard {
             Text("Sync status", fontWeight = FontWeight.Bold)
-            Text(syncMessage, color = if (syncMessage.startsWith("Sync failed")) MaterialTheme.colorScheme.error else FoodMuted, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                syncMessage,
+                color = if (syncMessage.startsWith("Sync failed") || syncMessage.startsWith("Pairing failed")) MaterialTheme.colorScheme.error else FoodMuted,
+                modifier = Modifier.padding(top = 4.dp),
+            )
         }
     }
 }
