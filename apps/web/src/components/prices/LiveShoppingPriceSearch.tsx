@@ -5,6 +5,12 @@ import {
   getCurrentLocation,
   type SearchLocationSource,
 } from "@/lib/current-location";
+import {
+  formatProductName,
+  formatProductQuantity,
+  formatRetailProductName,
+  formatSearchQuery,
+} from "@/lib/products/product-formatter";
 import type {
   LiveGroceryPriceErrorResponse,
   LiveGroceryPriceSearchResponse,
@@ -184,56 +190,63 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
           </div>
 
           <div className={styles.liveItemRows}>
-            {result.items.map((itemResult) => (
-              <article className={styles.liveItem} key={itemResult.item.id}>
-                <header>
-                  <div>
-                    <strong>{itemResult.item.name}</strong>
-                    <span>{itemResult.item.quantity ?? 1} {itemResult.item.unit ?? "item"} · searched “{itemResult.query}”</span>
-                  </div>
-                  {itemResult.best ? (
-                    <span className="badge success">Best {money(itemResult.best.estimatedTotal)}</span>
+            {result.items.map((itemResult) => {
+              const quantity = formatProductQuantity(
+                itemResult.item.quantity ?? 1,
+                itemResult.item.unit ?? "item",
+              );
+
+              return (
+                <article className={styles.liveItem} key={itemResult.item.id}>
+                  <header>
+                    <div>
+                      <strong>{formatProductName(itemResult.item.name)}</strong>
+                      <span>{quantity} · searched “{formatSearchQuery(itemResult.query)}”</span>
+                    </div>
+                    {itemResult.best ? (
+                      <span className="badge success">Best {money(itemResult.best.estimatedTotal)}</span>
+                    ) : (
+                      <span className="badge neutral">No suitable price</span>
+                    )}
+                  </header>
+
+                  {itemResult.error ? <p className={styles.liveItemError}>{itemResult.error}</p> : null}
+
+                  {itemResult.matches.length > 0 ? (
+                    <div className={styles.liveMatchGrid}>
+                      {itemResult.matches.map((match, index) => (
+                        <div className={index === 0 ? styles.liveBestMatch : styles.liveMatchCard} key={`${itemResult.item.id}-${match.retailer}`}>
+                          <div className={styles.liveMatchTopline}>
+                            <strong>{match.retailer}</strong>
+                            <span className={match.matchKind === "exact" ? styles.exactBadge : styles.substituteBadge}>
+                              {match.matchKind === "exact" ? "Exact" : "Substitute"}
+                            </span>
+                          </div>
+                          <span className={styles.liveProductName}>{formatRetailProductName(match.productName)}</span>
+                          <div className={styles.livePriceLine}>
+                            <strong>{money(match.estimatedTotal)}</strong>
+                            <span>{money(match.price)} shelf{match.packSize ? ` · ${formatRetailProductName(match.packSize)}` : ""}</span>
+                          </div>
+                          <small>
+                            {match.unitPrice !== null && match.unitLabel ? `${money(match.unitPrice)}${match.unitLabel} · ` : ""}
+                            {match.isSpecial ? "Special · " : ""}
+                            {match.cached ? "cached" : "live"}
+                          </small>
+                          <p>{match.matchReason}</p>
+                          {match.sourceUrl ? (
+                            <a href={match.sourceUrl} rel="noreferrer" target="_blank">View product</a>
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   ) : (
-                    <span className="badge neutral">No suitable price</span>
+                    <p className={styles.liveNoMatch}>
+                      No exact product or safe substitute was found. Keep the item on the list and check it manually rather than using an unsuitable replacement.
+                    </p>
                   )}
-                </header>
-
-                {itemResult.error ? <p className={styles.liveItemError}>{itemResult.error}</p> : null}
-
-                {itemResult.matches.length > 0 ? (
-                  <div className={styles.liveMatchGrid}>
-                    {itemResult.matches.map((match, index) => (
-                      <div className={index === 0 ? styles.liveBestMatch : styles.liveMatchCard} key={`${itemResult.item.id}-${match.retailer}`}>
-                        <div className={styles.liveMatchTopline}>
-                          <strong>{match.retailer}</strong>
-                          <span className={match.matchKind === "exact" ? styles.exactBadge : styles.substituteBadge}>
-                            {match.matchKind === "exact" ? "Exact" : "Substitute"}
-                          </span>
-                        </div>
-                        <span className={styles.liveProductName}>{match.productName}</span>
-                        <div className={styles.livePriceLine}>
-                          <strong>{money(match.estimatedTotal)}</strong>
-                          <span>{money(match.price)} shelf{match.packSize ? ` · ${match.packSize}` : ""}</span>
-                        </div>
-                        <small>
-                          {match.unitPrice !== null && match.unitLabel ? `${money(match.unitPrice)}${match.unitLabel} · ` : ""}
-                          {match.isSpecial ? "Special · " : ""}
-                          {match.cached ? "cached" : "live"}
-                        </small>
-                        <p>{match.matchReason}</p>
-                        {match.sourceUrl ? (
-                          <a href={match.sourceUrl} rel="noreferrer" target="_blank">View product</a>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className={styles.liveNoMatch}>
-                    No exact product or safe substitute was found. Keep the item on the list and check it manually rather than using an unsuitable replacement.
-                  </p>
-                )}
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
 
           <p className={styles.estimateNote}>
