@@ -34,6 +34,17 @@ async function materialiseAustralianHeartFoundationRecipes() {
   }
 }
 
+function isAustralianHeartFoundationRecipe(recipe: {
+  sourceKey?: string | null;
+  originalSourceName?: string | null;
+}) {
+  return (
+    recipe.sourceKey?.startsWith("heart-foundation:") === true ||
+    recipe.originalSourceName === "Heart Foundation" ||
+    recipe.originalSourceName === "Australian Heart Foundation"
+  );
+}
+
 export default async function RecipesPage() {
   const session = await getAuthSession();
 
@@ -45,17 +56,20 @@ export default async function RecipesPage() {
 
   const { recipes: plannerRecipes } = await getPlannerWorkspace();
   const databaseRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
-  const australianHeartFoundationRecipes = databaseRecipes.filter((recipe) =>
-    recipe.sourceKey?.startsWith("heart-foundation:"),
+  const australianHeartFoundationRecipes = databaseRecipes.filter(
+    isAustralianHeartFoundationRecipe,
   );
-  const completeRecipes = databaseRecipes.filter((recipe) =>
-    !recipe.sourceKey?.startsWith("heart-foundation:"),
+  const completeRecipes = databaseRecipes.filter(
+    (recipe) => !isAustralianHeartFoundationRecipe(recipe),
   );
 
   const importedAustralianHeartFoundationKeys = new Set(
     australianHeartFoundationRecipes
       .map((recipe) => recipe.sourceKey)
       .filter((sourceKey): sourceKey is string => Boolean(sourceKey)),
+  );
+  const importedAustralianHeartFoundationNames = new Set(
+    australianHeartFoundationRecipes.map((recipe) => recipe.name),
   );
 
   const catalogueRecipes = [
@@ -65,7 +79,8 @@ export default async function RecipesPage() {
         .filter(
           (recipe) =>
             recipe.sourceName !== "Heart Foundation" ||
-            !importedAustralianHeartFoundationKeys.has(`heart-foundation:${recipe.id}`),
+            (!importedAustralianHeartFoundationKeys.has(`heart-foundation:${recipe.id}`) &&
+              !importedAustralianHeartFoundationNames.has(recipe.name)),
         )
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),
@@ -95,14 +110,14 @@ export default async function RecipesPage() {
         </span>
       </header>
 
+      <AustralianHeartFoundationRecipes recipes={australianHeartFoundationRecipes} />
+
       <RecipesGallery
         externalRecipes={catalogueRecipes}
         initialFavouriteIds={favourites.map((favourite) => favourite.externalRecipeId)}
         recipes={completeRecipes}
         signedIn={Boolean(session)}
       />
-
-      <AustralianHeartFoundationRecipes recipes={australianHeartFoundationRecipes} />
     </div>
   );
 }
