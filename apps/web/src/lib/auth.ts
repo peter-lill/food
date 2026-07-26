@@ -13,6 +13,14 @@ export const auth = betterAuth({
   appName: "Food",
   baseURL: getBaseUrl(),
   secret: process.env.BETTER_AUTH_SECRET,
+  advanced: {
+    ipAddress: {
+      // Synology's reverse proxy supplies the original client address in
+      // X-Real-IP. Trust that single-value header rather than treating every
+      // proxied request as one shared rate-limit client.
+      ipAddressHeaders: ["x-real-ip"],
+    },
+  },
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
