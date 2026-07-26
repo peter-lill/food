@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { getProductHubList } from "@/lib/products/product-hub.repository";
-import styles from "./products.module.css";
+import styles from "./products-hub.module.css";
 
 export const dynamic = "force-dynamic";
 
+type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
+
 type ProductsPageProps = {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; view?: string }>;
 };
 
 function money(value: number | null) {
@@ -17,96 +19,166 @@ function money(value: number | null) {
       }).format(value);
 }
 
+function normaliseView(value: string | undefined): ProductView {
+  return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "")
+    ? value as ProductView
+    : "all";
+}
+
+const views: Array<{ value: ProductView; label: string }> = [
+  { value: "all", label: "All products" },
+  { value: "pantry", label: "In pantry" },
+  { value: "priced", label: "With prices" },
+  { value: "recipes", label: "Used in recipes" },
+  { value: "needs-details", label: "Needs details" },
+];
+
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { q = "" } = await searchParams;
-  const products = await getProductHubList(q);
+  const { q = "", view: rawView } = await searchParams;
+  const view = normaliseView(rawView);
+  const allProducts = await getProductHubList(q);
+  const products = allProducts.filter((product) => {
+    if (view === "pantry") return product.pantryQuantity > 0;
+    if (view === "priced") return product.latestPrice !== null;
+    if (view === "recipes") return product.recipeCount > 0;
+    if (view === "needs-details") {
+      return !product.imageUrl || !product.category || (!product.barcode && !product.brand);
+    }
+    return true;
+  });
+
   const retailerCount = new Set(
-    products.flatMap((product) =>
-      product.latestRetailer ? [product.latestRetailer] : [],
-    ),
+    allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : []),
   ).size;
-  const linkedRecipeCount = products.reduce((total, product) => total + product.recipeCount, 0);
-  const pantryProductCount = products.filter((product) => product.pantryQuantity > 0).length;
+  const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
+  const pantryProductCount = allProducts.filter((product) => product.pantryQuantity > 0).length;
+  const pricedProductCount = allProducts.filter((product) => product.latestPrice !== null).length;
 
   return (
     <div className={styles.page}>
-      <header className={styles.hero}>
+      <section className={styles.hero}>
         <div className={styles.heroCopy}>
-          <p className="eyebrow">PRODUCT INTELLIGENCE</p>
-          <h1 className="page-title">Product Hub</h1>
-          <p className="subtle">
-            The shared product catalogue behind recipes, pantry, shopping,
-            receipts and supermarket prices.
+          <p className="eyebrow">PRODUCT LIBRARY</p>
+          <h1 className="page-title">Products</h1>
+          <p className={styles.heroText}>
+            One reliable product record shared by Pantry, Shopping, Recipes, Receipts,
+            barcode scanning and supermarket prices.
           </p>
+          <div className={styles.heroActions}>
+            <Link className={styles.primaryAction} href="/scan">Scan a barcode</Link>
+            <Link className={styles.secondaryAction} href="/receipts">Capture a receipt</Link>
+          </div>
         </div>
-
-        <form className={styles.search}>
-          <input
-            aria-label="Search products"
-            defaultValue={q}
-            name="q"
-            placeholder="Search product, brand, alias or barcode"
-            type="search"
-          />
-          <button className="primary-button" type="submit">Search</button>
-        </form>
-      </header>
-
-      <section className={styles.summaryGrid} aria-label="Product catalogue summary">
-        <div className={styles.summaryCard}>
-          <span className="eyebrow">PRODUCTS</span>
-          <strong>{products.length}</strong>
-        </div>
-        <div className={styles.summaryCard}>
-          <span className="eyebrow">RECIPE LINKS</span>
-          <strong>{linkedRecipeCount}</strong>
-        </div>
-        <div className={styles.summaryCard}>
-          <span className="eyebrow">IN PANTRY</span>
-          <strong>{pantryProductCount}</strong>
-        </div>
-        <div className={styles.summaryCard}>
-          <span className="eyebrow">PRICED RETAILERS</span>
-          <strong>{retailerCount}</strong>
+        <div className={styles.heroVisual} aria-hidden="true">
+          <span>◈</span>
+          <strong>{allProducts.length}</strong>
+          <small>known products</small>
         </div>
       </section>
 
-      <section className={styles.grid} aria-label="Products">
-        {products.length ? products.map((product) => {
-          const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
-          const displayName = product.canonicalName ?? product.name;
-          const latestPrice = money(product.latestPrice);
+      <section className={styles.summaryGrid} aria-label="Product catalogue summary">
+        <article className={styles.summaryCard}>
+          <span className={styles.summaryIcon}>□</span>
+          <div><strong>{pantryProductCount}</strong><small>currently in Pantry</small></div>
+        </article>
+        <article className={styles.summaryCard}>
+          <span className={styles.summaryIcon}>$</span>
+          <div><strong>{pricedProductCount}</strong><small>with observed prices</small></div>
+        </article>
+        <article className={styles.summaryCard}>
+          <span className={styles.summaryIcon}>◇</span>
+          <div><strong>{linkedRecipeCount}</strong><small>recipe connections</small></div>
+        </article>
+        <article className={styles.summaryCard}>
+          <span className={styles.summaryIcon}>⌂</span>
+          <div><strong>{retailerCount}</strong><small>retailers represented</small></div>
+        </article>
+      </section>
 
-          return (
-            <article className={styles.card} key={product.id}>
-              <div className={styles.thumb}>
-                {product.imageUrl ? <img alt="" src={product.imageUrl} /> : "◈"}
-              </div>
-              <div className={styles.cardBody}>
-                <p className="eyebrow">{product.category ?? product.brand ?? "PRODUCT"}</p>
-                <h2>{displayName}</h2>
-                <p className="subtle">
-                  {latestPrice && product.latestRetailer
-                    ? `${latestPrice} · ${product.latestRetailer}`
-                    : product.barcode
-                      ? `Barcode ${product.barcode}`
-                      : "Ready for enrichment"}
-                </p>
-                <div className={styles.meta}>
-                  <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span>
-                  <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span>
-                  <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span>
-                </div>
-              </div>
-              <Link aria-label={`Open ${displayName}`} className={styles.cardLink} href={href} />
-            </article>
-          );
-        }) : (
-          <div className={`card ${styles.empty}`}>
-            <strong>No products matched.</strong>
-            <p className="subtle">Try a broader product, brand, alias or barcode.</p>
+      <section className={styles.cataloguePanel}>
+        <div className={styles.toolbar}>
+          <div>
+            <p className="eyebrow">PRODUCT CATALOGUE</p>
+            <h2>{products.length} {products.length === 1 ? "product" : "products"}</h2>
           </div>
-        )}
+          <form className={styles.search}>
+            {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
+            <input
+              aria-label="Search products"
+              defaultValue={q}
+              name="q"
+              placeholder="Search product, brand or barcode"
+              type="search"
+            />
+            <button className={styles.searchButton} type="submit">Search</button>
+          </form>
+        </div>
+
+        <nav aria-label="Filter products" className={styles.filters}>
+          {views.map((item) => {
+            const params = new URLSearchParams();
+            if (q) params.set("q", q);
+            if (item.value !== "all") params.set("view", item.value);
+            const href = params.size ? `/products?${params.toString()}` : "/products";
+            return (
+              <Link
+                className={view === item.value ? styles.filterActive : styles.filter}
+                href={href}
+                key={item.value}
+              >
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className={styles.grid} aria-label="Products">
+          {products.length ? products.map((product) => {
+            const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
+            const displayName = product.canonicalName ?? product.name;
+            const latestPrice = money(product.latestPrice);
+            const needsDetails = !product.imageUrl || !product.category || (!product.barcode && !product.brand);
+
+            return (
+              <article className={styles.card} key={product.id}>
+                <div className={styles.thumb}>
+                  {product.imageUrl ? <img alt={displayName} src={product.imageUrl} /> : <span>◈</span>}
+                  {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
+                </div>
+                <div className={styles.cardBody}>
+                  <div className={styles.cardTopline}>
+                    <span>{product.category ?? "Uncategorised"}</span>
+                    {needsDetails ? <small>Needs details</small> : null}
+                  </div>
+                  <h2>{displayName}</h2>
+                  <p className={styles.brandLine}>
+                    {[product.brand, product.barcode ? `Barcode ${product.barcode}` : null]
+                      .filter(Boolean)
+                      .join(" · ") || "Product record ready to enrich"}
+                  </p>
+                  <div className={styles.priceRow}>
+                    <div><small>Latest price</small><strong>{latestPrice ?? "Not priced"}</strong></div>
+                    <div><small>Retailer</small><strong>{product.latestRetailer ?? "—"}</strong></div>
+                  </div>
+                  <div className={styles.meta}>
+                    {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
+                    {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
+                    {product.aliasCount > 0 ? <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span> : null}
+                  </div>
+                  <span className={styles.openLabel}>Open product →</span>
+                </div>
+                <Link aria-label={`Open ${displayName}`} className={styles.cardLink} href={href} />
+              </article>
+            );
+          }) : (
+            <div className={styles.empty}>
+              <span aria-hidden="true">⌕</span>
+              <strong>No products matched.</strong>
+              <p>Try another search or clear the selected filter.</p>
+              <Link href="/products">Show all products</Link>
+            </div>
+          )}
+        </div>
       </section>
     </div>
   );
