@@ -7,6 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const pairingLifetimeMinutes = 10;
+const pairingLifetimeSeconds = pairingLifetimeMinutes * 60;
 
 function createPairingCode() {
   return randomBytes(5).toString("hex").toUpperCase();
@@ -23,7 +24,8 @@ export async function POST(request: Request) {
     }
 
     const code = createPairingCode();
-    const expiresAt = new Date(Date.now() + pairingLifetimeMinutes * 60_000);
+    const generatedAt = new Date();
+    const expiresAt = new Date(generatedAt.getTime() + pairingLifetimeSeconds * 1_000);
     const origin = new URL(request.url).origin;
     const pairingUri = `food://health-connect/pair?code=${encodeURIComponent(code)}&server=${encodeURIComponent(origin)}`;
     const id = randomUUID();
@@ -38,12 +40,18 @@ export async function POST(request: Request) {
         INSERT INTO "HealthConnectPairing"
           ("id", "userId", "code", "pairingUri", "expiresAt", "createdAt")
         VALUES
-          (${id}, ${session.user.id}, ${code}, ${pairingUri}, ${expiresAt}, NOW())
+          (${id}, ${session.user.id}, ${code}, ${pairingUri}, ${expiresAt}, ${generatedAt})
       `;
     });
 
     return NextResponse.json(
-      { code, expiresAt: expiresAt.toISOString(), pairingUri },
+      {
+        code,
+        generatedAt: generatedAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        expiresInSeconds: pairingLifetimeSeconds,
+        pairingUri,
+      },
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
