@@ -9,6 +9,10 @@ type ShoppingRecord = {
   quantity: number | null;
   unit: string | null;
   checked: boolean;
+  product: {
+    name: string;
+    canonicalName: string | null;
+  } | null;
 };
 
 function cleanCanonicalName(name: string) {
@@ -17,6 +21,7 @@ function cleanCanonicalName(name: string) {
     .replace(/\bwedges?\b/gi, "")
     .replace(/\bskinless\b/gi, "")
     .replace(/\bfillets?\b/gi, "")
+    .replace(/\bleaves\s*$/i, " leaves")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -24,6 +29,12 @@ function cleanCanonicalName(name: string) {
   if (/^lemons?$/i.test(canonical)) canonical = "lemon";
 
   return canonical;
+}
+
+function canonicalIdentity(item: ShoppingRecord) {
+  const linkedName = item.product?.canonicalName ?? item.product?.name;
+  const canonical = cleanCanonicalName(linkedName || item.name);
+  return normaliseProductText(canonical);
 }
 
 function normalisedUnit(unit: string | null) {
@@ -37,8 +48,7 @@ function normalisedUnit(unit: string | null) {
 }
 
 function mergeKey(item: ShoppingRecord) {
-  const identity = normaliseProductText(cleanCanonicalName(item.name));
-  return `${item.checked ? "checked" : "open"}|${identity}|${normalisedUnit(item.unit)}`;
+  return `${item.shoppingListId}|${canonicalIdentity(item)}|${normalisedUnit(item.unit)}`;
 }
 
 function splitCompoundName(item: ShoppingRecord) {
@@ -50,6 +60,8 @@ function splitCompoundName(item: ShoppingRecord) {
 }
 
 async function splitKnownCompoundItems(items: ShoppingRecord[]) {
+  let changed = false;
+
   for (const item of items) {
     const parts = splitCompoundName(item);
     if (!parts) continue;
@@ -69,11 +81,14 @@ async function splitKnownCompoundItems(items: ShoppingRecord[]) {
         },
       }),
     ]);
+    changed = true;
   }
+
+  return changed;
 }
 
-export async function consolidateShoppingItems() {
-  const initialItems = await prisma.shoppingItem.findMany({
+async function readShoppingItems(): Promise<ShoppingRecord[]> {
+  return prisma.shoppingItem.findMany({
     select: {
       id: true,
       shoppingListId: true,
@@ -82,31 +97,28 @@ export async function consolidateShoppingItems() {
       quantity: true,
       unit: true,
       checked: true,
-    },
-  });
-
-  await splitKnownCompoundItems(initialItems);
-
-  const items = await prisma.shoppingItem.findMany({
-    select: {
-      id: true,
-      shoppingListId: true,
-      productId: true,
-      name: true,
-      quantity: true,
-      unit: true,
-      checked: true,
+      product: {
+        select: {
+          name: true,
+          canonicalName: true,
+        },
+      },
     },
     orderBy: { id: "asc" },
   });
+}
 
+async function mergeDuplicateItems(items: ShoppingRecord[]) {
   const groups = new Map<string, ShoppingRecord[]>();
+
   for (const item of items) {
-    const key = `${item.shoppingListId}|${mergeKey(item)}`;
+    const key = mergeKey(item);
     const group = groups.get(key) ?? [];
     group.push(item);
     groups.set(key, group);
   }
+
+  let changed = false;
 
   for (const group of groups.values()) {
     if (group.length < 2) continue;
@@ -117,8 +129,11 @@ export async function consolidateShoppingItems() {
     const quantity = canSum
       ? quantities.reduce<number>((total, value) => total + (value ?? 0), 0)
       : keeper.quantity;
-    const canonicalName = cleanCanonicalName(keeper.name);
+    const canonicalName = cleanCanonicalName(
+      keeper.product?.canonicalName ?? keeper.product?.name ?? keeper.name,
+    );
     const productId = group.find((item) => item.productId)?.productId ?? null;
+    const checked = group.every((item) => item.checked);
 
     await prisma.$transaction([
       prisma.shoppingItem.update({
@@ -128,11 +143,30 @@ export async function consolidateShoppingItems() {
           quantity,
           unit: normalisedUnit(keeper.unit),
           productId,
+          checked,
         },
       }),
       prisma.shoppingItem.deleteMany({
         where: { id: { in: duplicates.map((item) => item.id) } },
       }),
     ]);
+
+    changed = true;
+  }
+
+  return changed;
+}
+
+export async function consolidateShoppingItems() {
+  // Re-run until the list reaches a stable canonical form. This makes every
+  // refresh authoritative, including existing rows created before the current
+  // normalisation rules were introduced.
+  for (let pass = 0; pass < 4; pass += 1) {
+    const beforeSplit = await readShoppingItems();
+    const splitChanged = await splitKnownCompoundItems(beforeSplit);
+    const afterSplit = splitChanged ? await readShoppingItems() : beforeSplit;
+    const mergeChanged = await mergeDuplicateItems(afterSplit);
+
+    if (!splitChanged && !mergeChanged) break;
   }
 }
