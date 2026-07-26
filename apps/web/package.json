@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 0.0.0.0 --port 3100",
-    "prebuild": "prisma generate",
-    "build": "next build && node scripts/copy-standalone-assets.mjs",
+    "prebuild": "rm -rf .next && prisma generate",
+    "build": "next build --webpack && node scripts/verify-production-bundle.mjs && node scripts/copy-standalone-assets.mjs",
     "start": "next start --hostname 0.0.0.0 --port 3100",
     "lint": "eslint .",
     "db:generate": "prisma generate",
