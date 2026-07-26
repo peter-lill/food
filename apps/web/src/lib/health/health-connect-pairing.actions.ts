@@ -15,11 +15,6 @@ export type PairingActionState = {
   pairingUri?: string;
 };
 
-export const initialPairingActionState: PairingActionState = {
-  status: "idle",
-  message: "",
-};
-
 function createPairingCode() {
   return randomBytes(5).toString("hex").toUpperCase();
 }
