@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
+import {
+  foodItemShape,
+  normaliseGroceryUnit,
+  shoppingIdentity,
+} from "@/lib/products/food-item-intelligence";
+import { formatProductName } from "@/lib/products/product-formatter";
+import { normaliseProductText } from "@/lib/products/product-normalisation";
 
 type ShoppingRecord = {
   id: string;
@@ -15,46 +21,30 @@ type ShoppingRecord = {
   } | null;
 };
 
-function cleanCanonicalName(name: string) {
-  const parsed = parseProductName(name);
-  let canonical = parsed.canonicalName
-    .replace(/\bwedges?\b/gi, "")
-    .replace(/\bskinless\b/gi, "")
-    .replace(/\bfillets?\b/gi, "")
-    .replace(/\bleaves\s*$/i, " leaves")
-    .replace(/\s+/g, " ")
-    .trim();
-
-  if (/\bsalmon\b/i.test(canonical)) canonical = "salmon";
-  if (/^lemons?$/i.test(canonical)) canonical = "lemon";
-
-  return canonical;
+function sourceName(item: ShoppingRecord) {
+  return item.product?.canonicalName ?? item.product?.name ?? item.name;
 }
 
 function canonicalIdentity(item: ShoppingRecord) {
-  const linkedName = item.product?.canonicalName ?? item.product?.name;
-  const canonical = cleanCanonicalName(linkedName || item.name);
-  return normaliseProductText(canonical);
+  return shoppingIdentity(sourceName(item));
 }
 
-function normalisedUnit(unit: string | null) {
-  const value = normaliseProductText(unit ?? "item");
-  if (["item", "items", "each", "ea"].includes(value)) return "each";
-  if (["gram", "grams"].includes(value)) return "g";
-  if (["kilogram", "kilograms"].includes(value)) return "kg";
-  if (["millilitre", "millilitres"].includes(value)) return "ml";
-  if (["litre", "litres"].includes(value)) return "l";
-  return value;
+function mergeUnit(item: ShoppingRecord) {
+  const shape = foodItemShape(sourceName(item));
+  const unit = normaliseGroceryUnit(item.unit);
+
+  if (shape === "COUNT_VARIABLE" && ["each", "item"].includes(unit)) return "each";
+  return unit;
 }
 
 function mergeKey(item: ShoppingRecord) {
-  return `${item.shoppingListId}|${canonicalIdentity(item)}|${normalisedUnit(item.unit)}`;
+  return `${item.shoppingListId}|${canonicalIdentity(item)}|${mergeUnit(item)}`;
 }
 
 function splitCompoundName(item: ShoppingRecord) {
   const normalised = normaliseProductText(item.name);
   if (normalised.includes("mint leaves") && normalised.includes("lemon wedges")) {
-    return ["Mint leaves", "Lemon"];
+    return ["Mint Leaves", "Lemon"];
   }
   return null;
 }
@@ -129,9 +119,7 @@ async function mergeDuplicateItems(items: ShoppingRecord[]) {
     const quantity = canSum
       ? quantities.reduce<number>((total, value) => total + (value ?? 0), 0)
       : keeper.quantity;
-    const canonicalName = cleanCanonicalName(
-      keeper.product?.canonicalName ?? keeper.product?.name ?? keeper.name,
-    );
+    const identity = canonicalIdentity(keeper);
     const productId = group.find((item) => item.productId)?.productId ?? null;
     const checked = group.every((item) => item.checked);
 
@@ -139,9 +127,9 @@ async function mergeDuplicateItems(items: ShoppingRecord[]) {
       prisma.shoppingItem.update({
         where: { id: keeper.id },
         data: {
-          name: canonicalName || keeper.name,
+          name: formatProductName(identity),
           quantity,
-          unit: normalisedUnit(keeper.unit),
+          unit: mergeUnit(keeper),
           productId,
           checked,
         },
@@ -157,16 +145,33 @@ async function mergeDuplicateItems(items: ShoppingRecord[]) {
   return changed;
 }
 
+async function normaliseSingleItems(items: ShoppingRecord[]) {
+  let changed = false;
+
+  for (const item of items) {
+    const displayName = formatProductName(sourceName(item));
+    const unit = mergeUnit(item);
+    if (item.name === displayName && item.unit === unit) continue;
+
+    await prisma.shoppingItem.update({
+      where: { id: item.id },
+      data: { name: displayName, unit },
+    });
+    changed = true;
+  }
+
+  return changed;
+}
+
 export async function consolidateShoppingItems() {
-  // Re-run until the list reaches a stable canonical form. This makes every
-  // refresh authoritative, including existing rows created before the current
-  // normalisation rules were introduced.
   for (let pass = 0; pass < 4; pass += 1) {
     const beforeSplit = await readShoppingItems();
     const splitChanged = await splitKnownCompoundItems(beforeSplit);
     const afterSplit = splitChanged ? await readShoppingItems() : beforeSplit;
     const mergeChanged = await mergeDuplicateItems(afterSplit);
+    const afterMerge = mergeChanged ? await readShoppingItems() : afterSplit;
+    const normaliseChanged = await normaliseSingleItems(afterMerge);
 
-    if (!splitChanged && !mergeChanged) break;
+    if (!splitChanged && !mergeChanged && !normaliseChanged) break;
   }
 }
