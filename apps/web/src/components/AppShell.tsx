@@ -66,12 +66,13 @@ export function AppShell({
   const [hydrated, setHydrated] = useState(false);
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [healthPaired, setHealthPaired] = useState(initialHealthPaired);
 
   const user = !hydrated || isPending
     ? initialUser
     : session?.user ?? null;
   const owner = Boolean(user?.email && ownerEmails.includes(user.email.toLocaleLowerCase()));
-  const ownerItems = initialHealthPaired
+  const ownerItems = healthPaired
     ? ownerNavigation
     : ownerNavigation.filter((item) => item.label !== "Health");
   const navigation = owner ? ownerItems : user ? memberNavigation : memberNavigation.slice(0, 1);
@@ -83,6 +84,42 @@ export function AppShell({
     setHydrated(true);
     setPathname(livePathname);
   }, [livePathname]);
+
+  useEffect(() => {
+    if (!user) {
+      setHealthPaired(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshPairingStatus() {
+      try {
+        const response = await fetch("/api/health-connect/status", {
+          cache: "no-store",
+          credentials: "same-origin",
+        });
+        if (!response.ok) return;
+        const result = await response.json() as { paired?: boolean };
+        if (!cancelled) setHealthPaired(Boolean(result.paired));
+      } catch {
+        // Keep the last known state when the status endpoint is temporarily unavailable.
+      }
+    }
+
+    void refreshPairingStatus();
+    const timer = window.setInterval(refreshPairingStatus, 5_000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void refreshPairingStatus();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [user?.email]);
 
   const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
