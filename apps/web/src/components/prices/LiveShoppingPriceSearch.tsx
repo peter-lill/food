@@ -86,9 +86,15 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
     }
   }
 
-  const completeRetailers = result?.retailerTotals
-    .filter((retailer) => retailer.missingCount === 0)
-    .sort((left, right) => left.total - right.total) ?? [];
+  const visibleRetailers = result?.retailerTotals
+    .filter((retailer) => retailer.matchedCount > 0)
+    .sort((left, right) => {
+      if (left.missingCount === 0 && right.missingCount !== 0) return -1;
+      if (left.missingCount !== 0 && right.missingCount === 0) return 1;
+      return left.total - right.total;
+    }) ?? [];
+  const completeRetailers = visibleRetailers
+    .filter((retailer) => retailer.missingCount === 0);
   const bestCompleteRetailer = completeRetailers[0] ?? null;
 
   return (
@@ -166,10 +172,10 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
       {result ? (
         <div className={styles.liveResults}>
           <div className={styles.liveSummaryGrid}>
-            {result.retailerTotals.map((retailer) => (
+            {visibleRetailers.map((retailer) => (
               <article className={retailer.missingCount === 0 ? styles.liveCompleteTotal : styles.liveTotal} key={retailer.retailer}>
                 <span>{retailer.retailer}</span>
-                <strong>{retailer.matchedCount ? money(retailer.total) : "—"}</strong>
+                <strong>{money(retailer.total)}</strong>
                 <small>{retailer.matchedCount}/{result.items.length} priced{retailer.missingCount ? ` · ${retailer.missingCount} missing` : " · complete"}</small>
               </article>
             ))}
