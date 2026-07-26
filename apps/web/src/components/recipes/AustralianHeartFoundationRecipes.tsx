@@ -1,14 +1,44 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
+import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
 
-export function AustralianHeartFoundationRecipes({ recipes }: { recipes: PlannerRecipe[] }) {
-  const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+type Props = {
+  importedRecipes: PlannerRecipe[];
+  externalRecipes: ExternalRecipe[];
+};
 
-  if (!recipes.length) return null;
+export function AustralianHeartFoundationRecipes({ importedRecipes, externalRecipes }: Props) {
+  const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+  const importedBySourceKey = useMemo(
+    () => new Map(importedRecipes.map((recipe) => [recipe.sourceKey, recipe])),
+    [importedRecipes],
+  );
+  const importedByName = useMemo(
+    () => new Map(importedRecipes.map((recipe) => [recipe.name.toLocaleLowerCase("en-AU"), recipe])),
+    [importedRecipes],
+  );
+
+  if (!externalRecipes.length && !importedRecipes.length) return null;
+
+  const catalogue = externalRecipes.length
+    ? externalRecipes
+    : importedRecipes.map((recipe) => ({
+        id: recipe.sourceKey?.replace(/^heart-foundation:/, "") ?? recipe.id,
+        name: recipe.name,
+        description: recipe.description ?? "",
+        sourceName: "Heart Foundation" as const,
+        sourceUrl: recipe.originalSourceUrl ?? "https://www.heartfoundation.org.au/recipes",
+        sourceHomeUrl: "https://www.heartfoundation.org.au/",
+        imageUrl: recipe.imageUrl,
+        minutes: recipe.minutes,
+        servings: recipe.servings,
+        licence: "National Heart Foundation of Australia.",
+        tags: [],
+      }));
 
   return (
     <section className={styles.savedSection}>
@@ -16,32 +46,44 @@ export function AustralianHeartFoundationRecipes({ recipes }: { recipes: Planner
         <div>
           <p className="eyebrow">AUSTRALIAN HEART FOUNDATION</p>
           <h2>Australian Heart Foundation recipes</h2>
-          <p className="subtle">Imported Australian recipes remain attributed to their original publisher.</p>
+          <p className="subtle">Heart-healthy recipes from the National Heart Foundation of Australia.</p>
         </div>
-        <span className="badge neutral">{recipes.length} recipes</span>
+        <span className="badge neutral">{catalogue.length} recipes</span>
       </div>
 
       <div className={styles.gallery}>
-        {recipes.map((recipe) => (
-          <article className={styles.card} key={recipe.id}>
-            {recipe.imageUrl ? (
-              <div className={styles.cardImage}>
-                <Image alt={`Finished ${recipe.name}`} fill sizes="(max-width: 760px) 126px, 230px" src={recipe.imageUrl} />
+        {catalogue.map((recipe) => {
+          const imported =
+            importedBySourceKey.get(`heart-foundation:${recipe.id}`) ??
+            importedByName.get(recipe.name.toLocaleLowerCase("en-AU")) ??
+            null;
+          const imageUrl = imported?.imageUrl ?? recipe.imageUrl;
+
+          return (
+            <article className={styles.card} key={recipe.id}>
+              {imageUrl ? (
+                <div className={styles.cardImage}>
+                  <Image alt={`Finished ${recipe.name}`} fill sizes="(max-width: 760px) 126px, 230px" src={imageUrl} />
+                </div>
+              ) : <div aria-hidden="true" className={styles.imageFallback}>◇</div>}
+              <div className={styles.cardContent}>
+                <span className={styles.source}>Australian Heart Foundation</span>
+                <h2>{recipe.name}</h2>
+                {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
+                <div className={styles.meta}>
+                  {(imported?.minutes ?? recipe.minutes) ? <span>{imported?.minutes ?? recipe.minutes} min</span> : null}
+                  {(imported?.servings ?? recipe.servings) ? <span>{imported?.servings ?? recipe.servings} servings</span> : null}
+                </div>
+                <span className={styles.openLabel}>{imported ? "View recipe →" : "View original recipe ↗"}</span>
               </div>
-            ) : <div aria-hidden="true" className={styles.imageFallback}>◇</div>}
-            <div className={styles.cardContent}>
-              <span className={styles.source}>Australian Heart Foundation</span>
-              <h2>{recipe.name}</h2>
-              {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
-              <div className={styles.meta}>
-                {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
-                <span>{recipe.servings} serving{recipe.servings === 1 ? "" : "s"}</span>
-              </div>
-              <span className={styles.openLabel}>View recipe →</span>
-            </div>
-            <button aria-label={`Open recipe for ${recipe.name}`} className={styles.cardAction} onClick={() => setOpenRecipe(recipe)} type="button" />
-          </article>
-        ))}
+              {imported ? (
+                <button aria-label={`Open recipe for ${recipe.name}`} className={styles.cardAction} onClick={() => setOpenRecipe(imported)} type="button" />
+              ) : (
+                <a aria-label={`View ${recipe.name} on the Australian Heart Foundation website`} className={styles.cardAction} href={recipe.sourceUrl} rel="noopener noreferrer" target="_blank" />
+              )}
+            </article>
+          );
+        })}
       </div>
 
       {openRecipe ? (
@@ -75,7 +117,7 @@ export function AustralianHeartFoundationRecipes({ recipes }: { recipes: Planner
                   </ol>
                 </section>
               </div>
-              {openRecipe.originalSourceUrl ? <a href={openRecipe.originalSourceUrl}>View original source</a> : null}
+              {openRecipe.originalSourceUrl ? <a href={openRecipe.originalSourceUrl} rel="noopener noreferrer" target="_blank">View original on Australian Heart Foundation ↗</a> : null}
             </div>
           </article>
         </div>
