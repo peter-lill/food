@@ -9,3 +9,9 @@
   background: transparent;
   box-shadow: none;
 }
+
+@media (max-width: 900px) {
+  .workspace {
+    margin-top: -22px;
+  }
+}
