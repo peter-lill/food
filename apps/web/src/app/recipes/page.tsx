@@ -63,30 +63,23 @@ export default async function RecipesPage() {
     (recipe) => !isAustralianHeartFoundationRecipe(recipe),
   );
 
-  const importedAustralianHeartFoundationKeys = new Set(
-    australianHeartFoundationRecipes
-      .map((recipe) => recipe.sourceKey)
-      .filter((sourceKey): sourceKey is string => Boolean(sourceKey)),
-  );
-  const importedAustralianHeartFoundationNames = new Set(
-    australianHeartFoundationRecipes.map((recipe) => recipe.name),
-  );
+  const australianHeartFoundationCatalogue = externalRecipes
+    .filter((recipe) => recipe.sourceName === "Heart Foundation")
+    .map(withSourceImage);
 
   const catalogueRecipes = [
     ...new Map(
       externalRecipes
         .filter((recipe) => recipe.sourceName !== "Mayo Clinic")
-        .filter(
-          (recipe) =>
-            recipe.sourceName !== "Heart Foundation" ||
-            (!importedAustralianHeartFoundationKeys.has(`heart-foundation:${recipe.id}`) &&
-              !importedAustralianHeartFoundationNames.has(recipe.name)),
-        )
+        .filter((recipe) => recipe.sourceName !== "Heart Foundation")
         .map(withSourceImage)
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
   ];
-  const totalRecipeCount = completeRecipes.length + australianHeartFoundationRecipes.length + catalogueRecipes.length;
+  const totalRecipeCount =
+    completeRecipes.length +
+    australianHeartFoundationCatalogue.length +
+    catalogueRecipes.length;
 
   const favourites = session
     ? await prisma.recipeFavourite.findMany({
@@ -101,16 +94,17 @@ export default async function RecipesPage() {
         <div>
           <p className="eyebrow">RECIPE LIBRARY</p>
           <h1 className="page-title">Recipes</h1>
-          <p className="subtle">
-            Search Food recipes and separate collections from the Australian and British Heart Foundations.
-          </p>
+          <p className="subtle">Browse heart-conscious recipes, ingredients and cooking inspiration.</p>
         </div>
         <span className="badge neutral">
           {totalRecipeCount} recipe{totalRecipeCount === 1 ? "" : "s"}
         </span>
       </header>
 
-      <AustralianHeartFoundationRecipes recipes={australianHeartFoundationRecipes} />
+      <AustralianHeartFoundationRecipes
+        externalRecipes={australianHeartFoundationCatalogue}
+        importedRecipes={australianHeartFoundationRecipes}
+      />
 
       <RecipesGallery
         externalRecipes={catalogueRecipes}
