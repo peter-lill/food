@@ -3,7 +3,6 @@ import { auth } from "@/lib/auth";
 import {
   resolveUserSearchLocation,
   type CurrentSearchLocation,
-  type ResolvedSearchLocation,
 } from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
 import {
@@ -12,7 +11,6 @@ import {
   type SupermarketShoppingItem,
 } from "@/lib/prices/supermarket-comparison.types";
 import type {
-  GroceryPriceMatchKind,
   LiveGroceryPriceItemResult,
   LiveGroceryPriceMatch,
   LiveGroceryPriceSearchResponse,
@@ -21,73 +19,9 @@ import type {
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const itemLimit = 25;
 const cacheWindowMs = 6 * 60 * 60 * 1000;
-const requestTimeoutMs = 15_000;
-
-const protectedRequirements = [
-  ["lactose free"],
-  ["gluten free"],
-  ["dairy free"],
-  ["nut free"],
-  ["sugar free", "no sugar"],
-  ["no added sugar"],
-  ["unsweetened"],
-  ["decaf", "decaffeinated"],
-  ["organic"],
-  ["free range"],
-  ["full cream"],
-  ["light milk", "lite milk", "reduced fat", "low fat"],
-  ["skim", "skimmed"],
-  ["vegan"],
-  ["vegetarian"],
-  ["halal"],
-  ["wholemeal", "whole wheat"],
-  ["brown rice", "brown bread"],
-  ["white rice", "white bread"],
-] as const;
-
-const protectedProductTypes = [
-  "beef",
-  "chicken",
-  "lamb",
-  "pork",
-  "turkey",
-  "salmon",
-  "tuna",
-  "prawn",
-  "tofu",
-  "almond",
-  "oat",
-  "soy",
-  "coconut",
-] as const;
-
-const plantMilkTypes = ["almond", "oat", "soy", "coconut", "rice milk"] as const;
-const unrelatedContexts = [
-  "baby formula",
-  "cat food",
-  "cat treat",
-  "dog food",
-  "dog treat",
-  "infant formula",
-  "pet food",
-  "pet treat",
-] as const;
-const specialisedMilkForms = [
-  "chocolate milk",
-  "condensed milk",
-  "evaporated milk",
-  "flavoured milk",
-  "milk powder",
-  "powdered milk",
-  "strawberry milk",
-] as const;
-
-const stopWords = new Set([
-  "and", "the", "with", "for", "from", "pack", "packet", "bottle", "bottles",
-  "item", "items", "each", "ea", "pk", "can", "cans", "tin", "tins", "of",
-]);
+const requestTimeoutMs = 5_500;
+const searchConcurrency = 8;
 
 type SearchRequestBody = {
   allowSubstitutes?: unknown;
@@ -102,8 +36,6 @@ type SerpShoppingResult = {
   merchant?: unknown;
   price?: unknown;
   extracted_price?: unknown;
-  old_price?: unknown;
-  extracted_old_price?: unknown;
   link?: unknown;
   product_link?: unknown;
   extensions?: unknown;
@@ -115,365 +47,83 @@ type SerpApiResponse = {
   error?: unknown;
 };
 
-type Measurement = {
-  amount: number;
-  dimension: "weight" | "volume" | "count";
-  label: string;
-  unitLabel: "/kg" | "/L" | "/item";
-};
-
-type CandidateSeed = {
+type Candidate = {
   retailer: SupermarketRetailer;
   productName: string;
   price: number;
   packSize: string | null;
-  measurement: Measurement | null;
   isSpecial: boolean;
   sourceUrl: string | null;
   rank: number;
   cached: boolean;
 };
 
-type ScoredCandidate = {
-  match: LiveGroceryPriceMatch;
-  score: number;
-  rank: number;
-};
-
-type PriceSearchCacheEntry = {
+type CacheEntry = {
   expiresAt: number;
-  candidates: CandidateSeed[];
+  candidates: Candidate[];
 };
 
 type PriceSearchGlobal = typeof globalThis & {
-  foodGroceryPriceSearchCache?: Map<string, PriceSearchCacheEntry>;
+  foodGroceryPriceSearchCache?: Map<string, CacheEntry>;
 };
 
 const priceSearchGlobal = globalThis as PriceSearchGlobal;
-const priceSearchCache = priceSearchGlobal.foodGroceryPriceSearchCache
-  ?? new Map<string, PriceSearchCacheEntry>();
+const priceSearchCache = priceSearchGlobal.foodGroceryPriceSearchCache ?? new Map<string, CacheEntry>();
 priceSearchGlobal.foodGroceryPriceSearchCache = priceSearchCache;
-
-function currentLocationFromRequest(value: unknown): CurrentSearchLocation | null {
-  if (!value || typeof value !== "object") return null;
-
-  const candidate = value as Record<string, unknown>;
-  const latitude = candidate.latitude;
-  const longitude = candidate.longitude;
-  const accuracy = candidate.accuracy;
-
-  if (
-    typeof latitude !== "number" ||
-    !Number.isFinite(latitude) ||
-    typeof longitude !== "number" ||
-    !Number.isFinite(longitude)
-  ) {
-    return null;
-  }
-
-  return {
-    latitude,
-    longitude,
-    accuracy:
-      typeof accuracy === "number" && Number.isFinite(accuracy)
-        ? accuracy
-        : null,
-  };
-}
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
-function roundMoney(value: number) {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
-}
-
 function normalise(value: string) {
   return value
     .toLocaleLowerCase("en-AU")
+    .replace(/&/g, " and ")
     .replace(/[-_/]+/g, " ")
     .replace(/[^a-z0-9.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
-function normalisedTokens(value: string) {
-  return normalise(value)
-    .split(" ")
-    .filter((token) => token.length > 1)
-    .filter((token) => !stopWords.has(token))
-    .filter((token) => !/^\d+(?:\.\d+)?$/.test(token))
-    .filter((token) => !["g", "kg", "ml", "l"].includes(token));
+function titleCase(value: string) {
+  return value.replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function sourceRetailer(source: unknown): SupermarketRetailer | null {
-  const value = normalise(cleanText(source));
-  if (!value) return null;
-  if (value.includes("woolworths")) return "Woolworths";
-  if (value.includes("coles")) return "Coles";
-  if (value === "aldi" || value.includes("aldi australia")) return "ALDI";
-  if (value === "iga" || value.includes("iga australia") || value.includes("independent grocers of australia")) return "IGA";
-  if (value.includes("drakes") || value.includes("drake supermarkets")) return "Drakes";
-  if (value.includes("costco")) return "Costco";
-  return null;
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function numericPrice(result: SerpShoppingResult) {
-  if (typeof result.extracted_price === "number" && Number.isFinite(result.extracted_price)) {
-    return result.extracted_price;
-  }
-  if (typeof result.price === "number" && Number.isFinite(result.price)) {
-    return result.price;
-  }
-
-  const raw = cleanText(result.price).replace(/[^0-9.]/g, "");
-  const price = Number(raw);
-  return Number.isFinite(price) && price > 0 ? price : null;
-}
-
-function parseMeasurement(value: string): Measurement | null {
-  const text = value.replace(/,/g, "");
-  const multi = text.match(/(\d+)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\b/i);
-
-  if (multi) {
-    const count = Number(multi[1]);
-    const quantity = Number(multi[2]);
-    const unit = multi[3].toLocaleLowerCase("en-AU");
-    if (!Number.isFinite(count) || !Number.isFinite(quantity) || count <= 0 || quantity <= 0) return null;
-
-    if (unit === "kg" || unit === "g") {
-      return {
-        amount: count * (unit === "kg" ? quantity : quantity / 1000),
-        dimension: "weight",
-        label: multi[0],
-        unitLabel: "/kg",
-      };
-    }
-
-    return {
-      amount: count * (unit === "l" ? quantity : quantity / 1000),
-      dimension: "volume",
-      label: multi[0],
-      unitLabel: "/L",
-    };
+function currentLocationFromRequest(value: unknown): CurrentSearchLocation | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Record<string, unknown>;
+  if (
+    typeof candidate.latitude !== "number" ||
+    !Number.isFinite(candidate.latitude) ||
+    typeof candidate.longitude !== "number" ||
+    !Number.isFinite(candidate.longitude)
+  ) {
+    return null;
   }
 
-  const single = text.match(/(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\b/i);
-  if (single) {
-    const quantity = Number(single[1]);
-    const unit = single[2].toLocaleLowerCase("en-AU");
-    if (!Number.isFinite(quantity) || quantity <= 0) return null;
-
-    if (unit === "kg" || unit === "g") {
-      return {
-        amount: unit === "kg" ? quantity : quantity / 1000,
-        dimension: "weight",
-        label: single[0],
-        unitLabel: "/kg",
-      };
-    }
-
-    return {
-      amount: unit === "l" ? quantity : quantity / 1000,
-      dimension: "volume",
-      label: single[0],
-      unitLabel: "/L",
-    };
-  }
-
-  const count = text.match(/(\d+)\s*(?:pack|pk|pieces?|rolls?|capsules?|tablets?|tabs?|sachets?|cans?|bottles?)\b/i);
-  if (count) {
-    const amount = Number(count[1]);
-    if (Number.isFinite(amount) && amount > 0) {
-      return {
-        amount,
-        dimension: "count",
-        label: count[0],
-        unitLabel: "/item",
-      };
-    }
-  }
-
-  return null;
-}
-
-function itemMeasurement(item: SupermarketShoppingItem): Measurement | null {
-  if (!item.quantity || !item.unit) return null;
-  const unit = normalise(item.unit);
-  if (["kg", "kilogram", "kilograms"].includes(unit)) {
-    return { amount: item.quantity, dimension: "weight", label: `${item.quantity} kg`, unitLabel: "/kg" };
-  }
-  if (["g", "gram", "grams"].includes(unit)) {
-    return { amount: item.quantity / 1000, dimension: "weight", label: `${item.quantity} g`, unitLabel: "/kg" };
-  }
-  if (["l", "litre", "litres", "liter", "liters"].includes(unit)) {
-    return { amount: item.quantity, dimension: "volume", label: `${item.quantity} L`, unitLabel: "/L" };
-  }
-  if (["ml", "millilitre", "millilitres", "milliliter", "milliliters"].includes(unit)) {
-    return { amount: item.quantity / 1000, dimension: "volume", label: `${item.quantity} ml`, unitLabel: "/L" };
-  }
-  if (["item", "items", "each", "ea", "pack", "packet", "tin", "can", "bottle"].includes(unit)) {
-    return { amount: item.quantity, dimension: "count", label: `${item.quantity} ${item.unit}`, unitLabel: "/item" };
-  }
-  return null;
-}
-
-function estimateTotal(item: SupermarketShoppingItem, price: number, productMeasurement: Measurement | null) {
-  const requested = itemMeasurement(item);
-  if (!requested || !productMeasurement || requested.dimension !== productMeasurement.dimension) {
-    return { total: price, unitPrice: null as number | null, unitLabel: null as string | null };
-  }
-
-  const packs = Math.max(1, Math.ceil(requested.amount / productMeasurement.amount));
   return {
-    total: roundMoney(price * packs),
-    unitPrice: roundMoney(price / productMeasurement.amount),
-    unitLabel: productMeasurement.unitLabel,
+    latitude: candidate.latitude,
+    longitude: candidate.longitude,
+    accuracy:
+      typeof candidate.accuracy === "number" && Number.isFinite(candidate.accuracy)
+        ? candidate.accuracy
+        : null,
   };
 }
 
-function hasAllRequirements(query: string, productName: string) {
-  const queryValue = normalise(query);
-  const productValue = normalise(productName);
-  return protectedRequirements.every((aliases) => {
-    const requested = aliases.some((alias) => queryValue.includes(alias));
-    return !requested || aliases.some((alias) => productValue.includes(alias));
-  });
-}
-
-function preservesProductType(query: string, productName: string) {
-  const queryValue = normalise(query);
-  const productValue = normalise(productName);
-  const requestedType = protectedProductTypes.find((type) => queryValue.includes(type));
-  return !requestedType || productValue.includes(requestedType);
-}
-
-function safeMilkSubstitute(query: string, productName: string) {
-  const queryValue = normalise(query);
-  if (!queryValue.includes("milk")) return true;
-  const productValue = normalise(productName);
-  if (unrelatedContexts.some((value) => productValue.includes(value))) return false;
-  if (specialisedMilkForms.some((value) => productValue.includes(value)) && !specialisedMilkForms.some((value) => queryValue.includes(value))) return false;
-  const requestedPlantType = plantMilkTypes.find((type) => queryValue.includes(type));
-  return !requestedPlantType || productValue.includes(requestedPlantType);
-}
-
-function saltPreferenceMatches(query: string, productName: string) {
-  const queryValue = normalise(query);
-  const productValue = normalise(productName);
-
-  const requestsNoAddedSalt =
-    queryValue.includes("no added salt") ||
-    queryValue.includes("no salt added");
-
-  const requestsReducedSalt =
-    queryValue.includes("reduced salt") ||
-    queryValue.includes("salt reduced") ||
-    queryValue.includes("low salt") ||
-    queryValue.includes("lower salt");
-
-  if (!requestsNoAddedSalt && !requestsReducedSalt) return true;
-
-  const productHasNoAddedSalt =
-    productValue.includes("no added salt") ||
-    productValue.includes("no salt added");
-
-  const productHasReducedSalt =
-    productValue.includes("reduced salt") ||
-    productValue.includes("salt reduced") ||
-    productValue.includes("low salt") ||
-    productValue.includes("lower salt");
-
-  return requestsNoAddedSalt
-    ? productHasNoAddedSalt
-    : productHasReducedSalt || productHasNoAddedSalt;
-}
-
-function scoreProductMatch(query: string, productName: string, allowSubstitutes: boolean) {
-  const queryTokens = normalisedTokens(query);
-  const productTokens = normalisedTokens(productName);
-  if (!queryTokens.length || !productTokens.length) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "No meaningful product terms matched." };
-  const shared = queryTokens.filter((token) => productTokens.includes(token)).length;
-  const coverage = shared / queryTokens.length;
-  const reverseCoverage = shared / productTokens.length;
-  const exact = normalise(query) === normalise(productName);
-  const contains = normalise(productName).includes(normalise(query));
-
-  if (!hasAllRequirements(query, productName)) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Does not preserve a stated dietary or product requirement." };
-  if (!preservesProductType(query, productName)) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Changes the requested product type." };
-  if (!safeMilkSubstitute(query, productName)) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Milk substitute is not compatible with the requested type." };
-
-  const saltPreferenceConfirmed = saltPreferenceMatches(query, productName);
-
-  if (!saltPreferenceConfirmed && !allowSubstitutes) {
-    return {
-      score: -Infinity,
-      kind: "substitute" as GroceryPriceMatchKind,
-      reason: "The requested salt requirement was not confirmed.",
-    };
-  }
-
-  if (!saltPreferenceConfirmed && shared >= 1) {
-    return {
-      score: 58,
-      kind: "substitute" as GroceryPriceMatchKind,
-      reason: "Comparable product, but the reduced-salt requirement was not confirmed.",
-    };
-  }
-
-  if (exact) return { score: 120, kind: "exact" as GroceryPriceMatchKind, reason: "Exact product name match." };
-  if (contains && coverage >= 0.8) return { score: 105, kind: "exact" as GroceryPriceMatchKind, reason: "Strong product-name match." };
-  if (coverage >= 0.8 && reverseCoverage >= 0.4) return { score: 95, kind: "exact" as GroceryPriceMatchKind, reason: "Most product terms match." };
-  if (!allowSubstitutes) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "No exact product was found and substitutes are disabled." };
-  if (coverage >= 0.6) return { score: 75 + coverage * 10, kind: "substitute" as GroceryPriceMatchKind, reason: "Comparable product with the requested characteristics." };
-  if (shared >= 1 && queryTokens.length <= 2) return { score: 62, kind: "substitute" as GroceryPriceMatchKind, reason: "Close product-category substitute." };
-  return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Product is not sufficiently similar." };
-}
-
-function normaliseGroceryItemName(itemName: string) {
-  let value = itemName
-    .replace(/\s+/g, " ")
-    .trim();
-
-  const spellingCorrections: Array<[RegExp, string]> = [
-    [/\bavacado(?:es|s)?\b/gi, "avocado"],
-    [/\btamato(?:es|s)?\b/gi, "tomato"],
-    [/\blentles\b/gi, "lentils"],
-    [/\bcapsicumms?\b/gi, "capsicum"],
-  ];
-
-  for (const [pattern, replacementValue] of spellingCorrections) {
-    value = value.replace(pattern, replacementValue);
-  }
-
-  // Remove preparation notes such as ", thinly sliced".
-  value = value.split(",")[0].trim();
-
-  // Recipe imports sometimes prefix quantities with "x", for example
-  // "x 400g cans chopped tomatoes".
-  value = value.replace(/^x\s+/i, "");
-
-  // Remove leading recipe quantities and measurements.
-  value = value.replace(
-    /^(?:(?:\d+\s+)?(?:\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*(?:x\s*)?(?:(?:kg|g|mg|ml|l)\b|(?:cups?|tablespoons?|tbsp|teaspoons?|tsp)\b)?\s*)+/i,
-    "",
-  );
-
-  // Remove package/container words left after the quantity.
-  value = value.replace(
-    /^(?:cans?|tins?|packets?|packs?|jars?|bottles?)\s+(?:of\s+)?/i,
-    "",
-  );
-
-  return value.replace(/\s+/g, " ").trim();
-}
-
-function buildSearchQuery(
-  item: SupermarketShoppingItem,
-  _location: ResolvedSearchLocation,
-) {
-  return normaliseGroceryItemName(item.name);
+function sourceRetailer(value: unknown): SupermarketRetailer | null {
+  const source = normalise(cleanText(value));
+  if (source.includes("woolworths")) return "Woolworths";
+  if (source.includes("coles")) return "Coles";
+  if (source === "aldi" || source.includes("aldi australia")) return "ALDI";
+  if (source === "iga" || source.includes("iga australia") || source.includes("independent grocers")) return "IGA";
+  if (source.includes("drakes") || source.includes("drake supermarkets")) return "Drakes";
+  if (source.includes("costco")) return "Costco";
+  return null;
 }
 
 function resultSource(result: SerpShoppingResult) {
@@ -481,26 +131,64 @@ function resultSource(result: SerpShoppingResult) {
 }
 
 function resultUrl(result: SerpShoppingResult) {
-  return cleanText(result.product_link) || cleanText(result.link) || null;
+  const value = result.product_link ?? result.link;
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function numericPrice(result: SerpShoppingResult) {
+  if (typeof result.extracted_price === "number" && Number.isFinite(result.extracted_price)) {
+    return result.extracted_price;
+  }
+  if (typeof result.price === "number" && Number.isFinite(result.price)) return result.price;
+  const parsed = Number(cleanText(result.price).replace(/[^0-9.]/g, ""));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
 function resultExtensions(result: SerpShoppingResult) {
-  return Array.isArray(result.extensions) ? result.extensions.map(cleanText).filter(Boolean) : [];
+  return Array.isArray(result.extensions)
+    ? result.extensions.map(cleanText).filter(Boolean)
+    : [];
 }
 
-function cacheKey(query: string, location: ResolvedSearchLocation) {
-  return [normalise(query), location.source, normalise(location.label), location.latitude ?? "", location.longitude ?? "", location.radius ?? ""].join("|");
+function packSize(value: string) {
+  return value.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
 }
 
-function cloneCandidates(candidates: CandidateSeed[], cached: boolean) {
+function tokens(value: string) {
+  const ignored = new Set(["and", "the", "with", "for", "from", "pack", "packet", "item", "items", "each", "of"]);
+  return normalise(value)
+    .split(" ")
+    .filter((token) => token.length > 1 && !ignored.has(token) && !/^\d/.test(token));
+}
+
+function scoreMatch(query: string, productName: string, allowSubstitutes: boolean) {
+  const queryValue = normalise(query);
+  const productValue = normalise(productName);
+  if (productValue === queryValue) return { score: 1_000, exact: true };
+  if (productValue.includes(queryValue)) return { score: 900, exact: true };
+
+  const requested = tokens(queryValue);
+  const product = new Set(tokens(productValue));
+  const matched = requested.filter((token) => product.has(token)).length;
+  const ratio = requested.length ? matched / requested.length : 0;
+  if (ratio >= 0.8) return { score: 700 + ratio * 100, exact: true };
+  if (!allowSubstitutes || ratio < 0.5) return null;
+  return { score: 400 + ratio * 100, exact: false };
+}
+
+function cacheKey(query: string) {
+  return normalise(query);
+}
+
+function cloneCandidates(candidates: Candidate[], cached: boolean) {
   return candidates.map((candidate) => ({ ...candidate, cached }));
 }
 
-async function searchSerpApi(query: string, location: ResolvedSearchLocation) {
+async function searchSerpApi(query: string) {
   const apiKey = process.env.SERPAPI_API_KEY?.trim();
-  if (!apiKey) throw new Error("Current online prices are not configured. Set SERPAPI_API_KEY on the Food server.");
+  if (!apiKey) throw new Error("Current online prices are not configured.");
 
-  const key = cacheKey(query, location);
+  const key = cacheKey(query);
   const cached = priceSearchCache.get(key);
   if (cached && cached.expiresAt > Date.now()) {
     return { candidates: cloneCandidates(cached.candidates, true), cached: true };
@@ -512,57 +200,49 @@ async function searchSerpApi(query: string, location: ResolvedSearchLocation) {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("gl", "au");
   url.searchParams.set("hl", "en");
-  // gl=au limits results to Australia. Do not send an arbitrary store,
-  // suburb or postcode as SerpApi's location parameter because it expects
-  // a recognised Google geographic location and may return HTTP 400.
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
-  try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      signal: controller.signal,
-    });
 
-    const payload = await response.json() as SerpApiResponse;
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
+    const payload = await response.json().catch(() => ({})) as SerpApiResponse;
 
     if (!response.ok) {
-      const detail =
-        typeof payload.error === "string" && payload.error.trim()
-          ? `: ${payload.error.trim()}`
-          : "";
-
-      throw new Error(`Price search returned HTTP ${response.status}${detail}`);
+      if (cached?.candidates.length) {
+        return { candidates: cloneCandidates(cached.candidates, true), cached: true };
+      }
+      const detail = cleanText(payload.error);
+      throw new Error(detail || `Price provider returned HTTP ${response.status}.`);
     }
+
     const apiError = cleanText(payload.error);
     if (apiError) throw new Error(apiError);
+
     const rawResults = [
       ...(Array.isArray(payload.shopping_results) ? payload.shopping_results : []),
       ...(Array.isArray(payload.inline_shopping_results) ? payload.inline_shopping_results : []),
     ] as SerpShoppingResult[];
 
     const candidates = rawResults
-      .map((result, rank): CandidateSeed | null => {
+      .map((result, rank): Candidate | null => {
         const retailer = sourceRetailer(resultSource(result));
         const productName = cleanText(result.title);
         const price = numericPrice(result);
         if (!retailer || !productName || price === null) return null;
-        const extensions = resultExtensions(result);
-        const measurement = parseMeasurement([productName, ...extensions].join(" "));
-        const extensionText = normalise(extensions.join(" "));
+        const extensionText = normalise(resultExtensions(result).join(" "));
         return {
           retailer,
           productName,
           price,
-          packSize: measurement?.label ?? null,
-          measurement,
+          packSize: packSize([productName, ...resultExtensions(result)].join(" ")),
           isSpecial: extensionText.includes("special") || extensionText.includes("sale") || extensionText.includes("save "),
           sourceUrl: resultUrl(result),
           rank,
           cached: false,
         };
       })
-      .filter((candidate): candidate is CandidateSeed => candidate !== null);
+      .filter((candidate): candidate is Candidate => candidate !== null);
 
     priceSearchCache.set(key, {
       expiresAt: Date.now() + cacheWindowMs,
@@ -570,50 +250,70 @@ async function searchSerpApi(query: string, location: ResolvedSearchLocation) {
     });
 
     return { candidates, cached: false };
+  } catch (error) {
+    if (cached?.candidates.length) {
+      return { candidates: cloneCandidates(cached.candidates, true), cached: true };
+    }
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new Error("Price provider timed out for this item.");
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
 }
 
-function scoreCandidates(item: SupermarketShoppingItem, query: string, candidates: CandidateSeed[], allowSubstitutes: boolean) {
-  return candidates
-    .map((candidate): ScoredCandidate | null => {
-      const requestedName = normaliseGroceryItemName(item.name);
-      const assessment = scoreProductMatch(
-        requestedName,
-        candidate.productName,
-        allowSubstitutes,
-      );
-      if (!Number.isFinite(assessment.score)) return null;
-      const estimate = estimateTotal(item, candidate.price, candidate.measurement);
-      return {
-        score: assessment.score,
-        rank: candidate.rank,
-        match: {
-          retailer: candidate.retailer,
-          productName: candidate.productName,
-          price: candidate.price,
-          estimatedTotal: estimate.total,
-          packSize: candidate.packSize,
-          unitPrice: estimate.unitPrice,
-          unitLabel: estimate.unitLabel,
-          isSpecial: candidate.isSpecial,
-          matchKind: assessment.kind,
-          matchReason: assessment.reason,
-          sourceUrl: candidate.sourceUrl,
-          cached: candidate.cached,
-        },
+function buildMatches(
+  item: SupermarketShoppingItem,
+  query: string,
+  candidates: Candidate[],
+  allowSubstitutes: boolean,
+) {
+  const scored = candidates
+    .map((candidate) => {
+      const assessment = scoreMatch(query, candidate.productName, allowSubstitutes);
+      if (!assessment) return null;
+      const match: LiveGroceryPriceMatch = {
+        retailer: candidate.retailer,
+        productName: candidate.productName,
+        price: candidate.price,
+        estimatedTotal: roundMoney(candidate.price),
+        packSize: candidate.packSize,
+        unitPrice: null,
+        unitLabel: null,
+        isSpecial: candidate.isSpecial,
+        matchKind: assessment.exact ? "exact" : "substitute",
+        matchReason: assessment.exact
+          ? "Matches the requested product."
+          : "Comparable product; check pack size and ingredients before buying.",
+        sourceUrl: candidate.sourceUrl,
+        cached: candidate.cached,
       };
+      return { match, score: assessment.score, rank: candidate.rank };
     })
-    .filter((candidate): candidate is ScoredCandidate => candidate !== null)
-    .sort((left, right) => right.score - left.score || left.match.estimatedTotal - right.match.estimatedTotal || left.rank - right.rank);
-}
+    .filter((entry): entry is { match: LiveGroceryPriceMatch; score: number; rank: number } => entry !== null)
+    .sort((left, right) => right.score - left.score || left.match.price - right.match.price || left.rank - right.rank);
 
-function bestRetailerMatches(candidates: ScoredCandidate[]) {
   return supermarketRetailers
-    .map((retailer) => candidates.find((candidate) => candidate.match.retailer === retailer)?.match ?? null)
+    .map((retailer) => scored.find((entry) => entry.match.retailer === retailer)?.match ?? null)
     .filter((match): match is LiveGroceryPriceMatch => match !== null)
     .sort((left, right) => left.estimatedTotal - right.estimatedTotal);
+}
+
+async function mapWithConcurrency<T, R>(values: T[], concurrency: number, mapper: (value: T) => Promise<R>) {
+  const results = new Array<R>(values.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (true) {
+      const index = nextIndex++;
+      if (index >= values.length) return;
+      results[index] = await mapper(values[index]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(concurrency, values.length) }, worker));
+  return results;
 }
 
 export async function POST(request: Request, context: { params: Promise<{ listId: string }> }) {
@@ -627,7 +327,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   try {
     body = await request.json() as SearchRequestBody;
   } catch {
-    // Empty request body is valid and uses defaults.
+    // Defaults are valid.
   }
 
   const allowSubstitutes = body.allowSubstitutes !== false;
@@ -649,91 +349,58 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     return NextResponse.json({ status: "error", error: "Shopping list not found." }, { status: 404 });
   }
 
-  const listItems = list.items.slice(0, itemLimit).map((item): SupermarketShoppingItem => ({
+  const listItems: SupermarketShoppingItem[] = list.items.map((item) => ({
     id: item.id,
-    name: item.name,
+    name: titleCase(item.name),
     quantity: item.quantity,
     unit: item.unit,
   }));
 
-  const items: LiveGroceryPriceItemResult[] = [];
   let liveItemCount = 0;
   let cachedItemCount = 0;
 
-  const searchConcurrency = 3;
-
-  for (let index = 0; index < listItems.length; index += searchConcurrency) {
-    const batch = listItems.slice(index, index + searchConcurrency);
-
-    const batchResults = await Promise.all(
-      batch.map(async (item) => {
-        const query = buildSearchQuery(item, resolvedLocation);
-
-        try {
-          const result = await searchSerpApi(query, resolvedLocation);
-          const scored = scoreCandidates(
-            item,
-            query,
-            result.candidates,
-            allowSubstitutes,
-          );
-          const matches = bestRetailerMatches(scored);
-
-          return {
-            resultItem: {
-              item,
-              query,
-              matches,
-              best: matches[0] ?? null,
-              error: null,
-            },
-            cachedCount: result.cached ? 1 : 0,
-            liveCount: result.cached ? 0 : 1,
-          };
-        } catch (error) {
-          console.warn("Grocery price search failed", {
-            item: item.name,
-            query,
-            error: error instanceof Error ? error.message : String(error),
-          });
-
-          return {
-            resultItem: {
-              item,
-              query,
-              matches: [],
-              best: null,
-              error:
-                error instanceof Error
-                  ? error.message
-                  : "Current price search failed for this item.",
-            },
-            cachedCount: 0,
-            liveCount: 0,
-          };
-        }
-      }),
-    );
-
-    for (const batchResult of batchResults) {
-      items.push(batchResult.resultItem);
-      cachedItemCount += batchResult.cachedCount;
-      liveItemCount += batchResult.liveCount;
+  const items = await mapWithConcurrency(listItems, searchConcurrency, async (item): Promise<LiveGroceryPriceItemResult> => {
+    const query = titleCase(item.name);
+    try {
+      const result = await searchSerpApi(query);
+      if (result.cached) cachedItemCount += 1;
+      else liveItemCount += 1;
+      const matches = buildMatches(item, query, result.candidates, allowSubstitutes);
+      return {
+        item,
+        query,
+        matches,
+        best: matches[0] ?? null,
+        error: null,
+      };
+    } catch (error) {
+      console.warn("Grocery price search failed", {
+        item: item.name,
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return {
+        item,
+        query,
+        matches: [],
+        best: null,
+        error: error instanceof Error ? error.message : "Current price search failed for this item.",
+      };
     }
-  }
+  });
 
   const retailerTotals = supermarketRetailers.map((retailer) => {
-    const retailerMatches = items.map((item) => item.matches.find((match) => match.retailer === retailer)).filter((match): match is LiveGroceryPriceMatch => Boolean(match));
+    const matches = items
+      .map((item) => item.matches.find((match) => match.retailer === retailer))
+      .filter((match): match is LiveGroceryPriceMatch => Boolean(match));
     return {
       retailer,
-      total: roundMoney(retailerMatches.reduce((sum, match) => sum + match.estimatedTotal, 0)),
-      matchedCount: retailerMatches.length,
-      missingCount: items.length - retailerMatches.length,
+      total: roundMoney(matches.reduce((sum, match) => sum + match.estimatedTotal, 0)),
+      matchedCount: matches.length,
+      missingCount: items.length - matches.length,
     };
   });
 
-  const splitTotal = roundMoney(items.reduce((sum, item) => sum + (item.best?.estimatedTotal ?? 0), 0));
-  const splitMatchedCount = items.filter((item) => item.best).length;
   const response: LiveGroceryPriceSearchResponse = {
     status: "success",
     provider: "SerpApi Google Shopping",
@@ -745,12 +412,16 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     allowSubstitutes,
     items,
     retailerTotals,
-    splitTotal,
-    splitMatchedCount,
+    splitTotal: roundMoney(items.reduce((sum, item) => sum + (item.best?.estimatedTotal ?? 0), 0)),
+    splitMatchedCount: items.filter((item) => item.best).length,
     liveItemCount,
     cachedItemCount,
-    warning: items.some((item) => item.error) ? "Some items could not be refreshed. Available matches are still shown." : null,
+    warning: items.some((item) => item.error)
+      ? `Searched all ${items.length} items. Some provider requests timed out; available and cached matches are still shown.`
+      : null,
   };
 
-  return NextResponse.json(response);
+  return NextResponse.json(response, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }
