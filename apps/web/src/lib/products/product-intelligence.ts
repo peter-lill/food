@@ -1,4 +1,3 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   normaliseProductText,
@@ -14,8 +13,6 @@ export type ProductIntelligenceSource =
   | "price"
   | "receipt"
   | "shopping";
-
-type ProductDatabase = PrismaClient | Prisma.TransactionClient;
 
 type ResolveProductInput = {
   name: string;
@@ -39,13 +36,9 @@ function uniqueAliases(parsed: ParsedProductName, originalName: string) {
   return [...values.entries()].map(([normalised, alias]) => ({ normalised, alias }));
 }
 
-async function findCanonicalProduct(
-  db: ProductDatabase,
-  parsed: ParsedProductName,
-  barcode?: string | null,
-) {
+async function findCanonicalProduct(parsed: ParsedProductName, barcode?: string | null) {
   const normalisedAliases = uniqueAliases(parsed, parsed.raw).map((entry) => entry.normalised);
-  return db.product.findFirst({
+  return prisma.product.findFirst({
     where: {
       OR: [
         ...(barcode ? [{ barcode }] : []),
@@ -58,19 +51,12 @@ async function findCanonicalProduct(
   });
 }
 
-function nonEmpty<T>(value: T | null | undefined): value is T {
-  return value !== null && value !== undefined && value !== "";
-}
-
-export async function resolveCanonicalProduct(
-  input: ResolveProductInput,
-  db: ProductDatabase = prisma,
-) {
+export async function resolveCanonicalProduct(input: ResolveProductInput) {
   const parsed = parseProductName(input.name);
-  const existing = await findCanonicalProduct(db, parsed, input.barcode);
+  const existing = await findCanonicalProduct(parsed, input.barcode);
 
   const product = existing
-    ? await db.product.update({
+    ? await prisma.product.update({
         where: { id: existing.id },
         data: {
           canonicalName: parsed.canonicalName,
@@ -84,7 +70,7 @@ export async function resolveCanonicalProduct(
           packUnit: existing.packUnit ?? input.packUnit ?? parsed.packUnit ?? undefined,
         },
       })
-    : await db.product.create({
+    : await prisma.product.create({
         data: {
           name: parsed.canonicalName,
           canonicalName: parsed.canonicalName,
@@ -100,7 +86,7 @@ export async function resolveCanonicalProduct(
       });
 
   for (const alias of uniqueAliases(parsed, input.name)) {
-    await db.productAlias.upsert({
+    await prisma.productAlias.upsert({
       where: { normalised: alias.normalised },
       update: {
         productId: product.id,
