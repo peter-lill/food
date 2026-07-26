@@ -121,7 +121,7 @@ function ShoppingItem({ item, listId }: { item: ShoppingItemView; listId: string
     <article className={`shopping-item ${item.checked ? "checked" : ""}`}>
       <form action={toggleShoppingItem.bind(null, listId, item.id)} className="shopping-check-form">
         <input
-          aria-label={`Mark ${item.name} ${item.checked ? "not completed" : "completed"}`}
+          aria-label={`Mark ${item.displayName} ${item.checked ? "not completed" : "completed"}`}
           defaultChecked={item.checked}
           name="nextChecked"
           onChange={(event) => event.currentTarget.form?.requestSubmit()}
@@ -131,8 +131,8 @@ function ShoppingItem({ item, listId }: { item: ShoppingItemView; listId: string
       </form>
 
       <div className="shopping-item-main">
-        <strong>{item.name}</strong>
-        <span>{item.quantity ?? "—"} {item.unit ?? ""}</span>
+        <strong>{item.displayName}</strong>
+        {item.detail ? <span>{item.detail}</span> : null}
       </div>
 
       <details className="shopping-item-edit">
@@ -161,7 +161,7 @@ function ShoppingItem({ item, listId }: { item: ShoppingItemView; listId: string
       </details>
 
       <form action={removeShoppingItem.bind(null, listId, item.id)}>
-        <button aria-label={`Remove ${item.name}`} className="shopping-remove-button" type="submit">×</button>
+        <button aria-label={`Remove ${item.displayName}`} className="shopping-remove-button" type="submit">×</button>
       </form>
     </article>
   );
