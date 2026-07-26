@@ -1,20 +1,15 @@
 import { prisma } from "@/lib/prisma";
 
 export async function isHealthConnectPaired(userId: string) {
-  const devices = await prisma.verification.findMany({
-    where: {
-      identifier: { startsWith: "health-connect-device:" },
-      expiresAt: { gt: new Date() },
-    },
-    select: { value: true },
-  });
+  const rows = await prisma.$queryRaw<Array<{ paired: boolean }>>`
+    SELECT EXISTS (
+      SELECT 1
+      FROM "HealthConnectDevice"
+      WHERE "userId" = ${userId}
+        AND "expiresAt" > NOW()
+        AND "revokedAt" IS NULL
+    ) AS "paired"
+  `;
 
-  return devices.some((device) => {
-    try {
-      const value = JSON.parse(device.value) as { userId?: unknown };
-      return value.userId === userId;
-    } catch {
-      return false;
-    }
-  });
+  return rows[0]?.paired ?? false;
 }
