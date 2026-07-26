@@ -359,6 +359,37 @@ function safeMilkSubstitute(query: string, productName: string) {
   return !requestedPlantType || productValue.includes(requestedPlantType);
 }
 
+function saltPreferenceMatches(query: string, productName: string) {
+  const queryValue = normalise(query);
+  const productValue = normalise(productName);
+
+  const requestsNoAddedSalt =
+    queryValue.includes("no added salt") ||
+    queryValue.includes("no salt added");
+
+  const requestsReducedSalt =
+    queryValue.includes("reduced salt") ||
+    queryValue.includes("salt reduced") ||
+    queryValue.includes("low salt") ||
+    queryValue.includes("lower salt");
+
+  if (!requestsNoAddedSalt && !requestsReducedSalt) return true;
+
+  const productHasNoAddedSalt =
+    productValue.includes("no added salt") ||
+    productValue.includes("no salt added");
+
+  const productHasReducedSalt =
+    productValue.includes("reduced salt") ||
+    productValue.includes("salt reduced") ||
+    productValue.includes("low salt") ||
+    productValue.includes("lower salt");
+
+  return requestsNoAddedSalt
+    ? productHasNoAddedSalt
+    : productHasReducedSalt || productHasNoAddedSalt;
+}
+
 function scoreProductMatch(query: string, productName: string, allowSubstitutes: boolean) {
   const queryTokens = normalisedTokens(query);
   const productTokens = normalisedTokens(productName);
@@ -373,6 +404,24 @@ function scoreProductMatch(query: string, productName: string, allowSubstitutes:
   if (!preservesProductType(query, productName)) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Changes the requested product type." };
   if (!safeMilkSubstitute(query, productName)) return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Milk substitute is not compatible with the requested type." };
 
+  const saltPreferenceConfirmed = saltPreferenceMatches(query, productName);
+
+  if (!saltPreferenceConfirmed && !allowSubstitutes) {
+    return {
+      score: -Infinity,
+      kind: "substitute" as GroceryPriceMatchKind,
+      reason: "The requested salt requirement was not confirmed.",
+    };
+  }
+
+  if (!saltPreferenceConfirmed && shared >= 1) {
+    return {
+      score: 58,
+      kind: "substitute" as GroceryPriceMatchKind,
+      reason: "Comparable product, but the reduced-salt requirement was not confirmed.",
+    };
+  }
+
   if (exact) return { score: 120, kind: "exact" as GroceryPriceMatchKind, reason: "Exact product name match." };
   if (contains && coverage >= 0.8) return { score: 105, kind: "exact" as GroceryPriceMatchKind, reason: "Strong product-name match." };
   if (coverage >= 0.8 && reverseCoverage >= 0.4) return { score: 95, kind: "exact" as GroceryPriceMatchKind, reason: "Most product terms match." };
@@ -382,9 +431,49 @@ function scoreProductMatch(query: string, productName: string, allowSubstitutes:
   return { score: -Infinity, kind: "substitute" as GroceryPriceMatchKind, reason: "Product is not sufficiently similar." };
 }
 
-function buildSearchQuery(item: SupermarketShoppingItem, location: ResolvedSearchLocation) {
-  const amount = item.quantity && item.unit ? ` ${item.quantity} ${item.unit}` : "";
-  return `${item.name}${amount} supermarket ${location.label} Australia`;
+function normaliseGroceryItemName(itemName: string) {
+  let value = itemName
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const spellingCorrections: Array<[RegExp, string]> = [
+    [/\bavacado(?:es|s)?\b/gi, "avocado"],
+    [/\btamato(?:es|s)?\b/gi, "tomato"],
+    [/\blentles\b/gi, "lentils"],
+    [/\bcapsicumms?\b/gi, "capsicum"],
+  ];
+
+  for (const [pattern, replacementValue] of spellingCorrections) {
+    value = value.replace(pattern, replacementValue);
+  }
+
+  // Remove preparation notes such as ", thinly sliced".
+  value = value.split(",")[0].trim();
+
+  // Recipe imports sometimes prefix quantities with "x", for example
+  // "x 400g cans chopped tomatoes".
+  value = value.replace(/^x\s+/i, "");
+
+  // Remove leading recipe quantities and measurements.
+  value = value.replace(
+    /^(?:(?:\d+\s+)?(?:\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*(?:x\s*)?(?:(?:kg|g|mg|ml|l)\b|(?:cups?|tablespoons?|tbsp|teaspoons?|tsp)\b)?\s*)+/i,
+    "",
+  );
+
+  // Remove package/container words left after the quantity.
+  value = value.replace(
+    /^(?:cans?|tins?|packets?|packs?|jars?|bottles?)\s+(?:of\s+)?/i,
+    "",
+  );
+
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function buildSearchQuery(
+  item: SupermarketShoppingItem,
+  _location: ResolvedSearchLocation,
+) {
+  return normaliseGroceryItemName(item.name);
 }
 
 function resultSource(result: SerpShoppingResult) {
@@ -423,14 +512,28 @@ async function searchSerpApi(query: string, location: ResolvedSearchLocation) {
   url.searchParams.set("api_key", apiKey);
   url.searchParams.set("gl", "au");
   url.searchParams.set("hl", "en");
-  url.searchParams.set("location", location.label);
+  // gl=au limits results to Australia. Do not send an arbitrary store,
+  // suburb or postcode as SerpApi's location parameter because it expects
+  // a recognised Google geographic location and may return HTTP 400.
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
-    const response = await fetch(url, { cache: "no-store", signal: controller.signal });
-    if (!response.ok) throw new Error(`Price search returned HTTP ${response.status}.`);
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+    });
+
     const payload = await response.json() as SerpApiResponse;
+
+    if (!response.ok) {
+      const detail =
+        typeof payload.error === "string" && payload.error.trim()
+          ? `: ${payload.error.trim()}`
+          : "";
+
+      throw new Error(`Price search returned HTTP ${response.status}${detail}`);
+    }
     const apiError = cleanText(payload.error);
     if (apiError) throw new Error(apiError);
     const rawResults = [
@@ -475,7 +578,12 @@ async function searchSerpApi(query: string, location: ResolvedSearchLocation) {
 function scoreCandidates(item: SupermarketShoppingItem, query: string, candidates: CandidateSeed[], allowSubstitutes: boolean) {
   return candidates
     .map((candidate): ScoredCandidate | null => {
-      const assessment = scoreProductMatch(item.name, candidate.productName, allowSubstitutes);
+      const requestedName = normaliseGroceryItemName(item.name);
+      const assessment = scoreProductMatch(
+        requestedName,
+        candidate.productName,
+        allowSubstitutes,
+      );
       if (!Number.isFinite(assessment.score)) return null;
       const estimate = estimateTotal(item, candidate.price, candidate.measurement);
       return {
@@ -552,29 +660,65 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   let liveItemCount = 0;
   let cachedItemCount = 0;
 
-  for (const item of listItems) {
-    const query = buildSearchQuery(item, resolvedLocation);
-    try {
-      const result = await searchSerpApi(query, resolvedLocation);
-      if (result.cached) cachedItemCount += 1;
-      else liveItemCount += 1;
-      const scored = scoreCandidates(item, query, result.candidates, allowSubstitutes);
-      const matches = bestRetailerMatches(scored);
-      items.push({
-        item,
-        query,
-        matches,
-        best: matches[0] ?? null,
-        error: null,
-      });
-    } catch (error) {
-      items.push({
-        item,
-        query,
-        matches: [],
-        best: null,
-        error: error instanceof Error ? error.message : "Current price search failed for this item.",
-      });
+  const searchConcurrency = 3;
+
+  for (let index = 0; index < listItems.length; index += searchConcurrency) {
+    const batch = listItems.slice(index, index + searchConcurrency);
+
+    const batchResults = await Promise.all(
+      batch.map(async (item) => {
+        const query = buildSearchQuery(item, resolvedLocation);
+
+        try {
+          const result = await searchSerpApi(query, resolvedLocation);
+          const scored = scoreCandidates(
+            item,
+            query,
+            result.candidates,
+            allowSubstitutes,
+          );
+          const matches = bestRetailerMatches(scored);
+
+          return {
+            resultItem: {
+              item,
+              query,
+              matches,
+              best: matches[0] ?? null,
+              error: null,
+            },
+            cachedCount: result.cached ? 1 : 0,
+            liveCount: result.cached ? 0 : 1,
+          };
+        } catch (error) {
+          console.warn("Grocery price search failed", {
+            item: item.name,
+            query,
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          return {
+            resultItem: {
+              item,
+              query,
+              matches: [],
+              best: null,
+              error:
+                error instanceof Error
+                  ? error.message
+                  : "Current price search failed for this item.",
+            },
+            cachedCount: 0,
+            liveCount: 0,
+          };
+        }
+      }),
+    );
+
+    for (const batchResult of batchResults) {
+      items.push(batchResult.resultItem);
+      cachedItemCount += batchResult.cachedCount;
+      liveItemCount += batchResult.liveCount;
     }
   }
 

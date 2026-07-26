@@ -26,6 +26,10 @@ export async function POST(request: NextRequest) {
 
   try {
     const recipe = await importHeartFoundationRecipe(externalRecipeId);
+    if (!recipe) {
+      throw new Error("Recipe import completed without returning a recipe.");
+    }
+
     const imageUrl = await cacheExternalRecipeImage(externalRecipeId).catch((error) => {
       console.error("Unable to cache imported recipe image", error);
       return null;
