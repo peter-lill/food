@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { formatProductName } from "@/lib/products/product-formatter";
+import { consolidatePantryItems } from "./pantry-consolidation";
 import type { PantryItem, PantryLocation } from "./pantry.types";
 
 const useSoonWindowMs = 3 * 24 * 60 * 60 * 1000;
@@ -19,6 +21,10 @@ function getExpiryStatus(expiresAt: Date | null, now = new Date()) {
 }
 
 export async function getPantryItems(): Promise<PantryItem[]> {
+  // A Pantry refresh is authoritative: variable-size count items such as salmon
+  // fillets are merged, while fixed packaged goods retain distinct pack sizes.
+  await consolidatePantryItems();
+
   const rows = await prisma.inventoryItem.findMany({
     include: { product: true },
     orderBy: [
@@ -29,10 +35,11 @@ export async function getPantryItems(): Promise<PantryItem[]> {
 
   return rows.map((row) => {
     const expiryStatus = getExpiryStatus(row.expiresAt);
+    const sourceName = row.product.canonicalName ?? row.product.name;
 
     return {
       id: row.id,
-      name: row.product.name,
+      name: formatProductName(sourceName),
       barcode: row.product.barcode,
       location: row.location as PantryLocation,
       quantity: row.quantity,
