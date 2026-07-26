@@ -10,12 +10,38 @@ type PairingResponse = {
   pairingUri: string;
 };
 
+const storageKey = "food-health-connect-pairing";
+
+function readStoredPairing(): PairingResponse | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.sessionStorage.getItem(storageKey);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PairingResponse>;
+    if (!parsed.code || !parsed.expiresAt || !parsed.pairingUri) return null;
+    return {
+      code: parsed.code,
+      expiresAt: parsed.expiresAt,
+      pairingUri: parsed.pairingUri,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function HealthConnectPairing() {
   const [pairing, setPairing] = useState<PairingResponse | null>(null);
   const [pending, setPending] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const stored = readStoredPairing();
+    if (stored) setPairing(stored);
+  }, []);
 
   useEffect(() => {
     if (!pairing) return;
@@ -24,9 +50,12 @@ export function HealthConnectPairing() {
     return () => window.clearInterval(timer);
   }, [pairing]);
 
-  const secondsRemaining = pairing
-    ? Math.max(0, Math.ceil((new Date(pairing.expiresAt).getTime() - now) / 1_000))
+  const expiryTime = pairing ? new Date(pairing.expiresAt).getTime() : Number.NaN;
+  const hasValidExpiry = Number.isFinite(expiryTime);
+  const secondsRemaining = pairing && hasValidExpiry
+    ? Math.max(0, Math.ceil((expiryTime - now) / 1_000))
     : 0;
+  const expired = Boolean(pairing && hasValidExpiry && secondsRemaining === 0);
 
   const qrUrl = useMemo(
     () => pairing
@@ -35,10 +64,23 @@ export function HealthConnectPairing() {
     [pairing],
   );
 
+  async function copyCode() {
+    if (!pairing) return;
+
+    try {
+      await navigator.clipboard.writeText(pairing.code);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2_000);
+    } catch {
+      setError("The pairing code could not be copied. Press and hold the code to copy it manually.");
+    }
+  }
+
   async function generateCode() {
     if (pending) return;
 
     setPending(true);
+    setCopied(false);
     setError("");
     setMessage("Generating pairing code…");
 
@@ -67,15 +109,19 @@ export function HealthConnectPairing() {
         throw new Error("The server returned an incomplete pairing response.");
       }
 
-      setPairing({
+      const nextPairing: PairingResponse = {
         code: result.code,
         expiresAt: result.expiresAt,
         pairingUri: result.pairingUri,
-      });
+      };
+
+      setPairing(nextPairing);
+      window.sessionStorage.setItem(storageKey, JSON.stringify(nextPairing));
       setNow(Date.now());
-      setMessage("Pairing code generated.");
+      setMessage("Pairing code ready. Enter it in the Food Android app or scan the QR code.");
     } catch (caught) {
       setPairing(null);
+      window.sessionStorage.removeItem(storageKey);
       setMessage("");
       setError(caught instanceof Error ? caught.message : "Unable to generate a pairing code.");
     } finally {
@@ -90,31 +136,43 @@ export function HealthConnectPairing() {
           <p className="eyebrow">ANDROID HEALTH CONNECT</p>
           <h2>Connect your phone</h2>
           <p className="subtle">
-            Generate a one-time code for the signed-in account. Each Android phone exchanges the code for its own device token, so multiple phones can be linked independently.
+            Generate a one-time code for this account. Each Android phone receives its own device token, so more than one phone can be linked independently.
           </p>
         </div>
         <span className={styles.badge}>Health Connect</span>
       </div>
 
-      {pairing && secondsRemaining > 0 ? (
+      {pairing ? (
         <div className={styles.layout}>
           <div className={styles.qrFrame}>
             <img alt="Health Connect pairing QR code" height="260" src={qrUrl} width="260" />
           </div>
           <div className={styles.details}>
-            <span className={styles.label}>Manual pairing code</span>
-            <strong className={styles.code}>{pairing.code.match(/.{1,5}/g)?.join(" ")}</strong>
-            <p className="subtle">Expires in {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}</p>
+            <span className={styles.label}>Pairing code</span>
+            <strong className={styles.code}>{pairing.code.match(/.{1,5}/g)?.join(" ") ?? pairing.code}</strong>
+            <div className={styles.pairingStatus}>
+              {expired ? (
+                <strong className={styles.expired}>This code has expired.</strong>
+              ) : hasValidExpiry ? (
+                <span>Expires in {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}</span>
+              ) : (
+                <span>Use this code once in the Android app.</span>
+              )}
+            </div>
+            <div className={styles.actions}>
+              <button className={accountStyles.secondaryButton} disabled={expired} onClick={copyCode} type="button">
+                {copied ? "Copied" : "Copy code"}
+              </button>
+              <button className={accountStyles.primaryButton} disabled={pending} onClick={generateCode} type="button">
+                {pending ? "Generating…" : expired ? "Generate another code" : "Generate new code"}
+              </button>
+            </div>
             <ol>
-              <li>Open Food on your Android phone.</li>
+              <li>Open the Food Android app.</li>
               <li>Choose Health Connect, then Pair device.</li>
-              <li>Scan this QR code or enter the code above.</li>
-              <li>The app exchanges it once for a unique token for that phone.</li>
+              <li>Scan this QR code or enter the pairing code.</li>
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
-            <button className={accountStyles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
-              {pending ? "Generating…" : "Generate a new code"}
-            </button>
           </div>
         </div>
       ) : (
