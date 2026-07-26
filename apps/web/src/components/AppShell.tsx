@@ -155,10 +155,7 @@ export function AppShell({
         <div className="mobile-more-backdrop" onClick={() => setMobileMenuOpen(false)}>
           <nav aria-label="More navigation" className="mobile-more-menu" id="mobile-more-menu" onClick={(event) => event.stopPropagation()}>
             <div className="mobile-more-heading">
-              <div>
-                <strong>More</strong>
-                {user ? <small>{user.name}<br />{user.email}</small> : null}
-              </div>
+              <strong>More</strong>
               <button aria-label="Close more navigation" onClick={() => setMobileMenuOpen(false)} type="button">×</button>
             </div>
             {mobileMoreNavigation.map((item) => {
