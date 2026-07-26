@@ -30,13 +30,96 @@ enum ReceiptStatus {
 }
 
 model Product {
-  id             String          @id @default(cuid())
-  name           String
-  brand          String?
-  barcode        String?         @unique
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
-  inventoryItems InventoryItem[]
+  id                 String               @id @default(cuid())
+  name               String
+  canonicalName      String?
+  slug               String?              @unique
+  brand              String?
+  barcode            String?              @unique
+  category           String?
+  description        String?
+  imageUrl            String?
+  packSize           String?
+  packQuantity       Float?
+  packUnit           String?
+  calories           Float?
+  proteinGrams       Float?
+  carbsGrams         Float?
+  fatGrams           Float?
+  saturatedFatGrams  Float?
+  fibreGrams         Float?
+  sugarGrams         Float?
+  sodiumMg           Float?
+  allergens          String[]             @default([])
+  dietaryTags        String[]             @default([])
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  aliases            ProductAlias[]
+  inventoryItems     InventoryItem[]
+  ingredientRecords  Ingredient[]
+  shoppingItems      ShoppingItem[]
+  receiptItems       ReceiptItem[]
+  supermarketPrices  SupermarketPrice[]
+  storeProducts      StoreProduct[]
+  priceObservations  PriceObservation[]
+}
+
+model ProductAlias {
+  id         String   @id @default(cuid())
+  productId  String
+  alias      String
+  normalised String   @unique
+  source     String?
+  createdAt  DateTime @default(now())
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+}
+
+model StoreProduct {
+  id                  String             @id @default(cuid())
+  productId           String
+  retailer            String
+  externalId          String?
+  retailerProductName String
+  brand               String?
+  packSize            String?
+  packQuantity        Float?
+  packUnit            String?
+  productUrl          String?
+  imageUrl            String?
+  aisle               String?
+  active               Boolean            @default(true)
+  lastSeenAt           DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  product              Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceObservations    PriceObservation[]
+
+  @@unique([retailer, externalId])
+  @@index([productId, retailer])
+  @@index([retailer, retailerProductName])
+}
+
+model PriceObservation {
+  id             String        @id @default(cuid())
+  productId      String
+  storeProductId String?
+  retailer       String
+  price          Float
+  unitPrice      Float?
+  unitLabel      String?
+  isSpecial      Boolean       @default(false)
+  source         String
+  sourceUrl      String?
+  observedAt     DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  product        Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  storeProduct   StoreProduct? @relation(fields: [storeProductId], references: [id], onDelete: SetNull)
+
+  @@index([productId, observedAt])
+  @@index([retailer, observedAt])
+  @@index([storeProductId, observedAt])
 }
 
 model InventoryItem {
@@ -80,9 +163,13 @@ model Recipe {
 model Ingredient {
   id        String             @id @default(cuid())
   name      String             @unique
+  productId String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
+  product   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
   recipes   RecipeIngredient[]
+
+  @@index([productId])
 }
 
 model RecipeIngredient {
@@ -109,14 +196,17 @@ model ShoppingList {
 model ShoppingItem {
   id             String       @id @default(cuid())
   shoppingListId String
+  productId      String?
   name           String
   quantity       Float?
   unit           String?
   checked        Boolean      @default(false)
   stockedAt      DateTime?
   shoppingList   ShoppingList @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  product        Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([shoppingListId])
+  @@index([productId])
 }
 
 model HealthMetric {
@@ -149,6 +239,7 @@ model ReceiptImport {
 model ReceiptItem {
   id              String             @id @default(cuid())
   receiptImportId String
+  productId       String?
   rawDescription  String
   normalisedName  String?
   quantity        Float?
@@ -158,12 +249,15 @@ model ReceiptItem {
   location        InventoryLocation?
   expiresAt       DateTime?
   receiptImport   ReceiptImport      @relation(fields: [receiptImportId], references: [id], onDelete: Cascade)
+  product         Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([receiptImportId])
+  @@index([productId])
 }
 
 model SupermarketPrice {
   id          String   @id @default(cuid())
+  productId   String?
   retailer    String
   productName String
   brand       String?
@@ -172,8 +266,10 @@ model SupermarketPrice {
   unitPrice   Float?
   isSpecial   Boolean  @default(false)
   checkedAt   DateTime @default(now())
+  product     Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
   @@index([retailer, productName])
+  @@index([productId, checkedAt])
 }
 
 model User {
