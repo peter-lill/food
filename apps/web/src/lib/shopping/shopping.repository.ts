@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
 import { parseProductName } from "@/lib/products/product-normalisation";
+import { consolidateShoppingItems } from "./shopping-consolidation";
 import type { ShoppingWorkspaceData } from "./shopping.types";
 
 const categoryKeywords: Array<[string, string[]]> = [
@@ -66,6 +67,8 @@ export async function getShoppingListOptions() {
 }
 
 export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
+  await consolidateShoppingItems();
+
   const [lists, pantryItems, products] = await Promise.all([
     prisma.shoppingList.findMany({
       include: {
