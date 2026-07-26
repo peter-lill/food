@@ -1,64 +1,87 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
-import {
-  generateHealthConnectPairingCode,
-  type PairingActionState,
-} from "@/lib/health/health-connect-pairing.actions";
+import { useEffect, useMemo, useState } from "react";
 import accountStyles from "./account.module.css";
 import styles from "./health-connect-pairing.module.css";
 
-const initialPairingActionState: PairingActionState = {
-  status: "idle",
-  message: "",
+type PairingResponse = {
+  code: string;
+  expiresAt: string;
+  pairingUri: string;
 };
 
-function GenerateButton({ secondary = false }: { secondary?: boolean }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <button
-      className={secondary ? accountStyles.secondaryButton : accountStyles.primaryButton}
-      disabled={pending}
-      type="submit"
-    >
-      {pending ? "Generating…" : secondary ? "Generate a new code" : "Generate pairing code"}
-    </button>
-  );
-}
-
 export function HealthConnectPairing() {
-  const [state, action] = useActionState(
-    generateHealthConnectPairingCode,
-    initialPairingActionState,
-  );
+  const [pairing, setPairing] = useState<PairingResponse | null>(null);
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
-
-  const pairing = state.status === "success" && state.code && state.expiresAt && state.pairingUri
-    ? {
-        code: state.code,
-        expiresAt: state.expiresAt,
-        pairingUri: state.pairingUri,
-      }
-    : null;
 
   useEffect(() => {
     if (!pairing) return;
     setNow(Date.now());
     const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => window.clearInterval(timer);
-  }, [pairing?.expiresAt]);
+  }, [pairing]);
 
   const secondsRemaining = pairing
     ? Math.max(0, Math.ceil((new Date(pairing.expiresAt).getTime() - now) / 1_000))
     : 0;
+
   const qrUrl = useMemo(
     () => pairing
       ? `https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=12&data=${encodeURIComponent(pairing.pairingUri)}`
       : "",
     [pairing],
   );
+
+  async function generateCode() {
+    if (pending) return;
+
+    setPending(true);
+    setError("");
+    setMessage("Generating pairing code…");
+
+    try {
+      const response = await fetch("/api/health-connect/pairing/generate", {
+        method: "POST",
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: "{}",
+      });
+
+      const contentType = response.headers.get("content-type") ?? "";
+      const result = contentType.includes("application/json")
+        ? await response.json() as Partial<PairingResponse> & { error?: string }
+        : { error: await response.text() };
+
+      if (!response.ok) {
+        throw new Error(result.error || `Unable to generate a pairing code (${response.status}).`);
+      }
+
+      if (!result.code || !result.expiresAt || !result.pairingUri) {
+        throw new Error("The server returned an incomplete pairing response.");
+      }
+
+      setPairing({
+        code: result.code,
+        expiresAt: result.expiresAt,
+        pairingUri: result.pairingUri,
+      });
+      setNow(Date.now());
+      setMessage("Pairing code generated.");
+    } catch (caught) {
+      setPairing(null);
+      setMessage("");
+      setError(caught instanceof Error ? caught.message : "Unable to generate a pairing code.");
+    } finally {
+      setPending(false);
+    }
+  }
 
   return (
     <section className={styles.card}>
@@ -89,26 +112,22 @@ export function HealthConnectPairing() {
               <li>The app exchanges it once for a unique token for that phone.</li>
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
-            <form action={action}>
-              <GenerateButton secondary />
-            </form>
+            <button className={accountStyles.secondaryButton} disabled={pending} onClick={generateCode} type="button">
+              {pending ? "Generating…" : "Generate a new code"}
+            </button>
           </div>
         </div>
       ) : (
         <div className={styles.empty}>
           <p>No active pairing code. Codes expire after 10 minutes and can only be used once.</p>
-          <form action={action}>
-            <GenerateButton />
-          </form>
+          <button className={accountStyles.primaryButton} disabled={pending} onClick={generateCode} type="button">
+            {pending ? "Generating…" : "Generate pairing code"}
+          </button>
         </div>
       )}
 
-      {state.status === "success" ? (
-        <p className={accountStyles.success} role="status">{state.message}</p>
-      ) : null}
-      {state.status === "error" ? (
-        <p className={accountStyles.error} role="alert">{state.message}</p>
-      ) : null}
+      {message ? <p className={accountStyles.success} role="status">{message}</p> : null}
+      {error ? <p className={accountStyles.error} role="alert">{error}</p> : null}
     </section>
   );
 }
