@@ -2,18 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import styles from "./auth.module.css";
 
 type AuthMode = "sign-in" | "sign-up" | "forgot";
 
 function safeCallbackUrl(value: string | null) {
-  return value?.startsWith("/") && !value.startsWith("//") ? value : "/recipes";
+  return value?.startsWith("/") && !value.startsWith("//") ? value : "/";
 }
 
 export function AuthForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [error, setError] = useState("");
@@ -65,8 +64,10 @@ export function AuthForm() {
       });
 
       if (result.error) throw new Error(result.error.message);
-      router.push(callbackURL);
-      router.refresh();
+
+      // Use a full navigation so the newly issued session cookie is applied
+      // before the authenticated layout and home page are rendered.
+      window.location.replace(callbackURL);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -94,7 +95,7 @@ export function AuthForm() {
             ? "Save favourite recipes across your devices and join a household."
             : mode === "forgot"
               ? "Enter your email and we’ll send a secure reset link."
-              : "Sign in to see your favourites and household."}
+              : "Sign in to open your Food home page."}
         </p>
       </div>
 
