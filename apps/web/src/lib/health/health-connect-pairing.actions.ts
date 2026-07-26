@@ -51,24 +51,21 @@ export async function generateHealthConnectPairingCode(
     const expiresAt = new Date(Date.now() + pairingLifetimeMinutes * 60_000);
     const origin = await requestOrigin();
     const pairingUri = `food://health-connect/pair?code=${encodeURIComponent(code)}&server=${encodeURIComponent(origin)}`;
-    const identifier = `health-connect-pairing-user:${session.user.id}`;
+    const id = randomUUID();
 
-    await prisma.$transaction([
-      prisma.verification.deleteMany({ where: { identifier } }),
-      prisma.verification.create({
-        data: {
-          id: randomUUID(),
-          identifier,
-          value: JSON.stringify({
-            code,
-            userId: session.user.id,
-            pairingUri,
-            createdAt: new Date().toISOString(),
-          }),
-          expiresAt,
-        },
-      }),
-    ]);
+    await prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`
+        DELETE FROM "HealthConnectPairing"
+        WHERE "userId" = ${session.user.id}
+          AND "consumedAt" IS NULL
+      `;
+      await transaction.$executeRaw`
+        INSERT INTO "HealthConnectPairing"
+          ("id", "userId", "code", "pairingUri", "expiresAt", "createdAt")
+        VALUES
+          (${id}, ${session.user.id}, ${code}, ${pairingUri}, ${expiresAt}, NOW())
+      `;
+    });
 
     return {
       status: "success",
