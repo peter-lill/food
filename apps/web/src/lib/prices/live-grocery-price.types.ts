@@ -6,6 +6,12 @@ import type { SearchLocationSource } from "../current-location";
 
 export type GroceryPriceMatchKind = "exact" | "substitute";
 
+export type GroceryPriceProvider =
+  | "Food Price Engine"
+  | "Open Prices"
+  | "SerpApi Google Shopping"
+  | "Food Price Engine + Open Prices + SerpApi";
+
 export type LiveGroceryPriceMatch = {
   retailer: SupermarketRetailer;
   productName: string;
@@ -38,7 +44,7 @@ export type LiveGroceryRetailerTotal = {
 
 export type LiveGroceryPriceSearchResponse = {
   status: "success";
-  provider: "SerpApi Google Shopping";
+  provider: GroceryPriceProvider;
   listId: string;
   listName: string;
   location: string;
