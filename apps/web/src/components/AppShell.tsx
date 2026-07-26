@@ -16,11 +16,13 @@ const ownerNavigation = [
   { label: "Shopping", href: "/shopping", icon: "✓" },
   { label: "Recipes", href: "/recipes", icon: "◇" },
   { label: "Health", href: "/health", icon: "♥" },
+  { label: "Account", href: "/account", icon: "●" },
 ] as const;
 
 const memberNavigation = [
   { label: "Recipes", href: "/recipes", icon: "◇" },
   { label: "Households", href: "/households", icon: "⌂" },
+  { label: "Account", href: "/account", icon: "●" },
 ] as const;
 
 const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
@@ -65,9 +67,6 @@ export function AppShell({
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Keep the server-provided user for the first client render so navigation,
-  // links and ownership state exactly match the SSR output. Once hydrated,
-  // Better Auth becomes the live source of session state.
   const user = !hydrated || isPending
     ? initialUser
     : session?.user ?? null;
@@ -113,7 +112,13 @@ export function AppShell({
       {mobileMenuOpen ? (
         <div className="mobile-more-backdrop" onClick={() => setMobileMenuOpen(false)}>
           <nav aria-label="More navigation" className="mobile-more-menu" id="mobile-more-menu" onClick={(event) => event.stopPropagation()}>
-            <div className="mobile-more-heading"><strong>More</strong><button aria-label="Close more navigation" onClick={() => setMobileMenuOpen(false)} type="button">×</button></div>
+            <div className="mobile-more-heading">
+              <div>
+                <strong>More</strong>
+                {user ? <small>{user.name}<br />{user.email}</small> : null}
+              </div>
+              <button aria-label="Close more navigation" onClick={() => setMobileMenuOpen(false)} type="button">×</button>
+            </div>
             {mobileMoreNavigation.map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
               return <Link className={active ? "mobile-more-link active" : "mobile-more-link"} href={item.href} key={item.href} onClick={() => setMobileMenuOpen(false)}><span>{item.icon}</span><strong>{item.label}</strong></Link>;
