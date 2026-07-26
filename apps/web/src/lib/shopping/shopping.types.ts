@@ -14,6 +14,8 @@ export const initialShoppingActionState: ShoppingActionState = {
 export type ShoppingItemView = {
   id: string;
   name: string;
+  displayName: string;
+  detail: string | null;
   quantity: number | null;
   unit: string | null;
   checked: boolean;
