@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
+import { parseProductName } from "@/lib/products/product-normalisation";
 import type { ShoppingWorkspaceData } from "./shopping.types";
 
 const categoryKeywords: Array<[string, string[]]> = [
@@ -17,6 +18,46 @@ export function getShoppingCategory(name: string) {
   return categoryKeywords.find(([, keywords]) => keywords.some((keyword) => normalised.includes(keyword)))?.[0] ?? "Pantry & other";
 }
 
+function sentenceCase(value: string) {
+  return value ? value.charAt(0).toLocaleUpperCase("en-AU") + value.slice(1) : value;
+}
+
+function formatNumber(value: number) {
+  return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
+}
+
+function shoppingItemDisplay(item: {
+  name: string;
+  quantity: number | null;
+  unit: string | null;
+  product: { name: string; canonicalName: string | null } | null;
+}) {
+  const parsed = parseProductName(item.name);
+  const displayName = sentenceCase(
+    item.product?.canonicalName ?? item.product?.name ?? parsed.canonicalName,
+  );
+  const details: string[] = [];
+
+  if (item.quantity !== null) {
+    details.push(`${formatNumber(item.quantity)} ${item.unit?.trim() || "item"}`);
+  } else if (parsed.quantity !== null) {
+    details.push(`${formatNumber(parsed.quantity)} ${parsed.unit ?? "item"}`);
+  }
+
+  if (parsed.packQuantity !== null && parsed.packUnit) {
+    details.push(`${formatNumber(parsed.packQuantity)} ${parsed.packUnit}`);
+  }
+
+  if (parsed.variants.length) {
+    details.push(parsed.variants.map(sentenceCase).join(", "));
+  }
+
+  return {
+    displayName,
+    detail: details.length ? details.join(" · ") : null,
+  };
+}
+
 export async function getShoppingListOptions() {
   return prisma.shoppingList.findMany({
     select: { id: true, name: true },
@@ -29,6 +70,11 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
     prisma.shoppingList.findMany({
       include: {
         items: {
+          include: {
+            product: {
+              select: { name: true, canonicalName: true },
+            },
+          },
           orderBy: [{ checked: "asc" }, { name: "asc" }],
         },
       },
@@ -51,14 +97,19 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
       updatedAt: list.updatedAt.toISOString(),
       totalCount: list.items.length,
       completedCount: list.items.filter((item) => item.checked).length,
-      items: list.items.map((item) => ({
-        id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        unit: item.unit,
-        checked: item.checked,
-        category: getShoppingCategory(item.name),
-      })),
+      items: list.items.map((item) => {
+        const display = shoppingItemDisplay(item);
+        return {
+          id: item.id,
+          name: item.name,
+          displayName: display.displayName,
+          detail: display.detail,
+          quantity: item.quantity,
+          unit: item.unit,
+          checked: item.checked,
+          category: getShoppingCategory(display.displayName),
+        };
+      }),
     })),
     pantrySuggestions: pantryItems.map((item) => ({
       id: item.id,
