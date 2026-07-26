@@ -18,6 +18,7 @@ export type ExternalRecipe = {
   sourceName:
     | "RecipeTin Eats"
     | "Heart Foundation"
+    | "Australian Heart Foundation"
     | "British Heart Foundation"
     | "Mayo Clinic";
   sourceUrl: string;
@@ -203,46 +204,12 @@ const britishHeartFoundationRecipes: ExternalRecipe[] =
   }));
 
 const mayoRecipes = makeRecipes("Mayo Clinic", [
-  ["mayo-white-bean-dip", "Artichoke, Spinach and White Bean Dip", "https://www.mayoclinic.org/healthy-lifestyle/recipes/artichoke-spinach-white-bean-dip/rcp-20152939", ["Legumes", "Vegetables"]],
-  ["mayo-corn-relish", "Black Bean and Corn Relish", "https://www.mayoclinic.org/healthy-lifestyle/recipes/black-bean-and-corn-relish/rcp-20049744", ["Legumes", "High fibre"]],
-  ["mayo-portobellos", "Ginger-marinated Grilled Portobello Mushrooms", "https://www.mayoclinic.org/healthy-lifestyle/recipes/ginger-marinated-grilled-portobello-mushrooms/rcp-20049663", ["Vegetarian", "Vegetables"]],
-  ["mayo-hummus", "Hummus", "https://www.mayoclinic.org/healthy-lifestyle/recipes/hummus/rcp-20049675", ["Legumes", "Snack"]],
-  ["mayo-peanut-hummus", "Peanut Butter Hummus", "https://www.mayoclinic.org/healthy-lifestyle/recipes/peanut-butter-hummus/rcp-20197732", ["Legumes", "Unsaturated fat"]],
-  ["mayo-quinoa-cakes", "Quinoa Cakes", "https://www.mayoclinic.org/healthy-lifestyle/recipes/quinoa-cakes/rcp-20197739", ["Wholegrain", "Vegetarian"]],
-  ["mayo-pepper-hummus", "Roasted Red Pepper Hummus", "https://www.mayoclinic.org/healthy-lifestyle/recipes/roasted-red-pepper-hummus/rcp-20197743", ["Legumes", "Vegetables"]],
-  ["mayo-bean-dip", "White Bean Dip", "https://www.mayoclinic.org/healthy-lifestyle/recipes/white-bean-dip/rcp-20049728", ["Legumes", "Snack"]],
-  ["mayo-banana-pancakes", "Banana Oatmeal Pancakes", "https://www.mayoclinic.org/healthy-lifestyle/recipes/banana-oatmeal-pancakes/rcp-20197673", ["Oats", "Breakfast"]],
-  ["mayo-buckwheat-pancakes", "Buckwheat Pancakes", "https://www.mayoclinic.org/healthy-lifestyle/recipes/buckwheat-pancakes/rcp-20049839", ["Wholegrain", "Breakfast"]],
-  ["mayo-muesli-bars", "Muesli Breakfast Bars", "https://www.mayoclinic.org/healthy-lifestyle/recipes/muesli-breakfast-bars/rcp-20049614", ["Oats", "Breakfast"]],
-  ["mayo-banana-bread", "Whole-grain Banana Bread", "https://www.mayoclinic.org/healthy-lifestyle/recipes/wholegrain-banana-bread/rcp-20049955", ["Wholegrain", "Breakfast"]],
-  ["mayo-hot-cereal", "Six-grain Hot Cereal", "https://www.mayoclinic.org/healthy-lifestyle/recipes/6-grain-hot-cereal/rcp-20197750", ["Wholegrain", "High fibre"]],
-  ["mayo-cod-capers", "Baked Cod with Lemon and Capers", "https://www.mayoclinic.org/healthy-lifestyle/recipes/cod-with-lemon-and-capers/rcp-20049653", ["Fish", "Lean protein"]],
-  ["mayo-baked-oatmeal", "Baked Oatmeal", "https://www.mayoclinic.org/healthy-lifestyle/recipes/baked-oatmeal/rcp-20049931", ["Oats", "High fibre"]],
-  ["mayo-asian-salmon", "Baked Salmon with Southeast Asian Marinade", "https://www.mayoclinic.org/healthy-lifestyle/recipes/baked-salmon-with-southeast-asian-marinade/rcp-20049736", ["Fish", "Omega-3"]],
-  ["mayo-bean-salad", "Bean Salad with Balsamic Vinaigrette", "https://www.mayoclinic.org/healthy-lifestyle/recipes/bean-salad-with-balsamic-vinaigrette/rcp-20049640", ["Legumes", "Salad"]],
-  ["mayo-broccoli-rigatoni", "Broccoli, Garlic and Rigatoni", "https://www.mayoclinic.org/healthy-lifestyle/recipes/broccoli-garlic-and-rigatoni/rcp-20049646", ["Vegetables", "Pasta"]],
-  ["mayo-fish-veracruz", "Fish Veracruz", "https://www.mayoclinic.org/healthy-lifestyle/recipes/fish-veracruz/rcp-20125128", ["Fish", "Vegetables"]],
-  ["mayo-puttanesca-rice", "Fresh Puttanesca with Brown Rice", "https://www.mayoclinic.org/healthy-lifestyle/recipes/fresh-puttanesca-with-brown-rice/rcp-20135111", ["Wholegrain", "Vegetables"]],
-  ["mayo-cod-citrus", "Grilled Cod with Crispy Citrus Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/grilled-cod-with-crispy-citrus-salad/rcp-20049981", ["Fish", "Salad"]],
-  ["mayo-herb-cod", "Herb-crusted Baked Cod", "https://www.mayoclinic.org/healthy-lifestyle/recipes/herb-crusted-baked-cod/rcp-20049672", ["Fish", "Lean protein"]],
-  ["mayo-mediterranean-fish", "Mediterranean Fish Fillets", "https://www.mayoclinic.org/healthy-lifestyle/recipes/mediterranean-fish-fillets/rcp-20125107", ["Fish", "Vegetables"]],
-  ["mayo-spinach-garbanzo-pasta", "Pasta with Spinach, Garbanzos and Raisins", "https://www.mayoclinic.org/healthy-lifestyle/recipes/pasta-with-spinach-garbanzos-and-raisins/rcp-20049797", ["Legumes", "Vegetables"]],
-  ["mayo-tuna-bean-salad", "Quick Bean and Tuna Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/quick-bean-and-tuna-salad/rcp-20049996", ["Fish", "Legumes", "Quick"]],
-  ["mayo-rice-beans", "Rice and Beans Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/rice-and-beans-salad/rcp-20049942", ["Legumes", "Wholegrain"]],
-  ["mayo-roasted-salmon", "Roasted Salmon", "https://www.mayoclinic.org/healthy-lifestyle/recipes/roasted-salmon/rcp-20049927", ["Fish", "Omega-3"]],
-  ["mayo-pear-fennel-salad", "Salad Greens with Pears, Fennel and Walnuts", "https://www.mayoclinic.org/healthy-lifestyle/recipes/salad-greens-with-pears-fennel-and-walnuts/rcp-20049707", ["Salad", "Unsaturated fat"]],
-  ["mayo-sesame-tofu", "Sesame-crusted Tofu", "https://www.mayoclinic.org/healthy-lifestyle/recipes/sesamecrusted-tofu/rcp-20049620", ["Plant protein", "Vegetarian"]],
-  ["mayo-vegan-bowl", "Southwestern Vegan Bowl", "https://www.mayoclinic.org/healthy-lifestyle/recipes/southwestern-vegan-bowl/rcp-20152941", ["Legumes", "Vegan"]],
-  ["mayo-stuffed-eggplant", "Stuffed Eggplant", "https://www.mayoclinic.org/healthy-lifestyle/recipes/stuffed-eggplant/rcp-20049718", ["Vegetarian", "Vegetables"]],
-  ["mayo-lentil-stew", "Vegetable, Lentil and Garbanzo Bean Stew", "https://www.mayoclinic.org/healthy-lifestyle/recipes/vegetable-lentil-garbanzo-bean-stew/rcp-20157577", ["Legumes", "High fibre"]],
-  ["mayo-mushroom-barley", "Mushroom Barley Soup", "https://www.mayoclinic.org/healthy-lifestyle/recipes/mushroom-barley-soup/rcp-20197728", ["Wholegrain", "Soup"]],
-  ["mayo-gazpacho", "Gazpacho with Chickpeas", "https://www.mayoclinic.org/healthy-lifestyle/recipes/gazpacho-with-garbanzo-beans/rcp-20049662", ["Legumes", "Soup"]],
-  ["mayo-french-lentil-salad", "French Green Lentil Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/french-green-lentil-salad/rcp-20049902", ["Legumes", "Salad"]],
-  ["mayo-mixed-bean-salad", "Mixed Bean Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/mixed-bean-salad/rcp-20049682", ["Legumes", "High fibre"]],
-  ["mayo-minestrone", "Minestrone Soup", "https://www.mayoclinic.org/healthy-lifestyle/recipes/minestrone-soup/rcp-20049680", ["Legumes", "Soup"]],
-  ["mayo-lentil-ragout", "Lentil Ragout", "https://www.mayoclinic.org/healthy-lifestyle/recipes/lentil-ragout/rcp-20197726", ["Legumes", "High fibre"]],
-  ["mayo-quinoa-salad", "Quinoa Salad", "https://www.mayoclinic.org/healthy-lifestyle/recipes/quinoa-salad/rcp-20125126", ["Wholegrain", "Salad"]],
-  ["mayo-broccoli-lemon", "Broccoli with Garlic and Lemon", "https://www.mayoclinic.org/healthy-lifestyle/recipes/broccoli-with-garlic-and-lemon/rcp-20197681", ["Vegetables", "Side"]],
+  ["mayo-white-bean-dip", "Artichoke, Spinach and White Bean Dip", "https://www.mayoclinic.org/healthy-lifestyle/recipes/artichoke-spinach-and-white-bean-dip/rcp-20146111", ["Legumes", "Vegetarian", "Snack"]],
+  ["mayo-black-bean-burger", "Black Bean Burgers", "https://www.mayoclinic.org/healthy-lifestyle/recipes/black-bean-burgers/rcp-20049667", ["Legumes", "Vegetarian"]],
+  ["mayo-lentil-soup", "Lentil Soup", "https://www.mayoclinic.org/healthy-lifestyle/recipes/lentil-soup/rcp-20049749", ["Legumes", "High fibre", "Soup"]],
+  ["mayo-roasted-salmon", "Roasted Salmon with Maple Glaze", "https://www.mayoclinic.org/healthy-lifestyle/recipes/roasted-salmon-with-maple-glaze/rcp-20049685", ["Fish", "Omega-3"]],
+  ["mayo-overnight-oats", "Overnight Oatmeal", "https://www.mayoclinic.org/healthy-lifestyle/recipes/overnight-oatmeal/rcp-20049775", ["Oats", "Breakfast", "High fibre"]],
+  ["mayo-brown-rice", "Brown Rice Pilaf", "https://www.mayoclinic.org/healthy-lifestyle/recipes/brown-rice-pilaf/rcp-20049731", ["Wholegrain", "Vegetarian"]],
 ]);
 
 export const externalRecipes: ExternalRecipe[] = [
