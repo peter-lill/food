@@ -7,6 +7,7 @@ import styles from "./health-connect-pairing.module.css";
 type PairingResponse = {
   code: string;
   expiresAt: string;
+  expiresAtClient: number;
   pairingUri: string;
 };
 
@@ -20,9 +21,18 @@ function readStoredPairing(): PairingResponse | null {
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<PairingResponse>;
     if (!parsed.code || !parsed.expiresAt || !parsed.pairingUri) return null;
+
+    const fallbackExpiry = new Date(parsed.expiresAt).getTime();
+    const expiresAtClient = typeof parsed.expiresAtClient === "number"
+      ? parsed.expiresAtClient
+      : fallbackExpiry;
+
+    if (!Number.isFinite(expiresAtClient)) return null;
+
     return {
       code: parsed.code,
       expiresAt: parsed.expiresAt,
+      expiresAtClient,
       pairingUri: parsed.pairingUri,
     };
   } catch {
@@ -50,12 +60,10 @@ export function HealthConnectPairing() {
     return () => window.clearInterval(timer);
   }, [pairing]);
 
-  const expiryTime = pairing ? new Date(pairing.expiresAt).getTime() : Number.NaN;
-  const hasValidExpiry = Number.isFinite(expiryTime);
-  const secondsRemaining = pairing && hasValidExpiry
-    ? Math.max(0, Math.ceil((expiryTime - now) / 1_000))
+  const secondsRemaining = pairing
+    ? Math.max(0, Math.ceil((pairing.expiresAtClient - now) / 1_000))
     : 0;
-  const expired = Boolean(pairing && hasValidExpiry && secondsRemaining === 0);
+  const expired = Boolean(pairing && secondsRemaining === 0);
 
   const qrUrl = useMemo(
     () => pairing
@@ -98,7 +106,13 @@ export function HealthConnectPairing() {
 
       const contentType = response.headers.get("content-type") ?? "";
       const result = contentType.includes("application/json")
-        ? await response.json() as Partial<PairingResponse> & { error?: string }
+        ? await response.json() as {
+            code?: string;
+            expiresAt?: string;
+            expiresInSeconds?: number;
+            pairingUri?: string;
+            error?: string;
+          }
         : { error: await response.text() };
 
       if (!response.ok) {
@@ -109,9 +123,13 @@ export function HealthConnectPairing() {
         throw new Error("The server returned an incomplete pairing response.");
       }
 
+      const lifetimeSeconds = typeof result.expiresInSeconds === "number" && result.expiresInSeconds > 0
+        ? result.expiresInSeconds
+        : 600;
       const nextPairing: PairingResponse = {
         code: result.code,
         expiresAt: result.expiresAt,
+        expiresAtClient: Date.now() + lifetimeSeconds * 1_000,
         pairingUri: result.pairingUri,
       };
 
@@ -153,10 +171,8 @@ export function HealthConnectPairing() {
             <div className={styles.pairingStatus}>
               {expired ? (
                 <strong className={styles.expired}>This code has expired.</strong>
-              ) : hasValidExpiry ? (
-                <span>Expires in {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}</span>
               ) : (
-                <span>Use this code once in the Android app.</span>
+                <span>Expires in {Math.floor(secondsRemaining / 60)}:{String(secondsRemaining % 60).padStart(2, "0")}</span>
               )}
             </div>
             <div className={styles.actions}>
@@ -169,8 +185,8 @@ export function HealthConnectPairing() {
             </div>
             <ol>
               <li>Open the Food Android app.</li>
-              <li>Choose Health Connect, then Pair device.</li>
-              <li>Scan this QR code or enter the pairing code.</li>
+              <li>Open Sync, then enter the pairing code.</li>
+              <li>Tap Pair device.</li>
               <li>Approve the Health Connect permissions you want to share.</li>
             </ol>
           </div>
