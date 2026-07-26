@@ -9,16 +9,24 @@ function getBaseUrl() {
   return (process.env.BETTER_AUTH_URL ?? "http://localhost:3100").replace(/\/+$/, "");
 }
 
+function trustedProxyAddresses() {
+  return (process.env.BETTER_AUTH_TRUSTED_PROXIES ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
 export const auth = betterAuth({
   appName: "Food",
   baseURL: getBaseUrl(),
   secret: process.env.BETTER_AUTH_SECRET,
   advanced: {
+    trustedProxyHeaders: true,
     ipAddress: {
-      // Synology's reverse proxy supplies the original client address in
-      // X-Real-IP. Trust that single-value header rather than treating every
-      // proxied request as one shared rate-limit client.
-      ipAddressHeaders: ["x-real-ip"],
+      // Synology normally forwards the client through X-Forwarded-For. Keep
+      // X-Real-IP as a fallback for installations that explicitly add it.
+      ipAddressHeaders: ["x-forwarded-for", "x-real-ip"],
+      trustedProxies: trustedProxyAddresses(),
     },
   },
   database: prismaAdapter(prisma, {
