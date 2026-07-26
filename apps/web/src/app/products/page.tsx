@@ -137,7 +137,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const displayName = product.canonicalName ?? product.name;
             const latestPrice = money(product.latestPrice);
-            const imageUrl = product.imageUrl ?? `/api/products/${encodeURIComponent(product.id)}/image`;
+            const imageUrl = `/api/products/${encodeURIComponent(product.id)}/image`;
 
             return (
               <article className={styles.card} key={product.id}>
