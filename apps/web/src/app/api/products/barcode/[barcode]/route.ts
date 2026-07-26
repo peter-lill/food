@@ -67,6 +67,14 @@ function cleanText(value: unknown, maximumLength: number) {
   return cleaned ? cleaned.slice(0, maximumLength) : null;
 }
 
+function normalise(value: string) {
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function productResponse(
   product: { id: string; name: string; brand: string | null; barcode: string | null },
   source: ProductLookupSource,
@@ -287,7 +295,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   const existing = await prisma.product.findUnique({
     where: { barcode },
-    select: { id: true, name: true, brand: true, barcode: true },
+    select: { id: true, name: true, canonicalName: true, brand: true, barcode: true },
   });
 
   if (existing && !refresh) return productResponse(existing, "local");
@@ -311,10 +319,16 @@ export async function GET(request: Request, context: RouteContext) {
         : NextResponse.json({ found: false, source: "external" });
     }
 
+    const preservedCanonicalName = existing?.canonicalName
+      ?? (existing && normalise(existing.name) !== normalise(externalProduct.name)
+        ? existing.name
+        : null);
+
     const saved = await prisma.product.upsert({
       where: { barcode },
       update: {
         name: externalProduct.name,
+        ...(preservedCanonicalName ? { canonicalName: preservedCanonicalName } : {}),
         ...(externalProduct.brand ? { brand: externalProduct.brand } : {}),
       },
       create: {
