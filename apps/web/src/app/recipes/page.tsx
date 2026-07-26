@@ -1,4 +1,3 @@
-import { AustralianHeartFoundationRecipes } from "@/components/recipes/AustralianHeartFoundationRecipes";
 import { RecipesGallery } from "@/components/recipes/RecipesGallery";
 import { getAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
@@ -56,30 +55,26 @@ export default async function RecipesPage() {
 
   const { recipes: plannerRecipes } = await getPlannerWorkspace();
   const databaseRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
-  const australianHeartFoundationRecipes = databaseRecipes.filter(
-    isAustralianHeartFoundationRecipe,
-  );
   const completeRecipes = databaseRecipes.filter(
     (recipe) => !isAustralianHeartFoundationRecipe(recipe),
   );
-
-  const australianHeartFoundationCatalogue = externalRecipes
-    .filter((recipe) => recipe.sourceName === "Heart Foundation")
-    .map(withSourceImage);
 
   const catalogueRecipes = [
     ...new Map(
       externalRecipes
         .filter((recipe) => recipe.sourceName !== "Mayo Clinic")
-        .filter((recipe) => recipe.sourceName !== "Heart Foundation")
-        .map(withSourceImage)
+        .map((recipe) =>
+          recipe.sourceName === "Heart Foundation"
+            ? {
+                ...withSourceImage(recipe),
+                sourceName: "Australian Heart Foundation",
+              }
+            : withSourceImage(recipe),
+        )
         .map((recipe) => [recipe.id, recipe] as const),
     ).values(),
   ];
-  const totalRecipeCount =
-    completeRecipes.length +
-    australianHeartFoundationCatalogue.length +
-    catalogueRecipes.length;
+  const totalRecipeCount = completeRecipes.length + catalogueRecipes.length;
 
   const favourites = session
     ? await prisma.recipeFavourite.findMany({
@@ -100,11 +95,6 @@ export default async function RecipesPage() {
           {totalRecipeCount} recipe{totalRecipeCount === 1 ? "" : "s"}
         </span>
       </header>
-
-      <AustralianHeartFoundationRecipes
-        externalRecipes={australianHeartFoundationCatalogue}
-        importedRecipes={australianHeartFoundationRecipes}
-      />
 
       <RecipesGallery
         externalRecipes={catalogueRecipes}
