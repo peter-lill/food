@@ -14,9 +14,10 @@ const nonProductLinePattern = new RegExp(
     "\\b(?:nab|anz|westpac|commbank|commonwealth bank)\\b",
     "\\b(?:approved|declined)\\b",
     "\\b(?:auth|rrn|apsn|atc)\\b",
+    "\\ba0{4,}\\d+\\b",
     "\\bcard\\s*(?:no|number)\\b",
     "\\bscanned\\s+card\\b",
-    "\\bgst\\s+included\\b",
+    "\\bgst(?:\\s+included)?\\b",
     "\\b(?:tax invoice|abn)\\b",
     "\\b(?:store manager|served by|register|receipt)\\b",
     "\\b(?:total savings|savings|subtotal|change|cash out)\\b",
@@ -53,6 +54,8 @@ function isReceiptExtraction(value: unknown): value is ReceiptExtraction {
 function normaliseDescription(value: string) {
   return value
     .replace(/^[*%#•\-\s]+/, "")
+    .replace(/^d\w{5,12}tion\b\s*/i, "")
+    .replace(/^(?:[A-Z]\s+){1,4}(?=[A-Z]{3,})/, "")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, 300);
@@ -69,7 +72,7 @@ function cleanReceipt(receipt: ReceiptExtraction): ReceiptExtraction {
   const purchasedAt = typeof receipt.purchasedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(receipt.purchasedAt)
     ? receipt.purchasedAt
     : null;
-  const total = typeof receipt.total === "number" && Number.isFinite(receipt.total) && receipt.total >= 0
+  let total = typeof receipt.total === "number" && Number.isFinite(receipt.total) && receipt.total >= 0
     ? Number(receipt.total.toFixed(2))
     : null;
 
@@ -85,6 +88,17 @@ function cleanReceipt(receipt: ReceiptExtraction): ReceiptExtraction {
     }))
     .filter((line) => looksLikeProduct(line.description))
     .slice(0, 100);
+
+  const highestLinePrice = lines.reduce<number | null>((highest, line) => {
+    if (line.price === null) return highest;
+    return highest === null || line.price > highest ? line.price : highest;
+  }, null);
+
+  // GST is often printed immediately beneath the final total and can be mistaken
+  // for the total. A receipt total cannot be lower than an individual line price.
+  if (highestLinePrice !== null && (total === null || total < highestLinePrice)) {
+    total = highestLinePrice;
+  }
 
   // A one-product receipt must reconcile to its final total. This also corrects
   // payment-terminal amounts accidentally read as the product price.
@@ -160,7 +174,7 @@ EFT/EFTPOS, VISA, MASTERCARD, NAB, ANZ, WESTPAC, COMMBANK, CREDIT ACCOUNT, DEBIT
 FIELDS:
 - retailer: trading retailer name only, for example Coles, Woolworths or ALDI.
 - purchasedAt: YYYY-MM-DD.
-- total: final amount paid in AUD.
+- total: the FINAL AMOUNT PAID, not GST. On a receipt showing both "Total $4.50" and "GST $0.41", total is 4.50.
 - lines: purchased merchandise only. Preserve useful product wording, remove leading receipt markers such as * or %, use quantity 1 when no quantity is shown, and return the final line price.
 - Check that the product prices are plausible against the receipt total.
 - Do not invent unreadable values. Return an empty lines array rather than returning payment information.`,
