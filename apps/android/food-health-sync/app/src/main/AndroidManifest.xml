@@ -13,7 +13,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="Food Health Sync"
+        android:icon="@drawable/food_app_icon"
+        android:label="Food"
+        android:roundIcon="@drawable/food_app_icon"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.FoodHealthSync">
 
