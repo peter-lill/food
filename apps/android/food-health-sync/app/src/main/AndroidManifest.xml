@@ -14,7 +14,7 @@
     <application
         android:allowBackup="true"
         android:icon="@drawable/food_app_icon"
-        android:label="Food"
+        android:label="Peter's Food Pantry"
         android:roundIcon="@drawable/food_app_icon"
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.FoodHealthSync">
