@@ -17,6 +17,7 @@
     "products:reconcile": "tsx scripts/reconcile-product-catalogue.ts",
     "products:reconcile:apply": "tsx scripts/reconcile-product-catalogue.ts --apply",
     "products:images": "tsx scripts/enrich-product-images.ts",
+    "prices:import:auscost": "tsx scripts/import-auscost-prices.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
   "dependencies": {
