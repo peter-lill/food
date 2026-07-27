@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useEffect, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createReceiptImport } from "@/lib/receipts/receipt.actions";
 import {
@@ -78,7 +78,7 @@ function inferRetailer(text: string) {
 
 function inferTotal(text: string) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const totalLine = [...lines].reverse().find((line) => /\b(?:grand\s+total|total)\b/i.test(line));
+  const totalLine = [...lines].reverse().find((line) => /\b(?:grand\s+total|amount\s+due|total)\b/i.test(line));
   const match = totalLine?.match(/\$?\s*(\d+[.,]\d{2})\b/);
   return match ? match[1].replace(",", ".") : "";
 }
@@ -91,7 +91,7 @@ function inferDate(text: string) {
 }
 
 function receiptLines(text: string) {
-  const ignored = /^(subtotal|total|gst|tax|change|cash|eftpos|visa|mastercard|saving|you saved|receipt|abn|thank|www\.|tel|date|time|store)/i;
+  const ignored = /^(subtotal|total|amount due|gst|tax|change|cash|eftpos|visa|mastercard|saving|you saved|receipt|abn|thank|www\.|tel|date|time|store)/i;
   return text
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -107,12 +107,74 @@ function receiptLines(text: string) {
     .join("\n");
 }
 
+async function loadImage(file: File) {
+  if ("createImageBitmap" in window) {
+    try {
+      return await createImageBitmap(file, { imageOrientation: "from-image" });
+    } catch {
+      // Fall through to the HTMLImageElement path.
+    }
+  }
+
+  const source = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.decoding = "async";
+    image.src = source;
+    await image.decode();
+    return image;
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+}
+
+async function prepareReceiptImage(file: File): Promise<Blob> {
+  const image = await loadImage(file);
+  const sourceWidth = image.width;
+  const sourceHeight = image.height;
+  const longestSide = Math.max(sourceWidth, sourceHeight);
+  const scale = Math.min(2.25, Math.max(1, 2200 / longestSide));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) throw new Error("Your browser could not prepare the receipt image.");
+
+  context.drawImage(image, 0, 0, width, height);
+  if ("close" in image && typeof image.close === "function") image.close();
+
+  const pixels = context.getImageData(0, 0, width, height);
+  const data = pixels.data;
+  for (let index = 0; index < data.length; index += 4) {
+    const grey = Math.round(data[index] * 0.299 + data[index + 1] * 0.587 + data[index + 2] * 0.114);
+    const contrasted = grey < 185 ? Math.max(0, Math.round((grey - 128) * 1.55 + 128)) : 255;
+    data[index] = contrasted;
+    data[index + 1] = contrasted;
+    data[index + 2] = contrasted;
+  }
+  context.putImageData(pixels, 0, 0);
+
+  return await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("The prepared receipt image could not be created."));
+    }, "image/jpeg", 0.92);
+  });
+}
+
 export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSummary[]; loadError: boolean }) {
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const lastFileRef = useRef<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState("Take a clear vertical photo or choose an existing receipt image.");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [rawText, setRawText] = useState("");
   const [retailer, setRetailer] = useState("");
   const [purchasedAt, setPurchasedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const [total, setTotal] = useState("");
@@ -124,43 +186,76 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
 
   const extractedCount = useMemo(() => lines.split(/\r?\n/).filter((line) => line.trim()).length, [lines]);
 
-  async function handleReceiptImage(file: File | null) {
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setOcrStatus("Choose a JPG, PNG, HEIC or other receipt image.");
-      return;
-    }
-
+  async function processReceipt(file: File) {
+    lastFileRef.current = file;
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     setImageUrl(URL.createObjectURL(file));
     setOcrBusy(true);
-    setOcrProgress(0);
-    setOcrStatus("Reading receipt… Keep this page open while the image is processed on your device.");
+    setOcrError(null);
+    setRawText("");
+    setOcrProgress(1);
+    setOcrStatus("Preparing the receipt image…");
 
+    let worker: Awaited<ReturnType<typeof import("tesseract.js")["createWorker"]>> | null = null;
     try {
-      const { recognize } = await import("tesseract.js");
-      const result = await recognize(file, "eng", {
+      const prepared = await prepareReceiptImage(file);
+      setOcrProgress(8);
+      setOcrStatus("Loading the text reader… The first use can take a little longer.");
+
+      const { createWorker, PSM } = await import("tesseract.js");
+      worker = await createWorker("eng", undefined, {
         logger(message) {
-          if (message.status === "recognizing text" && typeof message.progress === "number") {
-            setOcrProgress(Math.round(message.progress * 100));
+          if (typeof message.progress === "number") {
+            const base = message.status === "recognizing text" ? 15 : 8;
+            const range = message.status === "recognizing text" ? 84 : 7;
+            setOcrProgress(Math.min(99, Math.round(base + message.progress * range)));
+          }
+          if (message.status) {
+            const readable = message.status.replace(/_/g, " ");
+            setOcrStatus(`${readable.charAt(0).toUpperCase()}${readable.slice(1)}…`);
           }
         },
       });
-      const text = result.data.text ?? "";
+      await worker.setParameters({
+        tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+        preserve_interword_spaces: "1",
+      });
+
+      setOcrStatus("Recognising receipt text…");
+      const result = await worker.recognize(prepared);
+      const text = (result.data.text ?? "").trim();
+      setRawText(text);
+      if (!text) throw new Error("No readable text was detected. Retake the photo closer, keep it flat and avoid glare.");
+
       const extractedLines = receiptLines(text);
       setRetailer((current) => current || inferRetailer(text));
       setPurchasedAt(inferDate(text));
       setTotal((current) => current || inferTotal(text));
       setLines(extractedLines || text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join("\n"));
+      setOcrProgress(100);
       setOcrStatus(extractedLines
         ? `Found ${extractedLines.split(/\r?\n/).length} likely purchase lines. Check them before creating the review.`
-        : "Text was found, but the prices were unclear. Edit the extracted text before continuing.");
+        : "Text was recognised, but the line prices were unclear. The raw text is below for correction.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
-      setOcrStatus("The image could not be read automatically. You can still enter or paste the receipt lines below.");
+      const message = error instanceof Error ? error.message : "The receipt could not be read.";
+      setOcrError(message);
+      setOcrStatus("Receipt reading failed. Retake the photo or retry this image.");
+      setOcrProgress(0);
     } finally {
+      await worker?.terminate().catch(() => undefined);
       setOcrBusy(false);
     }
+  }
+
+  async function handleReceiptImage(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setOcrError("Choose a JPG, PNG, HEIC or other receipt image.");
+      return;
+    }
+    await processReceipt(file);
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   return (
@@ -169,7 +264,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
         <div>
           <p className="eyebrow">CAPTURE RECEIPT</p>
           <h2 className="section-title">Photograph, check, import</h2>
-          <p className="subtle receipt-copy">Food reads the receipt in your browser, then gives you an editable review before anything reaches Pantry or price history.</p>
+          <p className="subtle receipt-copy">Food prepares and reads the receipt on this device, then gives you an editable review before anything reaches Pantry or price history.</p>
         </div>
 
         <label className="receipt-capture" style={{ display: "grid", gap: "0.75rem" }}>
@@ -179,6 +274,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
             capture="environment"
             disabled={ocrBusy}
             onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)}
+            ref={fileInputRef}
             style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }}
             type="file"
           />
@@ -186,6 +282,24 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
           <small className="subtle" role="status">{ocrStatus}</small>
           {ocrBusy ? <progress max="100" value={ocrProgress} style={{ width: "100%" }}>{ocrProgress}%</progress> : null}
         </label>
+
+        {ocrError ? (
+          <div className="pantry-error" role="alert">
+            <strong>Receipt text was not extracted.</strong>
+            <p>{ocrError}</p>
+            <div className="form-actions">
+              {lastFileRef.current ? <button className="button" onClick={() => void processReceipt(lastFileRef.current!)} type="button">Retry this photo</button> : null}
+              <button className="secondary-button" onClick={() => fileInputRef.current?.click()} type="button">Take another photo</button>
+            </div>
+          </div>
+        ) : null}
+
+        {rawText ? (
+          <details>
+            <summary>View all recognised text</summary>
+            <pre style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere", fontSize: 12 }}>{rawText}</pre>
+          </details>
+        ) : null}
 
         <form action={action} className="receipt-form">
           <div className="receipt-field-grid">
