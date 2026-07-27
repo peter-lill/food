@@ -15,6 +15,13 @@ export interface ParsedReceiptItem {
   confidence: number;
 }
 
+export interface ReceiptParserDiagnostics {
+  normalisedLines: string[];
+  itemSectionLines: string[];
+  totalLine: string | null;
+  paymentStartLine: string | null;
+}
+
 export interface ParsedReceipt {
   retailer: string | null;
   retailerKey: ReceiptRetailer;
@@ -23,4 +30,5 @@ export interface ParsedReceipt {
   confidence: number;
   items: ParsedReceiptItem[];
   warnings: string[];
+  diagnostics: ReceiptParserDiagnostics;
 }
