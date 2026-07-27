@@ -1,12 +1,18 @@
 package au.com.food.healthsync
 
-import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import au.com.food.healthsync.health.DailyHealthSummary
@@ -50,10 +57,17 @@ private val FoodLine = Color(0xFFD5E5DC)
 class MainActivity : ComponentActivity() {
     private lateinit var healthService: HealthConnectService
     private lateinit var syncSettings: SyncSettings
+    private var pendingFileChooser: ValueCallback<Array<Uri>>? = null
 
     private val requestPermissions = registerForActivityResult(
         PermissionController.createRequestPermissionResultContract()
     ) { Log.i(TAG, "Health Connect permission result received") }
+
+    private val chooseFile = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val callback = pendingFileChooser ?: return@registerForActivityResult
+        callback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
+        pendingFileChooser = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,6 +79,16 @@ class MainActivity : ComponentActivity() {
                     healthService = healthService,
                     syncSettings = syncSettings,
                     onRequestPermissions = { requestPermissions.launch(healthService.requiredPermissions) },
+                    onChooseFile = { callback, params ->
+                        pendingFileChooser?.onReceiveValue(null)
+                        pendingFileChooser = callback
+                        runCatching { chooseFile.launch(params.createIntent()) }
+                            .onFailure {
+                                pendingFileChooser?.onReceiveValue(null)
+                                pendingFileChooser = null
+                            }
+                        true
+                    },
                 )
             }
         }
@@ -99,12 +123,12 @@ private sealed interface HealthState {
     data class Error(val message: String) : HealthState
 }
 
-private enum class MobileView(val label: String, val symbol: String) {
-    HOME("Home", "⌂"),
-    SCAN("Scan", "▣"),
-    SHOPPING("Shopping", "✓"),
-    PANTRY("Pantry", "□"),
-    HEALTH("Health", "♥"),
+private enum class MobileView(val label: String, val marker: String, val path: String?) {
+    HOME("Home", "H", null),
+    SCAN("Scan", "R", "/receipts"),
+    SHOPPING("Shopping", "S", "/shopping"),
+    PANTRY("Pantry", "P", "/pantry"),
+    HEALTH("Health", "♥", null),
 }
 
 @Composable
@@ -112,8 +136,8 @@ private fun FoodCompanion(
     healthService: HealthConnectService,
     syncSettings: SyncSettings,
     onRequestPermissions: () -> Unit,
+    onChooseFile: (ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean,
 ) {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val saved = remember { syncSettings.load() }
     var healthState by remember { mutableStateOf<HealthState>(HealthState.Loading) }
@@ -124,11 +148,6 @@ private fun FoodCompanion(
     var syncMessage by remember { mutableStateOf(if (saved.token.isBlank()) "Pair this phone to begin." else "Ready to sync") }
     var syncing by remember { mutableStateOf(false) }
     var pairing by remember { mutableStateOf(false) }
-
-    fun openWeb(path: String) {
-        val root = baseUrl.trimEnd('/')
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("$root$path")))
-    }
 
     suspend fun refreshHealth() {
         healthState = HealthState.Loading
@@ -156,10 +175,15 @@ private fun FoodCompanion(
 
     Scaffold(
         containerColor = FoodBackground,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            Surface(color = FoodDarkGreen, shadowElevation = 2.dp) {
+            Surface(
+                color = FoodDarkGreen,
+                shadowElevation = 2.dp,
+                modifier = Modifier.fillMaxWidth().statusBarsPadding(),
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 13.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     FoodMark()
@@ -171,17 +195,33 @@ private fun FoodCompanion(
             }
         },
         bottomBar = {
-            NavigationBar(containerColor = Color.White, tonalElevation = 5.dp) {
+            NavigationBar(
+                containerColor = Color.White,
+                tonalElevation = 5.dp,
+                modifier = Modifier.navigationBarsPadding(),
+            ) {
                 MobileView.entries.forEach { destination ->
                     NavigationBarItem(
                         selected = view == destination,
                         onClick = { view = destination },
-                        icon = { Text(destination.symbol, fontWeight = FontWeight.Black) },
+                        icon = {
+                            Surface(
+                                color = if (view == destination) FoodMint else Color.Transparent,
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Text(
+                                    destination.marker,
+                                    color = if (view == destination) FoodDarkGreen else FoodMuted,
+                                    fontWeight = FontWeight.Black,
+                                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                                )
+                            }
+                        },
                         label = { Text(destination.label) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = FoodDarkGreen,
                             selectedTextColor = FoodDarkGreen,
-                            indicatorColor = FoodMint,
+                            indicatorColor = Color.Transparent,
                         ),
                     )
                 }
@@ -191,37 +231,20 @@ private fun FoodCompanion(
         when (view) {
             MobileView.HOME -> HomeView(
                 healthState = healthState,
-                onOpenPlanner = { openWeb("/planner") },
-                onOpenReceipts = { openWeb("/receipts") },
-                onOpenShopping = { openWeb("/shopping") },
-                onOpenPantry = { openWeb("/pantry") },
+                onOpenPlanner = { view = MobileView.HOME },
+                onOpenReceipts = { view = MobileView.SCAN },
+                onOpenShopping = { view = MobileView.SHOPPING },
+                onOpenPantry = { view = MobileView.PANTRY },
+                baseUrl = baseUrl,
+                onChooseFile = onChooseFile,
                 modifier = Modifier.padding(padding),
             )
-            MobileView.SCAN -> WebFeatureView(
-                eyebrow = "RECEIPTS",
-                title = "Scan a receipt",
-                description = "Photograph a paper receipt or choose a saved Woolworths eReceipt image, then review the detected products before import.",
-                buttonLabel = "Open receipt scanner",
-                symbol = "▣",
-                onOpen = { openWeb("/receipts") },
-                modifier = Modifier.padding(padding),
-            )
-            MobileView.SHOPPING -> WebFeatureView(
-                eyebrow = "SHOPPING",
-                title = "Your shopping lists",
-                description = "Keep your list with you in store, compare prices and tick items off as you shop.",
-                buttonLabel = "Open shopping",
-                symbol = "✓",
-                onOpen = { openWeb("/shopping") },
-                modifier = Modifier.padding(padding),
-            )
-            MobileView.PANTRY -> WebFeatureView(
-                eyebrow = "PANTRY",
-                title = "What you have at home",
-                description = "Review pantry stock, recently imported purchases and foods that may need using soon.",
-                buttonLabel = "Open pantry",
-                symbol = "□",
-                onOpen = { openWeb("/pantry") },
+            MobileView.SCAN,
+            MobileView.SHOPPING,
+            MobileView.PANTRY -> EmbeddedFoodPage(
+                url = baseUrl.trimEnd('/') + requireNotNull(view.path),
+                title = view.label,
+                onChooseFile = onChooseFile,
                 modifier = Modifier.padding(padding),
             )
             MobileView.HEALTH -> HealthView(
@@ -283,19 +306,114 @@ private fun FoodMark() {
 }
 
 @Composable
+private fun EmbeddedFoodPage(
+    url: String,
+    title: String,
+    onChooseFile: (ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var loading by remember(url) { mutableStateOf(true) }
+    var loadError by remember(url) { mutableStateOf<String?>(null) }
+
+    BackHandler(enabled = webView?.canGoBack() == true) { webView?.goBack() }
+
+    Box(modifier.fillMaxSize().background(Color.White)) {
+        AndroidView(
+            modifier = Modifier.fillMaxSize(),
+            factory = {
+                WebView(context).apply {
+                    settings.javaScriptEnabled = true
+                    settings.domStorageEnabled = true
+                    settings.allowFileAccess = true
+                    settings.mediaPlaybackRequiresUserGesture = false
+                    webViewClient = object : WebViewClient() {
+                        override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean = false
+                        override fun onPageFinished(view: WebView?, loadedUrl: String?) { loading = false; loadError = null }
+                        override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: android.webkit.WebResourceError?) {
+                            if (request?.isForMainFrame == true) {
+                                loading = false
+                                loadError = error?.description?.toString() ?: "The page could not be loaded."
+                            }
+                        }
+                    }
+                    webChromeClient = object : WebChromeClient() {
+                        override fun onShowFileChooser(
+                            webView: WebView?,
+                            filePathCallback: ValueCallback<Array<Uri>>?,
+                            fileChooserParams: FileChooserParams?,
+                        ): Boolean {
+                            if (filePathCallback == null || fileChooserParams == null) return false
+                            return onChooseFile(filePathCallback, fileChooserParams)
+                        }
+                    }
+                    loadUrl(url)
+                    webView = this
+                }
+            },
+            update = { current -> if (current.url != url) { loading = true; current.loadUrl(url) } },
+        )
+
+        if (loading) {
+            Surface(color = FoodBackground.copy(alpha = .96f), modifier = Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.fillMaxSize().padding(28.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    CircularProgressIndicator(color = FoodGreen)
+                    Text("Loading $title…", color = FoodMuted, modifier = Modifier.padding(top = 16.dp))
+                }
+            }
+        }
+
+        loadError?.let { message ->
+            Surface(color = FoodBackground, modifier = Modifier.fillMaxSize()) {
+                Column(
+                    Modifier.fillMaxSize().padding(28.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    FoodMark()
+                    Text("$title is unavailable", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.padding(top = 18.dp))
+                    Text(message, color = FoodMuted, modifier = Modifier.padding(top = 8.dp))
+                    Button(onClick = { loadError = null; loading = true; webView?.reload() }, modifier = Modifier.padding(top = 20.dp)) { Text("Try again") }
+                }
+            }
+        }
+    }
+
+    DisposableEffect(Unit) { onDispose { webView?.destroy() } }
+}
+
+@Composable
 private fun HomeView(
     healthState: HealthState,
     onOpenPlanner: () -> Unit,
     onOpenReceipts: () -> Unit,
     onOpenShopping: () -> Unit,
     onOpenPantry: () -> Unit,
+    baseUrl: String,
+    onChooseFile: (ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean,
     modifier: Modifier = Modifier,
 ) {
+    var showPlanner by remember { mutableStateOf(false) }
+    if (showPlanner) {
+        EmbeddedFoodPage(
+            url = baseUrl.trimEnd('/') + "/planner",
+            title = "Planner",
+            onChooseFile = onChooseFile,
+            modifier = modifier,
+        )
+        return
+    }
+
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
         Text("What do you need today?", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
         Text("Plan meals, scan purchases and keep your pantry, shopping and health information together.", color = FoodMuted)
 
-        ActionCard("Today's plan", "See meals and preparation for today.", "Open planner", FoodOrange, onOpenPlanner)
+        ActionCard("Today's plan", "See meals and preparation for today.", "Open planner", FoodOrange) { showPlanner = true; onOpenPlanner() }
         ActionCard("Scan a receipt", "Import paper receipts or saved eReceipt images.", "Open scanner", FoodCoral, onOpenReceipts)
 
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -321,27 +439,6 @@ private fun HomeView(
 }
 
 @Composable
-private fun WebFeatureView(
-    eyebrow: String,
-    title: String,
-    description: String,
-    buttonLabel: String,
-    symbol: String,
-    onOpen: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier.fillMaxSize().padding(22.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(82.dp).background(FoodMint, RoundedCornerShape(28.dp)), contentAlignment = Alignment.Center) {
-            Text(symbol, color = FoodDarkGreen, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
-        }
-        Text(eyebrow, color = FoodGreen, fontWeight = FontWeight.Black, style = MaterialTheme.typography.labelMedium, modifier = Modifier.padding(top = 24.dp))
-        Text(title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(top = 6.dp))
-        Text(description, color = FoodMuted, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 10.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        Button(onClick = onOpen, modifier = Modifier.fillMaxWidth().padding(top = 26.dp)) { Text(buttonLabel) }
-    }
-}
-
-@Composable
 private fun HealthView(
     state: HealthState,
     baseUrl: String,
@@ -360,7 +457,7 @@ private fun HealthView(
 ) {
     Column(modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Text("Health and sync", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold)
-        Text("Health Connect is now one part of your Food companion.", color = FoodMuted)
+        Text("Health Connect is one part of your Food companion.", color = FoodMuted)
 
         when (state) {
             HealthState.Loading -> LoadingCard()
@@ -428,14 +525,14 @@ private fun HealthView(
 
 @Composable
 private fun ActionCard(title: String, description: String, action: String, accent: Color, onClick: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(24.dp), border = CardDefaults.outlinedCardBorder(), modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(24.dp), border = CardDefaults.outlinedCardBorder(), modifier = Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(14.dp).background(accent, RoundedCornerShape(50)), contentAlignment = Alignment.Center) {}
+            Box(Modifier.size(14.dp).background(accent, RoundedCornerShape(50)))
             Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                 Text(title, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.titleMedium)
                 Text(description, color = FoodMuted, style = MaterialTheme.typography.bodySmall)
             }
-            TextButton(onClick = onClick) { Text(action) }
+            Text(action, color = FoodGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
         }
     }
 }
