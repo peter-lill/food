@@ -5,6 +5,7 @@ import {
   type CurrentSearchLocation,
 } from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
+import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
 import {
   supermarketRetailers,
   type SupermarketRetailer,
@@ -20,12 +21,12 @@ import type {
 export const runtime = "nodejs";
 export const maxDuration = 120;
 
-const storedPriceWindowMs = 35 * 24 * 60 * 60 * 1000;
+const cacheWindowMs = 6 * 60 * 60 * 1000;
 const requestTimeoutMs = 5_500;
-const searchConcurrency = 6;
+const searchConcurrency = 4;
 const serpCircuitBreakerMs = 12 * 60 * 60 * 1000;
 
-type CandidateSource = "food" | "open-prices" | "serpapi";
+type CandidateSource = "food" | "open-prices" | "retailer-api" | "serpapi";
 type Candidate = {
   retailer: SupermarketRetailer;
   productName: string;
@@ -104,7 +105,7 @@ function numeric(value: unknown) {
 }
 
 function packSize(value: string) {
-  return value.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
+  return value.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|capsules?|tablets?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
 }
 
 function retailer(value: unknown): SupermarketRetailer | null {
@@ -150,65 +151,27 @@ function matchScore(query: string, productName: string, allowSubstitutes: boolea
 }
 
 async function storedCandidates(searchItem: SearchableItem, query: string): Promise<Candidate[]> {
-  const cutoff = new Date(Date.now() - storedPriceWindowMs);
-  const candidates: Candidate[] = [];
+  const cutoff = new Date(Date.now() - cacheWindowMs);
+  const where = searchItem.productId
+    ? {
+        checkedAt: { gte: cutoff },
+        OR: [
+          { productId: searchItem.productId },
+          { productName: { contains: query, mode: "insensitive" as const } },
+        ],
+      }
+    : {
+        checkedAt: { gte: cutoff },
+        productName: { contains: query, mode: "insensitive" as const },
+      };
 
-  if (searchItem.productId) {
-    const [observations, prices] = await Promise.all([
-      prisma.priceObservation.findMany({
-        where: { productId: searchItem.productId, observedAt: { gte: cutoff } },
-        orderBy: { observedAt: "desc" },
-        take: 80,
-      }),
-      prisma.supermarketPrice.findMany({
-        where: { productId: searchItem.productId, checkedAt: { gte: cutoff } },
-        orderBy: { checkedAt: "desc" },
-        take: 80,
-      }),
-    ]);
-
-    for (const observation of observations) {
-      const sourceRetailer = retailer(observation.retailer);
-      if (!sourceRetailer || observation.price <= 0) continue;
-      candidates.push({
-        retailer: sourceRetailer,
-        productName: query,
-        price: observation.price,
-        packSize: null,
-        isSpecial: observation.isSpecial,
-        sourceUrl: observation.sourceUrl,
-        cached: true,
-        source: "food",
-      });
-    }
-    for (const price of prices) {
-      const sourceRetailer = retailer(price.retailer);
-      if (!sourceRetailer || price.price <= 0) continue;
-      candidates.push({
-        retailer: sourceRetailer,
-        productName: price.productName,
-        price: price.price,
-        packSize: price.packSize,
-        isSpecial: price.isSpecial,
-        sourceUrl: null,
-        cached: true,
-        source: "food",
-      });
-    }
-  }
-
-  if (candidates.length) return candidates;
-
-  const nameMatches = await prisma.supermarketPrice.findMany({
-    where: {
-      productName: { contains: query, mode: "insensitive" },
-      checkedAt: { gte: cutoff },
-    },
+  const prices = await prisma.supermarketPrice.findMany({
+    where,
     orderBy: { checkedAt: "desc" },
-    take: 50,
+    take: 100,
   });
 
-  return nameMatches.flatMap((price): Candidate[] => {
+  return prices.flatMap((price): Candidate[] => {
     const sourceRetailer = retailer(price.retailer);
     if (!sourceRetailer || price.price <= 0) return [];
     return [{
@@ -266,6 +229,32 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
   }
 }
 
+async function retailerApiCandidates(query: string): Promise<Candidate[]> {
+  const results = await searchColesAndWoolworths(query);
+  return results.map((result) => ({
+    ...result,
+    cached: false,
+    source: "retailer-api" as const,
+  }));
+}
+
+async function cacheRetailerCandidates(productId: string | null, candidates: Candidate[]) {
+  const live = candidates.filter((candidate) => candidate.source === "retailer-api");
+  if (!live.length) return;
+  await prisma.supermarketPrice.createMany({
+    data: live.map((candidate) => ({
+      productId,
+      retailer: candidate.retailer,
+      productName: candidate.productName,
+      packSize: candidate.packSize,
+      price: candidate.price,
+      unitPrice: null,
+      isSpecial: candidate.isSpecial,
+      checkedAt: new Date(),
+    })),
+  }).catch((error) => console.error("Unable to cache retailer price candidates", error));
+}
+
 function quotaError(message: string) {
   const value = message.toLocaleLowerCase("en-AU");
   return value.includes("run out of searches")
@@ -277,7 +266,7 @@ function quotaError(message: string) {
 async function serpCandidates(query: string): Promise<Candidate[]> {
   if (process.env.FOOD_DISABLE_SERPAPI_PRICES === "1") return [];
   if ((priceGlobal.foodSerpDisabledUntil ?? 0) > Date.now()) return [];
-  const apiKey = process.env.SERPAPI_API_KEY?.trim();
+  const apiKey = process.env.SERPAPI_API_KEY?.trim() || process.env.SERPAPI_KEY?.trim();
   if (!apiKey) return [];
 
   const url = new URL("https://serpapi.com/search.json");
@@ -380,10 +369,12 @@ async function mapWithConcurrency<T, R>(values: T[], concurrency: number, mapper
 }
 
 function providerLabel(sources: Set<CandidateSource>): GroceryPriceProvider {
-  if (sources.size > 1) return "Food Price Engine + Open Prices + SerpApi";
-  if (sources.has("food")) return "Food Price Engine";
-  if (sources.has("open-prices")) return "Open Prices";
-  return sources.has("serpapi") ? "SerpApi Google Shopping" : "Food Price Engine";
+  const labels: string[] = [];
+  if (sources.has("food")) labels.push("Food Price Engine");
+  if (sources.has("open-prices")) labels.push("Open Prices");
+  if (sources.has("retailer-api")) labels.push("Coles and Woolworths");
+  if (sources.has("serpapi")) labels.push("SerpApi");
+  return (labels.join(" + ") || "Food Price Engine") as GroceryPriceProvider;
 }
 
 export async function POST(request: Request, context: { params: Promise<{ listId: string }> }) {
@@ -435,7 +426,16 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
     const query = titleCase(entry.item.name);
     let candidates = await storedCandidates(entry, query);
-    if (!candidates.length && entry.barcode) candidates = await openPricesCandidates(entry.barcode, query);
+
+    if (!candidates.length) {
+      const [openPrices, retailerPrices] = await Promise.all([
+        entry.barcode ? openPricesCandidates(entry.barcode, query) : Promise.resolve([]),
+        retailerApiCandidates(query),
+      ]);
+      candidates = [...openPrices, ...retailerPrices];
+      await cacheRetailerCandidates(entry.productId, retailerPrices);
+    }
+
     if (!candidates.length) candidates = await serpCandidates(query);
 
     for (const candidate of candidates) sources.add(candidate.source);
@@ -465,8 +465,8 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   });
 
   const unmatched = items.filter((item) => !item.best).length;
-  const serpDisabled = (priceGlobal.foodSerpDisabledUntil ?? 0) > Date.now()
-    || process.env.FOOD_DISABLE_SERPAPI_PRICES === "1";
+  const retailerApiConfigured = process.env.FOOD_DISABLE_WOOLWORTHS_API !== "1"
+    || Boolean(process.env.COLES_API_KEY?.trim());
 
   const response: LiveGroceryPriceSearchResponse = {
     status: "success",
@@ -484,9 +484,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     liveItemCount,
     cachedItemCount,
     warning: unmatched
-      ? serpDisabled
-        ? `SerpApi is unavailable, so Food used saved prices and Open Prices. ${unmatched} item${unmatched === 1 ? "" : "s"} had no available price.`
-        : `${unmatched} item${unmatched === 1 ? "" : "s"} had no available price.`
+      ? `${unmatched} item${unmatched === 1 ? "" : "s"} had no available price.${retailerApiConfigured ? "" : " Retailer APIs are disabled or unconfigured."}`
       : null,
   };
 
