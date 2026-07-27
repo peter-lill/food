@@ -79,6 +79,24 @@ function bestProductImage(
   return productImageUrl ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl ?? null;
 }
 
+function titleCase(value: string) {
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/(^|[\s/(-])([a-z])/g, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase("en-AU")}`);
+}
+
+function productFamilyName(value: string) {
+  const cleaned = value
+    .replace(/^\s*(?:qty\s*)?\d+\s*[x×]\s*/i, "")
+    .replace(/^\s*[x×]\s*/i, "")
+    .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
+    .replace(/^\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned ? titleCase(cleaned) : titleCase(value.trim());
+}
+
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({
@@ -114,7 +132,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     take: 500,
   });
 
-  return products.map((product) => {
+  const grouped = new Map<string, ProductHubListItem>();
+
+  for (const product of products) {
     const recipeIds = new Set(
       product.ingredientRecords.flatMap((ingredient) =>
         ingredient.recipes.map((recipe) => recipe.recipeId),
@@ -122,25 +142,50 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
+    const familyName = productFamilyName(product.canonicalName ?? product.name);
+    const familyKey = familyName.toLocaleLowerCase("en-AU");
+    const current = grouped.get(familyKey);
 
-    return {
-      id: product.id,
-      name: product.name,
-      canonicalName: product.canonicalName,
-      slug: product.slug,
-      brand: product.brand,
-      category: product.category,
-      imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
-      barcode: product.barcode,
-      aliasCount: product.aliases.length,
-      recipeCount: recipeIds.size,
-      pantryQuantity: product.inventoryItems.reduce((total, item) => total + item.quantity, 0),
-      retailerCount: retailers.size,
-      latestPrice: latest?.price ?? null,
-      latestRetailer: latest?.retailer ?? null,
-      latestObservedAt: latest?.observedAt ?? null,
-    };
-  });
+    if (!current) {
+      grouped.set(familyKey, {
+        id: product.id,
+        name: product.name,
+        canonicalName: familyName,
+        slug: product.slug,
+        brand: product.brand,
+        category: product.category,
+        imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
+        barcode: product.barcode,
+        aliasCount: product.aliases.length,
+        recipeCount: recipeIds.size,
+        pantryQuantity: product.inventoryItems.reduce((total, item) => total + item.quantity, 0),
+        retailerCount: retailers.size,
+        latestPrice: latest?.price ?? null,
+        latestRetailer: latest?.retailer ?? null,
+        latestObservedAt: latest?.observedAt ?? null,
+      });
+      continue;
+    }
+
+    current.aliasCount += product.aliases.length + 1;
+    current.recipeCount += recipeIds.size;
+    current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
+    current.retailerCount += retailers.size;
+    current.imageUrl ??= bestProductImage(product.imageUrl, product.storeProducts);
+    current.brand ??= product.brand;
+    current.category ??= product.category;
+    current.barcode ??= product.barcode;
+
+    if (latest && (!current.latestObservedAt || latest.observedAt > current.latestObservedAt)) {
+      current.latestPrice = latest.price;
+      current.latestRetailer = latest.retailer;
+      current.latestObservedAt = latest.observedAt;
+    }
+  }
+
+  return [...grouped.values()].sort((left, right) =>
+    (left.canonicalName ?? left.name).localeCompare(right.canonicalName ?? right.name, "en-AU"),
+  );
 }
 
 export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
