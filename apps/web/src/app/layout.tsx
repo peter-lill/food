@@ -3,6 +3,7 @@ import "./globals.css";
 import "./shopping.css";
 import "./navigation.css";
 import "./saved-product-delete.css";
+import "./receipt-workspace.css";
 import { AppShell } from "@/components/AppShell";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
 
