@@ -27,6 +27,8 @@ services:
     environment:
       PORT: "8787"
       COLES_API_KEY: ${COLES_API_KEY:-}
+      COLES_STORE_ID: ${COLES_STORE_ID:-0584}
+      COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
     ports:
       - "8787:8787"
     healthcheck:

@@ -1,5 +1,5 @@
 "use client";
-
+import { parseReceipt } from "@/lib/receipts/engine/parser";
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
@@ -78,32 +78,18 @@ function inferDate(text: string) {
   const year = match[3].length === 2 ? `20${match[3]}` : match[3];
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
-
-function makeItem(name = "", quantity = "1", price = ""): DraftItem {
-  return { id: crypto.randomUUID(), name, quantity, price };
+function makeItem(
+  name = "",
+  quantity = "1",
+  price = "",
+): DraftItem {
+  return {
+    id: crypto.randomUUID(),
+    name,
+    quantity,
+    price,
+  };
 }
-
-function extractItems(text: string): DraftItem[] {
-  const ignored = /^(subtotal|total|amount due|gst|tax|change|cash|eftpos|visa|mastercard|saving|you saved|receipt|abn|thank|www\.|tel|date|time|store|served by|flybuys)/i;
-  const cleaned = text.split(/\r?\n/).map((line) => line.replace(/[|{}]/g, " ").replace(/\s+/g, " ").trim()).filter(Boolean);
-  const reconstructed: string[] = [];
-  let buffer = "";
-  for (const line of cleaned) {
-    if (ignored.test(line)) { buffer = ""; continue; }
-    buffer = `${buffer} ${line}`.trim();
-    if (/\$?\s*\d+[.,]\d{2}\s*$/.test(buffer)) { reconstructed.push(buffer); buffer = ""; }
-    else if (buffer.length > 90) buffer = line;
-  }
-  return reconstructed.flatMap((line) => {
-    const match = line.match(/^(.*?)(?:\s+|\s*\$)(\d+[.,]\d{2})\s*$/);
-    if (!match) return [];
-    const rawName = match[1].replace(/^\d+\s*[xX]\s*/, "").replace(/[^\p{L}\p{N}&'()\-\s]/gu, " ").replace(/\s+/g, " ").trim();
-    if (rawName.length < 2 || !/[a-z]/i.test(rawName)) return [];
-    const quantityMatch = match[1].match(/^(\d+(?:\.\d+)?)\s*[xX]\s*/);
-    return [makeItem(rawName, quantityMatch?.[1] ?? "1", match[2].replace(",", "."))];
-  }).slice(0, 100);
-}
-
 async function loadImage(file: File) {
   if ("createImageBitmap" in window) {
     try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { /* fallback */ }
@@ -177,9 +163,32 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
       const result = await worker.recognize(prepared);
       const text = (result.data.text ?? "").trim();
       if (!text) throw new Error("No readable text was detected. Retake the photo closer, keep it flat and avoid glare.");
-      const extracted = extractItems(text);
-      setRetailer((current) => current || inferRetailer(text)); setPurchasedAt(inferDate(text)); setTotal((current) => current || inferTotal(text));
-      setItems(extracted.length ? extracted : [makeItem()]); setOcrProgress(100);
+      const parsed = parseReceipt(text);
+
+const extracted = parsed.items.map((item) =>
+  makeItem(
+    item.description,
+    String(item.quantity),
+    item.price === null ? "" : item.price.toFixed(2),
+  ),
+);
+
+setRetailer((current) =>
+  current || parsed.retailer || inferRetailer(text),
+);
+
+setPurchasedAt(
+  parsed.purchasedAt ?? inferDate(text),
+);
+
+setTotal((current) =>
+  current ||
+  (parsed.total === null
+    ? inferTotal(text)
+    : parsed.total.toFixed(2)),
+);
+
+setItems(extracted.length ? extracted : [makeItem()]); setOcrProgress(100);
       setOcrStatus(extracted.length ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}. Check the review below.` : "The receipt header was read, but product lines need confirmation. Add them below.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
