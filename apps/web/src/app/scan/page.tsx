@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AddPantryForm } from "@/components/pantry/PantryManager";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
 import styles from "./scan.module.css";
@@ -21,6 +22,10 @@ export default async function ScanPage() {
       <div className="card pantry-error" role="alert">
         <strong>Product lookup is unavailable.</strong>
         <p>Check the PostgreSQL connection and refresh this page.</p>
+        <div className="form-actions">
+          <Link className="secondary-button" href="/products">Open Product Hub</Link>
+          <Link className="secondary-button" href="/pantry">Add manually</Link>
+        </div>
       </div>
     );
   }
@@ -38,6 +43,11 @@ export default async function ScanPage() {
         <option value="fillet" />
       </datalist>
       <AddPantryForm autoOpenScanner fullPageScanner products={products} />
+      <nav aria-label="Scanner shortcuts" className={styles.shortcuts}>
+        <Link className="secondary-button" href="/products">Product Hub</Link>
+        <Link className="secondary-button" href="/pantry">Pantry</Link>
+        <Link className="secondary-button" href="/receipts">Scan receipt</Link>
+      </nav>
     </div>
   );
 }
