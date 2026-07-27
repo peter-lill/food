@@ -11,7 +11,16 @@ const retailerProfiles: Array<{
   markers: RegExp[];
 }> = [
   { key: "coles", displayName: "Coles", markers: [/\bcoles\b/i, /coles supermarkets/i] },
-  { key: "woolworths", displayName: "Woolworths", markers: [/\bwoolworths\b/i, /woolworths group/i] },
+  {
+    key: "woolworths",
+    displayName: "Woolworths",
+    markers: [
+      /\bwoolworths\b/i,
+      /woolworths group/i,
+      /everyday rewards/i,
+      /\bereceipt\b/i,
+    ],
+  },
   { key: "aldi", displayName: "ALDI", markers: [/\baldi\b/i, /aldi stores/i, /shopping at aldi/i] },
   { key: "iga", displayName: "IGA", markers: [/\biga\b/i] },
   { key: "drakes", displayName: "Drakes", markers: [/\bdrakes\b/i] },
@@ -31,7 +40,7 @@ const hardStopMarkers = [
   /\bauth(?:orisation|orization)?\b/i,
   /\brrn\b/i,
   /\bterminal\b/i,
-  /\bcard\s*(?:no|number)\b/i,
+  /\bcard\s*(?:no|number|sales)\b/i,
   /\bcustomer\s+copy\b/i,
   /\bcommonwealth\s+bank\b/i,
 ];
@@ -46,23 +55,23 @@ const ignoredMarkers = [
   /^[-_=*\s]+$/,
 ];
 
-const totalSummaryMarker = /^\s*(?:grand\s+total|amount\s+due|total\s+for\s+\d+\s+items?|total)\b/i;
+const totalSummaryMarker = /^\s*(?:grand\s+total|amount\s+due|total\s+for\s+\d+\s+items?|total\s*\(\s*\d+\s+items?\s*\)|total)\b/i;
 const taxOrSavingsMarker = /\b(?:gst|tax|saving|savings|discount|change)\b/i;
 const promotionMarker = /\b(?:for\s*\$?\d+|special|promo|promotion|multibuy|multi-buy|save)\b/i;
 const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
 
-type ParsedAdjustment = {
+interface ParsedAdjustment {
   amount: number;
   sourceText: string;
-};
+}
 
-type ParserResult = {
+interface ParserResult {
   items: ParsedReceiptItem[];
   adjustments: ParsedAdjustment[];
   itemSectionLines: string[];
   paymentStartLine: string | null;
   expectedItemCount: number | null;
-};
+}
 
 function normaliseLines(text: string) {
   return text
@@ -77,6 +86,7 @@ function detectRetailer(text: string) {
       return { retailer: profile.displayName, retailerKey: profile.key };
     }
   }
+
   return { retailer: null, retailerKey: "generic" as const };
 }
 
@@ -99,31 +109,38 @@ function parseMoney(value: string) {
   return Number.isFinite(amount) ? amount : null;
 }
 
+function extractMoneyValues(line: string) {
+  return [...line.matchAll(moneyPattern)]
+    .map((match) => parseMoney(match[0]))
+    .filter((amount): amount is number => amount !== null);
+}
+
 function extractLastMoney(line: string) {
-  const matches = [...line.matchAll(moneyPattern)];
-  const match = matches.at(-1);
-  return match ? parseMoney(match[0]) : null;
+  return extractMoneyValues(line).at(-1) ?? null;
 }
 
 function detectTotal(lines: string[], retailerKey: ReceiptRetailer) {
   const priorities = retailerKey === "aldi"
     ? [/^\s*total\s*\(?incl\.?\s*gst\)?\b/i, /^\s*total\b/i]
-    : [
-        /^\s*total\s+for\s+\d+\s+items?\b/i,
-        /^\s*grand\s+total\b/i,
-        /^\s*amount\s+due\b/i,
-        /^\s*total\b/i,
-      ];
+    : retailerKey === "woolworths"
+      ? [/^\s*total\s*\(\s*\d+\s+items?\s*\)/i, /^\s*total\b/i, /^\s*amount\s+due\b/i]
+      : [
+          /^\s*total\s+for\s+\d+\s+items?\b/i,
+          /^\s*grand\s+total\b/i,
+          /^\s*amount\s+due\b/i,
+          /^\s*total\b/i,
+        ];
 
   for (const marker of priorities) {
     for (const line of lines) {
       if (!marker.test(line)) continue;
-      if (retailerKey !== "aldi" && taxOrSavingsMarker.test(line)) continue;
-      if (/surcharge/i.test(line)) continue;
+      if (retailerKey !== "aldi" && /gst\s*$/i.test(line)) continue;
+      if (/surcharge|savings|discount|change/i.test(line)) continue;
       const value = extractLastMoney(line);
       if (value !== null && value >= 0) return { total: value, totalLine: line };
     }
   }
+
   return { total: null, totalLine: null };
 }
 
@@ -138,7 +155,7 @@ function shouldIgnore(line: string) {
 function cleanDescription(value: string) {
   return value
     .replace(/^\d+(?:\.\d+)?\s*[xX]\s*/, "")
-    .replace(/^[*%#~]+\s*/, "")
+    .replace(/^[*%^#~]+\s*/, "")
     .replace(/^[xX]\s+(?=[\p{L}\p{N}])/u, "")
     .replace(/[^\p{L}\p{N}&'()\-\/\s]/gu, " ")
     .replace(/\s+/g, " ")
@@ -158,20 +175,118 @@ function makeItem(
   return { description: cleaned, quantity, price, sourceText, confidence };
 }
 
+function expectedCountFromLines(lines: string[]) {
+  for (const line of lines) {
+    const match = line.match(/(?:total\s*)?\(?\s*(\d+)\s+items?\s*\)?/i);
+    if (match && /total|items/i.test(line)) return Number(match[1]);
+  }
+  return null;
+}
+
+function parseWoolworths(lines: string[]): ParserResult {
+  const items: ParsedReceiptItem[] = [];
+  const itemSectionLines: string[] = [];
+  let paymentStartLine: string | null = null;
+  let pendingDescription = "";
+  let started = false;
+  let inItems = false;
+
+  const quantityPattern = /\bqty\s+(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
+
+  for (const line of lines) {
+    if (/^\s*description\b/i.test(line)) {
+      inItems = true;
+      continue;
+    }
+
+    if (!inItems) continue;
+
+    if (totalSummaryMarker.test(line) || containsHardStop(line)) {
+      if (containsHardStop(line)) paymentStartLine = line;
+      break;
+    }
+
+    if (/^\s*\^?promotional\s+price\b/i.test(line) || /^\s*#?total\s+includes\s+gst\b/i.test(line)) {
+      continue;
+    }
+
+    const quantityMatch = line.match(quantityPattern);
+    if (quantityMatch) {
+      const quantity = Number(quantityMatch[1]);
+      const unitPrice = parseMoney(quantityMatch[2]);
+      const moneyValues = extractMoneyValues(line);
+      const calculatedLineTotal = unitPrice === null ? null : Math.round(quantity * unitPrice * 100) / 100;
+      const printedLineTotal = moneyValues.length > 1 ? moneyValues.at(-1) ?? null : null;
+      const lineTotal = printedLineTotal ?? calculatedLineTotal;
+      const qtyIndex = quantityMatch.index ?? 0;
+      const inlineDescription = cleanDescription(line.slice(0, qtyIndex));
+
+      if (inlineDescription && lineTotal !== null) {
+        const item = makeItem(inlineDescription, quantity, lineTotal, line, 98);
+        if (item) items.push(item);
+      } else if (pendingDescription && lineTotal !== null) {
+        const item = makeItem(pendingDescription, quantity, lineTotal, `${pendingDescription} | ${line}`, 98);
+        if (item) items.push(item);
+        pendingDescription = "";
+      } else {
+        const previous = items.at(-1);
+        if (previous && lineTotal !== null) {
+          previous.quantity = quantity;
+          previous.price = lineTotal;
+          previous.sourceText = `${previous.sourceText} | ${line}`;
+          previous.confidence = 98;
+        }
+      }
+
+      itemSectionLines.push(line);
+      started = true;
+      continue;
+    }
+
+    const amounts = extractMoneyValues(line);
+    if (amounts.length > 0) {
+      const lineTotal = amounts.at(-1) ?? null;
+      const lastMoneyMatch = [...line.matchAll(moneyPattern)].at(-1);
+      const beforeAmount = lastMoneyMatch?.index === undefined ? line : line.slice(0, lastMoneyMatch.index);
+      const description = cleanDescription(beforeAmount || pendingDescription);
+
+      if (lineTotal !== null && description && !/^qty\b/i.test(description)) {
+        const item = makeItem(description, 1, lineTotal, line, 96);
+        if (item) {
+          items.push(item);
+          itemSectionLines.push(line);
+          pendingDescription = "";
+          started = true;
+        }
+      }
+      continue;
+    }
+
+    if (!shouldIgnore(line) && !promotionMarker.test(line) && /[a-z]/i.test(line)) {
+      pendingDescription = cleanDescription(line);
+      itemSectionLines.push(line);
+    }
+  }
+
+  return {
+    items,
+    adjustments: [],
+    itemSectionLines,
+    paymentStartLine,
+    expectedItemCount: expectedCountFromLines(lines),
+  };
+}
+
 function parseAldi(lines: string[]): ParserResult {
   const items: ParsedReceiptItem[] = [];
   const itemSectionLines: string[] = [];
   let paymentStartLine: string | null = null;
-  let expectedItemCount: number | null = null;
   let started = false;
 
   const productPattern = /^(\d{5,8})\s+(.+?)\s+(\d+[.,]\d{2})\s+[A-Z]\s*$/i;
   const quantityPattern = /^\s*qty\s+(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*ea\.?/i;
 
   for (const line of lines) {
-    const countMatch = line.match(/^\s*(\d+)\s+items?\b/i);
-    if (countMatch) expectedItemCount = Number(countMatch[1]);
-
     if (/^\s*subtotal\b/i.test(line) || /^\s*credit\s+surcharge\b/i.test(line) || /^\s*total\s*\(?incl/i.test(line)) {
       if (started) break;
       continue;
@@ -208,11 +323,16 @@ function parseAldi(lines: string[]): ParserResult {
         previous.confidence = 98;
         itemSectionLines.push(line);
       }
-      continue;
     }
   }
 
-  return { items, adjustments: [], itemSectionLines, paymentStartLine, expectedItemCount };
+  return {
+    items,
+    adjustments: [],
+    itemSectionLines,
+    paymentStartLine,
+    expectedItemCount: expectedCountFromLines(lines),
+  };
 }
 
 function isCostcoDescription(line: string) {
@@ -231,7 +351,6 @@ function parseCostco(lines: string[]): ParserResult {
   let pendingDescription = "";
   let started = false;
 
-  // Costco commonly prints: item-code, quantity marker, unit/line price, repeated total and tax marker.
   const itemPattern = /^(\d{4,8})\s+(\d+(?:\.\d+)?)\s*[xX]\s+(-?\$?\s*\d+[.,]\d{2})(?:\s+(-?\$?\s*\d+[.,]\d{2})\s*[-&A-Z]*)?\s*$/i;
 
   for (const line of lines) {
@@ -309,6 +428,7 @@ function splitPricedSegments(line: string) {
     const item = productCandidateFromSegment(descriptionText, amountText, line);
     if (item) items.push(item);
   }
+
   return { items, adjustments };
 }
 
@@ -341,6 +461,7 @@ function parseGeneric(lines: string[], detectedTotal: number | null): ParserResu
       buffer = "";
       continue;
     }
+
     const direct = splitPricedSegments(line);
     if (direct.items.length || direct.adjustments.length) {
       items.push(...direct.items);
@@ -348,6 +469,7 @@ function parseGeneric(lines: string[], detectedTotal: number | null): ParserResu
       buffer = "";
       continue;
     }
+
     buffer = `${buffer} ${line}`.trim();
     const rebuilt = splitPricedSegments(buffer);
     if (rebuilt.items.length || rebuilt.adjustments.length) {
@@ -365,7 +487,7 @@ function parseGeneric(lines: string[], detectedTotal: number | null): ParserResu
       const description = itemSectionLines
         .map((line) => cleanDescription(line.replace(moneyPattern, "")))
         .filter((line) => line.length >= 3 && /[a-z]/i.test(line))
-        .sort((a, b) => b.length - a.length)[0];
+        .sort((left, right) => right.length - left.length)[0];
       if (description) {
         const item = makeItem(description, 1, detectedTotal, description, 72);
         if (item) items.push(item);
@@ -373,13 +495,12 @@ function parseGeneric(lines: string[], detectedTotal: number | null): ParserResu
     }
   }
 
-  const countMatch = lines.find((line) => /^\s*total\s+for\s+\d+\s+items?/i.test(line))?.match(/(\d+)\s+items?/i);
   return {
     items: items.slice(0, 100),
     adjustments,
     itemSectionLines,
     paymentStartLine,
-    expectedItemCount: countMatch ? Number(countMatch[1]) : null,
+    expectedItemCount: expectedCountFromLines(lines),
   };
 }
 
@@ -403,11 +524,13 @@ export function parseReceipt(text: string): ParsedReceipt {
   const purchasedAt = detectDate(text);
   const { total: detectedTotal, totalLine } = detectTotal(lines, retailerKey);
 
-  const parsed = retailerKey === "aldi"
-    ? parseAldi(lines)
-    : retailerKey === "costco"
-      ? parseCostco(lines)
-      : parseGeneric(lines, detectedTotal);
+  const parsed = retailerKey === "woolworths"
+    ? parseWoolworths(lines)
+    : retailerKey === "aldi"
+      ? parseAldi(lines)
+      : retailerKey === "costco"
+        ? parseCostco(lines)
+        : parseGeneric(lines, detectedTotal);
 
   let total = detectedTotal;
   const calculated = calculateAdjustedTotal(parsed.items, parsed.adjustments);
