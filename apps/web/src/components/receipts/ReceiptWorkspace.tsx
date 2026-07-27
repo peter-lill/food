@@ -1,4 +1,5 @@
 "use client";
+
 import { parseReceipt } from "@/lib/receipts/engine/parser";
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
@@ -67,7 +68,7 @@ function inferRetailer(text: string) {
 
 function inferTotal(text: string) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const totalLine = [...lines].reverse().find((line) => /\b(?:grand\s+total|amount\s+due|total)\b/i.test(line));
+  const totalLine = [...lines].reverse().find((line) => /\b(?:grand\s+total|amount\s+due|total)\b/i.test(line) && !/\b(?:gst|tax|saving|discount)\b/i.test(line));
   const match = totalLine?.match(/\$?\s*(\d+[.,]\d{2})\b/);
   return match ? match[1].replace(",", ".") : "";
 }
@@ -78,40 +79,54 @@ function inferDate(text: string) {
   const year = match[3].length === 2 ? `20${match[3]}` : match[3];
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
-function makeItem(
-  name = "",
-  quantity = "1",
-  price = "",
-): DraftItem {
-  return {
-    id: crypto.randomUUID(),
-    name,
-    quantity,
-    price,
-  };
+
+function makeItem(name = "", quantity = "1", price = ""): DraftItem {
+  return { id: crypto.randomUUID(), name, quantity, price };
 }
-async function loadImage(file: File) {
-  if ("createImageBitmap" in window) {
-    try { return await createImageBitmap(file, { imageOrientation: "from-image" }); } catch { /* fallback */ }
-  }
+
+async function loadImage(file: File): Promise<HTMLImageElement> {
+  // HTMLImageElement consistently applies phone-camera EXIF orientation before
+  // drawing to canvas. createImageBitmap is inconsistent across mobile browsers.
   const source = URL.createObjectURL(file);
   try {
-    const image = new Image(); image.decoding = "async"; image.src = source; await image.decode(); return image;
-  } finally { URL.revokeObjectURL(source); }
+    const image = new Image();
+    image.decoding = "async";
+    image.src = source;
+    await image.decode();
+    return image;
+  } finally {
+    URL.revokeObjectURL(source);
+  }
 }
 
 async function prepareReceiptImage(file: File): Promise<Blob> {
   const image = await loadImage(file);
-  const longestSide = Math.max(image.width, image.height);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const rotateToPortrait = sourceWidth > sourceHeight * 1.2;
+  const orientedWidth = rotateToPortrait ? sourceHeight : sourceWidth;
+  const orientedHeight = rotateToPortrait ? sourceWidth : sourceHeight;
+  const longestSide = Math.max(orientedWidth, orientedHeight);
   const scale = Math.min(3, Math.max(1, 2800 / longestSide));
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const width = Math.max(1, Math.round(orientedWidth * scale));
+  const height = Math.max(1, Math.round(orientedHeight * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("Your browser could not prepare the receipt image.");
-  context.drawImage(image, 0, 0, width, height);
-  if ("close" in image && typeof image.close === "function") image.close();
-  const pixels = context.getImageData(0, 0, width, height); const data = pixels.data;
+
+  if (rotateToPortrait) {
+    context.translate(width, 0);
+    context.rotate(Math.PI / 2);
+    context.drawImage(image, 0, 0, height, width);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+  } else {
+    context.drawImage(image, 0, 0, width, height);
+  }
+
+  const pixels = context.getImageData(0, 0, width, height);
+  const data = pixels.data;
   for (let index = 0; index < data.length; index += 4) {
     const grey = data[index] * .299 + data[index + 1] * .587 + data[index + 2] * .114;
     const threshold = grey > 198 ? 255 : Math.max(0, Math.min(255, (grey - 118) * 1.85 + 118));
@@ -158,37 +173,18 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
           setOcrProgress(Math.min(99, Math.round(base + message.progress * range)));
         }
       }});
-      await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1" });
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO, preserve_interword_spaces: "1", user_defined_dpi: "300" });
       setOcrStatus("Reading retailer, date, total and purchase lines…");
       const result = await worker.recognize(prepared);
       const text = (result.data.text ?? "").trim();
       if (!text) throw new Error("No readable text was detected. Retake the photo closer, keep it flat and avoid glare.");
       const parsed = parseReceipt(text);
-
-const extracted = parsed.items.map((item) =>
-  makeItem(
-    item.description,
-    String(item.quantity),
-    item.price === null ? "" : item.price.toFixed(2),
-  ),
-);
-
-setRetailer((current) =>
-  current || parsed.retailer || inferRetailer(text),
-);
-
-setPurchasedAt(
-  parsed.purchasedAt ?? inferDate(text),
-);
-
-setTotal((current) =>
-  current ||
-  (parsed.total === null
-    ? inferTotal(text)
-    : parsed.total.toFixed(2)),
-);
-
-setItems(extracted.length ? extracted : [makeItem()]); setOcrProgress(100);
+      const extracted = parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2)));
+      setRetailer((current) => current || parsed.retailer || inferRetailer(text));
+      setPurchasedAt(parsed.purchasedAt ?? inferDate(text));
+      setTotal((current) => current || (parsed.total === null ? inferTotal(text) : parsed.total.toFixed(2)));
+      setItems(extracted.length ? extracted : [makeItem()]);
+      setOcrProgress(100);
       setOcrStatus(extracted.length ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}. Check the review below.` : "The receipt header was read, but product lines need confirmation. Add them below.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
