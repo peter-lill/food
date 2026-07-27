@@ -18,9 +18,7 @@ const statusLabels: Record<ReceiptStatusValue, string> = {
   IMPORTED: "Imported",
   CANCELLED: "Cancelled",
 };
-
 const retailerNames = ["Woolworths", "Coles", "ALDI", "IGA", "Drakes", "Costco"];
-
 type DraftItem = { id: string; name: string; quantity: string; price: string };
 
 function formatDate(value: string) {
@@ -28,21 +26,17 @@ function formatDate(value: string) {
     day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
   });
 }
-
 function formatMoney(value: number | null) {
   return value === null ? "Total not recorded" : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
 }
-
 function FieldError({ state, field }: { state: ReceiptActionState; field: string }) {
   const message = state.fieldErrors?.[field];
   return message ? <small className="field-error">{message}</small> : null;
 }
-
 function CreateButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return <button className="button" type="submit" disabled={disabled || pending}>{pending ? "Creating review…" : "Review and import receipt"}</button>;
 }
-
 function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
   const progress = receipt.itemCount === 0 ? 0 : Math.round((receipt.reviewedCount / receipt.itemCount) * 100);
   return (
@@ -60,43 +54,31 @@ function ReceiptCard({ receipt }: { receipt: ReceiptSummary }) {
     </Link>
   );
 }
-
 function inferRetailer(text: string) {
   const lower = text.toLocaleLowerCase("en-AU");
   return retailerNames.find((name) => lower.includes(name.toLocaleLowerCase("en-AU"))) ?? "";
 }
-
 function inferTotal(text: string) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   const totalLine = [...lines].reverse().find((line) => /\b(?:grand\s+total|amount\s+due|total)\b/i.test(line) && !/\b(?:gst|tax|saving|discount)\b/i.test(line));
   const match = totalLine?.match(/\$?\s*(\d+[.,]\d{2})\b/);
   return match ? match[1].replace(",", ".") : "";
 }
-
 function inferDate(text: string) {
   const match = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
   if (!match) return new Date().toISOString().slice(0, 10);
   const year = match[3].length === 2 ? `20${match[3]}` : match[3];
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
-
 function makeItem(name = "", quantity = "1", price = ""): DraftItem {
   return { id: crypto.randomUUID(), name, quantity, price };
 }
-
 async function loadImage(file: File): Promise<HTMLImageElement> {
   const source = URL.createObjectURL(file);
   try {
-    const image = new Image();
-    image.decoding = "async";
-    image.src = source;
-    await image.decode();
-    return image;
-  } finally {
-    URL.revokeObjectURL(source);
-  }
+    const image = new Image(); image.decoding = "async"; image.src = source; await image.decode(); return image;
+  } finally { URL.revokeObjectURL(source); }
 }
-
 async function prepareReceiptImage(file: File): Promise<Blob> {
   const image = await loadImage(file);
   const sourceWidth = image.naturalWidth || image.width;
@@ -105,18 +87,11 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   const scale = Math.min(3, Math.max(1, 2800 / longestSide));
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
-  const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("Your browser could not prepare the receipt image.");
-
-  // The browser has already applied the phone photo's EXIF orientation while
-  // decoding the HTMLImageElement. Preserve that decoded orientation exactly.
   context.drawImage(image, 0, 0, width, height);
-
-  const pixels = context.getImageData(0, 0, width, height);
-  const data = pixels.data;
+  const pixels = context.getImageData(0, 0, width, height); const data = pixels.data;
   for (let index = 0; index < data.length; index += 4) {
     const grey = data[index] * .299 + data[index + 1] * .587 + data[index + 2] * .114;
     const threshold = grey > 198 ? 255 : Math.max(0, Math.min(255, (grey - 118) * 1.85 + 118));
@@ -128,10 +103,11 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
 
 export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSummary[]; loadError: boolean }) {
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const savedPhotoInputRef = useRef<HTMLInputElement>(null);
   const lastFileRef = useRef<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [ocrStatus, setOcrStatus] = useState("Position the entire receipt vertically inside the frame.");
+  const [ocrStatus, setOcrStatus] = useState("Take a photo or choose a saved receipt image.");
   const [ocrProgress, setOcrProgress] = useState(0);
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
@@ -146,7 +122,6 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
   function updateItem(id: string, field: keyof Omit<DraftItem, "id">, value: string) {
     setItems((current) => current.map((item) => item.id === id ? { ...item, [field]: value } : item));
   }
-
   async function processReceipt(file: File) {
     lastFileRef.current = file;
     if (imageUrl) URL.revokeObjectURL(imageUrl);
@@ -167,7 +142,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
       setOcrStatus("Reading retailer, date, total and purchase lines…");
       const result = await worker.recognize(prepared);
       const text = (result.data.text ?? "").trim();
-      if (!text) throw new Error("No readable text was detected. Retake the photo closer, keep it flat and avoid glare.");
+      if (!text) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
       const parsed = parseReceipt(text);
       const extracted = parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2)));
       setRetailer((current) => current || parsed.retailer || inferRetailer(text));
@@ -178,38 +153,38 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
       setOcrStatus(extracted.length ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}. Check the review below.` : "The receipt header was read, but product lines need confirmation. Add them below.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
-      setOcrError(error instanceof Error ? error.message : "The receipt could not be read."); setOcrStatus("Receipt reading failed. Retake the photo or retry this image."); setOcrProgress(0);
+      setOcrError(error instanceof Error ? error.message : "The receipt could not be read."); setOcrStatus("Receipt reading failed. Choose another image or retake the photo."); setOcrProgress(0);
     } finally { await worker?.terminate().catch(() => undefined); setOcrBusy(false); }
   }
-
   async function handleReceiptImage(file: File | null) {
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setOcrError("Choose a JPG, PNG, HEIC or other receipt image."); return; }
+    if (!file.type.startsWith("image/")) { setOcrError("Choose a JPG, PNG, HEIC, WebP or other receipt image."); return; }
     await processReceipt(file);
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (cameraInputRef.current) cameraInputRef.current.value = "";
+    if (savedPhotoInputRef.current) savedPhotoInputRef.current.value = "";
   }
 
   const ready = retailer.trim().length >= 2 && Boolean(purchasedAt) && Number(total) >= 0 && items.some((item) => item.name.trim());
-
   return (
     <div className={styles.workspace}>
       <section className={`card ${styles.captureCard}`}>
         <div className={styles.captureStage}>
-          {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><div className={styles.captureFrame} aria-hidden="true" /><strong>Scan receipt</strong><p>Keep the full receipt flat, vertical and evenly lit. Food will turn it into editable purchase lines.</p></div>}
+          {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><div className={styles.captureFrame} aria-hidden="true" /><strong>Add a receipt</strong><p>Take a new photo or choose a saved image from Woolworths, your gallery or downloaded files.</p></div>}
           {ocrBusy ? <div className={styles.processing} role="status"><strong>{ocrStatus}</strong><progress max="100" value={ocrProgress}>{ocrProgress}%</progress></div> : null}
           <div className={styles.captureActions}>
-            <button className={styles.captureButton} disabled={ocrBusy} onClick={() => fileInputRef.current?.click()} type="button">{imageUrl ? "Retake receipt" : "Take receipt photo"}</button>
+            <button className={styles.captureButton} disabled={ocrBusy} onClick={() => cameraInputRef.current?.click()} type="button">{imageUrl ? "Retake photo" : "Take photo"}</button>
+            <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => savedPhotoInputRef.current?.click()} type="button">Choose saved photo</button>
             {imageUrl && lastFileRef.current ? <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => void processReceipt(lastFileRef.current!)} type="button">Read again</button> : null}
           </div>
-          <input accept="image/*" capture="environment" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={fileInputRef} style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 }} type="file" />
+          <input accept="image/*" capture="environment" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={cameraInputRef} hidden type="file" />
+          <input accept="image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={savedPhotoInputRef} hidden type="file" />
         </div>
 
         {ocrError ? <div className={styles.errorBox} role="alert"><strong>Receipt could not be read.</strong><div>{ocrError}</div></div> : null}
-
         {(imageUrl || items.length > 0) ? <form action={action} className={styles.reviewPanel}>
           <div className={styles.reviewHeading}><div><p className="eyebrow">REVIEW</p><h2>Check your receipt</h2><p>{ocrStatus}</p></div><span className="badge neutral">{items.filter((item) => item.name.trim()).length} items</span></div>
           <div className={styles.metaGrid}>
-            <label className="field"><span>Retailer</span><input name="retailer" onChange={(event) => setRetailer(event.target.value)} placeholder="e.g. Coles" required value={retailer} /><FieldError state={state} field="retailer" /></label>
+            <label className="field"><span>Retailer</span><input name="retailer" onChange={(event) => setRetailer(event.target.value)} placeholder="e.g. Woolworths" required value={retailer} /><FieldError state={state} field="retailer" /></label>
             <label className="field"><span>Purchase date</span><input name="purchasedAt" onChange={(event) => setPurchasedAt(event.target.value)} required type="date" value={purchasedAt} /><FieldError state={state} field="purchasedAt" /></label>
             <label className={`field ${styles.full}`}><span>Receipt total</span><input min="0" name="total" onChange={(event) => setTotal(event.target.value)} placeholder="0.00" required step="0.01" type="number" value={total} /><FieldError state={state} field="total" /></label>
           </div>
@@ -230,7 +205,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
 
       <section className={`card ${styles.historyCard}`}><div className={styles.historyContent}>
         <div className="receipt-history-heading"><div><p className="eyebrow">RECEIPT HISTORY</p><h2 className="section-title">{receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}</h2></div><span className="badge neutral">Review before import</span></div>
-        {loadError ? <div className="pantry-error" role="alert"><strong>Receipt history is unavailable.</strong><p>Check PostgreSQL and refresh the page.</p></div> : receipts.length === 0 ? <div className="pantry-empty"><strong>No receipts yet.</strong><p>Photograph your first receipt to begin building purchase and price history.</p></div> : <div className="receipt-list">{receipts.map((receipt) => <ReceiptCard receipt={receipt} key={receipt.id} />)}</div>}
+        {loadError ? <div className="pantry-error" role="alert"><strong>Receipt history is unavailable.</strong><p>Check PostgreSQL and refresh the page.</p></div> : receipts.length === 0 ? <div className="pantry-empty"><strong>No receipts yet.</strong><p>Photograph or upload your first receipt to begin building purchase and price history.</p></div> : <div className="receipt-list">{receipts.map((receipt) => <ReceiptCard receipt={receipt} key={receipt.id} />)}</div>}
       </div></section>
     </div>
   );
