@@ -1,6 +1,7 @@
 import type {
   ParsedReceipt,
   ParsedReceiptItem,
+  ReceiptParserDiagnostics,
   ReceiptRetailer,
 } from "./types";
 
@@ -19,6 +20,7 @@ const retailerProfiles: Array<{
 
 const hardStopMarkers = [
   /^\s*(?:payment|payments?)\b/i,
+  /^\s*eft\b/i,
   /\bcredit\s+account\b/i,
   /\bdebit\s+account\b/i,
   /\beftpos\b/i,
@@ -33,7 +35,7 @@ const hardStopMarkers = [
 ];
 
 const ignoredMarkers = [
-  /^\s*(?:subtotal|sub-total|total|grand\s+total|amount\s+due)\b/i,
+  /^\s*(?:subtotal|sub-total|grand\s+total|amount\s+due)\b/i,
   /^\s*(?:gst|tax|change|cash|tendered)\b/i,
   /^\s*(?:saving|savings|you\s+saved)\b/i,
   /^\s*(?:receipt|invoice|tax\s+invoice)\b/i,
@@ -41,6 +43,9 @@ const ignoredMarkers = [
   /^\s*(?:thank\s+you|www\.|tel\b|phone\b|flybuys\b|everyday\s+rewards\b)/i,
   /^[-_=*\s]+$/,
 ];
+
+const totalSummaryMarker = /^\s*(?:grand\s+total|amount\s+due|total\s+for\s+\d+\s+items?|total)\b/i;
+const taxOrSavingsMarker = /\b(?:gst|tax|saving|savings|discount|change)\b/i;
 
 function normaliseLines(text: string) {
   return text
@@ -72,17 +77,31 @@ function detectDate(text: string) {
   return Number.isNaN(parsed.getTime()) ? null : candidate;
 }
 
-function detectTotal(lines: string[]) {
-  const totalMarkers = /\b(?:grand\s+total|amount\s+due|total(?:\s+for\s+\d+\s+items?)?)\b/i;
+function extractLastMoney(line: string) {
+  const matches = [...line.matchAll(/\$?\s*(\d+[.,]\d{2})\b/g)];
+  const match = matches.at(-1);
+  if (!match) return null;
+  const value = Number(match[1].replace(",", "."));
+  return Number.isFinite(value) ? value : null;
+}
 
-  for (const line of [...lines].reverse()) {
-    if (!totalMarkers.test(line)) continue;
-    const prices = [...line.matchAll(/\$?\s*(\d+[.,]\d{2})\b/g)];
-    const match = prices.at(-1);
-    if (match) return Number(match[1].replace(",", "."));
+function detectTotal(lines: string[]) {
+  const priorities = [
+    /^\s*total\s+for\s+\d+\s+items?\b/i,
+    /^\s*grand\s+total\b/i,
+    /^\s*amount\s+due\b/i,
+    /^\s*total\b/i,
+  ];
+
+  for (const marker of priorities) {
+    for (const line of lines) {
+      if (!marker.test(line) || taxOrSavingsMarker.test(line)) continue;
+      const value = extractLastMoney(line);
+      if (value !== null) return { total: value, totalLine: line };
+    }
   }
 
-  return null;
+  return { total: null, totalLine: null };
 }
 
 function containsHardStop(line: string) {
@@ -93,19 +112,23 @@ function shouldIgnore(line: string) {
   return ignoredMarkers.some((marker) => marker.test(line));
 }
 
+function cleanDescription(value: string) {
+  return value
+    .replace(/^\d+(?:\.\d+)?\s*[xX]\s*/, "")
+    .replace(/^[*%#~]+\s*/, "")
+    .replace(/[^\p{L}\p{N}&'()\-\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function productCandidateFromLine(line: string): ParsedReceiptItem | null {
-  if (containsHardStop(line) || shouldIgnore(line)) return null;
+  if (containsHardStop(line) || shouldIgnore(line) || totalSummaryMarker.test(line)) return null;
 
   const match = line.match(/^(.*?)(?:\s+|\s*\$)(\d+[.,]\d{2})\s*$/);
   if (!match) return null;
 
   const quantityMatch = match[1].match(/^(\d+(?:\.\d+)?)\s*[xX]\s*/);
-  const description = match[1]
-    .replace(/^\d+(?:\.\d+)?\s*[xX]\s*/, "")
-    .replace(/^[*%#]+\s*/, "")
-    .replace(/[^\p{L}\p{N}&'()\-\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const description = cleanDescription(match[1]);
 
   if (description.length < 2 || !/[a-z]/i.test(description)) return null;
   if (containsHardStop(description) || shouldIgnore(description)) return null;
@@ -118,36 +141,52 @@ function productCandidateFromLine(line: string): ParsedReceiptItem | null {
     quantity: quantityMatch ? Number(quantityMatch[1]) : 1,
     price,
     sourceText: line,
-    confidence: 90,
+    confidence: 92,
   };
 }
 
-function extractItems(lines: string[]) {
+function locateItemSection(lines: string[]) {
+  const descriptionIndex = lines.findIndex((line) => /^\s*description\b/i.test(line));
+  const startIndex = descriptionIndex >= 0 ? descriptionIndex + 1 : 0;
+  let endIndex = lines.length;
+  let paymentStartLine: string | null = null;
+
+  for (let index = startIndex; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (containsHardStop(line)) {
+      endIndex = index;
+      paymentStartLine = line;
+      break;
+    }
+    if (totalSummaryMarker.test(line) && !taxOrSavingsMarker.test(line)) {
+      endIndex = index;
+      break;
+    }
+  }
+
+  return {
+    descriptionIndex,
+    startIndex,
+    endIndex,
+    itemSectionLines: lines.slice(startIndex, endIndex),
+    paymentStartLine,
+  };
+}
+
+function extractItems(lines: string[], total: number | null) {
+  const section = locateItemSection(lines);
   const items: ParsedReceiptItem[] = [];
   let buffer = "";
-  let started = false;
 
-  for (const line of lines) {
-    if (containsHardStop(line)) break;
-
-    if (/^\s*description\b/i.test(line)) {
-      started = true;
+  for (const line of section.itemSectionLines) {
+    if (shouldIgnore(line) || containsHardStop(line)) {
       buffer = "";
       continue;
     }
 
-    if (shouldIgnore(line)) {
-      if (/^\s*(?:subtotal|total|grand\s+total|amount\s+due)\b/i.test(line) && started) {
-        break;
-      }
-      buffer = "";
-      continue;
-    }
-
-    const candidate = productCandidateFromLine(line);
-    if (candidate) {
-      items.push(candidate);
-      started = true;
+    const direct = productCandidateFromLine(line);
+    if (direct) {
+      items.push(direct);
       buffer = "";
       continue;
     }
@@ -155,15 +194,36 @@ function extractItems(lines: string[]) {
     buffer = `${buffer} ${line}`.trim();
     const reconstructed = productCandidateFromLine(buffer);
     if (reconstructed) {
-      items.push(reconstructed);
-      started = true;
+      items.push({ ...reconstructed, confidence: 86 });
       buffer = "";
-    } else if (buffer.length > 120) {
+    } else if (buffer.length > 140) {
       buffer = line;
     }
   }
 
-  return items.slice(0, 100);
+  if (items.length === 0 && total !== null && section.itemSectionLines.length > 0) {
+    const summaryLine = lines.find((line) => /^\s*total\s+for\s+1\s+item\b/i.test(line));
+    if (summaryLine) {
+      const possibleDescription = section.itemSectionLines
+        .filter((line) => !shouldIgnore(line) && !containsHardStop(line))
+        .map((line) => line.replace(/\$?\s*\d+[.,]\d{2}\s*$/, "").trim())
+        .map(cleanDescription)
+        .filter((line) => line.length >= 3 && /[a-z]/i.test(line))
+        .sort((a, b) => b.length - a.length)[0];
+
+      if (possibleDescription) {
+        items.push({
+          description: possibleDescription,
+          quantity: 1,
+          price: total,
+          sourceText: possibleDescription,
+          confidence: 72,
+        });
+      }
+    }
+  }
+
+  return { items: items.slice(0, 100), section };
 }
 
 function validateTotal(items: ParsedReceiptItem[], total: number | null) {
@@ -181,8 +241,8 @@ export function parseReceipt(text: string): ParsedReceipt {
   const lines = normaliseLines(text);
   const { retailer, retailerKey } = detectRetailer(text);
   const purchasedAt = detectDate(text);
-  const total = detectTotal(lines);
-  const items = extractItems(lines);
+  const { total, totalLine } = detectTotal(lines);
+  const { items, section } = extractItems(lines, total);
   const warnings = validateTotal(items, total);
 
   const confidenceParts = [
@@ -193,6 +253,13 @@ export function parseReceipt(text: string): ParsedReceipt {
     warnings.length === 0 ? 1 : 0,
   ];
 
+  const diagnostics: ReceiptParserDiagnostics = {
+    normalisedLines: lines,
+    itemSectionLines: section.itemSectionLines,
+    totalLine,
+    paymentStartLine: section.paymentStartLine,
+  };
+
   return {
     retailer,
     retailerKey,
@@ -200,6 +267,7 @@ export function parseReceipt(text: string): ParsedReceipt {
     total,
     items,
     warnings,
+    diagnostics,
     confidence: Math.round((confidenceParts.reduce((sum, value) => sum + value, 0) / confidenceParts.length) * 100),
   };
 }
