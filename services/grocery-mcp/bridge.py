@@ -1,4 +1,3 @@
-import asyncio
 import json
 import os
 import sys
@@ -17,38 +16,85 @@ from src.supermarkets import (  # noqa: E402
 PORT = int(os.getenv("PORT", "8787"))
 
 
-def clean_product(retailer: str, item: dict) -> dict:
+def clean_text(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    value = " ".join(value.split()).strip()
+    return value or None
+
+
+def clean_price(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        price = float(value)
+    elif isinstance(value, str):
+        try:
+            price = float("".join(character for character in value if character.isdigit() or character == "."))
+        except ValueError:
+            return None
+    else:
+        return None
+    return round(price, 2) if price > 0 else None
+
+
+def clean_product(retailer: str, item: dict) -> dict | None:
+    name = clean_text(item.get("name"))
+    price = clean_price(item.get("price"))
+    if not name or price is None:
+        return None
+
     return {
         "retailer": retailer,
-        "name": item.get("name") or "",
-        "price": item.get("price"),
-        "unit": item.get("unit"),
-        "store": item.get("store") or retailer,
-        "barcode": item.get("barcode"),
-        "imageUrl": item.get("image") or item.get("imageUrl"),
-        "productId": item.get("id") or item.get("productId") or item.get("sku"),
+        "name": name,
+        "price": price,
+        "unit": clean_text(item.get("unit")),
+        "store": clean_text(item.get("store")) or retailer.lower(),
+        "barcode": clean_text(item.get("barcode")),
+        "imageUrl": clean_text(item.get("image")) or clean_text(item.get("imageUrl")),
+        "productId": (
+            clean_text(item.get("id"))
+            or clean_text(item.get("productId"))
+            or clean_text(item.get("sku"))
+        ),
         "raw": item,
     }
 
 
+def normalise_products(retailer: str, products: list[dict], limit: int) -> list[dict]:
+    cleaned: list[dict] = []
+    seen: set[tuple[str, float]] = set()
+    for item in products:
+        product = clean_product(retailer, item)
+        if not product:
+            continue
+        identity = (product["name"].casefold(), product["price"])
+        if identity in seen:
+            continue
+        seen.add(identity)
+        cleaned.append(product)
+        if len(cleaned) >= limit:
+            break
+    return cleaned
+
+
 def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
-    result = coles_search_products(query=query, store_id=store_id or COLES_DEFAULT_STORE_ID)
+    selected_store = store_id or os.getenv("COLES_STORE_ID") or COLES_DEFAULT_STORE_ID
+    result = coles_search_products(query=query, store_id=selected_store)
     if result.get("status") == "error":
         raise RuntimeError(result.get("message") or "Coles search failed")
-    products = coles_extract_products(result)
-    return [clean_product("Coles", item) for item in products[:limit]]
+    return normalise_products("Coles", coles_extract_products(result), limit)
 
 
 def search_woolworths(query: str, limit: int) -> list[dict]:
     result = woolworths_search_products(query=query)
     if result.get("status") == "error":
         raise RuntimeError(result.get("message") or "Woolworths search failed")
-    products = result.get("products", [])
-    return [clean_product("Woolworths", item) for item in products[:limit]]
+    return normalise_products("Woolworths", result.get("products", []), limit)
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "FoodGroceryBridge/1.0"
+    server_version = "FoodGroceryBridge/1.1"
 
     def send_json(self, status: int, payload: dict) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -61,7 +107,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"status": "ok"})
+            self.send_json(200, {"status": "ok", "version": "1.1"})
             return
 
         if parsed.path != "/search":
@@ -79,6 +125,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if not query:
             self.send_json(400, {"status": "error", "error": "Missing q parameter"})
+            return
+        if retailer not in ("all", "coles", "woolworths"):
+            self.send_json(400, {"status": "error", "error": "Unsupported retailer"})
             return
 
         results: list[dict] = []
