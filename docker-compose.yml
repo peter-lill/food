@@ -17,10 +17,28 @@ services:
       timeout: 5s
       retries: 10
 
+  food-grocery-mcp:
+    build:
+      context: .
+      dockerfile: services/grocery-mcp/Dockerfile
+    container_name: food-grocery-mcp
+    profiles: ["prices"]
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+      COLES_API_KEY: ${COLES_API_KEY:-}
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
   food-price-influx:
     image: influxdb:2.7-alpine
     container_name: food-price-influx
-    profiles: ["prices"]
+    profiles: ["legacy-prices"]
     restart: unless-stopped
     ports:
       - "8086:8086"
@@ -46,7 +64,7 @@ services:
       args:
         AUSCOST_REF: main
     container_name: food-auscost-collector
-    profiles: ["prices"]
+    profiles: ["legacy-prices"]
     restart: unless-stopped
     depends_on:
       food-price-influx:
