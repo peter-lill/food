@@ -9,8 +9,11 @@ export type GroceryPriceMatchKind = "exact" | "substitute";
 export type GroceryPriceProvider =
   | "Food Price Engine"
   | "Open Prices"
+  | "Coles and Woolworths"
+  | "SerpApi"
   | "SerpApi Google Shopping"
-  | "Food Price Engine + Open Prices + SerpApi";
+  | "Food Price Engine + Open Prices + SerpApi"
+  | `${string} + ${string}`;
 
 export type LiveGroceryPriceMatch = {
   retailer: SupermarketRetailer;
