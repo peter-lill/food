@@ -128,6 +128,7 @@ export function AppShell({
 
   const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
+  const hideMobileScanAction = pathname.startsWith("/scan") || pathname.startsWith("/receipts");
 
   return (
     <div className="app-frame">
@@ -165,7 +166,7 @@ export function AppShell({
           </nav>
         </div>
       ) : null}
-      {!owner || pathname.startsWith("/scan") ? null : <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan"><span>⌗</span>Scan</Link>}
+      {!owner || hideMobileScanAction ? null : <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan"><span>⌗</span>Scan</Link>}
       <nav className="mobile-nav" aria-label="Mobile navigation" style={{ "--mobile-nav-items": mobileItemCount } as CSSProperties}>
         {mobilePrimaryNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
