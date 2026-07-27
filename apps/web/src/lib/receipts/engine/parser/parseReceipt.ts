@@ -116,6 +116,7 @@ function cleanDescription(value: string) {
   return value
     .replace(/^\d+(?:\.\d+)?\s*[xX]\s*/, "")
     .replace(/^[*%#~]+\s*/, "")
+    .replace(/^[xX]\s+(?=[\p{L}\p{N}])/u, "")
     .replace(/[^\p{L}\p{N}&'()\-\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
