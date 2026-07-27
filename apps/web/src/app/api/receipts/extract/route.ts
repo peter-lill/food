@@ -5,6 +5,27 @@ export const runtime = "nodejs";
 const maximumImageBytes = 10 * 1024 * 1024;
 const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif"]);
 
+const nonProductLinePattern = new RegExp(
+  [
+    "\\b(?:eft|eftpos)\\b",
+    "\\bcredit\\s+account\\b",
+    "\\bdebit\\s+account\\b",
+    "\\b(?:visa|mastercard|amex|american express)\\b",
+    "\\b(?:nab|anz|westpac|commbank|commonwealth bank)\\b",
+    "\\b(?:approved|declined)\\b",
+    "\\b(?:auth|rrn|apsn|atc)\\b",
+    "\\bcard\\s*(?:no|number)\\b",
+    "\\bscanned\\s+card\\b",
+    "\\bgst\\s+included\\b",
+    "\\b(?:tax invoice|abn)\\b",
+    "\\b(?:store manager|served by|register|receipt)\\b",
+    "\\b(?:total savings|savings|subtotal|change|cash out)\\b",
+    "\\b(?:flybuys|everyday rewards|loyalty)\\b",
+    "\\bno pin or signature required\\b",
+  ].join("|"),
+  "i",
+);
+
 type ReceiptExtraction = {
   retailer: string | null;
   purchasedAt: string | null;
@@ -29,27 +50,53 @@ function isReceiptExtraction(value: unknown): value is ReceiptExtraction {
   });
 }
 
+function normaliseDescription(value: string) {
+  return value
+    .replace(/^[*%#•\-\s]+/, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+}
+
+function looksLikeProduct(description: string) {
+  if (description.length < 2 || nonProductLinePattern.test(description)) return false;
+  if (/^[\d\s*#./:-]+$/.test(description)) return false;
+  return /[a-z]/i.test(description);
+}
+
 function cleanReceipt(receipt: ReceiptExtraction): ReceiptExtraction {
   const retailer = typeof receipt.retailer === "string" ? receipt.retailer.trim().slice(0, 100) : null;
   const purchasedAt = typeof receipt.purchasedAt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(receipt.purchasedAt)
     ? receipt.purchasedAt
     : null;
   const total = typeof receipt.total === "number" && Number.isFinite(receipt.total) && receipt.total >= 0
-    ? receipt.total
+    ? Number(receipt.total.toFixed(2))
     : null;
+
+  const lines = receipt.lines
+    .map((line) => ({
+      description: normaliseDescription(line.description),
+      quantity: typeof line.quantity === "number" && Number.isFinite(line.quantity) && line.quantity > 0
+        ? line.quantity
+        : 1,
+      price: typeof line.price === "number" && Number.isFinite(line.price) && line.price >= 0
+        ? Number(line.price.toFixed(2))
+        : null,
+    }))
+    .filter((line) => looksLikeProduct(line.description))
+    .slice(0, 100);
+
+  // A one-product receipt must reconcile to its final total. This also corrects
+  // payment-terminal amounts accidentally read as the product price.
+  if (lines.length === 1 && total !== null) {
+    lines[0] = { ...lines[0], quantity: lines[0].quantity || 1, price: total };
+  }
 
   return {
     retailer: retailer || null,
     purchasedAt,
     total,
-    lines: receipt.lines
-      .map((line) => ({
-        description: line.description.replace(/\s+/g, " ").trim().slice(0, 300),
-        quantity: typeof line.quantity === "number" && Number.isFinite(line.quantity) && line.quantity > 0 ? line.quantity : null,
-        price: typeof line.price === "number" && Number.isFinite(line.price) && line.price >= 0 ? line.price : null,
-      }))
-      .filter((line) => line.description.length > 0)
-      .slice(0, 100),
+    lines,
   };
 }
 
@@ -99,7 +146,24 @@ export async function POST(request: Request) {
           content: [
             {
               type: "input_text",
-              text: "Read this Australian retail receipt. Extract the retailer, purchase date, final total, and purchased product lines. Exclude headers, addresses, ABNs, payment details, subtotal, GST, savings, discounts as standalone lines, loyalty messages, and change. Keep discounts reflected in the relevant line price where clear. Use YYYY-MM-DD for the date. For each product return its plain description, quantity when visible (otherwise 1), and the final line price in AUD when visible. Do not invent unreadable values.",
+              text: `Extract this Australian retail receipt into structured data.
+
+PRODUCT BOUNDARY RULES:
+- Purchased products normally appear beneath a heading such as DESCRIPTION, ITEM or PRODUCT.
+- Read only actual merchandise lines from that product area.
+- Stop before TOTAL, EFT, PAYMENT, CREDIT ACCOUNT, DEBIT ACCOUNT, GST INCLUDED or card-terminal details.
+- Never return bank, card or payment lines as products.
+
+ALWAYS IGNORE:
+EFT/EFTPOS, VISA, MASTERCARD, NAB, ANZ, WESTPAC, COMMBANK, CREDIT ACCOUNT, DEBIT ACCOUNT, APPROVED, AUTH, RRN, APSN, ATC, card numbers, GST, ABN, receipt/register/store details, subtotal, savings, loyalty text and promotional messages.
+
+FIELDS:
+- retailer: trading retailer name only, for example Coles, Woolworths or ALDI.
+- purchasedAt: YYYY-MM-DD.
+- total: final amount paid in AUD.
+- lines: purchased merchandise only. Preserve useful product wording, remove leading receipt markers such as * or %, use quantity 1 when no quantity is shown, and return the final line price.
+- Check that the product prices are plausible against the receipt total.
+- Do not invent unreadable values. Return an empty lines array rather than returning payment information.`,
             },
             { type: "input_image", image_url: imageUrl, detail: "high" },
           ],
@@ -163,7 +227,10 @@ export async function POST(request: Request) {
 
     const receipt = cleanReceipt(parsed);
     if (receipt.lines.length === 0) {
-      return NextResponse.json({ error: "No product lines were detected. Try a clearer or closer photo." }, { status: 422 });
+      return NextResponse.json(
+        { error: "No purchased products were detected. Retake the photo with the Description and Total sections visible." },
+        { status: 422 },
+      );
     }
 
     return NextResponse.json({ receipt });
