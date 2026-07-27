@@ -52,9 +52,28 @@ The Prices screen derives product and retailer price history from imported recei
 
 The Prices screen also supports manual Woolworths, Coles and ALDI catalogue or shelf-price capture. It can compare individual products, estimate a remaining Shopping list at each retailer, show catalogue coverage and calculate an item-by-item split-shop estimate. Automatic product matching should be checked before relying on whole-list totals.
 
-For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY_PRICE_SEARCH_LOCATION`. The environment location is the fallback for accounts without a saved home location. A user may search from their home/default area or explicitly grant browser location access for the current search. Food sends one Google Shopping query for each uncached remaining item, limits a search to 25 items and caches returned retailer prices for six hours. Exact products are preferred. When enabled, substitutes may use another brand or pack size only when the product type and stated requirements such as lactose-free, gluten-free, full-cream, light, unsweetened, fresh or frozen remain compatible. Every substitute is labelled and shows the actual selected product. SerpApi's Google Shopping results may vary by store, postcode, stock and promotion timing.
+For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY_PRICE_SEARCH_LOCATION`. Set `FOOD_DISABLE_SERPAPI_PRICES=1` to use Food’s stored observations and Open Prices without spending SerpApi quota. The environment location is the fallback for accounts without a saved home location. A user may search from their home/default area or explicitly grant browser location access for the current search.
 
-The Shopping screen stores multiple lists and their items in PostgreSQL. Items can be grouped, checked off, edited and cleared, with low-stock Pantry items available as quick-add suggestions. Shopping entry uses the same saved-product, two-stage external lookup and continuous barcode scanner as Pantry, allowing an empty package to be scanned directly onto a replacement list. Scanned products remain in the reusable catalogue after Pantry stock is consumed. No extra migration is required for this feature.
+## Australian grocery price collector
+
+Food can run the GPL-licensed [Australian Grocery Price Database](https://github.com/tjhowse/aus_grocery_price_database) as a separate optional service. It collects Coles and Woolworths observations into InfluxDB. Food imports those observations into its own `StoreProduct` and `PriceObservation` records and resolves retailer names through Product Intelligence.
+
+Start the optional collector stack:
+
+```bash
+docker compose --profile prices up -d food-price-influx food-auscost-collector
+```
+
+Add the matching `AUSCOST_INFLUX_*` values from `.env.example` to `apps/web/.env`, then import recent observations:
+
+```bash
+cd apps/web
+npm run prices:import:auscost
+```
+
+`AUSCOST_IMPORT_LOOKBACK_HOURS` controls the import window. Re-running the importer is safe because observations with the same retailer product, timestamp and `auscost` source are skipped. The upstream collector remains a separate GPL v3-or-later service and is not copied into Food’s Next.js source.
+
+The Shopping screen stores multiple lists and their items in PostgreSQL. Items can be grouped, checked off, edited and cleared, with low-stock Pantry items available as quick-add suggestions. Shopping entry uses the same saved-product, two-stage external lookup and continuous barcode scanner as Pantry, allowing an empty package to be scanned directly onto a replacement list. Scanned products remain in the reusable catalogue after Pantry stock is consumed.
 
 ## Android
 
