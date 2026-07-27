@@ -69,6 +69,7 @@ export function AppShell({
   const livePathname = usePathname();
   const { data: session, isPending } = authClient.useSession();
   const [hydrated, setHydrated] = useState(false);
+  const [embeddedAndroid, setEmbeddedAndroid] = useState(false);
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [healthPaired, setHealthPaired] = useState(initialHealthPaired);
@@ -88,6 +89,8 @@ export function AppShell({
   useEffect(() => {
     setHydrated(true);
     setPathname(livePathname);
+    const userAgent = window.navigator.userAgent;
+    setEmbeddedAndroid(/\bwv\b/i.test(userAgent) || /FoodAndroidApp/i.test(userAgent));
   }, [livePathname]);
 
   useEffect(() => {
@@ -125,6 +128,10 @@ export function AppShell({
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, [user?.email]);
+
+  if (embeddedAndroid) {
+    return <main className="content-shell android-embedded-content">{children}</main>;
+  }
 
   const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
