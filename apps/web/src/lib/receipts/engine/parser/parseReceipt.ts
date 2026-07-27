@@ -46,6 +46,13 @@ const ignoredMarkers = [
 
 const totalSummaryMarker = /^\s*(?:grand\s+total|amount\s+due|total\s+for\s+\d+\s+items?|total)\b/i;
 const taxOrSavingsMarker = /\b(?:gst|tax|saving|savings|discount|change)\b/i;
+const promotionMarker = /\b(?:for\s*\$?\d+|special|promo|promotion|multibuy|multi-buy|save)\b/i;
+const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
+
+type ParsedAdjustment = {
+  amount: number;
+  sourceText: string;
+};
 
 function normaliseLines(text: string) {
   return text
@@ -77,12 +84,16 @@ function detectDate(text: string) {
   return Number.isNaN(parsed.getTime()) ? null : candidate;
 }
 
+function parseMoney(value: string) {
+  const normalised = value.replace(/\s/g, "").replace("$", "").replace(",", ".");
+  const amount = Number(normalised);
+  return Number.isFinite(amount) ? amount : null;
+}
+
 function extractLastMoney(line: string) {
-  const matches = [...line.matchAll(/\$?\s*(\d+[.,]\d{2})\b/g)];
+  const matches = [...line.matchAll(moneyPattern)];
   const match = matches.at(-1);
-  if (!match) return null;
-  const value = Number(match[1].replace(",", "."));
-  return Number.isFinite(value) ? value : null;
+  return match ? parseMoney(match[0]) : null;
 }
 
 function detectTotal(lines: string[]) {
@@ -97,11 +108,17 @@ function detectTotal(lines: string[]) {
     for (const line of lines) {
       if (!marker.test(line) || taxOrSavingsMarker.test(line)) continue;
       const value = extractLastMoney(line);
-      if (value !== null) return { total: value, totalLine: line };
+      if (value !== null && value >= 0) return { total: value, totalLine: line };
     }
   }
 
   return { total: null, totalLine: null };
+}
+
+function detectExpectedItemCount(lines: string[]) {
+  const summary = lines.find((line) => /^\s*total\s+for\s+\d+\s+items?\b/i.test(line));
+  const match = summary?.match(/^\s*total\s+for\s+(\d+)\s+items?\b/i);
+  return match ? Number(match[1]) : null;
 }
 
 function containsHardStop(line: string) {
@@ -122,28 +139,54 @@ function cleanDescription(value: string) {
     .trim();
 }
 
-function productCandidateFromLine(line: string): ParsedReceiptItem | null {
-  if (containsHardStop(line) || shouldIgnore(line) || totalSummaryMarker.test(line)) return null;
+function productCandidateFromSegment(descriptionText: string, amountText: string, sourceText: string): ParsedReceiptItem | null {
+  const amount = parseMoney(amountText);
+  if (amount === null || amount < 0) return null;
 
-  const match = line.match(/^(.*?)(?:\s+|\s*\$)(\d+[.,]\d{2})\s*$/);
-  if (!match) return null;
-
-  const quantityMatch = match[1].match(/^(\d+(?:\.\d+)?)\s*[xX]\s*/);
-  const description = cleanDescription(match[1]);
+  const quantityMatch = descriptionText.match(/^(\d+(?:\.\d+)?)\s*[xX]\s*/);
+  const description = cleanDescription(descriptionText);
 
   if (description.length < 2 || !/[a-z]/i.test(description)) return null;
-  if (containsHardStop(description) || shouldIgnore(description)) return null;
-
-  const price = Number(match[2].replace(",", "."));
-  if (!Number.isFinite(price) || price < 0) return null;
+  if (containsHardStop(description) || shouldIgnore(description) || totalSummaryMarker.test(description)) return null;
+  if (promotionMarker.test(description)) return null;
 
   return {
     description,
     quantity: quantityMatch ? Number(quantityMatch[1]) : 1,
-    price,
-    sourceText: line,
+    price: amount,
+    sourceText,
     confidence: 92,
   };
+}
+
+function splitPricedSegments(line: string) {
+  const matches = [...line.matchAll(moneyPattern)];
+  if (matches.length === 0) return { items: [] as ParsedReceiptItem[], adjustments: [] as ParsedAdjustment[] };
+
+  const items: ParsedReceiptItem[] = [];
+  const adjustments: ParsedAdjustment[] = [];
+  let cursor = 0;
+
+  for (const match of matches) {
+    const index = match.index ?? 0;
+    const descriptionText = line.slice(cursor, index).trim();
+    const amountText = match[0];
+    const amount = parseMoney(amountText);
+    cursor = index + amountText.length;
+
+    if (amount === null) continue;
+
+    const isAdjustment = amount < 0 || promotionMarker.test(descriptionText);
+    if (isAdjustment) {
+      if (amount !== 0) adjustments.push({ amount, sourceText: `${descriptionText} ${amountText}`.trim() });
+      continue;
+    }
+
+    const item = productCandidateFromSegment(descriptionText, amountText, line);
+    if (item) items.push(item);
+  }
+
+  return { items, adjustments };
 }
 
 function locateItemSection(lines: string[]) {
@@ -177,6 +220,7 @@ function locateItemSection(lines: string[]) {
 function extractItems(lines: string[], total: number | null) {
   const section = locateItemSection(lines);
   const items: ParsedReceiptItem[] = [];
+  const adjustments: ParsedAdjustment[] = [];
   let buffer = "";
 
   for (const line of section.itemSectionLines) {
@@ -185,19 +229,21 @@ function extractItems(lines: string[], total: number | null) {
       continue;
     }
 
-    const direct = productCandidateFromLine(line);
-    if (direct) {
-      items.push(direct);
+    const direct = splitPricedSegments(line);
+    if (direct.items.length > 0 || direct.adjustments.length > 0) {
+      items.push(...direct.items);
+      adjustments.push(...direct.adjustments);
       buffer = "";
       continue;
     }
 
     buffer = `${buffer} ${line}`.trim();
-    const reconstructed = productCandidateFromLine(buffer);
-    if (reconstructed) {
-      items.push({ ...reconstructed, confidence: 86 });
+    const reconstructed = splitPricedSegments(buffer);
+    if (reconstructed.items.length > 0 || reconstructed.adjustments.length > 0) {
+      items.push(...reconstructed.items.map((item) => ({ ...item, confidence: 86 })));
+      adjustments.push(...reconstructed.adjustments);
       buffer = "";
-    } else if (buffer.length > 140) {
+    } else if (buffer.length > 180) {
       buffer = line;
     }
   }
@@ -207,7 +253,7 @@ function extractItems(lines: string[], total: number | null) {
     if (summaryLine) {
       const possibleDescription = section.itemSectionLines
         .filter((line) => !shouldIgnore(line) && !containsHardStop(line))
-        .map((line) => line.replace(/\$?\s*\d+[.,]\d{2}\s*$/, "").trim())
+        .map((line) => line.replace(moneyPattern, "").trim())
         .map(cleanDescription)
         .filter((line) => line.length >= 3 && /[a-z]/i.test(line))
         .sort((a, b) => b.length - a.length)[0];
@@ -224,17 +270,42 @@ function extractItems(lines: string[], total: number | null) {
     }
   }
 
-  return { items: items.slice(0, 100), section };
+  return { items: items.slice(0, 100), adjustments, section };
 }
 
-function validateTotal(items: ParsedReceiptItem[], total: number | null) {
+function calculateAdjustedTotal(items: ParsedReceiptItem[], adjustments: ParsedAdjustment[]) {
+  const itemsTotal = items.reduce((sum, item) => sum + (item.price ?? 0), 0);
+  const adjustmentTotal = adjustments.reduce((sum, adjustment) => sum + adjustment.amount, 0);
+  return Math.round((itemsTotal + adjustmentTotal) * 100) / 100;
+}
+
+function resolveTotal(
+  detectedTotal: number | null,
+  items: ParsedReceiptItem[],
+  adjustments: ParsedAdjustment[],
+  expectedItemCount: number | null,
+) {
+  const calculatedTotal = calculateAdjustedTotal(items, adjustments);
+  const hasCompleteItemCount = expectedItemCount !== null && items.length === expectedItemCount;
+  const hasPromotion = adjustments.some((adjustment) => adjustment.amount < 0);
+
+  if (hasCompleteItemCount && hasPromotion && calculatedTotal >= 0) {
+    if (detectedTotal === null || Math.abs(detectedTotal - calculatedTotal) > 0.05) {
+      return { total: calculatedTotal, corrected: true };
+    }
+  }
+
+  return { total: detectedTotal, corrected: false };
+}
+
+function validateTotal(items: ParsedReceiptItem[], adjustments: ParsedAdjustment[], total: number | null) {
   if (total === null || items.length === 0) return [];
 
-  const itemTotal = items.reduce((sum, item) => sum + (item.price ?? 0), 0);
-  const difference = Math.abs(itemTotal - total);
+  const calculatedTotal = calculateAdjustedTotal(items, adjustments);
+  const difference = Math.abs(calculatedTotal - total);
 
   return difference > 0.05
-    ? [`Detected line prices total $${itemTotal.toFixed(2)}, which differs from the receipt total of $${total.toFixed(2)}.`]
+    ? [`Detected purchases and promotions total $${calculatedTotal.toFixed(2)}, which differs from the receipt total of $${total.toFixed(2)}.`]
     : [];
 }
 
@@ -242,16 +313,26 @@ export function parseReceipt(text: string): ParsedReceipt {
   const lines = normaliseLines(text);
   const { retailer, retailerKey } = detectRetailer(text);
   const purchasedAt = detectDate(text);
-  const { total, totalLine } = detectTotal(lines);
-  const { items, section } = extractItems(lines, total);
-  const warnings = validateTotal(items, total);
+  const { total: detectedTotal, totalLine } = detectTotal(lines);
+  const expectedItemCount = detectExpectedItemCount(lines);
+  const { items, adjustments, section } = extractItems(lines, detectedTotal);
+  const resolved = resolveTotal(detectedTotal, items, adjustments, expectedItemCount);
+  const warnings = validateTotal(items, adjustments, resolved.total);
+
+  if (resolved.corrected && detectedTotal !== null) {
+    warnings.unshift(`Receipt total was reconciled from $${detectedTotal.toFixed(2)} to $${resolved.total?.toFixed(2)} using ${items.length} items and promotion adjustments.`);
+  }
+
+  if (expectedItemCount !== null && items.length !== expectedItemCount) {
+    warnings.unshift(`Receipt says ${expectedItemCount} items, but ${items.length} purchase lines were detected.`);
+  }
 
   const confidenceParts = [
     retailer ? 1 : 0,
     purchasedAt ? 1 : 0,
-    total !== null ? 1 : 0,
+    resolved.total !== null ? 1 : 0,
     items.length > 0 ? 1 : 0,
-    warnings.length === 0 ? 1 : 0,
+    expectedItemCount === null || items.length === expectedItemCount ? 1 : 0,
   ];
 
   const diagnostics: ReceiptParserDiagnostics = {
@@ -265,7 +346,7 @@ export function parseReceipt(text: string): ParsedReceipt {
     retailer,
     retailerKey,
     purchasedAt,
-    total,
+    total: resolved.total,
     items,
     warnings,
     diagnostics,
