@@ -21,7 +21,7 @@ export default async function ReceiptsPage() {
       <header className="pantry-page-heading">
         <div>
           <h1 className="page-title">Receipts</h1>
-          <p className="subtle">Review purchases before adding food to your Pantry.</p>
+          <p className="subtle">Photograph a receipt, correct the extracted lines, then import confirmed purchases into Food.</p>
         </div>
         <Link className="secondary-button" href="/prices">View price history</Link>
       </header>
