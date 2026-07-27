@@ -1,0 +1,80 @@
+import type {
+  GroceryProvider,
+  GroceryProviderResult,
+  GroceryProviderSearchOptions,
+} from "./types";
+
+type BridgeResponse = {
+  status: "success" | "error";
+  results?: Array<{
+    retailer?: unknown;
+    name?: unknown;
+    price?: unknown;
+    unit?: unknown;
+    store?: unknown;
+    barcode?: unknown;
+    imageUrl?: unknown;
+    productId?: unknown;
+  }>;
+  errors?: unknown;
+  error?: unknown;
+};
+
+function text(value: unknown) {
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function money(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export class McpGroceryProvider implements GroceryProvider {
+  readonly id = "coles-woolworths-mcp";
+
+  enabled() {
+    return Boolean(process.env.GROCERY_MCP_BRIDGE_URL?.trim());
+  }
+
+  async search(query: string, options: GroceryProviderSearchOptions = {}): Promise<GroceryProviderResult[]> {
+    const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
+    if (!baseUrl) return [];
+
+    const url = new URL("/search", baseUrl);
+    url.searchParams.set("q", query);
+    url.searchParams.set("limit", String(Math.max(1, Math.min(25, options.limit ?? 10))));
+    if (options.storeId) url.searchParams.set("storeId", options.storeId);
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12_000);
+    try {
+      const response = await fetch(url, {
+        cache: "no-store",
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      const payload = await response.json().catch(() => ({})) as BridgeResponse;
+      if (!response.ok || payload.status !== "success") {
+        throw new Error(text(payload.error) ?? `Grocery MCP bridge returned HTTP ${response.status}.`);
+      }
+
+      return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
+        const retailer = text(item.retailer);
+        const name = text(item.name);
+        if ((retailer !== "Coles" && retailer !== "Woolworths") || !name) return [];
+        return [{
+          retailer,
+          name,
+          price: money(item.price),
+          unit: text(item.unit),
+          store: text(item.store),
+          barcode: text(item.barcode),
+          imageUrl: text(item.imageUrl),
+          productId: text(item.productId),
+          source: this.id,
+        }];
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+}
