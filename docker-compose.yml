@@ -41,9 +41,10 @@ services:
 
   food-auscost-collector:
     build:
-      context: https://github.com/tjhowse/aus_grocery_price_database.git#main
+      context: .
+      dockerfile: services/auscost-collector/Dockerfile
       args:
-        GO_VERSION: "1.23"
+        AUSCOST_REF: main
     container_name: food-auscost-collector
     profiles: ["prices"]
     restart: unless-stopped
