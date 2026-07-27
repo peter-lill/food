@@ -85,8 +85,6 @@ function makeItem(name = "", quantity = "1", price = ""): DraftItem {
 }
 
 async function loadImage(file: File): Promise<HTMLImageElement> {
-  // HTMLImageElement consistently applies phone-camera EXIF orientation before
-  // drawing to canvas. createImageBitmap is inconsistent across mobile browsers.
   const source = URL.createObjectURL(file);
   try {
     const image = new Image();
@@ -103,27 +101,19 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   const image = await loadImage(file);
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
-  const rotateToPortrait = sourceWidth > sourceHeight * 1.2;
-  const orientedWidth = rotateToPortrait ? sourceHeight : sourceWidth;
-  const orientedHeight = rotateToPortrait ? sourceWidth : sourceHeight;
-  const longestSide = Math.max(orientedWidth, orientedHeight);
+  const longestSide = Math.max(sourceWidth, sourceHeight);
   const scale = Math.min(3, Math.max(1, 2800 / longestSide));
-  const width = Math.max(1, Math.round(orientedWidth * scale));
-  const height = Math.max(1, Math.round(orientedHeight * scale));
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("Your browser could not prepare the receipt image.");
 
-  if (rotateToPortrait) {
-    context.translate(width, 0);
-    context.rotate(Math.PI / 2);
-    context.drawImage(image, 0, 0, height, width);
-    context.setTransform(1, 0, 0, 1, 0, 0);
-  } else {
-    context.drawImage(image, 0, 0, width, height);
-  }
+  // The browser has already applied the phone photo's EXIF orientation while
+  // decoding the HTMLImageElement. Preserve that decoded orientation exactly.
+  context.drawImage(image, 0, 0, width, height);
 
   const pixels = context.getImageData(0, 0, width, height);
   const data = pixels.data;
