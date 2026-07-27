@@ -1,2 +1,2 @@
 export * from "./types";
-export * from "./parseReceipt";
+export { parseReceipt } from "./parseReceiptEnhanced";
