@@ -21,24 +21,30 @@ function revalidateProduct(productId: string, destination: string) {
   revalidatePath(`/api/products/${encodeURIComponent(productId)}/image`);
 }
 
+async function clearRejectedImage(productId: string) {
+  await rejectCurrentProductImage(productId);
+  await prisma.$transaction([
+    prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
+    }),
+    prisma.storeProduct.updateMany({
+      where: { productId },
+      data: { imageUrl: null },
+    }),
+  ]);
+}
+
 export async function removeProductImage(productId: string) {
   const destination = await productDestination(productId);
-  await rejectCurrentProductImage(productId);
-  await prisma.product.update({
-    where: { id: productId },
-    data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
-  });
+  await clearRejectedImage(productId);
   revalidateProduct(productId, destination);
   redirect(destination);
 }
 
 export async function refreshProductImage(productId: string) {
   const destination = await productDestination(productId);
-  await rejectCurrentProductImage(productId);
-  await prisma.product.update({
-    where: { id: productId },
-    data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
-  });
+  await clearRejectedImage(productId);
   await findBestProductImage(productId);
   revalidateProduct(productId, destination);
   redirect(destination);
