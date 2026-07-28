@@ -72,19 +72,18 @@ function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName"
 }
 
 function needsDetails(product: CompletionProduct) {
-  if (isGenericFood(product)) return !product.imageUrl;
-  return !product.imageUrl || !product.category || (!product.barcode && !product.brand);
+  if (product.barcode) return false;
+  if (isGenericFood(product)) return !product.imageUrl || !product.category;
+  return !product.imageUrl || !product.category || !product.brand;
 }
 
 function completionScore(product: CompletionProduct) {
-  if (isGenericFood(product)) return product.imageUrl ? 100 : 67;
-  const checks = [
-    Boolean(product.imageUrl),
-    Boolean(product.category),
-    Boolean(product.brand),
-    Boolean(product.barcode),
-    product.latestPrice !== null,
-  ];
+  if (product.barcode) return 100;
+  if (isGenericFood(product)) {
+    const checks = [Boolean(product.name), Boolean(product.category), Boolean(product.imageUrl)];
+    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
+  }
+  const checks = [Boolean(product.name), Boolean(product.category), Boolean(product.brand), Boolean(product.imageUrl)];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
@@ -192,12 +191,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const completeness = completionScore(product);
             const observed = observedLabel(product.latestObservedAt);
             const generic = isGenericFood(product);
-            const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand and barcode not added";
+            const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand not added";
 
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.thumb}>
-                  {product.imageUrl ? <img alt={title} loading="lazy" src={`/api/products/${encodeURIComponent(product.id)}/image`} /> : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image needed</small></div>}
+                  {product.imageUrl ? <img alt={title} loading="lazy" src={`/api/products/${encodeURIComponent(product.id)}/image`} /> : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image pending</small></div>}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
                     {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
@@ -217,7 +216,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
                     {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
                     {product.aliasCount > 0 ? <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span> : null}
-                    {!product.imageUrl ? <span>Image missing</span> : null}
+                    {!product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
+                    {!product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
                   </div>
                   <span className={styles.openLabel}>View product <span aria-hidden="true">→</span></span>
                 </div>
