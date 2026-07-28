@@ -33,6 +33,9 @@ const spellingCorrections: Array<[RegExp, string]> = [
   [/\btamato(?:es|s)?\b/gi, "tomato"],
   [/\blentles\b/gi, "lentils"],
   [/\bcapsicumms?\b/gi, "capsicum"],
+  [/\bslcd\b/gi, "sliced"],
+  [/\b200gram\b/gi, "200 g"],
+  [/\b1kg\b/gi, "1 kg"],
 ];
 
 const synonymGroups: Array<{ canonical: string; aliases: string[] }> = [
@@ -45,7 +48,21 @@ const synonymGroups: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "beef stock", aliases: ["beef broth"] },
   { canonical: "chicken stock", aliases: ["chicken broth"] },
   { canonical: "vegetable stock", aliases: ["vegetable broth", "veggie stock"] },
+  {
+    canonical: "button mushroom",
+    aliases: [
+      "button mushrooms",
+      "sliced mushroom",
+      "sliced mushrooms",
+      "coles sliced mushroom",
+      "coles sliced mushrooms",
+      "coles slcd mushroom",
+      "coles slcd mushrooms",
+    ],
+  },
 ];
+
+const retailerWords = new Set(["coles", "woolworths", "aldi", "costco"]);
 
 const variantGroups: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "no added salt", aliases: ["no salt added"] },
@@ -216,6 +233,7 @@ function canonicalCore(value: string, variants: string[], attributes: ProductAtt
   tokens = tokens
     .filter((token) => !removableWords.has(token))
     .filter((token) => !containerWords.has(token))
+    .filter((token) => !retailerWords.has(token))
     .filter((token) => !variantTokens.has(token))
     .filter((token) => !/^\d+(?:\.\d+)?$/.test(token))
     .filter((token) => !["kg", "g", "mg", "ml", "l", "cup", "cups", "tbsp", "tsp", "x"].includes(token));
@@ -263,7 +281,7 @@ export function parseProductName(rawValue: string): ParsedProductName {
     packUnit: quantities.packUnit,
     form,
     variants,
-    aliases: [...aliases].map(cleanWhitespace).filter(Boolean),
+    aliases: [...aliases].filter(Boolean),
     attributes,
   };
 }
