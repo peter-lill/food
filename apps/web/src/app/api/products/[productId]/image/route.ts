@@ -43,6 +43,13 @@ type OpenFoodFactsResponse = {
   };
 };
 
+type WikipediaSummaryResponse = {
+  type?: string;
+  title?: string;
+  thumbnail?: { source?: string };
+  originalimage?: { source?: string };
+};
+
 type ProductIdentity = {
   name: string;
   canonicalName: string | null;
@@ -90,6 +97,8 @@ function trustedExistingImage(value: unknown) {
     "coles.com.au",
     "aldi.com.au",
     "costco.com.au",
+    "wikimedia.org",
+    "wikipedia.org",
   ].some((domain) => host === domain || host.endsWith(`.${domain}`))
     ? imageUrl
     : null;
@@ -152,6 +161,31 @@ async function imageFromOpenFoodFacts(barcode: string) {
     return safeImageUrl(payload.product?.image_front_url)
       ?? safeImageUrl(payload.product?.image_front_small_url)
       ?? safeImageUrl(payload.product?.image_url);
+  });
+}
+
+async function imageFromWikipedia(name: string) {
+  const query = name.trim();
+  if (!query) return null;
+
+  return withTimeout(async (signal) => {
+    const response = await fetch(
+      `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query.replace(/\s+/g, "_"))}`,
+      {
+        cache: "force-cache",
+        next: { revalidate: 2_592_000 },
+        headers: {
+          Accept: "application/json",
+          "Api-User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
+        },
+        signal,
+      },
+    );
+    if (!response.ok) return null;
+    const payload = await response.json() as WikipediaSummaryResponse;
+    if (payload.type === "disambiguation") return null;
+    return safeImageUrl(payload.originalimage?.source)
+      ?? safeImageUrl(payload.thumbnail?.source);
   });
 }
 
@@ -224,6 +258,10 @@ export async function GET(request: Request, context: RouteContext) {
         .filter((candidate): candidate is { imageUrl: string; score: number } => candidate !== null)
         .sort((left, right) => right.score - left.score);
       imageUrl = storeCandidates[0]?.imageUrl ?? null;
+    }
+
+    if (!imageUrl && !product.brand && !product.barcode) {
+      imageUrl = await imageFromWikipedia(product.canonicalName ?? product.name);
     }
   } catch (error) {
     console.warn("Product image enrichment failed", {
