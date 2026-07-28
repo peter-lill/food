@@ -180,8 +180,6 @@ export async function GET(request: Request, context: RouteContext) {
   });
 
   if (!product) return noImageResponse();
-  const existing = safeImageUrl(product.imageUrl);
-  if (existing) return redirectToImage(existing);
 
   const identity: ProductIdentity = {
     name: product.name,
@@ -189,6 +187,12 @@ export async function GET(request: Request, context: RouteContext) {
     brand: product.brand,
     barcode: product.barcode,
   };
+
+  const genericImage = genericImageForProduct(request, identity);
+  if (genericImage) return redirectToImage(genericImage);
+
+  const existing = safeImageUrl(product.imageUrl);
+  if (existing) return redirectToImage(existing);
 
   let imageUrl: string | null = null;
   try {
@@ -226,10 +230,7 @@ export async function GET(request: Request, context: RouteContext) {
     });
   }
 
-  if (!imageUrl) {
-    const genericImage = genericImageForProduct(request, identity);
-    return genericImage ? redirectToImage(genericImage) : noImageResponse();
-  }
+  if (!imageUrl) return noImageResponse();
 
   await prisma.product.update({
     where: { id: product.id },
