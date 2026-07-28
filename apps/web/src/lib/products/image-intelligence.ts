@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
 
-type ImageCandidate = {
+ type ImageCandidate = {
   url: string;
   source: string;
   sourceLabel: string;
@@ -16,28 +16,57 @@ type StoredCandidate = {
 };
 
 const gtinPattern = /^\d{7,14}$/;
-const produceQueries: Array<{ pattern: RegExp; query: string }> = [
-  { pattern: /\bsweet potatoes?\b|\bkumara\b/i, query: "Sweet potato" },
-  { pattern: /\bbroccoli\b/i, query: "Broccoli" },
-  { pattern: /\bbutton mushrooms?\b|\bmushrooms?\b/i, query: "Agaricus bisporus" },
-  { pattern: /\bgarlic\b/i, query: "Garlic" },
-  { pattern: /\bginger\b/i, query: "Ginger" },
-  { pattern: /\bcarrots?\b/i, query: "Carrot" },
-  { pattern: /\bcauliflowers?\b/i, query: "Cauliflower" },
-  { pattern: /\bpotatoes?\b/i, query: "Potato" },
-  { pattern: /\btomatoes?\b/i, query: "Tomato" },
-  { pattern: /\bonions?\b/i, query: "Onion" },
-  { pattern: /\bcapsicums?\b|\bbell peppers?\b/i, query: "Bell pepper" },
-  { pattern: /\bcucumbers?\b/i, query: "Cucumber" },
-  { pattern: /\bzucchinis?\b|\bcourgettes?\b/i, query: "Zucchini" },
-  { pattern: /\bspinach\b/i, query: "Spinach" },
-  { pattern: /\blettuces?\b/i, query: "Lettuce" },
-  { pattern: /\blemons?\b/i, query: "Lemon" },
-  { pattern: /\blimes?\b/i, query: "Lime (fruit)" },
-  { pattern: /\bapples?\b/i, query: "Apple" },
-  { pattern: /\bbananas?\b/i, query: "Banana" },
-  { pattern: /\bavocados?\b/i, query: "Avocado" },
-];
+const ignoredProduceWords = new Set([
+  "a", "an", "and", "approx", "approximately", "bag", "bunch", "coles", "each", "fresh",
+  "gold", "kg", "loose", "pack", "packet", "per", "piece", "pieces", "product", "the",
+  "woolworths", "g", "gram", "grams", "kilogram", "kilograms",
+]);
+
+const produceAliases: Record<string, string[]> = {
+  "sweet potato": ["sweet potato", "sweet potatoes", "sweet potato gold", "gold sweet potato", "kumara"],
+  broccoli: ["broccoli"],
+  mushroom: ["mushroom", "mushrooms", "button mushroom", "button mushrooms"],
+  garlic: ["garlic"],
+  ginger: ["ginger"],
+  carrot: ["carrot", "carrots"],
+  cauliflower: ["cauliflower", "cauliflowers"],
+  potato: ["potato", "potatoes"],
+  tomato: ["tomato", "tomatoes"],
+  onion: ["onion", "onions"],
+  capsicum: ["capsicum", "capsicums", "bell pepper", "bell peppers"],
+  cucumber: ["cucumber", "cucumbers"],
+  zucchini: ["zucchini", "zucchinis", "courgette", "courgettes"],
+  spinach: ["spinach"],
+  lettuce: ["lettuce", "lettuces"],
+  lemon: ["lemon", "lemons"],
+  lime: ["lime", "limes"],
+  apple: ["apple", "apples"],
+  banana: ["banana", "bananas"],
+  avocado: ["avocado", "avocados"],
+};
+
+const wikipediaQueries: Record<string, string> = {
+  "sweet potato": "Sweet potato",
+  broccoli: "Broccoli",
+  mushroom: "Agaricus bisporus",
+  garlic: "Garlic",
+  ginger: "Ginger",
+  carrot: "Carrot",
+  cauliflower: "Cauliflower",
+  potato: "Potato",
+  tomato: "Tomato",
+  onion: "Onion",
+  capsicum: "Bell pepper",
+  cucumber: "Cucumber",
+  zucchini: "Zucchini",
+  spinach: "Spinach",
+  lettuce: "Lettuce",
+  lemon: "Lemon",
+  lime: "Lime (fruit)",
+  apple: "Apple",
+  banana: "Banana",
+  avocado: "Avocado",
+};
 
 function safeImageUrl(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -47,6 +76,51 @@ function safeImageUrl(value: unknown) {
   } catch {
     return null;
   }
+}
+
+function normaliseWords(value: string) {
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|grams?|kilograms?|each|pack|pk)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((word) => word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word)
+    .filter((word) => !ignoredProduceWords.has(word));
+}
+
+function canonicalProduceIdentity(values: string[]) {
+  const combined = values.join(" ").toLocaleLowerCase("en-AU");
+  return Object.entries(produceAliases).find(([, aliases]) => (
+    aliases.some((alias) => combined.includes(alias))
+  ))?.[0] ?? null;
+}
+
+function unique(values: string[]) {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function produceSearchQueries(name: string, canonicalName: string | null, aliases: string[]) {
+  const identity = canonicalProduceIdentity([canonicalName ?? "", name, ...aliases]);
+  const knownAliases = identity ? produceAliases[identity] ?? [] : [];
+  return {
+    identity,
+    queries: unique([canonicalName ?? "", name, ...aliases, ...knownAliases]).slice(0, 8),
+  };
+}
+
+function produceMatchScore(productTerms: string[], candidateName: string, source: string) {
+  const candidateTerms = new Set(normaliseWords(candidateName));
+  if (!productTerms.length || !candidateTerms.size) return 0;
+
+  const matched = productTerms.filter((term) => candidateTerms.has(term)).length;
+  const coverage = matched / productTerms.length;
+  const precision = matched / candidateTerms.size;
+  if (coverage < 0.75) return 0;
+
+  const sourceBonus = source === "woolworths" || source === "coles" ? 12 : 5;
+  return Math.round(60 * coverage + 25 * precision + sourceBonus);
 }
 
 async function openFoodFactsCandidate(barcode: string): Promise<ImageCandidate | null> {
@@ -72,7 +146,7 @@ async function openFoodFactsCandidate(barcode: string): Promise<ImageCandidate |
   };
 }
 
-async function retailerCandidates(barcode: string): Promise<ImageCandidate[]> {
+async function barcodeRetailerCandidates(barcode: string): Promise<ImageCandidate[]> {
   const results = await searchColesAndWoolworths(barcode).catch(() => []);
   return results.flatMap((candidate) => {
     const candidateBarcode = candidate.barcode?.replace(/\D/g, "") ?? "";
@@ -87,9 +161,29 @@ async function retailerCandidates(barcode: string): Promise<ImageCandidate[]> {
   });
 }
 
-function produceQuery(name: string, canonicalName: string | null) {
-  const identity = [canonicalName, name].filter(Boolean).join(" ");
-  return produceQueries.find((entry) => entry.pattern.test(identity))?.query ?? null;
+async function produceRetailerCandidates(queries: string[], identity: string | null): Promise<ImageCandidate[]> {
+  const productTerms = normaliseWords(identity ?? queries[0] ?? "");
+  const resultGroups = await Promise.all(queries.map((query) => searchColesAndWoolworths(query).catch(() => [])));
+  const candidates = resultGroups.flat().flatMap((candidate) => {
+    const url = safeImageUrl(candidate.imageUrl);
+    if (!url) return [];
+    const source = candidate.retailer.toLocaleLowerCase("en-AU");
+    const score = produceMatchScore(productTerms, candidate.productName, source);
+    if (score < 65) return [];
+    return [{
+      url,
+      source,
+      sourceLabel: `${candidate.retailer} · ${candidate.productName}`,
+      score,
+    }];
+  });
+
+  const byUrl = new Map<string, ImageCandidate>();
+  for (const candidate of candidates) {
+    const existing = byUrl.get(candidate.url);
+    if (!existing || candidate.score > existing.score) byUrl.set(candidate.url, candidate);
+  }
+  return [...byUrl.values()];
 }
 
 async function wikipediaProduceCandidate(query: string): Promise<ImageCandidate | null> {
@@ -114,7 +208,7 @@ async function wikipediaProduceCandidate(query: string): Promise<ImageCandidate 
     url,
     source: "wikipedia",
     sourceLabel: payload.title ?? query,
-    score: 88,
+    score: 72,
   };
 }
 
@@ -160,7 +254,15 @@ export async function rejectCurrentProductImage(productId: string) {
 export async function findBestProductImage(productId: string) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, name: true, canonicalName: true, productType: true, barcode: true, imageUrl: true },
+    select: {
+      id: true,
+      name: true,
+      canonicalName: true,
+      productType: true,
+      barcode: true,
+      imageUrl: true,
+      aliases: { select: { alias: true } },
+    },
   });
   if (!product) throw new Error("Product not found.");
 
@@ -170,14 +272,18 @@ export async function findBestProductImage(productId: string) {
   if (gtinPattern.test(barcode)) {
     discovered = [
       await openFoodFactsCandidate(barcode),
-      ...(await retailerCandidates(barcode)),
+      ...(await barcodeRetailerCandidates(barcode)),
     ].filter((candidate): candidate is ImageCandidate => candidate !== null);
   } else if (product.productType === "GENERIC_PRODUCE") {
-    const query = produceQuery(product.name, product.canonicalName);
-    if (query) {
-      const candidate = await wikipediaProduceCandidate(query);
-      if (candidate) discovered = [candidate];
-    }
+    const search = produceSearchQueries(
+      product.name,
+      product.canonicalName,
+      product.aliases.map((alias) => alias.alias),
+    );
+    const retailerMatches = await produceRetailerCandidates(search.queries, search.identity);
+    const wikipediaQuery = search.identity ? wikipediaQueries[search.identity] : null;
+    const fallback = wikipediaQuery ? await wikipediaProduceCandidate(wikipediaQuery) : null;
+    discovered = [...retailerMatches, ...(fallback ? [fallback] : [])];
   } else {
     return { imageUrl: product.imageUrl, status: "barcode-required" as const };
   }
