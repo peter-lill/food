@@ -6,6 +6,23 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 
+const departments = [
+  "Fruit & vegetables",
+  "Bakery",
+  "Meat & seafood",
+  "Dairy & eggs",
+  "Frozen",
+  "Pantry",
+  "International",
+  "Confectionery",
+  "Drinks",
+  "Health & personal care",
+  "Household",
+  "Baby",
+  "Pet",
+  "Other",
+] as const;
+
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").replace(/\s+/g, " ").trim();
 }
@@ -18,19 +35,33 @@ function normaliseBarcode(value: string) {
   return value.replace(/\D/g, "");
 }
 
+function normaliseDepartment(value: string, productType: ProductType) {
+  const normalised = value.toLocaleLowerCase("en-AU").trim();
+  if (productType === ProductType.GENERIC_PRODUCE && ["fresh produce", "produce", "fruit and vegetables", "fruit & vegetables"].includes(normalised)) {
+    return "Fruit & vegetables";
+  }
+  return value;
+}
+
 export async function updateProductDetails(productId: string, formData: FormData) {
   const name = text(formData, "name");
   const brand = text(formData, "brand");
   const packSize = text(formData, "packSize");
-  const category = text(formData, "category");
   const barcodeInput = text(formData, "barcode");
   const barcode = barcodeInput ? normaliseBarcode(barcodeInput) : "";
   const productTypeInput = text(formData, "productType");
 
   if (name.length < 2 || name.length > 140) throw new Error("Enter a product name between 2 and 140 characters.");
-  if (brand.length > 100 || packSize.length > 60 || category.length > 100) throw new Error("One or more product fields are too long.");
+  if (brand.length > 100 || packSize.length > 60) throw new Error("One or more product fields are too long.");
   if (barcode && !/^\d{8,14}$/.test(barcode)) throw new Error("Enter an 8 to 14 digit GTIN/EAN barcode, or leave it blank.");
   if (!Object.values(ProductType).includes(productTypeInput as ProductType)) throw new Error("Choose a valid product type.");
+
+  const productType = productTypeInput as ProductType;
+  const departmentInput = text(formData, "department") || text(formData, "category");
+  const department = normaliseDepartment(departmentInput, productType);
+  if (department && !departments.includes(department as (typeof departments)[number])) {
+    throw new Error("Choose a valid supermarket department.");
+  }
 
   if (barcode) {
     const conflict = await prisma.product.findFirst({
@@ -46,15 +77,14 @@ export async function updateProductDetails(productId: string, formData: FormData
   });
   if (!existing) throw new Error("Product not found.");
 
-  const productType = productTypeInput as ProductType;
   const product = await prisma.product.update({
     where: { id: productId },
     data: {
       name,
       brand: nullable(brand),
       packSize: nullable(packSize),
-      category: nullable(category),
-      barcode: nullable(barcode),
+      category: nullable(department),
+      barcode: productType === ProductType.GENERIC_PRODUCE ? null : nullable(barcode),
       productType,
       lifecycle: "REVIEW_REQUIRED",
     },
@@ -62,7 +92,7 @@ export async function updateProductDetails(productId: string, formData: FormData
   });
 
   const knowledgeChanged =
-    existing.barcode !== nullable(barcode)
+    existing.barcode !== (productType === ProductType.GENERIC_PRODUCE ? null : nullable(barcode))
     || existing.name !== name
     || existing.brand !== nullable(brand)
     || existing.packSize !== nullable(packSize)
@@ -76,6 +106,7 @@ export async function updateProductDetails(productId: string, formData: FormData
   }
 
   revalidatePath("/products");
+  revalidatePath("/shopping");
   revalidatePath(`/products/${product.slug ?? product.id}`);
   redirect(`/products/${product.slug ?? product.id}`);
 }
