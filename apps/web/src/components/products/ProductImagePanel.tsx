@@ -19,16 +19,16 @@ export function ProductImagePanel({ productId, productName, hasImage }: ProductI
         </span>
       </div>
       <p className="subtle">
-        Remove an incorrect image or search trusted barcode and retailer sources again for {productName}.
+        Reject an incorrect image and immediately search trusted barcode, retailer and produce sources for a replacement for {productName}.
       </p>
       <div className="form-actions">
         {hasImage ? (
           <form action={removeProductImage.bind(null, productId)}>
-            <button className="danger-button" type="submit">Remove image</button>
+            <button className="danger-button" type="submit">Reject and replace image</button>
           </form>
         ) : null}
         <form action={refreshProductImage.bind(null, productId)}>
-          <button className="secondary-button" type="submit">Find a better image</button>
+          <button className="secondary-button" type="submit">Search for image</button>
         </form>
       </div>
     </article>
