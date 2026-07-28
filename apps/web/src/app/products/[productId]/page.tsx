@@ -150,7 +150,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
-              <span aria-hidden="true">◈</span>
               <img alt={displayName} src={productImage} />
             </div>
             <div>
@@ -280,24 +279,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               {product.recipes.map((recipe) => (
                 <li className={styles.listItem} key={recipe.id}>
                   <strong>{recipe.name}</strong>
-                  <small>{recipe.sourceName ?? "Food"}</small>
-                </li>
-              ))}
-            </ul>
-          </article>
-        ) : null}
-
-        {product.inventory.length ? (
-          <article className={styles.panel}>
-            <h2>Pantry stock</h2>
-            <ul className={styles.list}>
-              {product.inventory.map((item) => (
-                <li className={styles.listItem} key={item.id}>
-                  <div>
-                    <strong>{item.location}</strong>
-                    <small>Expires {date(item.expiresAt)}</small>
-                  </div>
-                  <strong>{formatQuantity(item.quantity)} {item.unit}</strong>
+                  <small>{recipe.sourceName ?? "Recipe"}</small>
                 </li>
               ))}
             </ul>
@@ -307,23 +289,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {nutrition.length ? (
           <article className={styles.panel}>
             <h2>Nutrition</h2>
-            <div className={styles.metricGrid}>
+            <ul className={styles.list}>
               {nutrition.map(([label, value]) => (
-                <div className={styles.metric} key={label}>
-                  <small>{label}</small>
-                  <strong>{value}</strong>
-                </div>
+                <li className={styles.listItem} key={label}><span>{label}</span><strong>{value}</strong></li>
               ))}
-            </div>
-          </article>
-        ) : null}
-
-        {product.aliases.length || product.dietaryTags.length || product.allergens.length ? (
-          <article className={styles.panel}>
-            <h2>Recognised names and dietary data</h2>
-            {product.aliases.length ? <div className={styles.tags}>{product.aliases.map((alias) => <span key={alias.id}>{alias.alias}</span>)}</div> : null}
-            {product.dietaryTags.length ? <div className={styles.tags}>{product.dietaryTags.map((tag) => <span key={tag}>{tag}</span>)}</div> : null}
-            {product.allergens.length ? <p className="subtle">Allergens: {product.allergens.join(", ")}</p> : null}
+            </ul>
           </article>
         ) : null}
       </section>
