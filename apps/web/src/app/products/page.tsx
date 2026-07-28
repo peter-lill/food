@@ -67,8 +67,8 @@ function collapseRepeatedPhrase(value: string) {
 function productDisplay(product: { name: string; canonicalName: string | null; category: string | null }) {
   const rawName = collapseRepeatedPhrase(product.name);
   const canonicalName = product.canonicalName ? collapseRepeatedPhrase(product.canonicalName) : null;
-  const title = canonicalName || rawName;
-  const receiptName = normaliseName(rawName) !== normaliseName(title) ? rawName : null;
+  const title = rawName || canonicalName || "Product";
+  const receiptName = canonicalName && normaliseName(canonicalName) !== normaliseName(title) ? canonicalName : null;
   const category = product.category && ![title, canonicalName, rawName]
     .filter(Boolean)
     .some((value) => normaliseName(product.category ?? "") === normaliseName(value ?? ""))
@@ -82,7 +82,7 @@ function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName"
   if (product.brand || product.barcode) return false;
   const category = normaliseName(product.category ?? "");
   if (/produce|fruit|vegetable|fresh food/.test(category)) return true;
-  const name = normaliseName(product.canonicalName ?? product.name);
+  const name = normaliseName(product.name || product.canonicalName || "");
   return genericFoodTerms.some((term) => name === term || name.endsWith(` ${term}`) || name.startsWith(`${term} `));
 }
 
@@ -108,7 +108,7 @@ function ProductActions() {
     <div className={styles.heroActions}>
       <Link className={styles.primaryAction} href="/scan"><span aria-hidden="true">▦</span>Scan barcode</Link>
       <Link className={styles.secondaryAction} href="/receipts"><span aria-hidden="true">⌁</span>Import receipt</Link>
-      <Link className={styles.secondaryAction} href="/admin/product-intelligence"><span aria-hidden="true">⚙</span>Product Intelligence</Link>
+      <Link className={styles.secondaryAction} href="/admin/product-intelligence"><span aria-hidden="true">⚙</span>Catalogue Manager</Link>
     </div>
   );
 }
@@ -213,6 +213,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const completeness = completionScore(product);
             const observed = observedLabel(product.latestObservedAt);
             const generic = isGenericFood(product);
+            const detailLine = generic
+              ? null
+              : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand and barcode not added";
 
             return (
               <article className={styles.card} key={product.id}>
@@ -233,11 +236,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   </div>
                   <h2>{title}</h2>
                   {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
-                  <p className={styles.brandLine}>
-                    {generic
-                      ? "Loose or generic food · no barcode required"
-                      : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand and barcode not added"}
-                  </p>
+                  {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
                   <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div>
                   <div className={styles.priceRow}>
                     <div><small>Latest price</small><strong>{latestPrice ?? "Not priced"}</strong></div>
