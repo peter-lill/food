@@ -37,7 +37,27 @@ const categoryKeywords: Array<[string, string[]]> = [
   ["Household", ["cleaner", "dishwasher", "foil", "laundry", "paper towel", "soap", "tissue", "toilet paper", "bag"]],
 ];
 
-export function getShoppingCategory(name: string) {
+const departmentToShoppingCategory: Record<string, string> = {
+  "Fruit & vegetables": "Fruit & vegetables",
+  Bakery: "Bakery & grains",
+  "Meat & seafood": "Meat & seafood",
+  "Dairy & eggs": "Dairy & eggs",
+  Frozen: "Frozen",
+  Drinks: "Drinks",
+  Household: "Household",
+  Pantry: "Pantry & other",
+  International: "Pantry & other",
+  Confectionery: "Pantry & other",
+  "Health & personal care": "Pantry & other",
+  Baby: "Pantry & other",
+  Pet: "Pantry & other",
+  Other: "Pantry & other",
+};
+
+export function getShoppingCategory(name: string, department?: string | null) {
+  if (department && departmentToShoppingCategory[department]) {
+    return departmentToShoppingCategory[department];
+  }
   const normalised = name.toLocaleLowerCase("en-AU");
   return categoryKeywords.find(([, keywords]) => keywords.some((keyword) => normalised.includes(keyword)))?.[0] ?? "Pantry & other";
 }
@@ -87,7 +107,7 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
         items: {
           include: {
             product: {
-              select: { name: true, canonicalName: true },
+              select: { name: true, canonicalName: true, category: true },
             },
           },
           orderBy: [{ checked: "asc" }, { name: "asc" }],
@@ -122,7 +142,7 @@ export async function getShoppingWorkspace(): Promise<ShoppingWorkspaceData> {
           quantity: item.quantity,
           unit: item.unit,
           checked: item.checked,
-          category: getShoppingCategory(display.displayName),
+          category: getShoppingCategory(display.displayName, item.product?.category),
         };
       }),
     })),
