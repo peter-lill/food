@@ -203,11 +203,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   </div>
                 </div>
                 <div className={styles.cardBody}>
-                  <div className={styles.cardTopline}><span>{category ?? (generic ? "Fresh produce" : "Uncategorised")}</span><span>{completeness}% complete</span></div>
+                  <div className={styles.cardTopline}>
+                    <span>{category ?? (generic ? "Fresh produce" : "Uncategorised")}</span>
+                    {completeness < 100 ? <span>{completeness}% complete</span> : null}
+                  </div>
                   <h2>{title}</h2>
                   {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
                   {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
-                  <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div>
+                  {completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}
                   <div className={styles.priceRow}>
                     <div><small>Latest price</small><strong>{latestPrice ?? "Not priced"}</strong></div>
                     <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ?? "Not linked"}</strong></div>
