@@ -6,6 +6,7 @@ import "./saved-product-delete.css";
 import "./v2.css";
 import "./bright-theme.css";
 import { AppShell } from "@/components/AppShell";
+import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
 import { getAuthSession } from "@/lib/auth-session";
 import { isHealthConnectPaired } from "@/lib/health/health-pairing";
@@ -37,6 +38,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en">
       <body>
         <SavedProductDeleteController />
+        <PlannerCopyCorrection />
         <AppShell
           initialHealthPaired={initialHealthPaired}
           initialUser={initialUser}
