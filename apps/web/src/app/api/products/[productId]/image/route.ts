@@ -148,6 +148,14 @@ function redirectToImage(imageUrl: string) {
   return response;
 }
 
+function genericImageForProduct(request: Request, product: ProductIdentity) {
+  const identity = normalise([product.name, product.canonicalName].filter(Boolean).join(" "));
+  if (/\bmushrooms?\b/.test(identity)) {
+    return new URL("/product-images/button-mushroom.svg", request.url).toString();
+  }
+  return null;
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new NextResponse(null, { status: 401 });
@@ -218,7 +226,10 @@ export async function GET(request: Request, context: RouteContext) {
     });
   }
 
-  if (!imageUrl) return noImageResponse();
+  if (!imageUrl) {
+    const genericImage = genericImageForProduct(request, identity);
+    return genericImage ? redirectToImage(genericImage) : noImageResponse();
+  }
 
   await prisma.product.update({
     where: { id: product.id },
