@@ -79,6 +79,11 @@ function bestProductImage(
   return productImageUrl ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl ?? null;
 }
 
+function genericFamilyImage(familyName: string) {
+  if (familyName === "Button Mushroom") return "/product-images/button-mushroom.svg";
+  return null;
+}
+
 function titleCase(value: string) {
   return value
     .toLocaleLowerCase("en-AU")
@@ -92,9 +97,10 @@ function canonicalProduceFamily(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  if (/\b(button|cup|white|sliced) mushrooms?\b/.test(normalised)) {
-    return "Button Mushroom";
-  }
+  // Receipt descriptions vary widely: BUTTON MUSHROOM, SLCD MUSHROOMS,
+  // COLES MUSHROOMS 200GRAM, CUP MUSHROOMS and similar all describe the
+  // same canonical fresh produce family for catalogue and image purposes.
+  if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
 
   return null;
 }
@@ -203,9 +209,14 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     }
   }
 
-  return [...grouped.values()].sort((left, right) =>
-    (left.canonicalName ?? left.name).localeCompare(right.canonicalName ?? right.name, "en-AU"),
-  );
+  return [...grouped.values()]
+    .map((product) => ({
+      ...product,
+      imageUrl: product.imageUrl ?? genericFamilyImage(product.canonicalName ?? product.name),
+    }))
+    .sort((left, right) =>
+      (left.canonicalName ?? left.name).localeCompare(right.canonicalName ?? right.name, "en-AU"),
+    );
 }
 
 export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
@@ -242,6 +253,8 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     }
   }
 
+  const familyName = productFamilyName(product.canonicalName ?? product.name);
+
   return {
     id: product.id,
     name: product.name,
@@ -251,7 +264,7 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     barcode: product.barcode,
     category: product.category,
     description: product.description,
-    imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
+    imageUrl: bestProductImage(product.imageUrl, product.storeProducts) ?? genericFamilyImage(familyName),
     packSize: product.packSize,
     calories: product.calories,
     proteinGrams: product.proteinGrams,
