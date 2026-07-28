@@ -5,6 +5,7 @@ import {
   type Product,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { parseProductName } from "@/lib/products/product-normalisation";
 
 export type ResolveProductInput = {
   name: string;
@@ -20,10 +21,17 @@ export type ProductResolution = {
   product: Product | null;
   created: boolean;
   confidence: number;
-  reason: "barcode" | "alias" | "exact-name" | "canonical-name" | "created" | "not-found";
+  reason: "barcode" | "alias" | "exact-name" | "canonical-family" | "canonical-name" | "created" | "not-found";
 };
 
 type ProductDatabase = Prisma.TransactionClient | typeof prisma;
+
+const genericProduceNames = new Set([
+  "Apple", "Avocado", "Banana", "Bean", "Beetroot", "Broccoli", "Button Mushroom",
+  "Cabbage", "Capsicum", "Carrot", "Cauliflower", "Celery", "Cucumber", "Garlic",
+  "Ginger", "Grape", "Lemon", "Lettuce", "Lime", "Mango", "Onion", "Orange",
+  "Pear", "Potato", "Pumpkin", "Spinach", "Sweet Potato", "Tomato", "Watermelon", "Zucchini",
+]);
 
 function clean(value: string | null | undefined) {
   return value?.replace(/\s+/g, " ").trim() || null;
@@ -38,6 +46,21 @@ export function normaliseProductIdentity(value: string) {
     .trim();
 }
 
+async function attachAlias(
+  database: ProductDatabase,
+  productId: string,
+  alias: string,
+  source: string,
+) {
+  const normalised = normaliseProductIdentity(alias);
+  if (!normalised) return;
+  await database.productAlias.upsert({
+    where: { normalised },
+    create: { productId, alias, normalised, source },
+    update: { productId, alias, source },
+  });
+}
+
 export class ProductResolver {
   static async resolve(
     input: ResolveProductInput,
@@ -50,6 +73,7 @@ export class ProductResolver {
     if (barcode) {
       const byBarcode = await database.product.findUnique({ where: { barcode } });
       if (byBarcode) {
+        await attachAlias(database, byBarcode.id, name, clean(input.source) ?? "barcode-match");
         return { product: byBarcode, created: false, confidence: 1, reason: "barcode" };
       }
     }
@@ -68,45 +92,60 @@ export class ProductResolver {
       orderBy: { updatedAt: "desc" },
     });
     if (exact) {
+      await attachAlias(database, exact.id, name, clean(input.source) ?? "exact-name");
       return { product: exact, created: false, confidence: 0.95, reason: "exact-name" };
     }
 
+    const parsed = parseProductName(name);
+    const canonicalName = parsed.canonicalName;
+    const canonicalNormalised = normaliseProductIdentity(canonicalName);
+
+    const canonicalAlias = await database.productAlias.findUnique({
+      where: { normalised: canonicalNormalised },
+      include: { product: true },
+    });
+    if (canonicalAlias) {
+      await attachAlias(database, canonicalAlias.product.id, name, clean(input.source) ?? "canonical-family");
+      return { product: canonicalAlias.product, created: false, confidence: 0.97, reason: "canonical-family" };
+    }
+
     const canonical = await database.product.findFirst({
-      where: { canonicalName: { equals: name, mode: "insensitive" } },
-      orderBy: { updatedAt: "desc" },
+      where: {
+        OR: [
+          { canonicalName: { equals: canonicalName, mode: "insensitive" } },
+          { name: { equals: canonicalName, mode: "insensitive" } },
+        ],
+      },
+      orderBy: [{ confidenceScore: "desc" }, { createdAt: "asc" }],
     });
     if (canonical) {
-      return { product: canonical, created: false, confidence: 0.9, reason: "canonical-name" };
+      await attachAlias(database, canonical.id, name, clean(input.source) ?? "canonical-family");
+      await attachAlias(database, canonical.id, canonicalName, "canonical-name");
+      return { product: canonical, created: false, confidence: 0.95, reason: "canonical-family" };
     }
 
     if (input.createIfMissing === false) {
       return { product: null, created: false, confidence: 0, reason: "not-found" };
     }
 
+    const genericProduce = genericProduceNames.has(canonicalName);
     const createProduct = async (transaction: ProductDatabase) => {
       const created = await transaction.product.create({
         data: {
-          name,
-          canonicalName: name,
+          name: canonicalName,
+          canonicalName,
           barcode,
-          brand: clean(input.brand),
-          category: clean(input.category),
-          productType: input.productType ?? ProductType.PACKAGED,
+          brand: genericProduce ? null : clean(input.brand),
+          category: clean(input.category) ?? (genericProduce ? "Fresh produce" : null),
+          imageUrl: canonicalName === "Button Mushroom" ? "/product-images/button-mushroom.svg" : null,
+          productType: input.productType ?? (genericProduce ? ProductType.GENERIC_PRODUCE : ProductType.PACKAGED),
           lifecycle: ProductLifecycle.NEW,
-          confidenceScore: barcode ? 0.75 : 0.5,
+          confidenceScore: barcode ? 0.75 : genericProduce ? 0.9 : 0.5,
         },
       });
 
-      if (normalised) {
-        await transaction.productAlias.create({
-          data: {
-            productId: created.id,
-            alias: name,
-            normalised,
-            source: clean(input.source) ?? "identity-resolver",
-          },
-        });
-      }
+      await attachAlias(transaction, created.id, name, clean(input.source) ?? "identity-resolver");
+      await attachAlias(transaction, created.id, canonicalName, "canonical-name");
 
       await transaction.productEnrichmentJob.create({
         data: {
@@ -123,6 +162,11 @@ export class ProductResolver {
       ? await prisma.$transaction((transaction) => createProduct(transaction))
       : await createProduct(database);
 
-    return { product, created: true, confidence: barcode ? 0.75 : 0.5, reason: "created" };
+    return {
+      product,
+      created: true,
+      confidence: barcode ? 0.75 : genericProduce ? 0.9 : 0.5,
+      reason: "created",
+    };
   }
 }
