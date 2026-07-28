@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 
 type ProductPageProps = { params: Promise<{ productId: string }> };
 type ProductKnowledge = { overview: string; origin?: string; uses: string[]; storage: string[] };
+type NutritionRow = { label: string; value: string; sub?: boolean };
 
 const departments = [
   "Fruit & vegetables", "Bakery", "Meat & seafood", "Dairy & eggs", "Frozen", "Pantry",
@@ -24,6 +25,10 @@ function money(value: number) {
 
 function date(value: Date | null) {
   return value ? new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(value) : "Not recorded";
+}
+
+function oneDecimal(value: number) {
+  return new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
 }
 
 function normalise(value: string) {
@@ -106,16 +111,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ...product.priceObservations.map((observation) => observation.retailer),
   ]).size;
   const productImage = `/api/products/${encodeURIComponent(product.id)}/image`;
-  const nutrition = [
-    ["Energy", product.calories === null ? null : `${Math.round(product.calories)} kcal`],
-    ["Protein", product.proteinGrams === null ? null : `${product.proteinGrams} g`],
-    ["Carbohydrate", product.carbsGrams === null ? null : `${product.carbsGrams} g`],
-    ["Fat", product.fatGrams === null ? null : `${product.fatGrams} g`],
-    ["Saturated fat", product.saturatedFatGrams === null ? null : `${product.saturatedFatGrams} g`],
-    ["Fibre", product.fibreGrams === null ? null : `${product.fibreGrams} g`],
-    ["Sugar", product.sugarGrams === null ? null : `${product.sugarGrams} g`],
-    ["Sodium", product.sodiumMg === null ? null : `${Math.round(product.sodiumMg)} mg`],
-  ].filter((entry): entry is [string, string] => entry[1] !== null);
+  const nutrition: NutritionRow[] = [
+    product.calories === null ? null : { label: "Energy", value: `${oneDecimal(product.calories * 4.184)} kJ` },
+    product.proteinGrams === null ? null : { label: "Protein", value: `${oneDecimal(product.proteinGrams)} g` },
+    product.fatGrams === null ? null : { label: "Fat, total", value: `${oneDecimal(product.fatGrams)} g` },
+    product.saturatedFatGrams === null ? null : { label: "– saturated", value: `${oneDecimal(product.saturatedFatGrams)} g`, sub: true },
+    product.carbsGrams === null ? null : { label: "Carbohydrate", value: `${oneDecimal(product.carbsGrams)} g` },
+    product.sugarGrams === null ? null : { label: "– sugars", value: `${oneDecimal(product.sugarGrams)} g`, sub: true },
+    product.fibreGrams === null ? null : { label: "Dietary fibre", value: `${oneDecimal(product.fibreGrams)} g` },
+    product.sodiumMg === null ? null : { label: "Sodium", value: `${oneDecimal(product.sodiumMg)} mg` },
+  ].filter((entry): entry is NutritionRow => entry !== null);
   const editAction = updateProductDetails.bind(null, product.id);
 
   return (
@@ -200,7 +205,19 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{listing.packSize ?? "—"}</strong><small>{listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>)}</ul></article> : null}
         {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : ""}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><ul className={styles.list}>{product.recipes.map((recipe) => <li className={styles.listItem} key={recipe.id}><strong>{recipe.name}</strong><small>{recipe.sourceName ?? "Recipe"}</small></li>)}</ul></article> : null}
-        {nutrition.length ? <article className={styles.panel}><h2>Nutrition</h2><ul className={styles.list}>{nutrition.map(([label, value]) => <li className={styles.listItem} key={label}><span>{label}</span><strong>{value}</strong></li>)}</ul></article> : null}
+        {nutrition.length ? (
+          <article className={`${styles.panel} ${styles.nutritionPanel}`}>
+            <div className={styles.nip}>
+              <h2>Nutrition Information</h2>
+              <p>Average quantity</p>
+              <table>
+                <thead><tr><th>Nutrient</th><th>Per 100 g / 100 mL</th></tr></thead>
+                <tbody>{nutrition.map((row) => <tr key={row.label}><th className={row.sub ? styles.nutritionSub : undefined}>{row.label}</th><td>{row.value}</td></tr>)}</tbody>
+              </table>
+              <small>Values shown are those available from the product data source. A per serving column will appear when serving information is available.</small>
+            </div>
+          </article>
+        ) : null}
       </section>
     </div>
   );
