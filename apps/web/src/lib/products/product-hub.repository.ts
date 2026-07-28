@@ -97,9 +97,6 @@ function canonicalProduceFamily(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  // Receipt descriptions vary widely: BUTTON MUSHROOM, SLCD MUSHROOMS,
-  // COLES MUSHROOMS 200GRAM, CUP MUSHROOMS and similar all describe the
-  // same canonical fresh produce family for catalogue and image purposes.
   if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
 
   return null;
@@ -121,6 +118,10 @@ function productFamilyName(value: string) {
   if (produceFamily) return produceFamily;
 
   return cleaned ? titleCase(cleaned) : titleCase(value.trim());
+}
+
+function identityText(product: { name: string; canonicalName: string | null }) {
+  return [product.canonicalName, product.name].filter(Boolean).join(" ");
 }
 
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
@@ -168,9 +169,10 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
-    const familyName = productFamilyName(product.canonicalName ?? product.name);
+    const familyName = productFamilyName(identityText(product));
     const familyKey = familyName.toLocaleLowerCase("en-AU");
     const current = grouped.get(familyKey);
+    const familyImage = genericFamilyImage(familyName);
 
     if (!current) {
       grouped.set(familyKey, {
@@ -180,7 +182,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         category: product.category,
-        imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
+        imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts),
         barcode: product.barcode,
         aliasCount: product.aliases.length,
         recipeCount: recipeIds.size,
@@ -197,7 +199,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.recipeCount += recipeIds.size;
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount += retailers.size;
-    current.imageUrl ??= bestProductImage(product.imageUrl, product.storeProducts);
+    current.imageUrl = familyImage ?? current.imageUrl ?? bestProductImage(product.imageUrl, product.storeProducts);
     current.brand ??= product.brand;
     current.category ??= product.category;
     current.barcode ??= product.barcode;
@@ -209,14 +211,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     }
   }
 
-  return [...grouped.values()]
-    .map((product) => ({
-      ...product,
-      imageUrl: product.imageUrl ?? genericFamilyImage(product.canonicalName ?? product.name),
-    }))
-    .sort((left, right) =>
-      (left.canonicalName ?? left.name).localeCompare(right.canonicalName ?? right.name, "en-AU"),
-    );
+  return [...grouped.values()].sort((left, right) =>
+    (left.canonicalName ?? left.name).localeCompare(right.canonicalName ?? right.name, "en-AU"),
+  );
 }
 
 export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
@@ -253,18 +250,18 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     }
   }
 
-  const familyName = productFamilyName(product.canonicalName ?? product.name);
+  const familyName = productFamilyName(identityText(product));
 
   return {
     id: product.id,
     name: product.name,
-    canonicalName: product.canonicalName,
+    canonicalName: familyName,
     slug: product.slug,
     brand: product.brand,
     barcode: product.barcode,
     category: product.category,
     description: product.description,
-    imageUrl: bestProductImage(product.imageUrl, product.storeProducts) ?? genericFamilyImage(familyName),
+    imageUrl: genericFamilyImage(familyName) ?? bestProductImage(product.imageUrl, product.storeProducts),
     packSize: product.packSize,
     calories: product.calories,
     proteinGrams: product.proteinGrams,
