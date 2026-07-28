@@ -6,6 +6,7 @@ export type PantryLocation = (typeof pantryLocations)[number];
 
 export type PantryItem = {
   id: string;
+  productId: string;
   name: string;
   barcode: string | null;
   location: PantryLocation;
