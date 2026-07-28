@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Ean13Barcode } from "@/components/products/Ean13Barcode";
+import { ProductImagePanel } from "@/components/products/ProductImagePanel";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
@@ -123,7 +124,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
       <section className={styles.detailHero}>
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
-            <div className={styles.productVisual}><img alt={displayName} src={productImage} /></div>
+            <div className={styles.productVisual}>
+              {product.imageUrl ? <img alt={displayName} src={productImage} /> : <span aria-hidden="true">◈</span>}
+            </div>
             <div>
               <p className="eyebrow">{department ?? "PRODUCT"}</p>
               <h1 className="page-title">{displayName}</h1>
@@ -151,6 +154,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </section>
 
       <section className={styles.sections}>
+        <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} />
+
         {product.barcode ? (
           <article className={`${styles.panel} ${styles.barcodePanel}`}>
             <div><p className="eyebrow">GTIN / EAN</p><h2>Product barcode</h2><p className="subtle">Use this barcode to identify the exact packaged product across retailers and product databases.</p></div>
