@@ -126,19 +126,7 @@ export default async function ProductIntelligenceAdminPage() {
           <small>{recentJobs.length} shown</small>
         </div>
 
-        <table className={styles.desktopTable}>
-          <thead><tr><th>Product</th><th>Provider</th><th>Status</th><th>Attempts</th><th>Created</th><th>Error</th></tr></thead>
-          <tbody>
-            {recentJobs.length ? recentJobs.map((job) => (
-              <tr key={job.id}>
-                <td><Link href={`/products/${encodeURIComponent(job.product.id)}`}>{job.product.name}</Link><br /><small>{label(job.product.lifecycle)} · {percent(job.product.confidenceScore)}</small></td>
-                <td>{job.provider}</td><td>{label(job.status)}</td><td>{job.attempts}</td><td>{dateTime(job.createdAt)}</td><td>{job.lastError ?? "—"}</td>
-              </tr>
-            )) : <tr><td colSpan={6}>No enrichment jobs have been created yet.</td></tr>}
-          </tbody>
-        </table>
-
-        <div className={styles.mobileList}>
+        <div className={styles.cardList}>
           {recentJobs.length ? recentJobs.map((job) => (
             <article className={styles.mobileCard} key={job.id}>
               <div className={styles.mobileTitle}>
@@ -161,19 +149,7 @@ export default async function ProductIntelligenceAdminPage() {
       <section className="panel">
         <div className={styles.sectionHeader}><div><p className="eyebrow">REVIEW QUEUE</p><h2>Low-confidence products</h2></div></div>
 
-        <table className={styles.desktopTable}>
-          <thead><tr><th>Product</th><th>Type</th><th>Lifecycle</th><th>Confidence</th><th>Identity</th></tr></thead>
-          <tbody>
-            {reviewProducts.length ? reviewProducts.map((product) => (
-              <tr key={product.id}>
-                <td><Link href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</Link></td>
-                <td>{label(product.productType)}</td><td>{label(product.lifecycle)}</td><td>{percent(product.confidenceScore)}</td><td>{[product.brand, product.barcode].filter(Boolean).join(" · ") || "No brand or barcode"}</td>
-              </tr>
-            )) : <tr><td colSpan={5}>No products currently require review.</td></tr>}
-          </tbody>
-        </table>
-
-        <div className={styles.mobileList}>
+        <div className={styles.cardList}>
           {reviewProducts.length ? reviewProducts.map((product) => (
             <article className={styles.mobileCard} key={product.id}>
               <div className={styles.mobileTitle}>
