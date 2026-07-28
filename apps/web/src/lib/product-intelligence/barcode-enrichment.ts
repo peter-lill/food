@@ -88,14 +88,17 @@ async function fetchOpenFoodFacts(barcode: string) {
 }
 
 async function saveRetailerListing(productId: string, match: ReturnType<typeof bestRetailerCandidate>) {
-  if (!match?.candidate.externalId) return;
+  if (!match) return;
   const candidate = match.candidate;
+  const externalId = candidate.externalId;
+  if (!externalId) return;
+
   await prisma.storeProduct.upsert({
-    where: { retailer_externalId: { retailer: candidate.retailer, externalId: candidate.externalId } },
+    where: { retailer_externalId: { retailer: candidate.retailer, externalId } },
     create: {
       productId,
       retailer: candidate.retailer,
-      externalId: candidate.externalId,
+      externalId,
       retailerProductName: candidate.productName,
       packSize: candidate.packSize,
       productUrl: candidate.sourceUrl,
