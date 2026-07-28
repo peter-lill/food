@@ -142,6 +142,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               <span aria-hidden="true">⌁</span>
               Import receipt
             </Link>
+            <Link className={styles.secondaryAction} href="/admin/product-intelligence">
+              <span aria-hidden="true">⚙</span>
+              Product Intelligence
+            </Link>
           </div>
         </div>
         <div className={styles.heroMetric}>
