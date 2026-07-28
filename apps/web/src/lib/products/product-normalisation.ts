@@ -227,6 +227,16 @@ function singulariseTokens(tokens: string[]) {
   return tokens.map((token) => singularOverrides.get(token) ?? token);
 }
 
+function collapseRepeatedSequence(tokens: string[]) {
+  for (let sequenceLength = 1; sequenceLength <= Math.floor(tokens.length / 2); sequenceLength += 1) {
+    if (tokens.length % sequenceLength !== 0) continue;
+    const sequence = tokens.slice(0, sequenceLength);
+    const repeated = tokens.every((token, index) => token === sequence[index % sequenceLength]);
+    if (repeated) return sequence;
+  }
+  return tokens;
+}
+
 function canonicalCore(value: string, variants: string[], attributes: ProductAttributes) {
   let tokens = normaliseProductText(value).split(" ").filter(Boolean);
   const variantTokens = new Set(variants.flatMap((variant) => normaliseProductText(variant).split(" ")));
@@ -243,7 +253,8 @@ function canonicalCore(value: string, variants: string[], attributes: ProductAtt
   }
 
   const component = attributes.component?.toLocaleLowerCase("en-AU") ?? null;
-  const core = singulariseTokens(tokens).join(" ");
+  const canonicalTokens = collapseRepeatedSequence(singulariseTokens(tokens));
+  const core = canonicalTokens.join(" ");
   if (component && !core.includes(component)) return `${core} ${component}`.trim();
   return core || normaliseProductText(value);
 }
