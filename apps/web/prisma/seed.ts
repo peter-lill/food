@@ -1,5 +1,5 @@
 import "dotenv/config";
-import { InventoryLocation } from "@prisma/client";
+import { InventoryLocation, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 
 const dayInMilliseconds = 24 * 60 * 60 * 1000;
@@ -11,6 +11,42 @@ function daysFromToday(days: number) {
   return date;
 }
 
+const foodKnowledgeSeeds = [
+  {
+    commonName: "Banana",
+    foodGroup: "Fruit",
+    category: "Fresh produce",
+    storageGuide: "Store at room temperature until ripe. Refrigerate ripe bananas to slow further ripening.",
+  },
+  {
+    commonName: "Sweet Potato",
+    scientificName: "Ipomoea batatas",
+    foodGroup: "Vegetables",
+    category: "Fresh produce",
+    subCategory: "Root vegetables",
+    storageGuide: "Keep in a cool, dark and ventilated place. Do not refrigerate raw sweet potatoes.",
+  },
+  {
+    commonName: "Atlantic Salmon",
+    scientificName: "Salmo salar",
+    foodGroup: "Protein foods",
+    category: "Seafood",
+    storageGuide: "Keep chilled and use by the package date, or freeze promptly.",
+  },
+  {
+    commonName: "Chicken Breast",
+    foodGroup: "Protein foods",
+    category: "Fresh meat",
+    storageGuide: "Keep refrigerated below 5°C and use by the package date, or freeze promptly.",
+  },
+  {
+    commonName: "Milk",
+    foodGroup: "Dairy",
+    category: "Chilled",
+    storageGuide: "Keep refrigerated and return to the refrigerator promptly after use.",
+  },
+] as const;
+
 const pantrySeedItems = [
   {
     name: "Chicken breast",
@@ -19,6 +55,7 @@ const pantrySeedItems = [
     location: InventoryLocation.FRIDGE,
     purchasedAt: daysFromToday(-1),
     expiresAt: daysFromToday(3),
+    productType: ProductType.FRESH_MEAT,
   },
   {
     name: "Greek yoghurt",
@@ -27,6 +64,7 @@ const pantrySeedItems = [
     location: InventoryLocation.FRIDGE,
     purchasedAt: daysFromToday(-3),
     expiresAt: daysFromToday(1),
+    productType: ProductType.DAIRY,
   },
   {
     name: "Salmon",
@@ -35,6 +73,7 @@ const pantrySeedItems = [
     location: InventoryLocation.FREEZER,
     purchasedAt: daysFromToday(-5),
     expiresAt: daysFromToday(30),
+    productType: ProductType.SEAFOOD,
   },
   {
     name: "Brown rice",
@@ -43,12 +82,23 @@ const pantrySeedItems = [
     location: InventoryLocation.PANTRY,
     purchasedAt: daysFromToday(-10),
     expiresAt: daysFromToday(180),
+    productType: ProductType.PACKAGED,
   },
 ] as const;
 
-async function main() {
-  const existingItems = await prisma.inventoryItem.count();
+async function seedFoodKnowledge() {
+  for (const knowledge of foodKnowledgeSeeds) {
+    await prisma.foodKnowledge.upsert({
+      where: { commonName: knowledge.commonName },
+      create: knowledge,
+      update: knowledge,
+    });
+  }
+  console.log(`Food knowledge seeded with ${foodKnowledgeSeeds.length} entries.`);
+}
 
+async function seedPantry() {
+  const existingItems = await prisma.inventoryItem.count();
   if (existingItems > 0) {
     console.log(`Pantry seed skipped: ${existingItems} existing item(s) found.`);
     return;
@@ -56,7 +106,11 @@ async function main() {
 
   for (const item of pantrySeedItems) {
     const product = await prisma.product.create({
-      data: { name: item.name },
+      data: {
+        name: item.name,
+        canonicalName: item.name,
+        productType: item.productType,
+      },
     });
 
     await prisma.inventoryItem.create({
@@ -74,9 +128,14 @@ async function main() {
   console.log(`Pantry seeded with ${pantrySeedItems.length} items.`);
 }
 
+async function main() {
+  await seedFoodKnowledge();
+  await seedPantry();
+}
+
 main()
   .catch((error) => {
-    console.error("Pantry seed failed", error);
+    console.error("Database seed failed", error);
     process.exitCode = 1;
   })
   .finally(async () => {
