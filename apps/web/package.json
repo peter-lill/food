@@ -12,6 +12,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:backfill": "tsx scripts/backfill-product-intelligence.ts",
     "products:backfill:apply": "tsx scripts/backfill-product-intelligence.ts --apply",
     "products:reconcile": "tsx scripts/reconcile-product-catalogue.ts",
