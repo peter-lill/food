@@ -61,7 +61,12 @@ export function BhfRecipeModal({ recipe, onClose }: BhfRecipeModalProps) {
             aria-label={`Finished ${recipe.name}`}
             className={styles.hero}
             role="img"
-            style={{ backgroundImage: `url("${imageUrl}")` }}
+            style={{
+              backgroundImage: `url("${imageUrl}")`,
+              backgroundPosition: "center",
+              backgroundRepeat: "no-repeat",
+              backgroundSize: "cover",
+            }}
           />
         ) : (
           <div aria-hidden="true" className={styles.heroFallback}>◇</div>
