@@ -1,6 +1,7 @@
 import {
   ProductLifecycle,
   ProductType,
+  type Prisma,
   type Product,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
@@ -22,6 +23,8 @@ export type ProductResolution = {
   reason: "barcode" | "alias" | "exact-name" | "canonical-name" | "created" | "not-found";
 };
 
+type ProductDatabase = Prisma.TransactionClient | typeof prisma;
+
 function clean(value: string | null | undefined) {
   return value?.replace(/\s+/g, " ").trim() || null;
 }
@@ -36,20 +39,23 @@ export function normaliseProductIdentity(value: string) {
 }
 
 export class ProductResolver {
-  static async resolve(input: ResolveProductInput): Promise<ProductResolution> {
+  static async resolve(
+    input: ResolveProductInput,
+    database: ProductDatabase = prisma,
+  ): Promise<ProductResolution> {
     const name = clean(input.name);
     if (!name) throw new Error("A product name is required for identity resolution.");
 
     const barcode = clean(input.barcode);
     if (barcode) {
-      const byBarcode = await prisma.product.findUnique({ where: { barcode } });
+      const byBarcode = await database.product.findUnique({ where: { barcode } });
       if (byBarcode) {
         return { product: byBarcode, created: false, confidence: 1, reason: "barcode" };
       }
     }
 
     const normalised = normaliseProductIdentity(name);
-    const byAlias = await prisma.productAlias.findUnique({
+    const byAlias = await database.productAlias.findUnique({
       where: { normalised },
       include: { product: true },
     });
@@ -57,7 +63,7 @@ export class ProductResolver {
       return { product: byAlias.product, created: false, confidence: 0.98, reason: "alias" };
     }
 
-    const exact = await prisma.product.findFirst({
+    const exact = await database.product.findFirst({
       where: { name: { equals: name, mode: "insensitive" } },
       orderBy: { updatedAt: "desc" },
     });
@@ -65,7 +71,7 @@ export class ProductResolver {
       return { product: exact, created: false, confidence: 0.95, reason: "exact-name" };
     }
 
-    const canonical = await prisma.product.findFirst({
+    const canonical = await database.product.findFirst({
       where: { canonicalName: { equals: name, mode: "insensitive" } },
       orderBy: { updatedAt: "desc" },
     });
@@ -77,7 +83,7 @@ export class ProductResolver {
       return { product: null, created: false, confidence: 0, reason: "not-found" };
     }
 
-    const product = await prisma.$transaction(async (transaction) => {
+    const createProduct = async (transaction: ProductDatabase) => {
       const created = await transaction.product.create({
         data: {
           name,
@@ -111,7 +117,11 @@ export class ProductResolver {
       });
 
       return created;
-    });
+    };
+
+    const product = database === prisma
+      ? await prisma.$transaction((transaction) => createProduct(transaction))
+      : await createProduct(database);
 
     return { product, created: true, confidence: barcode ? 0.75 : 0.5, reason: "created" };
   }
