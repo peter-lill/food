@@ -11,6 +11,15 @@ import type { ShoppingWorkspaceData } from "./shopping.types";
 
 const categoryKeywords: Array<[string, string[]]> = [
   [
+    "Pantry & other",
+    [
+      "vinegar", "stock cube", "stock cubes", "stock powder", "stock concentrate",
+      "liquid stock", "vegetable stock", "chicken stock", "beef stock", "bone broth",
+      "broth", "bouillon", "seasoning", "spice", "sauce", "oil", "dressing",
+      "gravy", "paste", "powder", "cube",
+    ],
+  ],
+  [
     "Fruit & vegetables",
     [
       "apple", "avocado", "banana", "basil", "beans", "berry", "berries",
