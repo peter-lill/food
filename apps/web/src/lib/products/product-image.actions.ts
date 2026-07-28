@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
+import { findBestProductImage, rejectCurrentProductImage } from "@/lib/products/image-intelligence";
 
 async function productDestination(productId: string) {
   const product = await prisma.product.findUnique({
@@ -23,39 +23,23 @@ function revalidateProduct(productId: string, destination: string) {
 
 export async function removeProductImage(productId: string) {
   const destination = await productDestination(productId);
-
-  await prisma.$transaction([
-    prisma.product.update({
-      where: { id: productId },
-      data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
-    }),
-    prisma.storeProduct.updateMany({
-      where: { productId },
-      data: { imageUrl: null },
-    }),
-  ]);
-
+  await rejectCurrentProductImage(productId);
+  await prisma.product.update({
+    where: { id: productId },
+    data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
+  });
   revalidateProduct(productId, destination);
   redirect(destination);
 }
 
 export async function refreshProductImage(productId: string) {
   const destination = await productDestination(productId);
-
-  await prisma.$transaction([
-    prisma.product.update({
-      where: { id: productId },
-      data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
-    }),
-    prisma.storeProduct.updateMany({
-      where: { productId },
-      data: { imageUrl: null },
-    }),
-    prisma.productEnrichmentJob.deleteMany({ where: { productId } }),
-  ]);
-
-  await enrichProductKnowledge(productId);
-
+  await rejectCurrentProductImage(productId);
+  await prisma.product.update({
+    where: { id: productId },
+    data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
+  });
+  await findBestProductImage(productId);
   revalidateProduct(productId, destination);
   redirect(destination);
 }
