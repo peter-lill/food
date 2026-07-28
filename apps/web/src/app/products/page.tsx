@@ -5,11 +5,7 @@ import styles from "./products-hub.module.css";
 export const dynamic = "force-dynamic";
 
 type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
-
-type ProductsPageProps = {
-  searchParams: Promise<{ q?: string; view?: string }>;
-};
-
+type ProductsPageProps = { searchParams: Promise<{ q?: string; view?: string }> };
 type CompletionProduct = {
   name: string;
   canonicalName: string | null;
@@ -28,29 +24,19 @@ const genericFoodTerms = [
 ] as const;
 
 function money(value: number | null) {
-  return value === null
-    ? null
-    : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
+  return value === null ? null : new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
 }
 
 function observedLabel(value: Date | null) {
-  return value
-    ? new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(value)
-    : null;
+  return value ? new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(value) : null;
 }
 
 function normaliseView(value: string | undefined): ProductView {
-  return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "")
-    ? value as ProductView
-    : "all";
+  return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "") ? value as ProductView : "all";
 }
 
 function normaliseName(value: string) {
-  return value
-    .toLocaleLowerCase("en-AU")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function collapseRepeatedPhrase(value: string) {
@@ -74,7 +60,6 @@ function productDisplay(product: { name: string; canonicalName: string | null; c
     .some((value) => normaliseName(product.category ?? "") === normaliseName(value ?? ""))
     ? collapseRepeatedPhrase(product.category)
     : null;
-
   return { title, receiptName, category };
 }
 
@@ -152,7 +137,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             <span className={styles.heroMark} aria-hidden="true">◈</span>
             <div><p className="eyebrow">PRODUCT LIBRARY</p><h1 className="page-title">Your products</h1></div>
           </div>
-          <p className={styles.heroText}>A single, clean record for everything you buy, store, cook and price-check.</p>
           <ProductActions />
         </div>
         <div className={styles.heroMetric}>
@@ -167,7 +151,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <span className={styles.mobileHeroMark} aria-hidden="true">◈</span>
           <div><p className="eyebrow">PRODUCT LIBRARY</p><h1>Your products</h1></div>
         </div>
-        <p className={styles.mobileHeroText}>A single, clean record for everything you buy, store, cook and price-check.</p>
         <ProductActions />
       </section>
 
@@ -197,11 +180,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const params = new URLSearchParams();
             if (q) params.set("q", q);
             if (item.value !== "all") params.set("view", item.value);
-            return (
-              <Link className={view === item.value ? styles.filterActive : styles.filter} href={params.size ? `/products?${params.toString()}` : "/products"} key={item.value}>
-                <span>{item.label}</span><strong>{counts[item.value]}</strong>
-              </Link>
-            );
+            return <Link className={view === item.value ? styles.filterActive : styles.filter} href={params.size ? `/products?${params.toString()}` : "/products"} key={item.value}><span>{item.label}</span><strong>{counts[item.value]}</strong></Link>;
           })}
         </nav>
 
@@ -213,27 +192,19 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const completeness = completionScore(product);
             const observed = observedLabel(product.latestObservedAt);
             const generic = isGenericFood(product);
-            const detailLine = generic
-              ? null
-              : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand and barcode not added";
+            const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand and barcode not added";
 
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.thumb}>
-                  {product.imageUrl
-                    ? <img alt={title} loading="lazy" src={`/api/products/${encodeURIComponent(product.id)}/image`} />
-                    : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image needed</small></div>}
+                  {product.imageUrl ? <img alt={title} loading="lazy" src={`/api/products/${encodeURIComponent(product.id)}/image`} /> : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image needed</small></div>}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
                     {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
                   </div>
                 </div>
-
                 <div className={styles.cardBody}>
-                  <div className={styles.cardTopline}>
-                    <span>{category ?? (generic ? "Fresh produce" : "Uncategorised")}</span>
-                    <span>{completeness}% complete</span>
-                  </div>
+                  <div className={styles.cardTopline}><span>{category ?? (generic ? "Fresh produce" : "Uncategorised")}</span><span>{completeness}% complete</span></div>
                   <h2>{title}</h2>
                   {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
                   {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
