@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Ean13Barcode } from "@/components/products/Ean13Barcode";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { getProductHubDetail } from "@/lib/products/product-hub.repository";
 import styles from "../products.module.css";
@@ -148,7 +149,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <p className="subtle">{product.description ?? knowledge?.overview ?? "A product record shared across Pantry, Shopping, Recipes, Receipts and price history."}</p>
               <div className={styles.identityMeta}>
                 {product.packSize ? <span>{product.packSize}</span> : null}
-                {product.barcode ? <span>Barcode {product.barcode}</span> : null}
+                {product.barcode ? <span>Barcode {product.barcode}</span> : <span>Barcode not known</span>}
                 {product.recipes.length ? <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span> : null}
                 {retailerCount ? <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span> : null}
               </div>
@@ -166,6 +167,24 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </aside>
       </section>
       <section className={styles.sections}>
+        {product.barcode ? (
+          <article className={`${styles.panel} ${styles.barcodePanel}`}>
+            <div>
+              <p className="eyebrow">GTIN / EAN</p>
+              <h2>Product barcode</h2>
+              <p className="subtle">Use this barcode to identify the exact packaged product across retailers and product databases.</p>
+            </div>
+            <div className={styles.barcodeGraphic}><Ean13Barcode value={product.barcode} /></div>
+          </article>
+        ) : (
+          <article className={`${styles.panel} ${styles.barcodePanel}`}>
+            <div>
+              <p className="eyebrow">GTIN / EAN</p>
+              <h2>Barcode not known</h2>
+              <p className="subtle">Food will continue checking trusted retailer and barcode sources for this product.</p>
+            </div>
+          </article>
+        )}
         {knowledge ? <article className={styles.panel}><h2>About {canonicalName ?? displayName}</h2><p className="subtle">{knowledge.overview}</p>{knowledge.origin ? <><h3>Origin and production</h3><p className="subtle">{knowledge.origin}</p></> : null}</article> : null}
         {knowledge ? <article className={styles.panel}><h2>Common uses</h2><div className={styles.tags}>{knowledge.uses.map((use) => <span key={use}>{use}</span>)}</div><h3>Storage</h3><ul className={styles.list}>{knowledge.storage.map((tip) => <li className={styles.listItem} key={tip}><span>{tip}</span></li>)}</ul></article> : null}
         <article className={styles.panel}>
@@ -175,7 +194,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {canonicalName ? <li className={styles.listItem}><span>Product family</span><strong>{canonicalName}</strong></li> : null}
             {product.brand ? <li className={styles.listItem}><span>Brand</span><strong>{product.brand}</strong></li> : null}
             {product.packSize ? <li className={styles.listItem}><span>Pack size</span><strong>{product.packSize}</strong></li> : null}
-            {product.barcode ? <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode}</strong></li> : null}
+            <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode ?? "Not known"}</strong></li>
             {categoryName ? <li className={styles.listItem}><span>Category</span><strong>{categoryName}</strong></li> : null}
           </ul>
         </article>
