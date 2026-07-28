@@ -307,6 +307,87 @@
   background: var(--surface-muted);
 }
 
+.nutritionPanel {
+  align-self: start;
+}
+
+.nip {
+  max-width: 620px;
+  margin-inline: auto;
+  padding: 12px;
+  border: 3px solid currentColor;
+  background: #fff;
+  color: #111;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+.nip h2 {
+  margin: 0;
+  padding-bottom: 7px;
+  border-bottom: 8px solid currentColor;
+  font-size: clamp(1.45rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.nip > p {
+  margin: 7px 0 5px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.nip table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.nip th,
+.nip td {
+  padding: 6px 7px;
+  border-top: 1px solid currentColor;
+  text-align: left;
+  vertical-align: top;
+}
+
+.nip thead th {
+  border-top: 4px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.nip thead th:last-child,
+.nip tbody td {
+  text-align: right;
+}
+
+.nip tbody th {
+  width: 62%;
+  font-weight: 700;
+}
+
+.nip tbody td {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.nutritionSub {
+  padding-left: 22px !important;
+  font-weight: 400 !important;
+}
+
+.nip > small {
+  display: block;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 5px solid currentColor;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
 @media (max-width: 1100px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -371,5 +452,14 @@
   .productVisual img {
     max-width: 216px;
     max-height: 216px;
+  }
+
+  .nip {
+    padding: 9px;
+  }
+
+  .nip th,
+  .nip td {
+    padding: 5px;
   }
 }
