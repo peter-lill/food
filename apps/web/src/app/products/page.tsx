@@ -83,6 +83,25 @@ function completionScore(product: CompletionProduct) {
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
+function ProductActions() {
+  return (
+    <div className={styles.heroActions}>
+      <Link className={styles.primaryAction} href="/scan">
+        <span aria-hidden="true">▦</span>
+        Scan barcode
+      </Link>
+      <Link className={styles.secondaryAction} href="/receipts">
+        <span aria-hidden="true">⌁</span>
+        Import receipt
+      </Link>
+      <Link className={styles.secondaryAction} href="/admin/product-intelligence">
+        <span aria-hidden="true">⚙</span>
+        Product Intelligence
+      </Link>
+    </div>
+  );
+}
+
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const { q = "", view: rawView } = await searchParams;
   const view = normaliseView(rawView);
@@ -121,7 +140,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <main className={styles.page}>
-      <section className={styles.hero}>
+      <section className={styles.desktopHero}>
         <div className={styles.heroCopy}>
           <div className={styles.heroHeading}>
             <span className={styles.heroMark} aria-hidden="true">◈</span>
@@ -133,20 +152,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <p className={styles.heroText}>
             A single, clean record for everything you buy, store, cook and price-check.
           </p>
-          <div className={styles.heroActions}>
-            <Link className={styles.primaryAction} href="/scan">
-              <span aria-hidden="true">▦</span>
-              Scan barcode
-            </Link>
-            <Link className={styles.secondaryAction} href="/receipts">
-              <span aria-hidden="true">⌁</span>
-              Import receipt
-            </Link>
-            <Link className={styles.secondaryAction} href="/admin/product-intelligence">
-              <span aria-hidden="true">⚙</span>
-              Product Intelligence
-            </Link>
-          </div>
+          <ProductActions />
         </div>
         <div className={styles.heroMetric}>
           <span>Library</span>
@@ -157,6 +163,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           </div>
           <small>{counts["needs-details"]} need more details</small>
         </div>
+      </section>
+
+      <section className={styles.mobileHero}>
+        <div className={styles.mobileHeroHeading}>
+          <span className={styles.mobileHeroMark} aria-hidden="true">◈</span>
+          <div>
+            <p className="eyebrow">PRODUCT LIBRARY</p>
+            <h1>Your products</h1>
+          </div>
+        </div>
+        <p className={styles.mobileHeroText}>
+          A single, clean record for everything you buy, store, cook and price-check.
+        </p>
+        <ProductActions />
       </section>
 
       <section className={styles.summaryGrid} aria-label="Product catalogue summary">
