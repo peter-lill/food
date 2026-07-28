@@ -50,6 +50,16 @@ function cleanFamilyName(value: string | null, productName: string) {
   return normalise(cleaned) === normalise(productName) ? null : cleaned;
 }
 
+function cleanCategoryName(value: string | null, productName: string, familyName: string | null) {
+  if (!value) return null;
+  const cleaned = collapseRepeatedPhrase(value);
+  const normalised = normalise(cleaned);
+  if (!normalised) return null;
+  if (normalised === normalise(productName)) return null;
+  if (familyName && normalised === normalise(familyName)) return null;
+  return cleaned;
+}
+
 function formatQuantity(value: number) {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value);
 }
@@ -114,6 +124,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
   const displayName = collapseRepeatedPhrase(product.name);
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
+  const categoryName = cleanCategoryName(product.category, displayName, canonicalName);
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const latestPrice = product.priceObservations[0] ?? null;
   const pantryQuantity = pantryQuantityLabel(product.inventory);
@@ -143,7 +154,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}><img alt={displayName} src={productImage} /></div>
             <div>
-              <p className="eyebrow">{product.category ?? "PRODUCT"}</p>
+              <p className="eyebrow">{categoryName ?? "PRODUCT"}</p>
               <h1 className="page-title">{displayName}</h1>
               {canonicalName ? <p><strong>Product family:</strong> {canonicalName}</p> : null}
               {product.brand ? <p><strong>{product.brand}</strong></p> : null}
@@ -181,7 +192,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.brand ? <li className={styles.listItem}><span>Brand</span><strong>{product.brand}</strong></li> : null}
             {product.packSize ? <li className={styles.listItem}><span>Pack size</span><strong>{product.packSize}</strong></li> : null}
             {product.barcode ? <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode}</strong></li> : null}
-            {product.category ? <li className={styles.listItem}><span>Category</span><strong>{product.category}</strong></li> : null}
+            {categoryName ? <li className={styles.listItem}><span>Category</span><strong>{categoryName}</strong></li> : null}
           </ul>
         </article>
 
