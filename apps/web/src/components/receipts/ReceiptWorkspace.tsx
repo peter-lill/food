@@ -168,7 +168,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
   return (
     <div className={styles.workspace}>
       <section className={`card ${styles.captureCard}`}>
-        <div className={styles.captureStage}>
+        <div className={`${styles.captureStage} ${imageUrl ? styles.previewStage : styles.emptyStage}`}>
           {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><div className={styles.captureFrame} aria-hidden="true" /><strong>Add a receipt</strong><p>Take a new photo or choose a saved image from Woolworths, your gallery or downloaded files.</p></div>}
           {ocrBusy ? <div className={styles.processing} role="status"><strong>{ocrStatus}</strong><progress max="100" value={ocrProgress}>{ocrProgress}%</progress></div> : null}
           <div className={styles.captureActions}>
@@ -190,23 +190,21 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
           </div>
           <div className={styles.itemsHeader}><h3>Purchase lines</h3><button className="secondary-button" onClick={() => setItems((current) => [...current, makeItem()])} type="button">Add item</button></div>
           <div className={styles.itemList}>
-            {items.length === 0 ? <div className={styles.emptyItems}>No purchase lines yet. Add the first item manually.</div> : items.map((item) => <div className={styles.itemRow} key={item.id}>
-              <label><span>Product</span><input onChange={(event) => updateItem(item.id, "name", event.target.value)} placeholder="Product name" value={item.name} /></label>
-              <label><span>Qty</span><input min="0.01" onChange={(event) => updateItem(item.id, "quantity", event.target.value)} step="0.01" type="number" value={item.quantity} /></label>
-              <label><span>Price</span><input min="0" onChange={(event) => updateItem(item.id, "price", event.target.value)} placeholder="0.00" step="0.01" type="number" value={item.price} /></label>
-              <button aria-label={`Remove ${item.name || "item"}`} className={styles.removeButton} onClick={() => setItems((current) => current.filter((candidate) => candidate.id !== item.id))} type="button">×</button>
-            </div>)}
+            {items.length ? items.map((item, index) => <div className={styles.itemRow} key={item.id}><label><span>Item</span><input aria-label={`Item ${index + 1} description`} onChange={(event) => updateItem(item.id, "name", event.target.value)} value={item.name} /></label><label><span>Qty</span><input min="0" onChange={(event) => updateItem(item.id, "quantity", event.target.value)} step="0.01" type="number" value={item.quantity} /></label><label><span>Price</span><input min="0" onChange={(event) => updateItem(item.id, "price", event.target.value)} step="0.01" type="number" value={item.price} /></label><button aria-label={`Remove ${item.name || `item ${index + 1}`}`} className={styles.removeButton} onClick={() => setItems((current) => current.filter((entry) => entry.id !== item.id))} type="button">×</button></div>) : <div className={styles.emptyItems}>No product lines yet. Add them manually if the receipt was not readable.</div>}
           </div>
-          <textarea name="lines" readOnly hidden value={serialisedLines} /><FieldError state={state} field="lines" />
-          {state.status !== "idle" ? <p className={`form-message ${state.status}`} role={state.status === "error" ? "alert" : "status"}>{state.message}</p> : null}
-          <div className="form-actions"><CreateButton disabled={!ready || ocrBusy} /></div>
+          <input name="lines" type="hidden" value={serialisedLines} />
+          <CreateButton disabled={!ready} />
+          {state.message ? <p className={state.ok ? "success-message" : "field-error"}>{state.message}</p> : null}
         </form> : null}
       </section>
 
-      <section className={`card ${styles.historyCard}`}><div className={styles.historyContent}>
-        <div className="receipt-history-heading"><div><p className="eyebrow">RECEIPT HISTORY</p><h2 className="section-title">{receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}</h2></div><span className="badge neutral">Review before import</span></div>
-        {loadError ? <div className="pantry-error" role="alert"><strong>Receipt history is unavailable.</strong><p>Check PostgreSQL and refresh the page.</p></div> : receipts.length === 0 ? <div className="pantry-empty"><strong>No receipts yet.</strong><p>Photograph or upload your first receipt to begin building purchase and price history.</p></div> : <div className="receipt-list">{receipts.map((receipt) => <ReceiptCard receipt={receipt} key={receipt.id} />)}</div>}
-      </div></section>
+      <section className={`card ${styles.historyCard}`}>
+        <div className={styles.historyContent}>
+          <p className="eyebrow">RECEIPT HISTORY</p>
+          <h2>Previous receipts</h2>
+          {loadError ? <p className="field-error">Receipts could not be loaded.</p> : receipts.length ? <div className="receipt-list">{receipts.map((receipt) => <ReceiptCard key={receipt.id} receipt={receipt} />)}</div> : <p className="subtle">No receipts have been imported yet.</p>}
+        </div>
+      </section>
     </div>
   );
 }
