@@ -8,6 +8,9 @@ export type RetailerPriceCandidate = {
   packSize: string | null;
   isSpecial: boolean;
   sourceUrl: string | null;
+  externalId: string | null;
+  barcode: string | null;
+  imageUrl: string | null;
 };
 
 function clean(value: unknown) {
@@ -45,6 +48,9 @@ export async function searchColesAndWoolworths(query: string): Promise<RetailerP
       packSize: detectPackSize(result.name, result.unit),
       isSpecial: false,
       sourceUrl: null,
+      externalId: clean(result.productId) || null,
+      barcode: clean(result.barcode) || null,
+      imageUrl: clean(result.imageUrl) || null,
     }];
   });
 }
