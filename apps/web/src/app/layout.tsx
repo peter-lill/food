@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./shopping.css";
 import "./navigation.css";
@@ -14,6 +14,12 @@ export const metadata: Metadata = {
   title: "Food",
   description: "Personal food, shopping and nutrition companion",
   icons: { icon: "/brand/food-mark.svg" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
