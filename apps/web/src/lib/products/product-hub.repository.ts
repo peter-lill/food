@@ -25,6 +25,7 @@ export type ProductHubDetail = {
   slug: string | null;
   brand: string | null;
   barcode: string | null;
+  productType: string;
   category: string | null;
   description: string | null;
   imageUrl: string | null;
@@ -259,6 +260,7 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     slug: product.slug,
     brand: product.brand,
     barcode: product.barcode,
+    productType: product.productType,
     category: product.category,
     description: product.description,
     imageUrl: genericFamilyImage(familyName) ?? bestProductImage(product.imageUrl, product.storeProducts),
