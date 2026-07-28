@@ -27,6 +27,23 @@ const memberNavigation = [
 
 const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
 
+const desktopSidebarStyle: CSSProperties = {
+  position: "sticky",
+  top: 0,
+  height: "100dvh",
+  maxHeight: "100dvh",
+  overflow: "hidden",
+};
+
+const desktopSideNavStyle: CSSProperties = {
+  flex: "1 1 auto",
+  minHeight: 0,
+  overflowY: "auto",
+  overscrollBehavior: "contain",
+  paddingRight: 4,
+  scrollbarGutter: "stable",
+};
+
 type InitialUser = {
   name: string;
   email: string;
@@ -139,12 +156,12 @@ export function AppShell({
 
   return (
     <div className="app-frame">
-      <aside className="sidebar">
+      <aside className="sidebar" style={desktopSidebarStyle}>
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
           <span className="wordmark-mark"><FoodMark /></span>
           <span><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
         </Link>
-        <nav className="side-nav" aria-label="Primary navigation">
+        <nav className="side-nav" aria-label="Primary navigation" style={desktopSideNavStyle}>
           {navigation.map((item) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return <Link className={active ? "side-link active" : "side-link"} href={item.href} key={item.href}><span>{item.icon}</span>{item.label}</Link>;
