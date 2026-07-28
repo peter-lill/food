@@ -85,14 +85,34 @@ function titleCase(value: string) {
     .replace(/(^|[\s/(-])([a-z])/g, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase("en-AU")}`);
 }
 
+function canonicalProduceFamily(value: string) {
+  const normalised = value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/\b(button|cup|white|sliced) mushrooms?\b/.test(normalised)) {
+    return "Button Mushroom";
+  }
+
+  return null;
+}
+
 function productFamilyName(value: string) {
   const cleaned = value
     .replace(/^\s*(?:qty\s*)?\d+\s*[x×]\s*/i, "")
     .replace(/^\s*[x×]\s*/i, "")
     .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/^\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
+    .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
+    .replace(/\bcoles\b/gi, "")
+    .replace(/\bslcd\b/gi, "sliced")
     .replace(/\s+/g, " ")
     .trim();
+
+  const produceFamily = canonicalProduceFamily(cleaned);
+  if (produceFamily) return produceFamily;
 
   return cleaned ? titleCase(cleaned) : titleCase(value.trim());
 }
