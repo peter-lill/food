@@ -10,6 +10,23 @@ type ProductsPageProps = {
   searchParams: Promise<{ q?: string; view?: string }>;
 };
 
+type CompletionProduct = {
+  name: string;
+  canonicalName: string | null;
+  imageUrl: string | null;
+  category: string | null;
+  brand: string | null;
+  barcode: string | null;
+  latestPrice: number | null;
+};
+
+const genericFoodTerms = [
+  "apple", "avocado", "banana", "bean", "beetroot", "broccoli", "cabbage", "capsicum",
+  "carrot", "cauliflower", "celery", "cucumber", "garlic", "ginger", "grape", "lemon",
+  "lettuce", "lime", "mango", "mushroom", "onion", "orange", "pear", "potato", "pumpkin",
+  "spinach", "sweet potato", "tomato", "watermelon", "zucchini",
+] as const;
+
 function money(value: number | null) {
   return value === null
     ? null
@@ -34,13 +51,28 @@ function normaliseView(value: string | undefined): ProductView {
     : "all";
 }
 
-function completionScore(product: {
-  imageUrl: string | null;
-  category: string | null;
-  brand: string | null;
-  barcode: string | null;
-  latestPrice: number | null;
-}) {
+function normaliseName(value: string) {
+  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category">) {
+  if (product.brand || product.barcode) return false;
+  const category = normaliseName(product.category ?? "");
+  if (/produce|fruit|vegetable|fresh food/.test(category)) return true;
+  const name = normaliseName(product.canonicalName ?? product.name);
+  return genericFoodTerms.some((term) => name === term || name.endsWith(` ${term}`) || name.startsWith(`${term} `));
+}
+
+function needsDetails(product: CompletionProduct) {
+  if (isGenericFood(product)) return !product.imageUrl;
+  return !product.imageUrl || !product.category || (!product.barcode && !product.brand);
+}
+
+function completionScore(product: CompletionProduct) {
+  if (isGenericFood(product)) {
+    return product.imageUrl ? 100 : 67;
+  }
+
   const checks = [
     Boolean(product.imageUrl),
     Boolean(product.category),
@@ -61,18 +93,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     pantry: allProducts.filter((product) => product.pantryQuantity > 0).length,
     priced: allProducts.filter((product) => product.latestPrice !== null).length,
     recipes: allProducts.filter((product) => product.recipeCount > 0).length,
-    "needs-details": allProducts.filter((product) =>
-      !product.imageUrl || !product.category || (!product.barcode && !product.brand),
-    ).length,
+    "needs-details": allProducts.filter(needsDetails).length,
   };
 
   const products = allProducts.filter((product) => {
     if (view === "pantry") return product.pantryQuantity > 0;
     if (view === "priced") return product.latestPrice !== null;
     if (view === "recipes") return product.recipeCount > 0;
-    if (view === "needs-details") {
-      return !product.imageUrl || !product.category || (!product.barcode && !product.brand);
-    }
+    if (view === "needs-details") return needsDetails(product);
     return true;
   });
 
@@ -198,6 +226,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const latestPrice = money(product.latestPrice);
             const completeness = completionScore(product);
             const observed = observedLabel(product.latestObservedAt);
+            const generic = isGenericFood(product);
 
             return (
               <article className={styles.card} key={product.id}>
@@ -216,21 +245,23 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   )}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
-                    {completeness < 80 ? <span className={styles.attentionBadge}>Needs details</span> : null}
+                    {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
                   </div>
                 </div>
 
                 <div className={styles.cardBody}>
                   <div className={styles.cardTopline}>
-                    <span>{product.category ?? "Uncategorised"}</span>
+                    <span>{product.category ?? (generic ? "Fresh produce" : "Uncategorised")}</span>
                     <span>{completeness}% complete</span>
                   </div>
                   <h2>{displayName}</h2>
                   {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
                   <p className={styles.brandLine}>
-                    {[product.brand, product.barcode ? `Barcode ${product.barcode}` : null]
-                      .filter(Boolean)
-                      .join(" · ") || "Brand and barcode not added"}
+                    {generic
+                      ? "Loose or generic food · no barcode required"
+                      : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null]
+                          .filter(Boolean)
+                          .join(" · ") || "Brand and barcode not added"}
                   </p>
 
                   <div className={styles.completeness} aria-label={`${completeness}% product information complete`}>
