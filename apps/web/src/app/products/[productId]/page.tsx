@@ -1,32 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { getProductHubDetail } from "@/lib/products/product-hub.repository";
 import styles from "../products.module.css";
 
 export const dynamic = "force-dynamic";
 
-type ProductPageProps = {
-  params: Promise<{ productId: string }>;
-};
-
-type ProductKnowledge = {
-  overview: string;
-  origin?: string;
-  uses: string[];
-  storage: string[];
-};
+type ProductPageProps = { params: Promise<{ productId: string }> };
+type ProductKnowledge = { overview: string; origin?: string; uses: string[]; storage: string[] };
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-AU", {
-    style: "currency",
-    currency: "AUD",
-  }).format(value);
+  return new Intl.NumberFormat("en-AU", { style: "currency", currency: "AUD" }).format(value);
 }
 
 function date(value: Date | null) {
-  return value
-    ? new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(value)
-    : "Not recorded";
+  return value ? new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(value) : "Not recorded";
 }
 
 function normalise(value: string) {
@@ -54,8 +42,7 @@ function cleanCategoryName(value: string | null, productName: string, familyName
   if (!value) return null;
   const cleaned = collapseRepeatedPhrase(value);
   const normalised = normalise(cleaned);
-  if (!normalised) return null;
-  if (normalised === normalise(productName)) return null;
+  if (!normalised || normalised === normalise(productName)) return null;
   if (familyName && normalised === normalise(familyName)) return null;
   return cleaned;
 }
@@ -119,7 +106,9 @@ function knowledgeFor(name: string): ProductKnowledge | null {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { productId } = await params;
-  const product = await getProductHubDetail(decodeURIComponent(productId));
+  const decodedProductId = decodeURIComponent(productId);
+  await enrichProductKnowledge(decodedProductId);
+  const product = await getProductHubDetail(decodedProductId);
   if (!product) notFound();
 
   const displayName = collapseRepeatedPhrase(product.name);
@@ -133,7 +122,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ...product.priceObservations.map((observation) => observation.retailer),
   ]).size;
   const productImage = `/api/products/${encodeURIComponent(product.id)}/image`;
-
   const nutrition = [
     ["Energy", product.calories === null ? null : `${Math.round(product.calories)} kcal`],
     ["Protein", product.proteinGrams === null ? null : `${product.proteinGrams} g`],
@@ -148,7 +136,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
   return (
     <div className={styles.page}>
       <Link className={`secondary-button ${styles.backLink}`} href="/products">← Product Hub</Link>
-
       <section className={styles.detailHero}>
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
@@ -168,7 +155,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
           </div>
         </div>
-
         <aside className={styles.panel}>
           <p className="eyebrow">YOUR PRODUCT</p>
           <div className={styles.metricGrid}>
@@ -179,11 +165,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
         </aside>
       </section>
-
       <section className={styles.sections}>
         {knowledge ? <article className={styles.panel}><h2>About {canonicalName ?? displayName}</h2><p className="subtle">{knowledge.overview}</p>{knowledge.origin ? <><h3>Origin and production</h3><p className="subtle">{knowledge.origin}</p></> : null}</article> : null}
         {knowledge ? <article className={styles.panel}><h2>Common uses</h2><div className={styles.tags}>{knowledge.uses.map((use) => <span key={use}>{use}</span>)}</div><h3>Storage</h3><ul className={styles.list}>{knowledge.storage.map((tip) => <li className={styles.listItem} key={tip}><span>{tip}</span></li>)}</ul></article> : null}
-
         <article className={styles.panel}>
           <h2>Product identity</h2>
           <ul className={styles.list}>
@@ -195,13 +179,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {categoryName ? <li className={styles.listItem}><span>Category</span><strong>{categoryName}</strong></li> : null}
           </ul>
         </article>
-
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{listing.packSize ?? "—"}</strong><small>{listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>)}</ul></article> : null}
-
         {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : ""}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
-
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><ul className={styles.list}>{product.recipes.map((recipe) => <li className={styles.listItem} key={recipe.id}><strong>{recipe.name}</strong><small>{recipe.sourceName ?? "Recipe"}</small></li>)}</ul></article> : null}
-
         {nutrition.length ? <article className={styles.panel}><h2>Nutrition</h2><ul className={styles.list}>{nutrition.map(([label, value]) => <li className={styles.listItem} key={label}><span>{label}</span><strong>{value}</strong></li>)}</ul></article> : null}
       </section>
     </div>
