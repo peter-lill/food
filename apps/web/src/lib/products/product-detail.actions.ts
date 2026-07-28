@@ -4,6 +4,7 @@ import { ProductType } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 
 function text(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").replace(/\s+/g, " ").trim();
@@ -39,6 +40,13 @@ export async function updateProductDetails(productId: string, formData: FormData
     if (conflict) throw new Error("That barcode is already linked to another product.");
   }
 
+  const existing = await prisma.product.findUnique({
+    where: { id: productId },
+    select: { barcode: true, name: true, brand: true, packSize: true, productType: true },
+  });
+  if (!existing) throw new Error("Product not found.");
+
+  const productType = productTypeInput as ProductType;
   const product = await prisma.product.update({
     where: { id: productId },
     data: {
@@ -47,13 +55,26 @@ export async function updateProductDetails(productId: string, formData: FormData
       packSize: nullable(packSize),
       category: nullable(category),
       barcode: nullable(barcode),
-      productType: productTypeInput as ProductType,
+      productType,
       lifecycle: "REVIEW_REQUIRED",
     },
     select: { id: true, slug: true },
   });
 
-  await prisma.productEnrichmentJob.deleteMany({ where: { productId } });
+  const knowledgeChanged =
+    existing.barcode !== nullable(barcode)
+    || existing.name !== name
+    || existing.brand !== nullable(brand)
+    || existing.packSize !== nullable(packSize)
+    || existing.productType !== productType;
+
+  if (knowledgeChanged) {
+    await prisma.productEnrichmentJob.deleteMany({ where: { productId } });
+    if (productType !== ProductType.GENERIC_PRODUCE) {
+      await enrichProductKnowledge(productId);
+    }
+  }
+
   revalidatePath("/products");
   revalidatePath(`/products/${product.slug ?? product.id}`);
   redirect(`/products/${product.slug ?? product.id}`);
