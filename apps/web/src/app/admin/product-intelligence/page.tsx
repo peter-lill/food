@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { EnrichmentJobStatus, ProductLifecycle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import styles from "./product-intelligence-admin.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,10 @@ function dateTime(value: Date | null) {
 
 function percent(value: number) {
   return `${Math.round(value * 100)}%`;
+}
+
+function label(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 export default async function ProductIntelligenceAdminPage() {
@@ -74,8 +79,8 @@ export default async function ProductIntelligenceAdminPage() {
     + (jobCounts.get(EnrichmentJobStatus.RETRY_SCHEDULED) ?? 0);
 
   return (
-    <main style={{ display: "grid", gap: "1.5rem", padding: "1.5rem", maxWidth: 1400, margin: "0 auto" }}>
-      <header style={{ display: "flex", alignItems: "end", justifyContent: "space-between", gap: "1rem", flexWrap: "wrap" }}>
+    <main className={styles.page}>
+      <header className={styles.header}>
         <div>
           <p className="eyebrow">ADMIN · PRODUCT INTELLIGENCE</p>
           <h1 className="page-title">Product Intelligence operations</h1>
@@ -84,7 +89,7 @@ export default async function ProductIntelligenceAdminPage() {
         <Link className="secondary-button" href="/products">Open Product Library</Link>
       </header>
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1rem" }}>
+      <section className={styles.summaryGrid} aria-label="Product Intelligence summary">
         <article className="panel"><small>Products</small><h2>{totalProducts}</h2><p className="subtle">Canonical catalogue records</p></article>
         <article className="panel"><small>Knowledge records</small><h2>{totalKnowledge}</h2><p className="subtle">Reusable food knowledge</p></article>
         <article className="panel"><small>Active jobs</small><h2>{activeJobs}</h2><p className="subtle">Queued, running or retrying</p></article>
@@ -93,11 +98,11 @@ export default async function ProductIntelligenceAdminPage() {
 
       <section className="panel">
         <p className="eyebrow">PRODUCT LIFECYCLE</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+        <div className={styles.statusGrid}>
           {Object.values(ProductLifecycle).map((lifecycle) => (
-            <div key={lifecycle} style={{ border: "1px solid var(--border, #d9ded8)", borderRadius: 16, padding: "1rem" }}>
-              <strong>{lifecycle.replaceAll("_", " ")}</strong>
-              <div style={{ fontSize: "1.75rem", fontWeight: 700, marginTop: "0.35rem" }}>{lifecycleCounts.get(lifecycle) ?? 0}</div>
+            <div className={styles.statusCard} key={lifecycle}>
+              <strong>{label(lifecycle)}</strong>
+              <div className={styles.statusCount}>{lifecycleCounts.get(lifecycle) ?? 0}</div>
             </div>
           ))}
         </div>
@@ -105,47 +110,84 @@ export default async function ProductIntelligenceAdminPage() {
 
       <section className="panel">
         <p className="eyebrow">ENRICHMENT QUEUE</p>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.75rem", marginTop: "1rem" }}>
+        <div className={styles.statusGrid}>
           {Object.values(EnrichmentJobStatus).map((status) => (
-            <div key={status} style={{ border: "1px solid var(--border, #d9ded8)", borderRadius: 16, padding: "1rem" }}>
-              <strong>{status.replaceAll("_", " ")}</strong>
-              <div style={{ fontSize: "1.75rem", fontWeight: 700, marginTop: "0.35rem" }}>{jobCounts.get(status) ?? 0}</div>
+            <div className={styles.statusCard} key={status}>
+              <strong>{label(status)}</strong>
+              <div className={styles.statusCount}>{jobCounts.get(status) ?? 0}</div>
             </div>
           ))}
         </div>
       </section>
 
-      <section className="panel" style={{ overflowX: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline" }}>
+      <section className="panel">
+        <div className={styles.sectionHeader}>
           <div><p className="eyebrow">RECENT JOBS</p><h2>Latest enrichment activity</h2></div>
           <small>{recentJobs.length} shown</small>
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem", minWidth: 800 }}>
-          <thead><tr><th align="left">Product</th><th align="left">Provider</th><th align="left">Status</th><th align="right">Attempts</th><th align="left">Created</th><th align="left">Error</th></tr></thead>
+
+        <table className={styles.desktopTable}>
+          <thead><tr><th>Product</th><th>Provider</th><th>Status</th><th>Attempts</th><th>Created</th><th>Error</th></tr></thead>
           <tbody>
             {recentJobs.length ? recentJobs.map((job) => (
-              <tr key={job.id} style={{ borderTop: "1px solid var(--border, #d9ded8)" }}>
-                <td style={{ padding: "0.8rem 0" }}><Link href={`/products/${encodeURIComponent(job.product.id)}`}>{job.product.name}</Link><br /><small>{job.product.lifecycle} · {percent(job.product.confidenceScore)}</small></td>
-                <td>{job.provider}</td><td>{job.status.replaceAll("_", " ")}</td><td align="right">{job.attempts}</td><td>{dateTime(job.createdAt)}</td><td>{job.lastError ?? "—"}</td>
+              <tr key={job.id}>
+                <td><Link href={`/products/${encodeURIComponent(job.product.id)}`}>{job.product.name}</Link><br /><small>{label(job.product.lifecycle)} · {percent(job.product.confidenceScore)}</small></td>
+                <td>{job.provider}</td><td>{label(job.status)}</td><td>{job.attempts}</td><td>{dateTime(job.createdAt)}</td><td>{job.lastError ?? "—"}</td>
               </tr>
-            )) : <tr><td colSpan={6} style={{ padding: "1rem 0" }}>No enrichment jobs have been created yet.</td></tr>}
+            )) : <tr><td colSpan={6}>No enrichment jobs have been created yet.</td></tr>}
           </tbody>
         </table>
+
+        <div className={styles.mobileList}>
+          {recentJobs.length ? recentJobs.map((job) => (
+            <article className={styles.mobileCard} key={job.id}>
+              <div className={styles.mobileTitle}>
+                <Link href={`/products/${encodeURIComponent(job.product.id)}`}>{job.product.name}</Link>
+                <span className={styles.badge}>{label(job.status)}</span>
+              </div>
+              <div className={styles.mobileMeta}>
+                <div><small>Provider</small><strong>{job.provider}</strong></div>
+                <div><small>Confidence</small><strong>{percent(job.product.confidenceScore)}</strong></div>
+                <div><small>Lifecycle</small><strong>{label(job.product.lifecycle)}</strong></div>
+                <div><small>Attempts</small><strong>{job.attempts}</strong></div>
+                <div><small>Created</small><strong>{dateTime(job.createdAt)}</strong></div>
+                <div><small>Error</small><strong>{job.lastError ?? "None"}</strong></div>
+              </div>
+            </article>
+          )) : <p className={styles.empty}>No enrichment jobs have been created yet.</p>}
+        </div>
       </section>
 
-      <section className="panel" style={{ overflowX: "auto" }}>
-        <div><p className="eyebrow">REVIEW QUEUE</p><h2>Low-confidence products</h2></div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "1rem", minWidth: 760 }}>
-          <thead><tr><th align="left">Product</th><th align="left">Type</th><th align="left">Lifecycle</th><th align="right">Confidence</th><th align="left">Identity</th></tr></thead>
+      <section className="panel">
+        <div className={styles.sectionHeader}><div><p className="eyebrow">REVIEW QUEUE</p><h2>Low-confidence products</h2></div></div>
+
+        <table className={styles.desktopTable}>
+          <thead><tr><th>Product</th><th>Type</th><th>Lifecycle</th><th>Confidence</th><th>Identity</th></tr></thead>
           <tbody>
             {reviewProducts.length ? reviewProducts.map((product) => (
-              <tr key={product.id} style={{ borderTop: "1px solid var(--border, #d9ded8)" }}>
-                <td style={{ padding: "0.8rem 0" }}><Link href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</Link></td>
-                <td>{product.productType.replaceAll("_", " ")}</td><td>{product.lifecycle.replaceAll("_", " ")}</td><td align="right">{percent(product.confidenceScore)}</td><td>{[product.brand, product.barcode].filter(Boolean).join(" · ") || "No brand or barcode"}</td>
+              <tr key={product.id}>
+                <td><Link href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</Link></td>
+                <td>{label(product.productType)}</td><td>{label(product.lifecycle)}</td><td>{percent(product.confidenceScore)}</td><td>{[product.brand, product.barcode].filter(Boolean).join(" · ") || "No brand or barcode"}</td>
               </tr>
-            )) : <tr><td colSpan={5} style={{ padding: "1rem 0" }}>No products currently require review.</td></tr>}
+            )) : <tr><td colSpan={5}>No products currently require review.</td></tr>}
           </tbody>
         </table>
+
+        <div className={styles.mobileList}>
+          {reviewProducts.length ? reviewProducts.map((product) => (
+            <article className={styles.mobileCard} key={product.id}>
+              <div className={styles.mobileTitle}>
+                <Link href={`/products/${encodeURIComponent(product.id)}`}>{product.name}</Link>
+                <span className={styles.badge}>{percent(product.confidenceScore)}</span>
+              </div>
+              <div className={styles.mobileMeta}>
+                <div><small>Type</small><strong>{label(product.productType)}</strong></div>
+                <div><small>Lifecycle</small><strong>{label(product.lifecycle)}</strong></div>
+                <div><small>Identity</small><strong>{[product.brand, product.barcode].filter(Boolean).join(" · ") || "No brand or barcode"}</strong></div>
+              </div>
+            </article>
+          )) : <p className={styles.empty}>No products currently require review.</p>}
+        </div>
       </section>
     </main>
   );
