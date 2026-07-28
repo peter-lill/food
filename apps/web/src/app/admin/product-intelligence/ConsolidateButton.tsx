@@ -17,9 +17,10 @@ export function ConsolidateButton({ duplicateGroups }: { duplicateGroups: number
     setStatus(null);
     try {
       const response = await fetch("/api/admin/product-intelligence/consolidate", { method: "POST" });
-      const result = await response.json() as { ok?: boolean; error?: string; mergedProducts?: number; mergedGroups?: number };
+      const result = await response.json() as { ok?: boolean; error?: string; merged?: number; groups?: Array<{ merged: number }> };
       if (!response.ok || !result.ok) throw new Error(result.error ?? "Consolidation failed");
-      setStatus(`Merged ${result.mergedProducts ?? 0} duplicate product records across ${result.mergedGroups ?? 0} groups.`);
+      const changedGroups = result.groups?.filter((group) => group.merged > 0).length ?? 0;
+      setStatus(`Merged ${result.merged ?? 0} duplicate product records across ${changedGroups} groups.`);
       router.refresh();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Consolidation failed");
