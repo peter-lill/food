@@ -18,6 +18,31 @@ const stopWords = new Set([
   "each", "item", "product", "g", "kg", "ml", "l",
 ]);
 
+const canonicalProduceQueries: Array<{ pattern: RegExp; query: string }> = [
+  { pattern: /\bsweet potatoes?\b|\bkumara\b/, query: "Sweet potato" },
+  { pattern: /\bbroccoli\b/, query: "Broccoli" },
+  { pattern: /\bcauliflowers?\b/, query: "Cauliflower" },
+  { pattern: /\bcarrots?\b/, query: "Carrot" },
+  { pattern: /\bgarlic\b/, query: "Garlic" },
+  { pattern: /\bginger\b/, query: "Ginger" },
+  { pattern: /\bbrown onions?\b/, query: "Yellow onion" },
+  { pattern: /\bred onions?\b/, query: "Red onion" },
+  { pattern: /\bonions?\b/, query: "Onion" },
+  { pattern: /\bpotatoes?\b/, query: "Potato" },
+  { pattern: /\bpumpkins?\b/, query: "Pumpkin" },
+  { pattern: /\btomatoes?\b/, query: "Tomato" },
+  { pattern: /\bcapsicums?\b|\bbell peppers?\b/, query: "Bell pepper" },
+  { pattern: /\bcucumbers?\b/, query: "Cucumber" },
+  { pattern: /\bzucchinis?\b|\bcourgettes?\b/, query: "Zucchini" },
+  { pattern: /\bspinach\b/, query: "Spinach" },
+  { pattern: /\blettuces?\b/, query: "Lettuce" },
+  { pattern: /\blemons?\b/, query: "Lemon" },
+  { pattern: /\blimes?\b/, query: "Lime (fruit)" },
+  { pattern: /\bapples?\b/, query: "Apple" },
+  { pattern: /\bbananas?\b/, query: "Banana" },
+  { pattern: /\bavocados?\b/, query: "Avocado" },
+];
+
 type RouteContext = { params: Promise<{ productId: string }> };
 type OpenFoodFactsResponse = {
   status?: number;
@@ -148,12 +173,18 @@ function redirectToImage(imageUrl: string) {
   return response;
 }
 
-function genericImageForProduct(request: Request, product: ProductIdentity) {
+function localGenericImage(request: Request, product: ProductIdentity) {
   const identity = normalise([product.name, product.canonicalName].filter(Boolean).join(" "));
   if (/\bmushrooms?\b/.test(identity)) {
     return new URL("/product-images/button-mushroom.svg", request.url).toString();
   }
   return null;
+}
+
+function canonicalProduceQuery(product: ProductIdentity) {
+  if (product.brand || product.barcode) return null;
+  const identity = normalise([product.canonicalName, product.name].filter(Boolean).join(" "));
+  return canonicalProduceQueries.find((entry) => entry.pattern.test(identity))?.query ?? null;
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -188,8 +219,28 @@ export async function GET(request: Request, context: RouteContext) {
     barcode: product.barcode,
   };
 
-  const genericImage = genericImageForProduct(request, identity);
-  if (genericImage) return redirectToImage(genericImage);
+  const localImage = localGenericImage(request, identity);
+  if (localImage) return redirectToImage(localImage);
+
+  const produceQuery = canonicalProduceQuery(identity);
+  if (produceQuery) {
+    try {
+      const produceImage = await imageFromWikipedia(produceQuery);
+      if (produceImage) {
+        await prisma.product.update({
+          where: { id: product.id },
+          data: { imageUrl: produceImage },
+        }).catch(() => undefined);
+        return redirectToImage(produceImage);
+      }
+    } catch (error) {
+      console.warn("Canonical produce image lookup failed", {
+        productId: product.id,
+        produceQuery,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   const existing = safeImageUrl(product.imageUrl);
   if (existing) return redirectToImage(existing);
