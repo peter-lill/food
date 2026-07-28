@@ -17,22 +17,14 @@ type OpenFoodFactsProduct = {
   nutriments?: Record<string, unknown>;
 };
 
-type OpenFoodFactsResponse = {
-  status?: number;
-  product?: OpenFoodFactsProduct;
-};
+type OpenFoodFactsResponse = { status?: number; product?: OpenFoodFactsProduct };
 
 function clean(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 }
 
 function normalise(value: string) {
-  return value
-    .toLocaleLowerCase("en-AU")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return value.toLocaleLowerCase("en-AU").replace(/&/g, " and ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
 function numeric(value: unknown) {
@@ -44,7 +36,6 @@ function numeric(value: unknown) {
 function validGtin(value: unknown) {
   const digits = clean(value).replace(/\D/g, "");
   if (!/^\d{8,14}$/.test(digits)) return null;
-
   const body = digits.slice(0, -1).split("").reverse().map(Number);
   const expected = (10 - (body.reduce((sum, digit, index) => sum + digit * (index % 2 === 0 ? 3 : 1), 0) % 10)) % 10;
   return expected === Number(digits.at(-1)) ? digits : null;
@@ -67,14 +58,9 @@ function bestRetailerCandidate(
       const barcode = validGtin(candidate.barcode);
       if (!barcode) return null;
       const nameScore = similarity(expectedName, candidate.productName);
-      const brandScore = product.brand
-        ? Number(normalise(candidate.productName).includes(normalise(product.brand)))
-        : 1;
-      const packScore = product.packSize && candidate.packSize
-        ? Number(normalise(product.packSize) === normalise(candidate.packSize))
-        : 1;
-      const score = nameScore * 0.75 + brandScore * 0.15 + packScore * 0.1;
-      return { candidate, barcode, score };
+      const brandScore = product.brand ? Number(normalise(candidate.productName).includes(normalise(product.brand))) : 1;
+      const packScore = product.packSize && candidate.packSize ? Number(normalise(product.packSize) === normalise(candidate.packSize)) : 1;
+      return { candidate, barcode, score: nameScore * 0.75 + brandScore * 0.15 + packScore * 0.1 };
     })
     .filter((entry): entry is { candidate: RetailerPriceCandidate; barcode: string; score: number } => entry !== null)
     .filter((entry) => entry.score >= 0.82)
@@ -85,18 +71,12 @@ async function fetchOpenFoodFacts(barcode: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
-    const fields = [
-      "status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url",
-      "allergens_tags", "nutriments",
-    ].join(",");
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`,
-      {
-        cache: "no-store",
-        signal: controller.signal,
-        headers: { Accept: "application/json", "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)" },
-      },
-    );
+    const fields = ["status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url", "allergens_tags", "nutriments"].join(",");
+    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { Accept: "application/json", "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)" },
+    });
     if (!response.ok) return null;
     const payload = await response.json() as OpenFoodFactsResponse;
     return payload.status === 0 ? null : payload.product ?? null;
@@ -111,12 +91,7 @@ async function saveRetailerListing(productId: string, match: ReturnType<typeof b
   if (!match?.candidate.externalId) return;
   const candidate = match.candidate;
   await prisma.storeProduct.upsert({
-    where: {
-      retailer_externalId: {
-        retailer: candidate.retailer,
-        externalId: candidate.externalId,
-      },
-    },
+    where: { retailer_externalId: { retailer: candidate.retailer, externalId: candidate.externalId } },
     create: {
       productId,
       retailer: candidate.retailer,
@@ -152,12 +127,7 @@ export async function enrichProductKnowledge(productId: string) {
   if (recent) return { status: "fresh" as const };
 
   const job = await prisma.productEnrichmentJob.create({
-    data: {
-      productId,
-      provider,
-      status: EnrichmentJobStatus.RUNNING,
-      startedAt: new Date(),
-    },
+    data: { productId, provider, status: EnrichmentJobStatus.RUNNING, startedAt: new Date() },
     select: { id: true },
   }).catch(() => null);
   if (!job) return { status: "busy" as const };
@@ -166,23 +136,9 @@ export async function enrichProductKnowledge(productId: string) {
     const product = await prisma.product.findUnique({
       where: { id: productId },
       select: {
-        id: true,
-        name: true,
-        canonicalName: true,
-        brand: true,
-        barcode: true,
-        category: true,
-        packSize: true,
-        imageUrl: true,
-        calories: true,
-        proteinGrams: true,
-        carbsGrams: true,
-        fatGrams: true,
-        saturatedFatGrams: true,
-        fibreGrams: true,
-        sugarGrams: true,
-        sodiumMg: true,
-        allergens: true,
+        id: true, name: true, canonicalName: true, brand: true, barcode: true, category: true, packSize: true, imageUrl: true,
+        calories: true, proteinGrams: true, carbsGrams: true, fatGrams: true, saturatedFatGrams: true,
+        fibreGrams: true, sugarGrams: true, sodiumMg: true, allergens: true,
       },
     });
     if (!product) throw new Error("Product not found");
@@ -190,22 +146,14 @@ export async function enrichProductKnowledge(productId: string) {
     let barcode = validGtin(product.barcode);
     if (!barcode) {
       const query = [product.brand, product.canonicalName ?? product.name, product.packSize].filter(Boolean).join(" ");
-      const retailerResults = await searchColesAndWoolworths(query);
-      const match = bestRetailerCandidate(product, retailerResults);
+      const match = bestRetailerCandidate(product, await searchColesAndWoolworths(query));
       if (match) {
-        const conflict = await prisma.product.findFirst({
-          where: { barcode: match.barcode, id: { not: product.id } },
-          select: { id: true },
-        });
+        const conflict = await prisma.product.findFirst({ where: { barcode: match.barcode, id: { not: product.id } }, select: { id: true } });
         if (!conflict) {
           barcode = match.barcode;
           await prisma.product.update({
             where: { id: product.id },
-            data: {
-              barcode,
-              imageUrl: product.imageUrl ?? match.candidate.imageUrl,
-              packSize: product.packSize ?? match.candidate.packSize,
-            },
+            data: { barcode, imageUrl: product.imageUrl ?? match.candidate.imageUrl, packSize: product.packSize ?? match.candidate.packSize },
           });
           await saveRetailerListing(product.id, match);
         }
@@ -220,13 +168,17 @@ export async function enrichProductKnowledge(productId: string) {
           ? source.allergens_tags.map(clean).filter(Boolean).map((value) => value.replace(/^[a-z]{2}:/i, ""))
           : [];
         const sodiumGrams = numeric(nutrients.sodium_100g);
+        const sourceBrand = clean(source.brands) || null;
+        const sourcePackSize = clean(source.quantity) || null;
+        const sourceCategory = clean(source.categories).split(",")[0]?.trim() || null;
+        const sourceImage = clean(source.image_front_url) || clean(source.image_url) || null;
         await prisma.product.update({
           where: { id: product.id },
           data: {
-            brand: product.brand ?? clean(source.brands) || null,
-            packSize: product.packSize ?? clean(source.quantity) || null,
-            category: product.category ?? clean(source.categories).split(",")[0]?.trim() || null,
-            imageUrl: product.imageUrl ?? clean(source.image_front_url) || clean(source.image_url) || null,
+            brand: product.brand ?? sourceBrand,
+            packSize: product.packSize ?? sourcePackSize,
+            category: product.category ?? sourceCategory,
+            imageUrl: product.imageUrl ?? sourceImage,
             calories: product.calories ?? numeric(nutrients["energy-kcal_100g"]),
             proteinGrams: product.proteinGrams ?? numeric(nutrients.proteins_100g),
             carbsGrams: product.carbsGrams ?? numeric(nutrients.carbohydrates_100g),
@@ -250,12 +202,7 @@ export async function enrichProductKnowledge(productId: string) {
     const message = error instanceof Error ? error.message : String(error);
     await prisma.productEnrichmentJob.update({
       where: { id: job.id },
-      data: {
-        status: EnrichmentJobStatus.FAILED,
-        completedAt: new Date(),
-        attempts: { increment: 1 },
-        lastError: message.slice(0, 500),
-      },
+      data: { status: EnrichmentJobStatus.FAILED, completedAt: new Date(), attempts: { increment: 1 }, lastError: message.slice(0, 500) },
     }).catch(() => undefined);
     console.warn("Product knowledge enrichment failed", { productId, error: message });
     return { status: "failed" as const };
