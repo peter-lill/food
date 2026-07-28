@@ -33,6 +33,27 @@ function normalise(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
+function formatQuantity(value: number) {
+  return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value);
+}
+
+function pantryQuantityLabel(inventory: Array<{ quantity: number; unit: string }>) {
+  if (!inventory.length) return "—";
+
+  const totals = new Map<string, number>();
+  for (const item of inventory) {
+    const unit = item.unit.trim() || "item";
+    totals.set(unit, (totals.get(unit) ?? 0) + item.quantity);
+  }
+
+  return [...totals.entries()]
+    .map(([unit, quantity]) => {
+      const label = unit === "item" && quantity !== 1 ? "items" : unit;
+      return `${formatQuantity(quantity)} ${label}`;
+    })
+    .join(" + ");
+}
+
 function knowledgeFor(name: string): ProductKnowledge | null {
   const value = normalise(name);
 
@@ -60,6 +81,14 @@ function knowledgeFor(name: string): ProductKnowledge | null {
       origin: "Retail salmon may be farmed or wild caught and can come from different species and regions. Check the specific package for country-of-origin and production details.",
       uses: ["Pan-frying", "Baking", "Grilling", "Rice bowls", "Salads", "Pasta"],
       storage: ["Keep chilled and use by the package date", "Freeze promptly when not using fresh", "Thaw in the refrigerator", "Keep cooked fish refrigerated"],
+    };
+  }
+
+  if (value.includes("sweet potato")) {
+    return {
+      overview: "Sweet potatoes are starchy root vegetables with naturally sweet flesh. They are commonly sold loose by weight and do not normally have a brand, barcode or fixed pack size.",
+      uses: ["Roasting", "Mashing", "Air frying", "Soups and curries", "Salads and bowls"],
+      storage: ["Keep in a cool, dark and ventilated place", "Do not refrigerate raw sweet potatoes", "Use promptly if the skin becomes soft or damaged"],
     };
   }
 
@@ -93,7 +122,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     : null;
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const latestPrice = product.priceObservations[0] ?? null;
-  const pantryQuantity = product.inventory.reduce((total, item) => total + item.quantity, 0);
+  const pantryQuantity = pantryQuantityLabel(product.inventory);
   const retailerCount = new Set([
     ...product.storeProducts.map((listing) => listing.retailer),
     ...product.priceObservations.map((observation) => observation.retailer),
@@ -152,7 +181,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
             </div>
             <div className={styles.metric}>
               <small>Pantry quantity</small>
-              <strong>{pantryQuantity || "—"}</strong>
+              <strong>{pantryQuantity}</strong>
               <small>{product.inventory.length ? `${product.inventory.length} stock record${product.inventory.length === 1 ? "" : "s"}` : "Not stocked"}</small>
             </div>
             <div className={styles.metric}>
@@ -268,7 +297,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                     <strong>{item.location}</strong>
                     <small>Expires {date(item.expiresAt)}</small>
                   </div>
-                  <strong>{item.quantity} {item.unit}</strong>
+                  <strong>{formatQuantity(item.quantity)} {item.unit}</strong>
                 </li>
               ))}
             </ul>
