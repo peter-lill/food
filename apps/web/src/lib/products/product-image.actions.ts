@@ -35,17 +35,21 @@ async function clearRejectedImage(productId: string) {
   ]);
 }
 
+async function rejectAndSearch(productId: string) {
+  await clearRejectedImage(productId);
+  return findBestProductImage(productId);
+}
+
 export async function removeProductImage(productId: string) {
   const destination = await productDestination(productId);
-  await clearRejectedImage(productId);
+  await rejectAndSearch(productId);
   revalidateProduct(productId, destination);
   redirect(destination);
 }
 
 export async function refreshProductImage(productId: string) {
   const destination = await productDestination(productId);
-  await clearRejectedImage(productId);
-  await findBestProductImage(productId);
+  await rejectAndSearch(productId);
   revalidateProduct(productId, destination);
   redirect(destination);
 }
