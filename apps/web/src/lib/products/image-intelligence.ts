@@ -16,6 +16,28 @@ type StoredCandidate = {
 };
 
 const gtinPattern = /^\d{7,14}$/;
+const produceQueries: Array<{ pattern: RegExp; query: string }> = [
+  { pattern: /\bsweet potatoes?\b|\bkumara\b/i, query: "Sweet potato" },
+  { pattern: /\bbroccoli\b/i, query: "Broccoli" },
+  { pattern: /\bbutton mushrooms?\b|\bmushrooms?\b/i, query: "Agaricus bisporus" },
+  { pattern: /\bgarlic\b/i, query: "Garlic" },
+  { pattern: /\bginger\b/i, query: "Ginger" },
+  { pattern: /\bcarrots?\b/i, query: "Carrot" },
+  { pattern: /\bcauliflowers?\b/i, query: "Cauliflower" },
+  { pattern: /\bpotatoes?\b/i, query: "Potato" },
+  { pattern: /\btomatoes?\b/i, query: "Tomato" },
+  { pattern: /\bonions?\b/i, query: "Onion" },
+  { pattern: /\bcapsicums?\b|\bbell peppers?\b/i, query: "Bell pepper" },
+  { pattern: /\bcucumbers?\b/i, query: "Cucumber" },
+  { pattern: /\bzucchinis?\b|\bcourgettes?\b/i, query: "Zucchini" },
+  { pattern: /\bspinach\b/i, query: "Spinach" },
+  { pattern: /\blettuces?\b/i, query: "Lettuce" },
+  { pattern: /\blemons?\b/i, query: "Lemon" },
+  { pattern: /\blimes?\b/i, query: "Lime (fruit)" },
+  { pattern: /\bapples?\b/i, query: "Apple" },
+  { pattern: /\bbananas?\b/i, query: "Banana" },
+  { pattern: /\bavocados?\b/i, query: "Avocado" },
+];
 
 function safeImageUrl(value: unknown) {
   if (typeof value !== "string" || !value.trim()) return null;
@@ -65,6 +87,37 @@ async function retailerCandidates(barcode: string): Promise<ImageCandidate[]> {
   });
 }
 
+function produceQuery(name: string, canonicalName: string | null) {
+  const identity = [canonicalName, name].filter(Boolean).join(" ");
+  return produceQueries.find((entry) => entry.pattern.test(identity))?.query ?? null;
+}
+
+async function wikipediaProduceCandidate(query: string): Promise<ImageCandidate | null> {
+  const response = await fetch(
+    `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query.replace(/\s+/g, "_"))}`,
+    {
+      cache: "no-store",
+      headers: { Accept: "application/json", "Api-User-Agent": "Food/0.1 (https://food.coffeehq.coffee)" },
+    },
+  ).catch(() => null);
+  if (!response?.ok) return null;
+  const payload = await response.json() as {
+    type?: string;
+    title?: string;
+    originalimage?: { source?: string };
+    thumbnail?: { source?: string };
+  };
+  if (payload.type === "disambiguation") return null;
+  const url = safeImageUrl(payload.originalimage?.source ?? payload.thumbnail?.source);
+  if (!url) return null;
+  return {
+    url,
+    source: "wikipedia",
+    sourceLabel: payload.title ?? query,
+    score: 88,
+  };
+}
+
 async function storedCandidates(productId: string) {
   return prisma.$queryRaw<StoredCandidate[]>`
     SELECT "url", "score", "rejected"
@@ -107,17 +160,27 @@ export async function rejectCurrentProductImage(productId: string) {
 export async function findBestProductImage(productId: string) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, barcode: true, imageUrl: true },
+    select: { id: true, name: true, canonicalName: true, productType: true, barcode: true, imageUrl: true },
   });
   if (!product) throw new Error("Product not found.");
 
   const barcode = product.barcode?.replace(/\D/g, "") ?? "";
-  if (!gtinPattern.test(barcode)) return { imageUrl: product.imageUrl, status: "barcode-required" as const };
+  let discovered: ImageCandidate[] = [];
 
-  const discovered = [
-    await openFoodFactsCandidate(barcode),
-    ...(await retailerCandidates(barcode)),
-  ].filter((candidate): candidate is ImageCandidate => candidate !== null);
+  if (gtinPattern.test(barcode)) {
+    discovered = [
+      await openFoodFactsCandidate(barcode),
+      ...(await retailerCandidates(barcode)),
+    ].filter((candidate): candidate is ImageCandidate => candidate !== null);
+  } else if (product.productType === "GENERIC_PRODUCE") {
+    const query = produceQuery(product.name, product.canonicalName);
+    if (query) {
+      const candidate = await wikipediaProduceCandidate(query);
+      if (candidate) discovered = [candidate];
+    }
+  } else {
+    return { imageUrl: product.imageUrl, status: "barcode-required" as const };
+  }
 
   for (const candidate of discovered) await saveCandidate(product.id, candidate);
 
@@ -129,7 +192,7 @@ export async function findBestProductImage(productId: string) {
 
   if (!best) {
     await prisma.product.update({ where: { id: product.id }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } });
-    return { imageUrl: null, status: "no-exact-match" as const };
+    return { imageUrl: null, status: gtinPattern.test(barcode) ? "no-exact-match" as const : "no-produce-match" as const };
   }
 
   await prisma.$transaction([
@@ -138,7 +201,7 @@ export async function findBestProductImage(productId: string) {
       SET "selected" = ("url" = ${best.url}), "updatedAt" = NOW()
       WHERE "productId" = ${product.id}
     `,
-    prisma.product.update({ where: { id: product.id }, data: { imageUrl: best.url } }),
+    prisma.product.update({ where: { id: product.id }, data: { imageUrl: best.url, lifecycle: "READY" } }),
   ]);
 
   return { imageUrl: best.url, status: "selected" as const };
