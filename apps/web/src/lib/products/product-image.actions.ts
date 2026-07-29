@@ -5,13 +5,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { rejectCurrentProductImage } from "@/lib/products/image-intelligence";
-import { recoverProductImage } from "@/lib/products/image-recovery";
+import { recoverProductImage, type ImageSearchDiagnostics } from "@/lib/products/image-recovery";
 
 const imageSearchTimeoutMs = 25_000;
 
 type ImageSearchStatus = {
   tone: "success" | "warning" | "error";
   message: string;
+  diagnostics?: ImageSearchDiagnostics;
 };
 
 function imageSearchCookieName(productId: string) {
@@ -35,10 +36,7 @@ async function findBestProductImageWithTimeout(productId: string) {
     return await Promise.race([
       recoverProductImage(productId),
       new Promise<never>((_, reject) => {
-        timeout = setTimeout(
-          () => reject(new Error("IMAGE_SEARCH_TIMEOUT")),
-          imageSearchTimeoutMs,
-        );
+        timeout = setTimeout(() => reject(new Error("IMAGE_SEARCH_TIMEOUT")), imageSearchTimeoutMs);
       }),
     ]);
   } finally {
@@ -47,10 +45,7 @@ async function findBestProductImageWithTimeout(productId: string) {
 }
 
 async function productDestination(productId: string) {
-  const product = await prisma.product.findUnique({
-    where: { id: productId },
-    select: { id: true, slug: true },
-  });
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, slug: true } });
   if (!product) throw new Error("Product not found.");
   return `/products/${product.slug ?? product.id}`;
 }
@@ -66,14 +61,8 @@ function revalidateProduct(productId: string, destination: string) {
 async function clearRejectedImage(productId: string) {
   await rejectCurrentProductImage(productId);
   await prisma.$transaction([
-    prisma.product.update({
-      where: { id: productId },
-      data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" },
-    }),
-    prisma.storeProduct.updateMany({
-      where: { productId },
-      data: { imageUrl: null },
-    }),
+    prisma.product.update({ where: { id: productId }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } }),
+    prisma.storeProduct.updateMany({ where: { productId }, data: { imageUrl: null } }),
   ]);
 }
 
@@ -87,8 +76,8 @@ export async function removeProductImage(productId: string) {
   try {
     const result = await rejectAndSearch(productId);
     await setImageSearchStatus(productId, result.imageUrl
-      ? { tone: "success", message: "The previous image was rejected and a replacement was selected." }
-      : { tone: "warning", message: "The previous image was rejected, but no suitable replacement was found." });
+      ? { tone: "success", message: "The previous image was rejected and a replacement was selected.", diagnostics: result.diagnostics }
+      : { tone: "warning", message: "The previous image was rejected, but no suitable replacement was found.", diagnostics: result.diagnostics });
   } catch (error) {
     await setImageSearchStatus(productId, {
       tone: "error",
@@ -103,30 +92,21 @@ export async function removeProductImage(productId: string) {
 
 export async function refreshProductImage(productId: string) {
   const destination = await productDestination(productId);
-  const before = await prisma.product.findUnique({
-    where: { id: productId },
-    select: { imageUrl: true, lifecycle: true },
-  });
+  const before = await prisma.product.findUnique({ where: { id: productId }, select: { imageUrl: true, lifecycle: true } });
 
   try {
     const result = await findBestProductImageWithTimeout(productId);
 
     if (!result.imageUrl && before?.imageUrl) {
-      await prisma.product.update({
-        where: { id: productId },
-        data: { imageUrl: before.imageUrl, lifecycle: before.lifecycle },
-      });
+      await prisma.product.update({ where: { id: productId }, data: { imageUrl: before.imageUrl, lifecycle: before.lifecycle } });
     }
 
     await setImageSearchStatus(productId, result.imageUrl
-      ? { tone: "success", message: "Image search completed and the best available image was selected." }
-      : { tone: "warning", message: "Image search completed, but no suitable image was found." });
+      ? { tone: "success", message: "Image search completed and the best available image was selected.", diagnostics: result.diagnostics }
+      : { tone: "warning", message: "Image search completed, but no suitable image was found.", diagnostics: result.diagnostics });
   } catch (error) {
     if (before) {
-      await prisma.product.update({
-        where: { id: productId },
-        data: { imageUrl: before.imageUrl, lifecycle: before.lifecycle },
-      });
+      await prisma.product.update({ where: { id: productId }, data: { imageUrl: before.imageUrl, lifecycle: before.lifecycle } });
     }
 
     await setImageSearchStatus(productId, {
@@ -144,12 +124,9 @@ export async function refreshProductImage(productId: string) {
 export async function restorePreviousProductImage(productId: string) {
   const destination = await productDestination(productId);
   const previous = await prisma.$queryRaw<Array<{ url: string }>>`
-    SELECT "url"
-    FROM "ProductImageCandidate"
-    WHERE "productId" = ${productId}
-      AND "rejected" = true
-    ORDER BY "updatedAt" DESC
-    LIMIT 1
+    SELECT "url" FROM "ProductImageCandidate"
+    WHERE "productId" = ${productId} AND "rejected" = true
+    ORDER BY "updatedAt" DESC LIMIT 1
   `;
   const url = previous[0]?.url ?? null;
 
@@ -163,10 +140,7 @@ export async function restorePreviousProductImage(productId: string) {
             "updatedAt" = NOW()
         WHERE "productId" = ${productId}
       `,
-      prisma.product.update({
-        where: { id: productId },
-        data: { imageUrl: url, lifecycle: "READY" },
-      }),
+      prisma.product.update({ where: { id: productId }, data: { imageUrl: url, lifecycle: "READY" } }),
     ]);
     await setImageSearchStatus(productId, { tone: "success", message: "The previous product image was restored." });
   }
