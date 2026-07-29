@@ -6,6 +6,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { rejectCurrentProductImage } from "@/lib/products/image-intelligence";
 import { recoverProductImage, type ImageSearchDiagnostics } from "@/lib/products/image-recovery";
+import {
+  getProductImageCandidate,
+  markSelectedCandidate,
+  rejectProductImageCandidate,
+} from "@/lib/products/image-candidate.repository";
 
 const imageSearchTimeoutMs = 25_000;
 
@@ -117,6 +122,36 @@ export async function refreshProductImage(productId: string) {
     });
   }
 
+  revalidateProduct(productId, destination);
+  redirect(destination);
+}
+
+export async function selectProductImageCandidate(productId: string, candidateId: string) {
+  const destination = await productDestination(productId);
+  const candidate = await getProductImageCandidate(productId, candidateId);
+  if (!candidate) throw new Error("Image candidate not found.");
+
+  await prisma.product.update({
+    where: { id: productId },
+    data: { imageUrl: candidate.url, lifecycle: "READY" },
+  });
+  await markSelectedCandidate(productId, candidateId);
+  await setImageSearchStatus(productId, { tone: "success", message: "The selected candidate is now the primary product image." });
+  revalidateProduct(productId, destination);
+  redirect(destination);
+}
+
+export async function rejectGalleryImageCandidate(productId: string, candidateId: string) {
+  const destination = await productDestination(productId);
+  const candidate = await getProductImageCandidate(productId, candidateId);
+  if (!candidate) throw new Error("Image candidate not found.");
+
+  await rejectProductImageCandidate(productId, candidateId);
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { imageUrl: true } });
+  if (product?.imageUrl === candidate.url) {
+    await prisma.product.update({ where: { id: productId }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } });
+  }
+  await setImageSearchStatus(productId, { tone: "warning", message: "The candidate was rejected and will not be selected automatically." });
   revalidateProduct(productId, destination);
   redirect(destination);
 }
