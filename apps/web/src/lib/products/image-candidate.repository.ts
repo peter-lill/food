@@ -10,6 +10,25 @@ export type DiscoveredImageCandidate = {
   providerScore?: number | null;
 };
 
+export type ProductImageCandidateGalleryItem = {
+  id: string;
+  url: string;
+  source: string;
+  sourceLabel: string;
+  width: number | null;
+  height: number | null;
+  contentType: string | null;
+  qualityScore: number | null;
+  identityScore: number | null;
+  providerScore: number | null;
+  overallScore: number | null;
+  accepted: boolean;
+  rejected: boolean;
+  selected: boolean;
+  rejectionReasons: string[];
+  lastCheckedAt: Date | null;
+};
+
 export async function recordDiscoveredCandidate(productId: string, candidate: DiscoveredImageCandidate) {
   const existing = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
@@ -88,4 +107,41 @@ export async function markSelectedCandidate(productId: string, candidateId: stri
       WHERE "id" = ${candidateId}
     `,
   ]);
+}
+
+export async function listProductImageCandidates(productId: string, limit = 12) {
+  return prisma.$queryRaw<ProductImageCandidateGalleryItem[]>`
+    SELECT "id", "url", "source", "sourceLabel", "width", "height", "contentType",
+           "qualityScore", "identityScore", "providerScore", "overallScore",
+           "accepted", "rejected", "selected", "rejectionReasons", "lastCheckedAt"
+    FROM "ProductImageCandidate"
+    WHERE "productId" = ${productId}
+    ORDER BY "selected" DESC, "rejected" ASC, "overallScore" DESC NULLS LAST, "updatedAt" DESC
+    LIMIT ${limit}
+  `;
+}
+
+export async function getProductImageCandidate(productId: string, candidateId: string) {
+  const rows = await prisma.$queryRaw<Array<{ id: string; url: string }>>`
+    SELECT "id", "url"
+    FROM "ProductImageCandidate"
+    WHERE "productId" = ${productId} AND "id" = ${candidateId}
+    LIMIT 1
+  `;
+  return rows[0] ?? null;
+}
+
+export async function rejectProductImageCandidate(productId: string, candidateId: string) {
+  await prisma.$executeRaw`
+    UPDATE "ProductImageCandidate"
+    SET "rejected" = true,
+        "accepted" = false,
+        "selected" = false,
+        "rejectionReasons" = CASE
+          WHEN 'Rejected by user' = ANY("rejectionReasons") THEN "rejectionReasons"
+          ELSE array_append("rejectionReasons", 'Rejected by user')
+        END,
+        "updatedAt" = NOW()
+    WHERE "productId" = ${productId} AND "id" = ${candidateId}
+  `;
 }
