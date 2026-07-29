@@ -15,38 +15,40 @@ const genericFoodTerms = [
   "steak", "lamb chop", "rice", "flour", "sugar", "oats", "pine nuts",
 ] as const;
 
-const commonsSearchQueries: Record<string, string> = {
-  mushroom: "Agaricus bisporus button mushroom edible food",
-  broccoli: "broccoli vegetable edible",
-  "chicken breast": "raw chicken breast meat food",
-  "chicken thigh": "raw chicken thigh meat food",
-  "beef mince": "raw ground beef mince food",
-  "pork mince": "raw ground pork mince food",
-  salmon: "raw salmon fillet food",
-  steak: "raw beef steak food",
-  "lamb chop": "raw lamb chop food",
-  rice: "uncooked rice grains food",
-  "pine nuts": "pine nuts food",
-};
-
-const preferredCommonsWords: Record<string, string[]> = {
-  mushroom: ["agaricus", "bisporus", "button", "champignon"],
-  broccoli: ["broccoli", "vegetable"],
-  "chicken breast": ["chicken", "breast", "meat"],
-  "chicken thigh": ["chicken", "thigh", "meat"],
-  "beef mince": ["beef", "ground", "mince"],
-  "pork mince": ["pork", "ground", "mince"],
-  salmon: ["salmon", "fillet"],
-  steak: ["beef", "steak"],
-  "lamb chop": ["lamb", "chop"],
-  rice: ["rice", "grain"],
-  "pine nuts": ["pine", "nuts"],
-};
-
 const unsuitableCommonsWords = [
   "diagram", "drawing", "icon", "logo", "map", "painting", "poster", "seal", "symbol",
-  "schizophyllum", "fungus", "mold", "mould", "disease", "microscope", "spore",
+  "schizophyllum", "spore", "microscopy", "fungus",
 ] as const;
+
+const commonsQueries: Record<string, string> = {
+  mushroom: "button mushroom Agaricus bisporus food",
+  broccoli: "broccoli vegetable food",
+  "chicken breast": "raw chicken breast food",
+  "chicken thigh": "raw chicken thigh food",
+  "beef mince": "raw beef mince food",
+  "pork mince": "raw pork mince food",
+  salmon: "raw salmon fillet food",
+  steak: "raw beef steak food",
+  rice: "uncooked rice food",
+};
+
+export type ImageSearchDiagnosticStep = {
+  provider: string;
+  status: "success" | "skipped" | "failed";
+  candidates: number;
+  detail: string;
+};
+
+export type ImageSearchDiagnostics = {
+  identity: string;
+  barcode: string | null;
+  queries: string[];
+  steps: ImageSearchDiagnosticStep[];
+  validation: Array<{ source: string; accepted: boolean; score: number | null; reason: string }>;
+  selectedSource: string | null;
+};
+
+type Candidate = { url: string; source: string };
 
 function normalise(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -66,10 +68,13 @@ function unique(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
 }
 
-async function usable(url: string | null | undefined) {
-  if (!url) return false;
-  const assessment = await assessProductImage(url).catch(() => null);
-  return Boolean(assessment?.reachable && assessment.contentType?.startsWith("image/") && assessment.score >= 35);
+async function inspectCandidate(candidate: Candidate) {
+  const assessment = await assessProductImage(candidate.url).catch(() => null);
+  if (!assessment) return { accepted: false, score: null, reason: "Image assessment failed" };
+  if (!assessment.reachable) return { accepted: false, score: assessment.score, reason: "Image could not be reached" };
+  if (!assessment.contentType?.startsWith("image/")) return { accepted: false, score: assessment.score, reason: "Response was not an image" };
+  if (assessment.score < 35) return { accepted: false, score: assessment.score, reason: `Quality score ${assessment.score} was below 35` };
+  return { accepted: true, score: assessment.score, reason: "Usable image" };
 }
 
 async function openFoodFactsImage(barcode: string) {
@@ -85,24 +90,18 @@ async function openFoodFactsImage(barcode: string) {
 
 type CommonsPage = {
   title?: string;
-  imageinfo?: Array<{
-    url?: string;
-    thumburl?: string;
-    mime?: string;
-    width?: number;
-    height?: number;
-  }>;
+  imageinfo?: Array<{ url?: string; thumburl?: string; mime?: string; width?: number; height?: number }>;
 };
 
 async function wikimediaFoodImages(identity: string) {
-  const query = commonsSearchQueries[identity] ?? `${identity} edible food`;
+  const query = commonsQueries[identity] ?? `${identity} food isolated`;
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     generator: "search",
     gsrsearch: `${query} filetype:bitmap`,
     gsrnamespace: "6",
-    gsrlimit: "16",
+    gsrlimit: "12",
     prop: "imageinfo",
     iiprop: "url|mime|size",
     iiurlwidth: "900",
@@ -110,40 +109,32 @@ async function wikimediaFoodImages(identity: string) {
 
   const response = await fetch(`https://commons.wikimedia.org/w/api.php?${params.toString()}`, {
     cache: "no-store",
-    headers: {
-      Accept: "application/json",
-      "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
-    },
+    headers: { Accept: "application/json", "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)" },
   }).catch(() => null);
   if (!response?.ok) return [];
 
   const payload = await response.json() as { query?: { pages?: Record<string, CommonsPage> } };
   const identityTerms = normalise(identity).split(" ").filter(Boolean);
-  const preferredTerms = preferredCommonsWords[identity] ?? identityTerms;
 
   return Object.values(payload.query?.pages ?? {})
     .map((page) => {
       const info = page.imageinfo?.[0];
       const title = normalise(page.title ?? "");
       const matchedTerms = identityTerms.filter((term) => title.includes(term)).length;
-      const preferredMatches = preferredTerms.filter((term) => title.includes(term)).length;
       const unsuitable = unsuitableCommonsWords.some((word) => title.includes(word));
       const landscapePenalty = info?.width && info?.height && info.width / info.height > 3 ? 1 : 0;
       return {
         url: info?.thumburl ?? info?.url ?? null,
-        score: matchedTerms * 20 + preferredMatches * 25 - (unsuitable ? 140 : 0) - landscapePenalty * 20,
+        score: matchedTerms * 20 - (unsuitable ? 100 : 0) - landscapePenalty * 20,
         mime: info?.mime ?? "",
       };
     })
-    .filter((candidate) => candidate.url && candidate.mime.startsWith("image/") && candidate.score >= 25)
+    .filter((candidate) => candidate.url && candidate.mime.startsWith("image/") && candidate.score > 0)
     .sort((left, right) => right.score - left.score)
     .map((candidate) => candidate.url as string);
 }
 
 export async function recoverProductImage(productId: string) {
-  const primary = await findBestProductImage(productId).catch(() => null);
-  if (primary?.imageUrl && await usable(primary.imageUrl)) return primary;
-
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: {
@@ -168,15 +159,43 @@ export async function recoverProductImage(productId: string) {
     product.category,
     ...product.aliases.map((alias) => alias.alias),
   ]);
-
-  const candidates: string[] = [];
-  if (/^\d{7,14}$/.test(barcode)) {
-    const exact = await openFoodFactsImage(barcode);
-    if (exact) candidates.push(exact);
-  }
-
   const produceIdentity = recognisedIdentity(identityValues, produceTerms);
   const genericIdentity = recognisedIdentity(identityValues, genericFoodTerms);
+  const identity = genericIdentity ?? product.canonicalName ?? product.name;
+  const diagnostics: ImageSearchDiagnostics = {
+    identity,
+    barcode: barcode || null,
+    queries: [],
+    steps: [],
+    validation: [],
+    selectedSource: null,
+  };
+
+  const primary = await findBestProductImage(productId).catch((error) => {
+    diagnostics.steps.push({ provider: "Primary pipeline", status: "failed", candidates: 0, detail: error instanceof Error ? error.message : "Unknown failure" });
+    return null;
+  });
+  if (primary?.imageUrl) {
+    const inspection = await inspectCandidate({ url: primary.imageUrl, source: "Primary pipeline" });
+    diagnostics.validation.push({ source: "Primary pipeline", ...inspection });
+    diagnostics.steps.push({ provider: "Primary pipeline", status: inspection.accepted ? "success" : "failed", candidates: 1, detail: inspection.reason });
+    if (inspection.accepted) {
+      diagnostics.selectedSource = "Primary pipeline";
+      return { ...primary, diagnostics };
+    }
+  } else if (!diagnostics.steps.some((step) => step.provider === "Primary pipeline")) {
+    diagnostics.steps.push({ provider: "Primary pipeline", status: "success", candidates: 0, detail: "No suitable candidate returned" });
+  }
+
+  const candidates: Candidate[] = [];
+  if (/^\d{7,14}$/.test(barcode)) {
+    const exact = await openFoodFactsImage(barcode);
+    diagnostics.steps.push({ provider: "Open Food Facts", status: "success", candidates: exact ? 1 : 0, detail: exact ? "Exact barcode image returned" : "No exact barcode image" });
+    if (exact) candidates.push({ url: exact, source: "Open Food Facts" });
+  } else {
+    diagnostics.steps.push({ provider: "Open Food Facts", status: "skipped", candidates: 0, detail: "No barcode available" });
+  }
+
   const queries = unique([
     barcode || null,
     [product.brand, product.name, product.packSize].filter(Boolean).join(" "),
@@ -186,33 +205,49 @@ export async function recoverProductImage(productId: string) {
     ...product.aliases.map((alias) => alias.alias),
     produceIdentity,
   ]).slice(0, 10);
+  diagnostics.queries = queries;
 
+  let retailerCount = 0;
   for (const query of queries) {
     const results = await searchColesAndWoolworths(query).catch(() => []);
+    retailerCount += results.length;
     for (const result of results) {
-      if (result.imageUrl) candidates.push(result.imageUrl);
+      if (result.imageUrl) candidates.push({ url: result.imageUrl, source: result.retailer || "Retailer" });
     }
   }
+  diagnostics.steps.push({ provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
 
   if (genericIdentity) {
-    candidates.push(...await wikimediaFoodImages(genericIdentity));
+    const commons = await wikimediaFoodImages(genericIdentity);
+    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "success", candidates: commons.length, detail: `Searched for ${commonsQueries[genericIdentity] ?? `${genericIdentity} food isolated`}` });
+    candidates.push(...commons.map((url) => ({ url, source: "Wikimedia Commons" })));
+  } else {
+    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product was not recognised as a generic food" });
   }
 
-  for (const imageUrl of unique(candidates)) {
-    if (!await usable(imageUrl)) continue;
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    if (seen.has(candidate.url)) continue;
+    seen.add(candidate.url);
+    const inspection = await inspectCandidate(candidate);
+    diagnostics.validation.push({ source: candidate.source, ...inspection });
+    if (!inspection.accepted) continue;
+
     await prisma.product.update({
       where: { id: product.id },
       data: {
-        imageUrl,
+        imageUrl: candidate.url,
         lifecycle: "READY",
         confidenceScore: produceIdentity ? 0.85 : genericIdentity ? 0.8 : 0.75,
       },
     });
-    return { imageUrl, status: "selected" as const };
+    diagnostics.selectedSource = candidate.source;
+    return { imageUrl: candidate.url, status: "selected" as const, diagnostics };
   }
 
-  return primary ?? {
+  return {
     imageUrl: null,
     status: produceIdentity ? "no-produce-match" as const : "no-exact-match" as const,
+    diagnostics,
   };
 }
