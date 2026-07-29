@@ -60,7 +60,13 @@ export async function searchColesAndWoolworths(query: string): Promise<RetailerP
   const results = await searchColesAndWoolworthsCatalogue(query);
 
   return results.flatMap((result): RetailerPriceCandidate[] => {
-    if (result.price === null || !Number.isFinite(result.price) || result.price <= 0) return [];
-    return [{ ...result, price: result.price }];
+    const hasUsablePrice = result.price !== null && Number.isFinite(result.price) && result.price > 0;
+    const hasCatalogueImage = Boolean(result.imageUrl);
+    if (!hasUsablePrice && !hasCatalogueImage) return [];
+
+    return [{
+      ...result,
+      price: hasUsablePrice ? result.price as number : Number.NaN,
+    }];
   });
 }
