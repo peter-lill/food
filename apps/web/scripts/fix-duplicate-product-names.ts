@@ -9,7 +9,41 @@ function normalise(value: string) {
     .trim();
 }
 
+function compact(value: string) {
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+function collapseCompactRepetition(value: string) {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  const identity = compact(value);
+  if (words.length < 2 || identity.length < 2) return value.trim();
+
+  for (let repetitions = 2; repetitions <= 4; repetitions += 1) {
+    if (identity.length % repetitions !== 0) continue;
+    const partLength = identity.length / repetitions;
+    const firstPart = identity.slice(0, partLength);
+    if (firstPart.repeat(repetitions) !== identity) continue;
+
+    let consumed = 0;
+    const firstWords: string[] = [];
+    for (const word of words) {
+      firstWords.push(word);
+      consumed += compact(word).length;
+      if (consumed >= partLength) break;
+    }
+
+    if (consumed === partLength) return firstWords.join(" ");
+  }
+
+  return value.trim();
+}
+
 function collapseRepeatedPhrase(value: string) {
+  const compactCollapsed = collapseCompactRepetition(value);
+  if (compactCollapsed !== value.trim()) return compactCollapsed;
+
   const words = value.trim().split(/\s+/).filter(Boolean);
   if (words.length < 2) return value.trim();
 
@@ -21,6 +55,20 @@ function collapseRepeatedPhrase(value: string) {
   }
 
   return value.trim();
+}
+
+function isSameIdentity(left: string, right: string) {
+  const leftIdentity = compact(left);
+  const rightIdentity = compact(right);
+  if (!leftIdentity || !rightIdentity) return false;
+  if (leftIdentity === rightIdentity) return true;
+
+  for (let repetitions = 2; repetitions <= 4; repetitions += 1) {
+    if (leftIdentity === rightIdentity.repeat(repetitions)) return true;
+    if (rightIdentity === leftIdentity.repeat(repetitions)) return true;
+  }
+
+  return false;
 }
 
 async function main() {
@@ -36,7 +84,7 @@ async function main() {
       ? collapseRepeatedPhrase(product.canonicalName)
       : null;
 
-    const canonicalName = cleanCanonical && normalise(cleanCanonical) !== normalise(cleanName)
+    const canonicalName = cleanCanonical && !isSameIdentity(cleanCanonical, cleanName)
       ? cleanCanonical
       : null;
 
