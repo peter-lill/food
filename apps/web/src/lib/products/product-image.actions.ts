@@ -4,7 +4,8 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { findBestProductImage, rejectCurrentProductImage } from "@/lib/products/image-intelligence";
+import { rejectCurrentProductImage } from "@/lib/products/image-intelligence";
+import { recoverProductImage } from "@/lib/products/image-recovery";
 
 const imageSearchTimeoutMs = 25_000;
 
@@ -32,7 +33,7 @@ async function findBestProductImageWithTimeout(productId: string) {
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      findBestProductImage(productId),
+      recoverProductImage(productId),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(
           () => reject(new Error("IMAGE_SEARCH_TIMEOUT")),
