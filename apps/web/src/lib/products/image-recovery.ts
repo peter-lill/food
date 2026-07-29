@@ -1,7 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
 import { findBestProductImage } from "@/lib/products/image-intelligence";
-import { assessProductImage } from "@/lib/products/image-quality";
+import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
+import {
+  markSelectedCandidate,
+  recordCandidateAssessment,
+  recordDiscoveredCandidate,
+} from "@/lib/products/image-candidate.repository";
 
 const produceTerms = [
   "apple", "avocado", "banana", "broccoli", "carrot", "cauliflower", "capsicum",
@@ -48,7 +53,20 @@ export type ImageSearchDiagnostics = {
   selectedSource: string | null;
 };
 
-type Candidate = { url: string; source: string };
+type Candidate = {
+  url: string;
+  source: string;
+  sourceLabel: string;
+  providerScore: number;
+  identityScore: number | null;
+};
+
+type CandidateInspection = {
+  accepted: boolean;
+  score: number | null;
+  reason: string;
+  assessment: ProductImageAssessment;
+};
 
 function normalise(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
@@ -68,13 +86,33 @@ function unique(values: Array<string | null | undefined>) {
   return [...new Set(values.map((value) => value?.trim()).filter((value): value is string => Boolean(value)))];
 }
 
-async function inspectCandidate(candidate: Candidate) {
-  const assessment = await assessProductImage(candidate.url).catch(() => null);
-  if (!assessment) return { accepted: false, score: null, reason: "Image assessment failed" };
-  if (!assessment.reachable) return { accepted: false, score: assessment.score, reason: "Image could not be reached" };
-  if (!assessment.contentType?.startsWith("image/")) return { accepted: false, score: assessment.score, reason: "Response was not an image" };
-  if (assessment.score < 35) return { accepted: false, score: assessment.score, reason: `Quality score ${assessment.score} was below 35` };
-  return { accepted: true, score: assessment.score, reason: "Usable image" };
+function providerScore(source: string) {
+  const key = normalise(source);
+  if (key.includes("coles") || key.includes("woolworths")) return 95;
+  if (key.includes("open food facts")) return 75;
+  if (key.includes("wikimedia")) return 70;
+  return 60;
+}
+
+function emptyAssessment(url: string): ProductImageAssessment {
+  return {
+    url,
+    reachable: false,
+    contentType: null,
+    contentLength: null,
+    width: null,
+    height: null,
+    score: 0,
+    issues: ["Image assessment failed"],
+  };
+}
+
+async function inspectCandidate(candidate: Candidate): Promise<CandidateInspection> {
+  const assessment = await assessProductImage(candidate.url).catch(() => emptyAssessment(candidate.url));
+  if (!assessment.reachable) return { accepted: false, score: assessment.score, reason: "Image could not be reached", assessment };
+  if (!assessment.contentType?.startsWith("image/")) return { accepted: false, score: assessment.score, reason: "Response was not an image", assessment };
+  if (assessment.score < 35) return { accepted: false, score: assessment.score, reason: `Quality score ${assessment.score} was below 35`, assessment };
+  return { accepted: true, score: assessment.score, reason: "Usable image", assessment };
 }
 
 async function openFoodFactsImage(barcode: string) {
@@ -125,13 +163,13 @@ async function wikimediaFoodImages(identity: string) {
       const landscapePenalty = info?.width && info?.height && info.width / info.height > 3 ? 1 : 0;
       return {
         url: info?.thumburl ?? info?.url ?? null,
+        title: page.title ?? identity,
         score: matchedTerms * 20 - (unsuitable ? 100 : 0) - landscapePenalty * 20,
         mime: info?.mime ?? "",
       };
     })
     .filter((candidate) => candidate.url && candidate.mime.startsWith("image/") && candidate.score > 0)
-    .sort((left, right) => right.score - left.score)
-    .map((candidate) => candidate.url as string);
+    .sort((left, right) => right.score - left.score);
 }
 
 export async function recoverProductImage(productId: string) {
@@ -176,11 +214,28 @@ export async function recoverProductImage(productId: string) {
     return null;
   });
   if (primary?.imageUrl) {
-    const inspection = await inspectCandidate({ url: primary.imageUrl, source: "Primary pipeline" });
-    diagnostics.validation.push({ source: "Primary pipeline", ...inspection });
+    const candidate: Candidate = {
+      url: primary.imageUrl,
+      source: "Primary pipeline",
+      sourceLabel: "Primary pipeline",
+      providerScore: 80,
+      identityScore: null,
+    };
+    const candidateId = await recordDiscoveredCandidate(product.id, candidate);
+    const inspection = await inspectCandidate(candidate);
+    const overallScore = inspection.score ?? 0;
+    await recordCandidateAssessment({
+      candidateId,
+      assessment: inspection.assessment,
+      accepted: inspection.accepted,
+      rejectionReasons: inspection.accepted ? [] : [inspection.reason],
+      overallScore,
+    });
+    diagnostics.validation.push({ source: candidate.source, accepted: inspection.accepted, score: inspection.score, reason: inspection.reason });
     diagnostics.steps.push({ provider: "Primary pipeline", status: inspection.accepted ? "success" : "failed", candidates: 1, detail: inspection.reason });
     if (inspection.accepted) {
-      diagnostics.selectedSource = "Primary pipeline";
+      await markSelectedCandidate(product.id, candidateId);
+      diagnostics.selectedSource = candidate.source;
       return { ...primary, diagnostics };
     }
   } else if (!diagnostics.steps.some((step) => step.provider === "Primary pipeline")) {
@@ -191,7 +246,13 @@ export async function recoverProductImage(productId: string) {
   if (/^\d{7,14}$/.test(barcode)) {
     const exact = await openFoodFactsImage(barcode);
     diagnostics.steps.push({ provider: "Open Food Facts", status: "success", candidates: exact ? 1 : 0, detail: exact ? "Exact barcode image returned" : "No exact barcode image" });
-    if (exact) candidates.push({ url: exact, source: "Open Food Facts" });
+    if (exact) candidates.push({
+      url: exact,
+      source: "Open Food Facts",
+      sourceLabel: "Exact barcode image",
+      providerScore: providerScore("Open Food Facts"),
+      identityScore: 100,
+    });
   } else {
     diagnostics.steps.push({ provider: "Open Food Facts", status: "skipped", candidates: 0, detail: "No barcode available" });
   }
@@ -212,7 +273,14 @@ export async function recoverProductImage(productId: string) {
     const results = await searchColesAndWoolworths(query).catch(() => []);
     retailerCount += results.length;
     for (const result of results) {
-      if (result.imageUrl) candidates.push({ url: result.imageUrl, source: result.retailer || "Retailer" });
+      if (!result.imageUrl) continue;
+      candidates.push({
+        url: result.imageUrl,
+        source: result.retailer || "Retailer",
+        sourceLabel: `${result.retailer || "Retailer"} · ${result.productName}`,
+        providerScore: providerScore(result.retailer || "Retailer"),
+        identityScore: null,
+      });
     }
   }
   diagnostics.steps.push({ provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
@@ -220,17 +288,40 @@ export async function recoverProductImage(productId: string) {
   if (genericIdentity) {
     const commons = await wikimediaFoodImages(genericIdentity);
     diagnostics.steps.push({ provider: "Wikimedia Commons", status: "success", candidates: commons.length, detail: `Searched for ${commonsQueries[genericIdentity] ?? `${genericIdentity} food isolated`}` });
-    candidates.push(...commons.map((url) => ({ url, source: "Wikimedia Commons" })));
+    candidates.push(...commons.map((candidate) => ({
+      url: candidate.url as string,
+      source: "Wikimedia Commons",
+      sourceLabel: candidate.title,
+      providerScore: providerScore("Wikimedia Commons"),
+      identityScore: Math.min(100, Math.max(0, candidate.score)),
+    })));
   } else {
     diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product was not recognised as a generic food" });
   }
 
-  const seen = new Set<string>();
-  for (const candidate of candidates) {
-    if (seen.has(candidate.url)) continue;
-    seen.add(candidate.url);
+  const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.url, candidate])).values()];
+  const candidateIds = new Map<string, string>();
+  for (const candidate of uniqueCandidates) {
+    candidateIds.set(candidate.url, await recordDiscoveredCandidate(product.id, candidate));
+  }
+
+  for (const candidate of uniqueCandidates) {
+    const candidateId = candidateIds.get(candidate.url);
+    if (!candidateId) continue;
     const inspection = await inspectCandidate(candidate);
-    diagnostics.validation.push({ source: candidate.source, ...inspection });
+    const overallScore = Math.round(
+      (inspection.assessment.score * 0.65)
+      + (candidate.providerScore * 0.25)
+      + ((candidate.identityScore ?? 50) * 0.10),
+    );
+    await recordCandidateAssessment({
+      candidateId,
+      assessment: inspection.assessment,
+      accepted: inspection.accepted,
+      rejectionReasons: inspection.accepted ? [] : [inspection.reason, ...inspection.assessment.issues],
+      overallScore,
+    });
+    diagnostics.validation.push({ source: candidate.source, accepted: inspection.accepted, score: overallScore, reason: inspection.reason });
     if (!inspection.accepted) continue;
 
     await prisma.product.update({
@@ -241,6 +332,7 @@ export async function recoverProductImage(productId: string) {
         confidenceScore: produceIdentity ? 0.85 : genericIdentity ? 0.8 : 0.75,
       },
     });
+    await markSelectedCandidate(product.id, candidateId);
     diagnostics.selectedSource = candidate.source;
     return { imageUrl: candidate.url, status: "selected" as const, diagnostics };
   }
