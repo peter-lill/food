@@ -60,12 +60,11 @@ export class McpGroceryProvider implements GroceryProvider {
       return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
         const retailer = text(item.retailer);
         const name = text(item.name);
-        const price = money(item.price);
-        if ((retailer !== "Coles" && retailer !== "Woolworths") || !name || price === null) return [];
+        if ((retailer !== "Coles" && retailer !== "Woolworths") || !name) return [];
         return [{
           retailer,
           name,
-          price,
+          price: money(item.price),
           unit: text(item.unit),
           store: text(item.store),
           barcode: text(item.barcode),
