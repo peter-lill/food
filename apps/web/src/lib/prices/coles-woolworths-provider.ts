@@ -79,7 +79,7 @@ function extractPageImage(html: string) {
     if (image) return image;
   }
 
-  const jsonImage = html.match(/"image"\s*:\s*"(https:\\/\\/[^"\\]+(?:\\.[^"\\]*)*)"/i)?.[1];
+  const jsonImage = html.match(/"image"\s*:\s*"(https?:[^"\\]+(?:\\.[^"\\]*)*)"/i)?.[1];
   if (jsonImage) {
     const image = safeHttpsImage(jsonImage.replace(/\\\//g, "/").replace(/\\u0026/g, "&"));
     if (image) return image;
