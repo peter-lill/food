@@ -15,8 +15,37 @@ const genericFoodTerms = [
   "steak", "lamb chop", "rice", "flour", "sugar", "oats", "pine nuts",
 ] as const;
 
+const commonsSearchQueries: Record<string, string> = {
+  mushroom: "Agaricus bisporus button mushroom edible food",
+  broccoli: "broccoli vegetable edible",
+  "chicken breast": "raw chicken breast meat food",
+  "chicken thigh": "raw chicken thigh meat food",
+  "beef mince": "raw ground beef mince food",
+  "pork mince": "raw ground pork mince food",
+  salmon: "raw salmon fillet food",
+  steak: "raw beef steak food",
+  "lamb chop": "raw lamb chop food",
+  rice: "uncooked rice grains food",
+  "pine nuts": "pine nuts food",
+};
+
+const preferredCommonsWords: Record<string, string[]> = {
+  mushroom: ["agaricus", "bisporus", "button", "champignon"],
+  broccoli: ["broccoli", "vegetable"],
+  "chicken breast": ["chicken", "breast", "meat"],
+  "chicken thigh": ["chicken", "thigh", "meat"],
+  "beef mince": ["beef", "ground", "mince"],
+  "pork mince": ["pork", "ground", "mince"],
+  salmon: ["salmon", "fillet"],
+  steak: ["beef", "steak"],
+  "lamb chop": ["lamb", "chop"],
+  rice: ["rice", "grain"],
+  "pine nuts": ["pine", "nuts"],
+};
+
 const unsuitableCommonsWords = [
   "diagram", "drawing", "icon", "logo", "map", "painting", "poster", "seal", "symbol",
+  "schizophyllum", "fungus", "mold", "mould", "disease", "microscope", "spore",
 ] as const;
 
 function normalise(value: string) {
@@ -66,14 +95,14 @@ type CommonsPage = {
 };
 
 async function wikimediaFoodImages(identity: string) {
-  const query = `${identity} food isolated`;
+  const query = commonsSearchQueries[identity] ?? `${identity} edible food`;
   const params = new URLSearchParams({
     action: "query",
     format: "json",
     generator: "search",
     gsrsearch: `${query} filetype:bitmap`,
     gsrnamespace: "6",
-    gsrlimit: "12",
+    gsrlimit: "16",
     prop: "imageinfo",
     iiprop: "url|mime|size",
     iiurlwidth: "900",
@@ -90,21 +119,23 @@ async function wikimediaFoodImages(identity: string) {
 
   const payload = await response.json() as { query?: { pages?: Record<string, CommonsPage> } };
   const identityTerms = normalise(identity).split(" ").filter(Boolean);
+  const preferredTerms = preferredCommonsWords[identity] ?? identityTerms;
 
   return Object.values(payload.query?.pages ?? {})
     .map((page) => {
       const info = page.imageinfo?.[0];
       const title = normalise(page.title ?? "");
       const matchedTerms = identityTerms.filter((term) => title.includes(term)).length;
+      const preferredMatches = preferredTerms.filter((term) => title.includes(term)).length;
       const unsuitable = unsuitableCommonsWords.some((word) => title.includes(word));
       const landscapePenalty = info?.width && info?.height && info.width / info.height > 3 ? 1 : 0;
       return {
         url: info?.thumburl ?? info?.url ?? null,
-        score: matchedTerms * 20 - (unsuitable ? 100 : 0) - landscapePenalty * 20,
+        score: matchedTerms * 20 + preferredMatches * 25 - (unsuitable ? 140 : 0) - landscapePenalty * 20,
         mime: info?.mime ?? "",
       };
     })
-    .filter((candidate) => candidate.url && candidate.mime.startsWith("image/") && candidate.score > 0)
+    .filter((candidate) => candidate.url && candidate.mime.startsWith("image/") && candidate.score >= 25)
     .sort((left, right) => right.score - left.score)
     .map((candidate) => candidate.url as string);
 }
