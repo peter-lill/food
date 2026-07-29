@@ -16,6 +16,7 @@ type AuditedProduct = {
   barcode: string | null;
   productType: string;
   imageUrl: string | null;
+  imageSource: string;
   assessment: ProductImageAssessment | null;
 };
 
@@ -26,7 +27,7 @@ function normaliseView(value: string | undefined): ImageView {
 }
 
 function absoluteImageUrl(value: string) {
-  if (/^https:\/\//i.test(value)) return value;
+  if (/^https?:\/\//i.test(value)) return value;
   const origin = (
     process.env.NEXT_PUBLIC_APP_URL
     ?? process.env.BETTER_AUTH_URL
@@ -88,12 +89,31 @@ export default async function ImageIntelligencePage({ searchParams }: PageProps)
       barcode: true,
       productType: true,
       imageUrl: true,
+      storeProducts: {
+        where: { imageUrl: { not: null }, active: true },
+        orderBy: [{ lastSeenAt: "desc" }, { updatedAt: "desc" }],
+        select: { imageUrl: true, retailer: true },
+      },
     },
     orderBy: [{ imageUrl: "asc" }, { updatedAt: "desc" }],
     take: 48,
   });
 
-  const audited = await assessInBatches(products);
+  const effectiveProducts = products.map((product) => {
+    const retailerImage = product.storeProducts.find((listing) => listing.imageUrl);
+    return {
+      id: product.id,
+      slug: product.slug,
+      name: product.name,
+      brand: product.brand,
+      barcode: product.barcode,
+      productType: product.productType,
+      imageUrl: product.imageUrl ?? retailerImage?.imageUrl ?? null,
+      imageSource: product.imageUrl ? "Product record" : retailerImage ? retailerImage.retailer : "None",
+    };
+  });
+
+  const audited = await assessInBatches(effectiveProducts);
   const counts = {
     all: audited.length,
     missing: audited.filter((item) => imageState(item) === "missing").length,
@@ -124,7 +144,7 @@ export default async function ImageIntelligencePage({ searchParams }: PageProps)
         <div>
           <p className="eyebrow">ADMIN · IMAGE INTELLIGENCE</p>
           <h1 className="page-title">Image Intelligence</h1>
-          <p className="subtle">Review image availability, resolution, shape and delivery quality without automatically removing usable images.</p>
+          <p className="subtle">Review effective product images from the product record or its latest retailer listing without automatically removing usable images.</p>
         </div>
         <div className={styles.headerActions}>
           <Link className="secondary-button" href="/admin/product-intelligence">Catalogue Manager</Link>
@@ -134,7 +154,7 @@ export default async function ImageIntelligencePage({ searchParams }: PageProps)
 
       <section className={styles.summaryGrid} aria-label="Image intelligence summary">
         <article className="panel"><small>Audited now</small><h2>{counts.all}</h2><p className="subtle">Maximum 48 per page load</p></article>
-        <article className="panel"><small>Missing</small><h2>{counts.missing}</h2><p className="subtle">No selected image</p></article>
+        <article className="panel"><small>Missing</small><h2>{counts.missing}</h2><p className="subtle">No product or retailer image</p></article>
         <article className="panel"><small>Broken</small><h2>{counts.broken}</h2><p className="subtle">Unavailable or invalid response</p></article>
         <article className="panel"><small>Needs improvement</small><h2>{counts["low-quality"]}</h2><p className="subtle">Low resolution or poor proportions</p></article>
         <article className="panel"><small>Healthy</small><h2>{counts.healthy}</h2><p className="subtle">Valid and suitably sized</p></article>
@@ -177,6 +197,7 @@ export default async function ImageIntelligencePage({ searchParams }: PageProps)
                   <div className={styles.titleRow}><h3>{item.name}</h3><strong>{item.assessment?.score ?? 0}</strong></div>
                   <p>{[item.brand, item.barcode].filter(Boolean).join(" · ") || item.productType.replaceAll("_", " ").toLocaleLowerCase("en-AU")}</p>
                   <dl>
+                    <div><dt>Source</dt><dd>{item.imageSource}</dd></div>
                     <div><dt>Dimensions</dt><dd>{dimensions(item.assessment)}</dd></div>
                     <div><dt>File size</dt><dd>{item.assessment?.contentLength ? `${Math.round(item.assessment.contentLength / 1024)} KB` : "Not verified"}</dd></div>
                   </dl>
