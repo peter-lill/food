@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { findBestProductImage } from "@/lib/products/image-intelligence";
+import { assessProductImage } from "@/lib/products/image-quality";
 
 export const runtime = "nodejs";
 
@@ -31,6 +32,12 @@ function localGenericImage(request: Request, product: { name: string; canonicalN
   return null;
 }
 
+async function usableExistingImage(imageUrl: string | null) {
+  if (!imageUrl) return null;
+  const assessment = await assessProductImage(imageUrl);
+  return assessment.reachable && assessment.score >= 45 ? imageUrl : null;
+}
+
 export async function GET(request: Request, context: RouteContext) {
   const session = await auth.api.getSession({ headers: request.headers });
   if (!session) return new NextResponse(null, { status: 401 });
@@ -44,17 +51,21 @@ export async function GET(request: Request, context: RouteContext) {
 
   const localImage = localGenericImage(request, product);
   if (localImage) return redirectToImage(localImage);
-  if (product.imageUrl) return redirectToImage(product.imageUrl);
 
-  if (product.barcode) {
-    const result = await findBestProductImage(product.id).catch((error) => {
-      console.warn("Exact barcode image lookup failed", {
-        productId: product.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return null;
+  const existingImage = await usableExistingImage(product.imageUrl);
+  if (existingImage) return redirectToImage(existingImage);
+
+  const result = await findBestProductImage(product.id).catch((error) => {
+    console.warn("Product image recovery failed", {
+      productId: product.id,
+      error: error instanceof Error ? error.message : String(error),
     });
-    if (result?.imageUrl) return redirectToImage(result.imageUrl);
+    return null;
+  });
+
+  if (result?.imageUrl) {
+    const assessment = await assessProductImage(result.imageUrl);
+    if (assessment.reachable && assessment.score >= 45) return redirectToImage(result.imageUrl);
   }
 
   return noImageResponse();
