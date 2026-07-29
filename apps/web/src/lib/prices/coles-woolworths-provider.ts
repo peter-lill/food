@@ -1,16 +1,20 @@
 import { searchGroceryProviders } from "./providers/registry";
 import type { SupermarketRetailer } from "./supermarket-comparison.types";
 
-export type RetailerPriceCandidate = {
+export type RetailerCatalogueCandidate = {
   retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths">;
   productName: string;
-  price: number;
+  price: number | null;
   packSize: string | null;
   isSpecial: boolean;
   sourceUrl: string | null;
   externalId: string | null;
   barcode: string | null;
   imageUrl: string | null;
+};
+
+export type RetailerPriceCandidate = Omit<RetailerCatalogueCandidate, "price"> & {
+  price: number;
 };
 
 function clean(value: unknown) {
@@ -22,23 +26,20 @@ function detectPackSize(...values: unknown[]) {
   return text.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|capsules?|tablets?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
 }
 
-export async function searchColesAndWoolworths(query: string): Promise<RetailerPriceCandidate[]> {
+export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
-    limit: 10,
+    limit: 15,
     storeId: process.env.COLES_STORE_ID?.trim() || null,
   });
 
   if (errors.length) {
-    console.warn("Grocery provider search completed with errors", errors);
+    console.warn("Grocery provider catalogue search completed with errors", errors);
   }
 
-  return results.flatMap((result): RetailerPriceCandidate[] => {
+  return results.flatMap((result): RetailerCatalogueCandidate[] => {
     if (
       (result.retailer !== "Coles" && result.retailer !== "Woolworths")
       || !result.name.trim()
-      || result.price === null
-      || !Number.isFinite(result.price)
-      || result.price <= 0
     ) return [];
 
     return [{
@@ -52,5 +53,14 @@ export async function searchColesAndWoolworths(query: string): Promise<RetailerP
       barcode: clean(result.barcode) || null,
       imageUrl: clean(result.imageUrl) || null,
     }];
+  });
+}
+
+export async function searchColesAndWoolworths(query: string): Promise<RetailerPriceCandidate[]> {
+  const results = await searchColesAndWoolworthsCatalogue(query);
+
+  return results.flatMap((result): RetailerPriceCandidate[] => {
+    if (result.price === null || !Number.isFinite(result.price) || result.price <= 0) return [];
+    return [{ ...result, price: result.price }];
   });
 }
