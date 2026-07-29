@@ -48,6 +48,76 @@ function retailerProductUrl(
   return `https://www.coles.com.au/product/${slug}-${encodeURIComponent(externalId)}`;
 }
 
+function decodeHtml(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">");
+}
+
+function safeHttpsImage(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(decodeHtml(value.trim()));
+    return parsed.protocol === "https:" ? parsed.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function extractPageImage(html: string) {
+  const metaPatterns = [
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["'][^>]*>/i,
+    /<meta[^>]+name=["']twitter:image(?::src)?["'][^>]+content=["']([^"']+)["'][^>]*>/i,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image(?::src)?["'][^>]*>/i,
+  ];
+  for (const pattern of metaPatterns) {
+    const image = safeHttpsImage(html.match(pattern)?.[1]);
+    if (image) return image;
+  }
+
+  const jsonImage = html.match(/"image"\s*:\s*"(https:\\/\\/[^"\\]+(?:\\.[^"\\]*)*)"/i)?.[1];
+  if (jsonImage) {
+    const image = safeHttpsImage(jsonImage.replace(/\\\//g, "/").replace(/\\u0026/g, "&"));
+    if (image) return image;
+  }
+
+  return null;
+}
+
+async function fetchRetailerPageImage(url: string | null) {
+  if (!url) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-AU,en;q=0.9",
+        "User-Agent": "Mozilla/5.0 (compatible; FoodCatalogue/0.1; +https://food.coffeehq.coffee)",
+      },
+    });
+    if (!response.ok) return null;
+    return extractPageImage(await response.text());
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function hydrateCatalogueImage(candidate: RetailerCatalogueCandidate) {
+  if (candidate.imageUrl) return candidate;
+  const imageUrl = await fetchRetailerPageImage(candidate.sourceUrl);
+  return imageUrl ? { ...candidate, imageUrl } : candidate;
+}
+
 export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
@@ -58,7 +128,7 @@ export async function searchColesAndWoolworthsCatalogue(query: string): Promise<
     console.warn("Grocery provider catalogue search completed with errors", errors);
   }
 
-  return results.flatMap((result): RetailerCatalogueCandidate[] => {
+  const candidates = results.flatMap((result): RetailerCatalogueCandidate[] => {
     if (
       (result.retailer !== "Coles" && result.retailer !== "Woolworths")
       || !result.name.trim()
@@ -77,6 +147,8 @@ export async function searchColesAndWoolworthsCatalogue(query: string): Promise<
       imageUrl: clean(result.imageUrl) || null,
     }];
   });
+
+  return Promise.all(candidates.map(hydrateCatalogueImage));
 }
 
 export async function searchColesAndWoolworths(query: string): Promise<RetailerPriceCandidate[]> {
@@ -84,11 +156,12 @@ export async function searchColesAndWoolworths(query: string): Promise<RetailerP
 
   return results.flatMap((result): RetailerPriceCandidate[] => {
     const hasUsablePrice = result.price !== null && Number.isFinite(result.price) && result.price > 0;
-    if (!hasUsablePrice) return [];
+    const hasCatalogueImage = Boolean(result.imageUrl);
+    if (!hasUsablePrice && !hasCatalogueImage) return [];
 
     return [{
       ...result,
-      price: result.price as number,
+      price: hasUsablePrice ? result.price as number : Number.NaN,
     }];
   });
 }
