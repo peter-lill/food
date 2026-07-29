@@ -196,7 +196,26 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.thumb}>
-                  {product.imageUrl ? <img alt={title} loading="lazy" src={`/api/products/${encodeURIComponent(product.id)}/image`} /> : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image pending</small></div>}
+                  {product.imageUrl ? (
+                    <img
+                      alt={title}
+                      loading="lazy"
+                      src={`/api/products/${encodeURIComponent(product.id)}/image`}
+                      style={{
+                        display: "block",
+                        width: "112px",
+                        height: "112px",
+                        maxWidth: "calc(100% - 36px)",
+                        maxHeight: "calc(100% - 36px)",
+                        objectFit: "contain",
+                        objectPosition: "center",
+                        padding: "8px",
+                        borderRadius: "18px",
+                        background: "#fff",
+                        boxSizing: "border-box",
+                      }}
+                    />
+                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image pending</small></div>}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
                     {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
