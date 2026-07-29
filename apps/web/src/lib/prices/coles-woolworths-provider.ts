@@ -26,6 +26,28 @@ function detectPackSize(...values: unknown[]) {
   return text.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|capsules?|tablets?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
 }
 
+function slugify(value: string) {
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 120);
+}
+
+function retailerProductUrl(
+  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths">,
+  productName: string,
+  externalId: string | null,
+) {
+  if (!externalId) return null;
+  if (retailer === "Woolworths") {
+    return `https://www.woolworths.com.au/shop/productdetails/${encodeURIComponent(externalId)}`;
+  }
+  const slug = slugify(productName) || "product";
+  return `https://www.coles.com.au/product/${slug}-${encodeURIComponent(externalId)}`;
+}
+
 export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
@@ -42,14 +64,15 @@ export async function searchColesAndWoolworthsCatalogue(query: string): Promise<
       || !result.name.trim()
     ) return [];
 
+    const externalId = clean(result.productId) || null;
     return [{
       retailer: result.retailer,
       productName: result.name.trim(),
       price: result.price,
       packSize: detectPackSize(result.name, result.unit),
       isSpecial: false,
-      sourceUrl: null,
-      externalId: clean(result.productId) || null,
+      sourceUrl: retailerProductUrl(result.retailer, result.name.trim(), externalId),
+      externalId,
       barcode: clean(result.barcode) || null,
       imageUrl: clean(result.imageUrl) || null,
     }];
@@ -61,12 +84,11 @@ export async function searchColesAndWoolworths(query: string): Promise<RetailerP
 
   return results.flatMap((result): RetailerPriceCandidate[] => {
     const hasUsablePrice = result.price !== null && Number.isFinite(result.price) && result.price > 0;
-    const hasCatalogueImage = Boolean(result.imageUrl);
-    if (!hasUsablePrice && !hasCatalogueImage) return [];
+    if (!hasUsablePrice) return [];
 
     return [{
       ...result,
-      price: hasUsablePrice ? result.price as number : Number.NaN,
+      price: result.price as number,
     }];
   });
 }
