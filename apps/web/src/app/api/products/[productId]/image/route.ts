@@ -1,16 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { findBestProductImage } from "@/lib/products/image-intelligence";
+import { recoverProductImage } from "@/lib/products/image-recovery";
 import { assessProductImage } from "@/lib/products/image-quality";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ productId: string }> };
-
-function normalise(value: string) {
-  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
-}
 
 function noImageResponse() {
   return new NextResponse(null, {
@@ -19,23 +15,40 @@ function noImageResponse() {
   });
 }
 
-function redirectToImage(imageUrl: string) {
-  const response = NextResponse.redirect(imageUrl, 307);
-  response.headers.set("Cache-Control", "private, max-age=300");
-  return response;
-}
+async function proxyImage(imageUrl: string) {
+  const response = await fetch(imageUrl, {
+    cache: "no-store",
+    redirect: "follow",
+    headers: {
+      Accept: "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
+      "User-Agent": "Food/0.1 (https://food.coffeehq.coffee; product image proxy)",
+    },
+  }).catch(() => null);
 
-function localGenericImage(request: Request, product: { name: string; canonicalName: string | null; barcode: string | null }) {
-  if (product.barcode) return null;
-  const identity = normalise([product.name, product.canonicalName].filter(Boolean).join(" "));
-  if (/\bmushrooms?\b/.test(identity)) return new URL("/product-images/button-mushroom.svg", request.url).toString();
-  return null;
+  if (!response?.ok) return null;
+  const contentType = response.headers.get("content-type")?.split(";")[0]?.trim() ?? "";
+  if (!contentType.startsWith("image/")) return null;
+
+  const body = await response.arrayBuffer();
+  if (!body.byteLength) return null;
+
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "Content-Type": contentType,
+      "Content-Length": String(body.byteLength),
+      "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
 }
 
 async function usableExistingImage(imageUrl: string | null) {
   if (!imageUrl) return null;
-  const assessment = await assessProductImage(imageUrl);
-  return assessment.reachable && assessment.score >= 45 ? imageUrl : null;
+  const assessment = await assessProductImage(imageUrl).catch(() => null);
+  return assessment?.reachable && assessment.contentType?.startsWith("image/") && assessment.score >= 35
+    ? imageUrl
+    : null;
 }
 
 export async function GET(request: Request, context: RouteContext) {
@@ -47,9 +60,6 @@ export async function GET(request: Request, context: RouteContext) {
     where: { id: productId },
     select: {
       id: true,
-      name: true,
-      canonicalName: true,
-      barcode: true,
       imageUrl: true,
       storeProducts: {
         where: { imageUrl: { not: null }, active: true },
@@ -60,9 +70,6 @@ export async function GET(request: Request, context: RouteContext) {
   });
   if (!product) return noImageResponse();
 
-  const localImage = localGenericImage(request, product);
-  if (localImage) return redirectToImage(localImage);
-
   const imageOptions = [
     product.imageUrl,
     ...product.storeProducts.map((listing) => listing.imageUrl),
@@ -70,10 +77,12 @@ export async function GET(request: Request, context: RouteContext) {
 
   for (const imageUrl of imageOptions) {
     const existingImage = await usableExistingImage(imageUrl);
-    if (existingImage) return redirectToImage(existingImage);
+    if (!existingImage) continue;
+    const proxied = await proxyImage(existingImage);
+    if (proxied) return proxied;
   }
 
-  const result = await findBestProductImage(product.id).catch((error) => {
+  const result = await recoverProductImage(product.id).catch((error) => {
     console.warn("Product image recovery failed", {
       productId: product.id,
       error: error instanceof Error ? error.message : String(error),
@@ -82,8 +91,8 @@ export async function GET(request: Request, context: RouteContext) {
   });
 
   if (result?.imageUrl) {
-    const assessment = await assessProductImage(result.imageUrl);
-    if (assessment.reachable && assessment.score >= 45) return redirectToImage(result.imageUrl);
+    const proxied = await proxyImage(result.imageUrl);
+    if (proxied) return proxied;
   }
 
   return noImageResponse();
