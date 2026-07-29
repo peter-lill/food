@@ -45,15 +45,33 @@ export async function GET(request: Request, context: RouteContext) {
   const { productId } = await context.params;
   const product = await prisma.product.findUnique({
     where: { id: productId },
-    select: { id: true, name: true, canonicalName: true, barcode: true, imageUrl: true },
+    select: {
+      id: true,
+      name: true,
+      canonicalName: true,
+      barcode: true,
+      imageUrl: true,
+      storeProducts: {
+        where: { imageUrl: { not: null }, active: true },
+        orderBy: [{ lastSeenAt: "desc" }, { updatedAt: "desc" }],
+        select: { imageUrl: true },
+      },
+    },
   });
   if (!product) return noImageResponse();
 
   const localImage = localGenericImage(request, product);
   if (localImage) return redirectToImage(localImage);
 
-  const existingImage = await usableExistingImage(product.imageUrl);
-  if (existingImage) return redirectToImage(existingImage);
+  const imageOptions = [
+    product.imageUrl,
+    ...product.storeProducts.map((listing) => listing.imageUrl),
+  ].filter((value): value is string => Boolean(value));
+
+  for (const imageUrl of imageOptions) {
+    const existingImage = await usableExistingImage(imageUrl);
+    if (existingImage) return redirectToImage(existingImage);
+  }
 
   const result = await findBestProductImage(product.id).catch((error) => {
     console.warn("Product image recovery failed", {
