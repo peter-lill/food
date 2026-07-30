@@ -105,6 +105,10 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const description = product.description ?? knowledge?.overview ?? null;
   const latestPrice = product.priceObservations[0] ?? null;
+  const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
+  for (const observation of product.priceObservations) {
+    if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
+  }
   const pantryQuantity = pantryQuantityLabel(product.inventory);
   const retailerCount = new Set([
     ...product.storeProducts.map((listing) => listing.retailer),
@@ -142,6 +146,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <div className={styles.identityMeta}>
                 {product.packSize ? <span>{product.packSize}</span> : null}
                 {product.barcode ? <span>Barcode {product.barcode}</span> : barcodeRequired ? <span>Barcode not known</span> : null}
+                {latestPrice?.isSpecial ? <span>On special at {latestPrice.retailer}</span> : null}
                 {product.recipes.length ? <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span> : null}
                 {retailerCount ? <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span> : null}
               </div>
@@ -151,7 +156,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         <aside className={styles.panel}>
           <p className="eyebrow">YOUR PRODUCT</p>
           <div className={styles.metricGrid}>
-            <div className={styles.metric}><small>Latest price</small><strong>{latestPrice ? money(latestPrice.price) : "—"}</strong><small>{latestPrice?.retailer ?? "No observation"}</small></div>
+            <div className={styles.metric}><small>{latestPrice?.isSpecial ? "Special price" : "Latest price"}</small><strong>{latestPrice ? money(latestPrice.price) : "—"}</strong><small>{latestPrice ? `${latestPrice.isSpecial ? "On special" : "Regular price"} · ${latestPrice.retailer} · ${date(latestPrice.observedAt)}` : "No observation"}</small></div>
             <div className={styles.metric}><small>Pantry quantity</small><strong>{pantryQuantity}</strong><small>{product.inventory.length ? `${product.inventory.length} stock record${product.inventory.length === 1 ? "" : "s"}` : "Not stocked"}</small></div>
             <div className={styles.metric}><small>Known names</small><strong>{product.aliases.length + (canonicalName ? 1 : 0)}</strong><small>Aliases and family</small></div>
             <div className={styles.metric}><small>Price records</small><strong>{product.priceObservations.length}</strong><small>Latest 100 retained</small></div>
@@ -203,8 +208,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </ul>
         </article>
 
-        {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{listing.packSize ?? "—"}</strong><small>{listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>)}</ul></article> : null}
-        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : ""}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
+        {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => { const price = latestPriceByRetailer.get(listing.retailer); return <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{price ? money(price.price) : listing.packSize ?? "—"}</strong><small>{price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>; })}</ul></article> : null}
+        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><ul className={styles.list}>{product.recipes.map((recipe) => <li className={styles.listItem} key={recipe.id}><strong>{recipe.name}</strong><small>{recipe.sourceName ?? "Recipe"}</small></li>)}</ul></article> : null}
         {nutrition.length ? (
           <article className={`${styles.panel} ${styles.nutritionPanel}`}>
