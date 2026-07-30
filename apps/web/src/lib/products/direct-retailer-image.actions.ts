@@ -11,6 +11,12 @@ import {
 } from "@/lib/products/image-candidate.repository";
 import { assessProductImage } from "@/lib/products/image-quality";
 
+const imagePanelAnchor = "#image-intelligence";
+
+function candidateAnchor(candidateId: string) {
+  return `#image-candidate-${encodeURIComponent(candidateId)}`;
+}
+
 function imageSearchCookieName(productId: string) {
   return `food-image-search-${productId}`;
 }
@@ -57,7 +63,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
 
   if (!reference) {
     await setStatus(productId, "warning", "Paste a Woolworths product link or product ID first.");
-    redirect(destination);
+    redirect(`${destination}${imagePanelAnchor}`);
   }
 
   try {
@@ -65,7 +71,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     if (!candidate?.imageUrl || !candidate.externalId) {
       await setStatus(productId, "warning", "Food could not resolve an exact Woolworths image from that reference.");
       revalidateProduct(productId, destination);
-      redirect(destination);
+      redirect(`${destination}${imagePanelAnchor}`);
     }
 
     const assessment = await assessProductImage(candidate.imageUrl);
@@ -95,7 +101,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     if (!accepted) {
       await setStatus(productId, "warning", "The exact Woolworths product was found, but its image did not pass validation. It remains in the Candidate Gallery for review.");
       revalidateProduct(productId, destination);
-      redirect(destination);
+      redirect(`${destination}${candidateAnchor(candidateId)}`);
     }
 
     await prisma.$transaction([
@@ -124,11 +130,11 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
 
     await setStatus(productId, "success", `Exact Woolworths product ${candidate.externalId} was resolved and made primary.`);
     revalidateProduct(productId, destination);
-    redirect(`${destination}?image=${encodeURIComponent(candidateId)}`);
+    redirect(`${destination}?image=${encodeURIComponent(candidateId)}${candidateAnchor(candidateId)}`);
   } catch (error) {
     if (isRedirectError(error)) throw error;
     await setStatus(productId, "error", "The Woolworths reference could not be resolved. Check the link or product ID and try again.");
     revalidateProduct(productId, destination);
-    redirect(destination);
+    redirect(`${destination}${imagePanelAnchor}`);
   }
 }
