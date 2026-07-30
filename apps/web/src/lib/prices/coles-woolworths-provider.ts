@@ -118,6 +118,46 @@ async function hydrateCatalogueImage(candidate: RetailerCatalogueCandidate) {
   return imageUrl ? { ...candidate, imageUrl } : candidate;
 }
 
+export function parseWoolworthsProductReference(value: string) {
+  const input = value.trim();
+  if (/^\d{4,12}$/.test(input)) return input;
+  try {
+    const url = new URL(input);
+    if (!/(^|\.)woolworths\.com\.au$/i.test(url.hostname)) return null;
+    return url.pathname.match(/\/shop\/productdetails\/(\d{4,12})/i)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveWoolworthsProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
+  const externalId = parseWoolworthsProductReference(value);
+  if (!externalId) return null;
+
+  const results = await searchColesAndWoolworthsCatalogue(externalId);
+  const exact = results.find((candidate) => (
+    candidate.retailer === "Woolworths"
+    && candidate.externalId?.replace(/\D/g, "") === externalId
+  ));
+  if (exact) return exact;
+
+  const sourceUrl = retailerProductUrl("Woolworths", "product", externalId);
+  const imageUrl = await fetchRetailerPageImage(sourceUrl);
+  if (!imageUrl) return null;
+
+  return {
+    retailer: "Woolworths",
+    productName: `Woolworths product ${externalId}`,
+    price: null,
+    packSize: null,
+    isSpecial: false,
+    sourceUrl,
+    externalId,
+    barcode: null,
+    imageUrl,
+  };
+}
+
 export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
