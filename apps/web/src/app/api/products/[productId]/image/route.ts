@@ -6,6 +6,7 @@ import { assessProductImage } from "@/lib/products/image-quality";
 import {
   ensureProductPrimaryAsset,
   getProductPrimaryImageAsset,
+  makeCandidatePrimaryAsset,
   readImageAsset,
 } from "@/lib/images/image-asset.service";
 
@@ -22,14 +23,35 @@ function noImageResponse() {
 }
 
 async function localAssetResponse(productId: string) {
-  const asset = await getProductPrimaryImageAsset(productId)
-    ?? await ensureProductPrimaryAsset(productId).catch((error) => {
-      console.warn("Primary image asset import failed", {
-        productId,
-        error: error instanceof Error ? error.message : String(error),
+  const selectedCandidates = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "ProductImageCandidate"
+    WHERE "productId" = ${productId}
+      AND "selected" = true
+      AND "rejected" = false
+    ORDER BY "updatedAt" DESC
+    LIMIT 1
+  `;
+
+  const selectedCandidateId = selectedCandidates[0]?.id ?? null;
+  const asset = selectedCandidateId
+    ? await makeCandidatePrimaryAsset(productId, selectedCandidateId).catch((error) => {
+        console.warn("Selected product image asset reconciliation failed", {
+          productId,
+          candidateId: selectedCandidateId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
+      })
+    : await getProductPrimaryImageAsset(productId)
+      ?? await ensureProductPrimaryAsset(productId).catch((error) => {
+        console.warn("Primary image asset import failed", {
+          productId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return null;
       });
-      return null;
-    });
+
   if (!asset) return null;
 
   const body = await readImageAsset(asset).catch(() => null);
