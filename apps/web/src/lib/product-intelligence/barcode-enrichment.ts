@@ -1,6 +1,7 @@
 import { EnrichmentJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths, type RetailerPriceCandidate } from "@/lib/prices/coles-woolworths-provider";
+import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
 
 const provider = "barcode-knowledge-v1";
 const refreshWindowMs = 7 * 24 * 60 * 60 * 1000;
@@ -127,7 +128,15 @@ export async function enrichProductKnowledge(productId: string) {
     },
     select: { id: true },
   });
-  if (recent) return { status: "fresh" as const };
+  if (recent) {
+    await enrichProductRetailers(productId).catch((error) => {
+      console.warn("Retailer intelligence refresh failed", {
+        productId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    });
+    return { status: "fresh" as const };
+  }
 
   const job = await prisma.productEnrichmentJob.create({
     data: { productId, provider, status: EnrichmentJobStatus.RUNNING, startedAt: new Date() },
@@ -195,6 +204,8 @@ export async function enrichProductKnowledge(productId: string) {
         });
       }
     }
+
+    await enrichProductRetailers(product.id, { force: true });
 
     await prisma.productEnrichmentJob.update({
       where: { id: job.id },
