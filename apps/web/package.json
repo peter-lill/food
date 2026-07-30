@@ -24,6 +24,8 @@
     "products:images:import": "tsx scripts/import-selected-product-images.ts",
     "products:images:audit": "tsx scripts/audit-product-images.ts",
     "products:images:audit:apply": "tsx scripts/audit-product-images.ts --apply",
+    "grocery:canonical:backfill": "tsx scripts/backfill-canonical-grocery-intelligence.ts",
+    "grocery:canonical:backfill:apply": "tsx scripts/backfill-canonical-grocery-intelligence.ts --apply",
     "prices:import:auscost": "tsx scripts/import-auscost-prices.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
