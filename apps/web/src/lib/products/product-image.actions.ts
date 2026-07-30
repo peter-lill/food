@@ -13,6 +13,11 @@ import {
 } from "@/lib/products/image-candidate.repository";
 
 const imageSearchTimeoutMs = 25_000;
+const imagePanelAnchor = "#image-intelligence";
+
+function candidateAnchor(candidateId: string) {
+  return `#image-candidate-${encodeURIComponent(candidateId)}`;
+}
 
 type ImageSearchStatus = {
   tone: "success" | "warning" | "error";
@@ -92,7 +97,7 @@ export async function removeProductImage(productId: string) {
     });
   }
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}${imagePanelAnchor}`);
 }
 
 export async function refreshProductImage(productId: string) {
@@ -123,7 +128,7 @@ export async function refreshProductImage(productId: string) {
   }
 
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}${imagePanelAnchor}`);
 }
 
 export async function selectProductImageCandidate(productId: string, candidateId: string) {
@@ -154,7 +159,7 @@ export async function selectProductImageCandidate(productId: string, candidateId
 
   await setImageSearchStatus(productId, { tone: "success", message: "The selected candidate is now the primary product image." });
   revalidateProduct(productId, destination);
-  redirect(`${destination}?image=${encodeURIComponent(candidateId)}`);
+  redirect(`${destination}?image=${encodeURIComponent(candidateId)}${candidateAnchor(candidateId)}`);
 }
 
 export async function rejectGalleryImageCandidate(productId: string, candidateId: string) {
@@ -169,7 +174,7 @@ export async function rejectGalleryImageCandidate(productId: string, candidateId
   }
   await setImageSearchStatus(productId, { tone: "warning", message: "The candidate was rejected and will not be selected automatically." });
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}${imagePanelAnchor}`);
 }
 
 export async function restoreGalleryImageCandidate(productId: string, candidateId: string) {
@@ -183,7 +188,7 @@ export async function restoreGalleryImageCandidate(productId: string, candidateI
     message: "The image was restored to the candidate gallery and can be selected again.",
   });
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}${candidateAnchor(candidateId)}`);
 }
 
 export async function restorePreviousProductImage(productId: string) {
@@ -212,5 +217,5 @@ export async function restorePreviousProductImage(productId: string) {
   }
 
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}${imagePanelAnchor}`);
 }
