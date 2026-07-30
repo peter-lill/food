@@ -88,6 +88,11 @@ function extractPageImage(html: string) {
   return null;
 }
 
+const browserHeaders = {
+  "Accept-Language": "en-AU,en;q=0.9",
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
+};
+
 async function fetchRetailerPageImage(url: string | null) {
   if (!url) return null;
   const controller = new AbortController();
@@ -98,9 +103,8 @@ async function fetchRetailerPageImage(url: string | null) {
       redirect: "follow",
       signal: controller.signal,
       headers: {
+        ...browserHeaders,
         Accept: "text/html,application/xhtml+xml",
-        "Accept-Language": "en-AU,en;q=0.9",
-        "User-Agent": "Mozilla/5.0 (compatible; FoodCatalogue/0.1; +https://food.coffeehq.coffee)",
       },
     });
     if (!response.ok) return null;
@@ -122,7 +126,8 @@ async function reachableImageUrl(url: string) {
       signal: controller.signal,
       headers: {
         Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8",
-        "User-Agent": "FoodCatalogue/0.1 (+https://food.coffeehq.coffee)",
+        Referer: "https://www.woolworths.com.au/",
+        ...browserHeaders,
       },
     });
     const contentType = response.headers.get("content-type")?.toLocaleLowerCase("en-AU") ?? "";
@@ -140,6 +145,7 @@ async function resolveWoolworthsCdnImage(externalId: string) {
     `https://cdn0.woolworths.media/content/wowproductimages/large/${encodedId}.jpg`,
     `https://cdn0.woolworths.media/content/wowproductimages/big/${encodedId}.jpg`,
     `https://cdn0.woolworths.media/content/wowproductimages/medium/${encodedId}.jpg`,
+    `https://cdn0.woolworths.media/content/wowproductimages/large/${encodedId}_1.jpg`,
   ];
 
   for (const candidate of candidates) {
@@ -147,6 +153,146 @@ async function resolveWoolworthsCdnImage(externalId: string) {
     if (reachable) return reachable;
   }
   return null;
+}
+
+type UnknownRecord = Record<string, unknown>;
+
+function asRecord(value: unknown): UnknownRecord | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as UnknownRecord : null;
+}
+
+function findFirstString(value: unknown, keys: string[]): string | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFirstString(item, keys);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  const record = asRecord(value);
+  if (!record) return null;
+  const wanted = new Set(keys.map((key) => key.toLocaleLowerCase("en-AU")));
+
+  for (const [key, item] of Object.entries(record)) {
+    if (wanted.has(key.toLocaleLowerCase("en-AU"))) {
+      const text = clean(item);
+      if (text) return text;
+    }
+  }
+
+  for (const item of Object.values(record)) {
+    const found = findFirstString(item, keys);
+    if (found) return found;
+  }
+  return null;
+}
+
+function collectImageStrings(value: unknown, found: string[] = []): string[] {
+  if (typeof value === "string") {
+    const decoded = value.replace(/\\\//g, "/").replace(/\\u0026/g, "&");
+    if (/^https:\/\//i.test(decoded) && /(?:wowproductimages|woolworths\.media|\.(?:jpe?g|png|webp)(?:\?|$))/i.test(decoded)) {
+      found.push(decoded);
+    }
+    return found;
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) collectImageStrings(item, found);
+    return found;
+  }
+  const record = asRecord(value);
+  if (record) {
+    for (const item of Object.values(record)) collectImageStrings(item, found);
+  }
+  return found;
+}
+
+function sessionCookies(response: Response) {
+  const extendedHeaders = response.headers as Headers & { getSetCookie?: () => string[] };
+  const values = extendedHeaders.getSetCookie?.() ?? [];
+  if (!values.length) {
+    const combined = response.headers.get("set-cookie");
+    if (combined) values.push(combined);
+  }
+  return values
+    .map((cookie) => cookie.split(";", 1)[0]?.trim())
+    .filter((cookie): cookie is string => Boolean(cookie))
+    .join("; ");
+}
+
+async function resolveWoolworthsDetailApi(externalId: string): Promise<RetailerCatalogueCandidate | null> {
+  const sourceUrl = retailerProductUrl("Woolworths", "product", externalId);
+  if (!sourceUrl) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 12_000);
+  try {
+    const bootstrap = await fetch(sourceUrl, {
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        ...browserHeaders,
+        Accept: "text/html,application/xhtml+xml",
+      },
+    });
+    const cookie = sessionCookies(bootstrap);
+
+    const response = await fetch(`https://www.woolworths.com.au/apis/ui/product/detail/${encodeURIComponent(externalId)}`, {
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        ...browserHeaders,
+        Accept: "application/json, text/plain, */*",
+        Referer: sourceUrl,
+        "X-Requested-With": "XMLHttpRequest",
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+    });
+    if (!response.ok) return null;
+
+    const data = await response.json() as unknown;
+    const imageCandidates = [...new Set(collectImageStrings(data))]
+      .sort((left, right) => {
+        const leftExact = left.includes(`/${externalId}`) ? 1 : 0;
+        const rightExact = right.includes(`/${externalId}`) ? 1 : 0;
+        const leftLarge = /\/large\//i.test(left) ? 1 : 0;
+        const rightLarge = /\/large\//i.test(right) ? 1 : 0;
+        return (rightExact + rightLarge) - (leftExact + leftLarge);
+      });
+
+    let imageUrl: string | null = null;
+    for (const candidate of imageCandidates) {
+      const safe = safeHttpsImage(candidate);
+      if (!safe) continue;
+      imageUrl = await reachableImageUrl(safe);
+      if (imageUrl) break;
+    }
+
+    const productName = findFirstString(data, ["Name", "ProductName", "DisplayName", "FullDescription"])
+      ?? `Woolworths product ${externalId}`;
+    const barcode = findFirstString(data, ["Barcode", "Ean", "EAN", "Gtin", "GTIN"]);
+    const unit = findFirstString(data, ["CupString", "PackageSize", "Unit", "UnitDescription"]);
+    const priceText = findFirstString(data, ["Price", "CurrentPrice"]);
+    const parsedPrice = priceText ? Number(priceText.replace(/[^0-9.]/g, "")) : Number.NaN;
+
+    return {
+      retailer: "Woolworths",
+      productName,
+      price: Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : null,
+      packSize: detectPackSize(productName, unit),
+      isSpecial: false,
+      sourceUrl,
+      externalId,
+      barcode,
+      imageUrl,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function hydrateCatalogueImage(candidate: RetailerCatalogueCandidate) {
@@ -171,6 +317,9 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
   const externalId = parseWoolworthsProductReference(value);
   if (!externalId) return null;
 
+  const exactDetail = await resolveWoolworthsDetailApi(externalId);
+  if (exactDetail?.imageUrl) return exactDetail;
+
   const results = await searchColesAndWoolworthsCatalogue(externalId);
   const exact = results.find((candidate) => (
     candidate.retailer === "Woolworths"
@@ -178,21 +327,22 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
   ));
   if (exact?.imageUrl) return exact;
 
-  const sourceUrl = retailerProductUrl("Woolworths", exact?.productName ?? "product", externalId);
+  const sourceUrl = retailerProductUrl("Woolworths", exactDetail?.productName ?? exact?.productName ?? "product", externalId);
   const imageUrl = await resolveWoolworthsCdnImage(externalId)
+    ?? exactDetail?.imageUrl
     ?? exact?.imageUrl
     ?? await fetchRetailerPageImage(sourceUrl);
-  if (!imageUrl) return exact ?? null;
+  if (!imageUrl) return exactDetail ?? exact ?? null;
 
   return {
     retailer: "Woolworths",
-    productName: exact?.productName ?? `Woolworths product ${externalId}`,
-    price: exact?.price ?? null,
-    packSize: exact?.packSize ?? null,
-    isSpecial: exact?.isSpecial ?? false,
+    productName: exactDetail?.productName ?? exact?.productName ?? `Woolworths product ${externalId}`,
+    price: exactDetail?.price ?? exact?.price ?? null,
+    packSize: exactDetail?.packSize ?? exact?.packSize ?? null,
+    isSpecial: exactDetail?.isSpecial ?? exact?.isSpecial ?? false,
     sourceUrl,
     externalId,
-    barcode: exact?.barcode ?? null,
+    barcode: exactDetail?.barcode ?? exact?.barcode ?? null,
     imageUrl,
   };
 }
