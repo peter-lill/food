@@ -3,6 +3,7 @@ import {
   refreshProductImage,
   rejectGalleryImageCandidate,
   removeProductImage,
+  restoreGalleryImageCandidate,
   selectProductImageCandidate,
 } from "@/lib/products/product-image.actions";
 import { listProductImageCandidates } from "@/lib/products/image-candidate.repository";
@@ -54,7 +55,65 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
   const cookieStore = await cookies();
   const searchStatus = parseStatus(cookieStore.get(statusCookieName(productId))?.value);
   const diagnostics = searchStatus?.diagnostics;
-  const candidates = await listProductImageCandidates(productId, 12).catch(() => []);
+  const candidates = await listProductImageCandidates(productId, 24).catch(() => []);
+  const activeCandidates = candidates.filter((candidate) => !candidate.rejected);
+  const rejectedCandidates = candidates.filter((candidate) => candidate.rejected);
+
+  const renderCandidate = (candidate: (typeof candidates)[number]) => {
+    const dimensions = candidate.width && candidate.height ? `${candidate.width} × ${candidate.height}` : "Dimensions unknown";
+    const reasons = candidate.rejectionReasons.length
+      ? candidate.rejectionReasons.join(" · ")
+      : candidate.accepted ? "Passed validation" : "Awaiting assessment";
+
+    return (
+      <article
+        key={candidate.id}
+        style={{
+          border: "1px solid var(--border)",
+          borderRadius: "18px",
+          padding: "12px",
+          display: "grid",
+          gap: "10px",
+          background: candidate.selected ? "var(--surface-soft, #f1faf5)" : "var(--surface, #fff)",
+          opacity: candidate.rejected ? 0.82 : 1,
+        }}
+      >
+        <div style={{ aspectRatio: "1 / 1", borderRadius: "14px", overflow: "hidden", background: "#f4f4f0", display: "grid", placeItems: "center" }}>
+          <img
+            alt={`${productName} candidate from ${candidate.sourceLabel}`}
+            src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}`}
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+          />
+        </div>
+        <div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
+            <strong>{candidate.sourceLabel || candidate.source}</strong>
+            <span className={`badge ${candidate.selected ? "neutral" : candidate.rejected ? "warning" : ""}`}>
+              {candidate.selected ? "Primary" : candidate.rejected ? "Rejected" : candidate.accepted ? "Usable" : "Review"}
+            </span>
+          </div>
+          <p className="subtle" style={{ margin: "6px 0 0" }}>{scoreLabel(candidate.overallScore)} · {dimensions}</p>
+          <p className="subtle" style={{ margin: "4px 0 0", fontSize: "0.9rem" }}>{reasons}</p>
+        </div>
+        <div className="form-actions" style={{ marginTop: 0, justifyContent: "flex-start" }}>
+          {!candidate.selected ? (
+            <form action={selectProductImageCandidate.bind(null, productId, candidate.id)}>
+              <button className="primary-button" type="submit">Make primary</button>
+            </form>
+          ) : null}
+          {candidate.rejected ? (
+            <form action={restoreGalleryImageCandidate.bind(null, productId, candidate.id)}>
+              <button className="secondary-button" type="submit">Restore to review</button>
+            </form>
+          ) : (
+            <form action={rejectGalleryImageCandidate.bind(null, productId, candidate.id)}>
+              <button className="danger-button" type="submit">Reject</button>
+            </form>
+          )}
+        </div>
+      </article>
+    );
+  };
 
   return (
     <article className="card">
@@ -68,7 +127,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
         </span>
       </div>
       <p className="subtle">
-        Reject an incorrect image and immediately search trusted barcode, retailer and produce sources for a replacement for {productName}.
+        Compare discovered images, choose the primary image, or restore a previously rejected candidate for {productName}.
       </p>
       {searchStatus ? (
         <p className={`badge ${searchStatus.tone === "success" ? "neutral" : "warning"}`} role="status">
@@ -123,47 +182,21 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
         </details>
       ) : null}
 
-      {candidates.length ? (
+      {activeCandidates.length ? (
         <details open style={{ marginTop: "22px" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Candidate gallery ({candidates.length})</summary>
+          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Candidate gallery ({activeCandidates.length})</summary>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginTop: "14px" }}>
-            {candidates.map((candidate) => {
-              const dimensions = candidate.width && candidate.height ? `${candidate.width} × ${candidate.height}` : "Dimensions unknown";
-              const reasons = candidate.rejectionReasons.length ? candidate.rejectionReasons.join(" · ") : candidate.accepted ? "Passed validation" : "Awaiting assessment";
-              return (
-                <article key={candidate.id} style={{ border: "1px solid var(--border)", borderRadius: "18px", padding: "12px", display: "grid", gap: "10px", background: candidate.selected ? "var(--surface-soft, #f1faf5)" : "var(--surface, #fff)" }}>
-                  <div style={{ aspectRatio: "1 / 1", borderRadius: "14px", overflow: "hidden", background: "#f4f4f0", display: "grid", placeItems: "center" }}>
-                    <img
-                      alt={`${productName} candidate from ${candidate.sourceLabel}`}
-                      src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}`}
-                      style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    />
-                  </div>
-                  <div>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
-                      <strong>{candidate.sourceLabel || candidate.source}</strong>
-                      <span className={`badge ${candidate.selected ? "neutral" : candidate.rejected ? "warning" : ""}`}>
-                        {candidate.selected ? "Selected" : candidate.rejected ? "Rejected" : candidate.accepted ? "Usable" : "Review"}
-                      </span>
-                    </div>
-                    <p className="subtle" style={{ margin: "6px 0 0" }}>{scoreLabel(candidate.overallScore)} · {dimensions}</p>
-                    <p className="subtle" style={{ margin: "4px 0 0", fontSize: "0.9rem" }}>{reasons}</p>
-                  </div>
-                  <div className="form-actions" style={{ marginTop: 0, justifyContent: "flex-start" }}>
-                    {!candidate.selected && !candidate.rejected ? (
-                      <form action={selectProductImageCandidate.bind(null, productId, candidate.id)}>
-                        <button className="primary-button" type="submit">Make primary</button>
-                      </form>
-                    ) : null}
-                    {!candidate.rejected ? (
-                      <form action={rejectGalleryImageCandidate.bind(null, productId, candidate.id)}>
-                        <button className="danger-button" type="submit">Reject</button>
-                      </form>
-                    ) : null}
-                  </div>
-                </article>
-              );
-            })}
+            {activeCandidates.map(renderCandidate)}
+          </div>
+        </details>
+      ) : null}
+
+      {rejectedCandidates.length ? (
+        <details style={{ marginTop: "18px" }}>
+          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Rejected images ({rejectedCandidates.length})</summary>
+          <p className="subtle">Rejected images are retained. Restore one to return it to the main gallery, or make it primary immediately.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginTop: "14px" }}>
+            {rejectedCandidates.map(renderCandidate)}
           </div>
         </details>
       ) : null}
