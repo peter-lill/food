@@ -25,7 +25,7 @@ const preparationTailTokens = new Set([
   "cored", "peeled", "unpeeled", "sliced", "diced", "chopped", "grated", "crushed",
   "drained", "rinsed", "trimmed", "halved", "quartered", "softened", "melted", "toasted",
   "roasted", "cooked", "seeded", "deseeded", "finely", "roughly", "thinly", "thickly",
-  "lightly", "removed",
+  "lightly", "removed", "hot",
 ]);
 
 const recipeMeasureTokens = new Set([
@@ -37,12 +37,25 @@ const danglingTokens = new Set([
   "and", "or", "with", "plus", "to", "serve", "approximately", "per", "of", "into",
 ]);
 
+const cssPrefix = ".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit ";
 const recoveryCases: Array<[string, string]> = [
-  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Apple Cored and", "apple"],
-  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Brown Rice", "brown rice"],
-  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Tablespoon Olive Oil", "olive oil"],
-  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Teaspoon Baking Powder", "baking powder"],
-  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Spaghetti", "spaghetti"],
+  [`${cssPrefix}Traditional Rolled Oats`, "traditional rolled oats"],
+  [`${cssPrefix}Apple Cored and`, "apple"],
+  [`${cssPrefix}Brown Rice`, "brown rice"],
+  [`${cssPrefix}Quantity of Hot Oats`, "oats"],
+  [`${cssPrefix}Small Beetroot Cut Into Thin Wedges`, "beetroot"],
+  [`${cssPrefix}Tablespoon Olive Oil`, "olive oil"],
+  [`${cssPrefix}Teaspoon Baking Powder`, "baking powder"],
+  [`${cssPrefix}Teaspoon Olive Oil`, "olive oil"],
+  [`${cssPrefix}White Quinoa`, "white quinoa"],
+  [`${cssPrefix}Spaghetti`, "spaghetti"],
+  [`${cssPrefix}Corn Cobs Husks and Silk Removed`, "corn cobs"],
+  [`${cssPrefix}Tablespoons Soy Sauce`, "soy sauce"],
+  [`${cssPrefix}Teaspoons Olive Oil`, "olive oil"],
+  [`${cssPrefix}Small Sweet Potato Unpeeled`, "sweet potato"],
+  [`${cssPrefix}Sweet Potato Cut Into Cm Thick Slices`, "sweet potato"],
+  [`${cssPrefix}Spray Cooking Oil`, "cooking oil"],
+  [`${cssPrefix}Spray Olive Oil`, "olive oil"],
 ];
 
 function safeDerived(product: { barcode: string | null; storeProducts: { id: string }[] }) {
@@ -61,7 +74,9 @@ function recoverCandidateFromCorruptedName(value: string) {
   const tokens = normalised.split(" ").filter(Boolean);
   const recovered: string[] = [];
 
-  for (const token of tokens) {
+  for (const rawToken of tokens) {
+    const token = rawToken.replace(/^[.#]+/, "").replace(/[.#]+$/, "");
+    if (!token) continue;
     const mixedClassToken = /[a-z]/.test(token) && /\d/.test(token);
     if (mixedClassToken || technicalTokens.has(token)) continue;
     recovered.push(token);
@@ -92,9 +107,6 @@ function recoverCandidateFromCorruptedName(value: string) {
 
   if (!cleaned) return null;
 
-  // This is already a sanitised recovery candidate. Do not send it back through
-  // foodItemIdentity(), because that function intentionally rejects suspicious
-  // public input before parsing. Parse the clean tail directly instead.
   const identity = normaliseProductText(parseProductName(cleaned).canonicalName);
   return identity && isPlausibleGroceryName(identity) ? identity : null;
 }
@@ -243,7 +255,6 @@ async function loadProducts() {
 
 async function main() {
   verifyRecoveryParser();
-
   const products = await loadProducts();
   const summary = {
     scanned: products.length,
