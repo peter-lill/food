@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ShoppingDuplicateManager } from "@/components/shopping/ShoppingDuplicateManager";
 import { ShoppingWorkspace } from "@/components/shopping/ShoppingWorkspace";
 import { getShoppingWorkspace } from "@/lib/shopping/shopping.repository";
 
@@ -45,6 +46,7 @@ export default async function ShoppingPage({
         </div>
         <Link className="secondary-button" href="/prices">Compare receipt prices</Link>
       </header>
+      <ShoppingDuplicateManager list={selectedList} />
       <ShoppingWorkspace
         lists={workspace.lists}
         pantrySuggestions={workspace.pantrySuggestions}
