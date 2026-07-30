@@ -18,6 +18,7 @@
     "products:reconcile": "tsx scripts/reconcile-product-catalogue.ts",
     "products:reconcile:apply": "tsx scripts/reconcile-product-catalogue.ts --apply",
     "products:images": "tsx scripts/enrich-product-images.ts",
+    "products:images:import": "tsx scripts/import-selected-product-images.ts",
     "products:images:audit": "tsx scripts/audit-product-images.ts",
     "products:images:audit:apply": "tsx scripts/audit-product-images.ts --apply",
     "prices:import:auscost": "tsx scripts/import-auscost-prices.ts",
