@@ -10,6 +10,7 @@ import {
   getProductImageCandidate,
   markSelectedCandidate,
   rejectProductImageCandidate,
+  restoreProductImageCandidate,
 } from "@/lib/products/image-candidate.repository";
 
 const imageSearchTimeoutMs = 25_000;
@@ -156,6 +157,20 @@ export async function rejectGalleryImageCandidate(productId: string, candidateId
   redirect(destination);
 }
 
+export async function restoreGalleryImageCandidate(productId: string, candidateId: string) {
+  const destination = await productDestination(productId);
+  const candidate = await getProductImageCandidate(productId, candidateId);
+  if (!candidate) throw new Error("Image candidate not found.");
+
+  await restoreProductImageCandidate(productId, candidateId);
+  await setImageSearchStatus(productId, {
+    tone: "success",
+    message: "The image was restored to the candidate gallery and can be selected again.",
+  });
+  revalidateProduct(productId, destination);
+  redirect(destination);
+}
+
 export async function restorePreviousProductImage(productId: string) {
   const destination = await productDestination(productId);
   const previous = await prisma.$queryRaw<Array<{ url: string }>>`
@@ -172,6 +187,7 @@ export async function restorePreviousProductImage(productId: string) {
         SET "rejected" = false,
             "selected" = ("url" = ${url}),
             "sourceLabel" = CASE WHEN "url" = ${url} THEN 'Restored by user' ELSE "sourceLabel" END,
+            "rejectionReasons" = array_remove("rejectionReasons", 'Rejected by user'),
             "updatedAt" = NOW()
         WHERE "productId" = ${productId}
       `,
