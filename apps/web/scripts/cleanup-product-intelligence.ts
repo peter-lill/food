@@ -13,6 +13,22 @@ type Evidence = {
   weight: number;
 };
 
+const technicalTokens = new Set([
+  "css", "font", "style", "inherit", "weight", "webkit", "text", "decoration",
+  "display", "flex", "grid", "margin", "padding", "border", "background", "colour",
+  "color", "line", "height", "letter", "spacing", "align", "justify", "position",
+  "absolute", "relative", "block", "inline", "overflow", "hidden", "visible", "transform",
+  "transition", "opacity", "cursor", "pointer", "family", "size", "variant", "normal",
+]);
+
+const preparationTailTokens = new Set([
+  "cored", "peeled", "sliced", "diced", "chopped", "grated", "crushed", "drained",
+  "rinsed", "trimmed", "halved", "quartered", "softened", "melted", "toasted", "roasted",
+  "cooked", "seeded", "deseeded", "finely", "roughly", "thinly", "thickly", "lightly",
+]);
+
+const danglingTokens = new Set(["and", "or", "with", "plus", "to", "serve", "approximately", "per"]);
+
 function safeDerived(product: { barcode: string | null; storeProducts: { id: string }[] }) {
   return !product.barcode && product.storeProducts.length === 0;
 }
@@ -24,9 +40,41 @@ async function foodKnowledgeFor(name: string) {
   return existing ?? prisma.foodKnowledge.create({ data: { commonName: name } });
 }
 
+function recoverCandidateFromCorruptedName(value: string) {
+  const normalised = normaliseProductText(value);
+  const tokens = normalised.split(" ").filter(Boolean);
+  const recovered: string[] = [];
+
+  for (const token of tokens) {
+    if (/^css\d*[a-z0-9]*$/.test(token) || /^[a-z]+\d+[a-z0-9]*$/.test(token)) continue;
+    if (technicalTokens.has(token)) continue;
+    recovered.push(token);
+  }
+
+  while (recovered.length && (preparationTailTokens.has(recovered.at(-1)!) || danglingTokens.has(recovered.at(-1)!))) {
+    recovered.pop();
+  }
+
+  const cleaned = recovered
+    .filter((token) => !preparationTailTokens.has(token))
+    .filter((token, index, values) => !(danglingTokens.has(token) && (index === 0 || index === values.length - 1)))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleaned) return null;
+  const identity = foodItemIdentity(cleaned);
+  return identity && isPlausibleGroceryName(identity) ? identity : null;
+}
+
 function candidateFromEvidence(value: string) {
   const trimmed = value.trim();
-  if (!trimmed || !isPlausibleGroceryName(trimmed)) return null;
+  if (!trimmed) return null;
+
+  if (!isPlausibleGroceryName(trimmed)) {
+    return recoverCandidateFromCorruptedName(trimmed);
+  }
+
   const identity = foodItemIdentity(trimmed);
   if (!identity || !isPlausibleGroceryName(identity)) return null;
   return identity;
@@ -42,6 +90,10 @@ function repairEvidence(product: CleanupProduct): Evidence[] {
     ...product.shoppingItems.map((record) => ({ value: record.name, source: "shopping", weight: 75 })),
     ...product.storeProducts.map((record) => ({ value: record.retailerProductName, source: `retailer:${record.retailer}`, weight: 80 })),
     ...product.aliases.map((record) => ({ value: record.alias, source: `alias:${record.source ?? "unknown"}`, weight: 65 })),
+    { value: product.name, source: "corrupted-name-tail", weight: 60 },
+    ...(product.canonicalName && product.canonicalName !== product.name
+      ? [{ value: product.canonicalName, source: "corrupted-canonical-tail", weight: 55 }]
+      : []),
   ];
 }
 
