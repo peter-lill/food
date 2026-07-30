@@ -68,6 +68,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
 
     return (
       <article
+        id={`image-candidate-${candidate.id}`}
         key={candidate.id}
         style={{
           border: "1px solid var(--border)",
@@ -77,6 +78,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
           gap: "10px",
           background: candidate.selected ? "var(--surface-soft, #f1faf5)" : "var(--surface, #fff)",
           opacity: candidate.rejected ? 0.82 : 1,
+          scrollMarginTop: "96px",
         }}
       >
         <div style={{ aspectRatio: "1 / 1", borderRadius: "14px", overflow: "hidden", background: "#f4f4f0", display: "grid", placeItems: "center" }}>
@@ -117,7 +119,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
   };
 
   return (
-    <article className="card">
+    <article className="card" id="image-intelligence" style={{ scrollMarginTop: "96px" }}>
       <div className="dashboard-card-heading">
         <div>
           <p className="eyebrow">IMAGE INTELLIGENCE</p>
