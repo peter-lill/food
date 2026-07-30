@@ -6,6 +6,7 @@ import {
   restoreGalleryImageCandidate,
   selectProductImageCandidate,
 } from "@/lib/products/product-image.actions";
+import { resolveDirectRetailerImage } from "@/lib/products/direct-retailer-image.actions";
 import { listProductImageCandidates } from "@/lib/products/image-candidate.repository";
 import type { ImageSearchDiagnostics } from "@/lib/products/image-recovery";
 
@@ -127,13 +128,27 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
         </span>
       </div>
       <p className="subtle">
-        Compare discovered images, choose the primary image, or restore a previously rejected candidate for {productName}.
+        Compare discovered images, choose the primary image, or resolve an exact Woolworths product link for {productName}.
       </p>
       {searchStatus ? (
         <p className={`badge ${searchStatus.tone === "success" ? "neutral" : "warning"}`} role="status">
           {searchStatus.message}
         </p>
       ) : null}
+
+      <form action={resolveDirectRetailerImage.bind(null, productId)} className="pantry-form compact" style={{ marginTop: "18px" }}>
+        <label className="field">
+          <span>Exact Woolworths product link or product ID</span>
+          <input
+            name="retailerReference"
+            placeholder="Paste a Woolworths link or enter 6035677"
+            required
+          />
+        </label>
+        <div className="form-actions" style={{ marginTop: 0 }}>
+          <button className="primary-button" type="submit">Resolve exact product image</button>
+        </div>
+      </form>
 
       {diagnostics ? (
         <details style={{ marginTop: "16px" }}>
