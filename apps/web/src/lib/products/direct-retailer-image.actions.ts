@@ -15,6 +15,14 @@ function imageSearchCookieName(productId: string) {
   return `food-image-search-${productId}`;
 }
 
+function isRedirectError(error: unknown) {
+  return typeof error === "object"
+    && error !== null
+    && "digest" in error
+    && typeof (error as { digest?: unknown }).digest === "string"
+    && (error as { digest: string }).digest.startsWith("NEXT_REDIRECT");
+}
+
 async function setStatus(productId: string, tone: "success" | "warning" | "error", message: string) {
   const cookieStore = await cookies();
   cookieStore.set(imageSearchCookieName(productId), JSON.stringify({ tone, message }), {
@@ -118,7 +126,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     revalidateProduct(productId, destination);
     redirect(`${destination}?image=${encodeURIComponent(candidateId)}`);
   } catch (error) {
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") throw error;
+    if (isRedirectError(error)) throw error;
     await setStatus(productId, "error", "The Woolworths reference could not be resolved. Check the link or product ID and try again.");
     revalidateProduct(productId, destination);
     redirect(destination);
