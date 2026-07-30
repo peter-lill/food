@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatProductName } from "@/lib/products/product-formatter";
-import { foodItemIdentity } from "@/lib/products/food-item-intelligence";
+import { foodItemIdentity, isPlausibleGroceryName } from "@/lib/products/food-item-intelligence";
 import { consolidatePantryItems } from "./pantry-consolidation";
 import type {
   PantryGroup,
@@ -57,11 +57,17 @@ export async function getPantryItems(): Promise<PantryGroup[]> {
     orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
   });
 
-  const mapped = rows.map((row) => {
+  const mapped = rows.flatMap((row) => {
     const expiryStatus = getExpiryStatus(row.expiresAt);
     const sourceName = row.product.foodKnowledge?.commonName
       ?? row.product.canonicalName
       ?? row.product.name;
+
+    if (!isPlausibleGroceryName(sourceName)) return [];
+
+    const identity = foodItemIdentity(sourceName);
+    if (!identity) return [];
+
     const item: PantryItem = {
       id: row.id,
       productId: row.productId,
@@ -74,13 +80,14 @@ export async function getPantryItems(): Promise<PantryGroup[]> {
       purchasedAt: row.purchasedAt?.toISOString().slice(0, 10) ?? null,
       ...expiryStatus,
     };
-    return {
+
+    return [{
       item,
-      canonicalName: formatProductName(sourceName),
-      identity: foodItemIdentity(sourceName),
-      category: categoryFor(sourceName, row.product.foodKnowledge?.category ?? row.product.category),
+      canonicalName: formatProductName(identity),
+      identity,
+      category: categoryFor(identity, row.product.foodKnowledge?.category ?? row.product.category),
       imageUrl: row.product.imageUrl,
-    };
+    }];
   });
 
   const groups = new Map<string, typeof mapped>();
