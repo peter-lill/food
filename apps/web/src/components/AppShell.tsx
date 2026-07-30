@@ -40,7 +40,7 @@ const desktopSideNavStyle: CSSProperties = {
   minHeight: 0,
   overflowY: "auto",
   overscrollBehavior: "contain",
-  paddingRight: 4,
+  paddingRight: 2,
   scrollbarGutter: "stable",
 };
 
@@ -150,7 +150,6 @@ export function AppShell({
     return <main className="content-shell android-embedded-content">{children}</main>;
   }
 
-  const current = navigation.find((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const hideMobileScanAction = pathname.startsWith("/scan") || pathname.startsWith("/receipts");
 
@@ -170,10 +169,6 @@ export function AppShell({
         <div className="sidebar-note"><span className="status-dot" />{user ? `Signed in as ${user.name}` : "Recipes are open to everyone"}</div>
       </aside>
       <div className="workspace">
-        <header className="workspace-header">
-          <div><span className="eyebrow">FOOD</span><strong>{current?.label ?? "Workspace"}</strong></div>
-          <Link className="header-action" href={user ? "/account" : "/sign-in"}>{user ? "Your account" : "Sign in"}</Link>
-        </header>
         <main className="content-shell">{children}</main>
       </div>
       {mobileMenuOpen ? (
