@@ -148,18 +148,44 @@ export async function importCandidateAsset(productId: string, candidateId: strin
   }
 
   const asset = await importImageAsset({ url: candidate.url, provider: candidate.source });
-  await prisma.$transaction([
-    prisma.$executeRaw`
-      UPDATE "ProductImageCandidate"
-      SET "assetId" = ${asset.id}, "updatedAt" = NOW()
-      WHERE "id" = ${candidateId} AND "productId" = ${productId}
-    `,
-    prisma.$executeRaw`
-      UPDATE "Product"
-      SET "primaryImageAssetId" = ${asset.id}, "updatedAt" = NOW()
-      WHERE "id" = ${productId}
-    `,
-  ]);
+  await prisma.$executeRaw`
+    UPDATE "ProductImageCandidate"
+    SET "assetId" = ${asset.id}, "updatedAt" = NOW()
+    WHERE "id" = ${candidateId} AND "productId" = ${productId}
+  `;
+  return asset;
+}
+
+export async function ensureProductPrimaryAsset(productId: string) {
+  const current = await getProductPrimaryImageAsset(productId);
+  if (current) return current;
+
+  const selected = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "ProductImageCandidate"
+    WHERE "productId" = ${productId} AND "selected" = true AND "rejected" = false
+    ORDER BY "updatedAt" DESC
+    LIMIT 1
+  `;
+  const candidateId = selected[0]?.id;
+  if (!candidateId) return null;
+
+  const asset = await importCandidateAsset(productId, candidateId);
+  await prisma.$executeRaw`
+    UPDATE "Product"
+    SET "primaryImageAssetId" = ${asset.id}, "updatedAt" = NOW()
+    WHERE "id" = ${productId}
+  `;
+  return asset;
+}
+
+export async function makeCandidatePrimaryAsset(productId: string, candidateId: string) {
+  const asset = await importCandidateAsset(productId, candidateId);
+  await prisma.$executeRaw`
+    UPDATE "Product"
+    SET "primaryImageAssetId" = ${asset.id}, "updatedAt" = NOW()
+    WHERE "id" = ${productId}
+  `;
   return asset;
 }
 
