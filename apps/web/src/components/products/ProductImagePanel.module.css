@@ -1,0 +1,210 @@
+.panel {
+  scroll-margin-top: 96px;
+}
+
+.intro {
+  margin: 14px 0 0;
+  max-width: 760px;
+}
+
+.status {
+  margin-top: 16px;
+}
+
+.gallerySection,
+.advanced,
+.rejectedSection {
+  margin-top: 22px;
+}
+
+.summary {
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.candidate {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface);
+  scroll-margin-top: 96px;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.candidate:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  box-shadow: 0 14px 30px rgba(37, 65, 48, 0.08);
+}
+
+.primary {
+  border: 2px solid var(--accent);
+  background: color-mix(in srgb, var(--accent-pale) 65%, var(--surface));
+}
+
+.rejected {
+  opacity: 0.78;
+}
+
+.preview {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #f7f5ef;
+}
+
+.preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+
+.candidateHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.source {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  line-height: 1.3;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.meta span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.localNote {
+  margin: 0;
+  color: var(--accent-dark);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.actions form {
+  margin: 0;
+}
+
+.primaryAction,
+.secondaryAction,
+.dangerAction {
+  min-height: 36px;
+}
+
+.footerActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.advancedBody {
+  display: grid;
+  gap: 18px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.resolver {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+}
+
+.diagnostics {
+  display: grid;
+  gap: 14px;
+}
+
+.providerRow {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) minmax(0, 2fr);
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.validationRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+
+@media (max-width: 760px) {
+  .gallery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .candidate {
+    padding: 8px;
+  }
+
+  .source {
+    font-size: 0.9rem;
+  }
+
+  .footerActions {
+    justify-content: stretch;
+  }
+
+  .footerActions form,
+  .footerActions button {
+    width: 100%;
+  }
+
+  .providerRow {
+    grid-template-columns: 1fr;
+  }
+
+  .validationRow {
+    display: grid;
+  }
+}
+
+@media (max-width: 430px) {
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+}
