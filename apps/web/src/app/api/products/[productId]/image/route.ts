@@ -5,13 +5,14 @@ import { recoverProductImage } from "@/lib/products/image-recovery";
 import { assessProductImage } from "@/lib/products/image-quality";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ productId: string }> };
 
 function noImageResponse() {
   return new NextResponse(null, {
     status: 404,
-    headers: { "Cache-Control": "private, no-cache, max-age=60" },
+    headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
 }
 
@@ -37,7 +38,9 @@ async function proxyImage(imageUrl: string) {
     headers: {
       "Content-Type": contentType,
       "Content-Length": String(body.byteLength),
-      "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400",
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
       "X-Content-Type-Options": "nosniff",
     },
   });
