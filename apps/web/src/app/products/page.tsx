@@ -192,15 +192,18 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const observed = observedLabel(product.latestObservedAt);
             const generic = isGenericFood(product);
             const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand not added";
+            const productImage = product.imageUrl
+              ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(product.imageUrl)}`
+              : null;
 
             return (
               <article className={styles.card} key={product.id}>
                 <div className={styles.thumb}>
-                  {product.imageUrl ? (
+                  {productImage ? (
                     <img
                       alt={title}
                       loading="lazy"
-                      src={`/api/products/${encodeURIComponent(product.id)}/image`}
+                      src={productImage}
                       style={{
                         display: "block",
                         width: "112px",
@@ -248,8 +251,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             );
           }) : (
             <div className={styles.empty}>
-              <span aria-hidden="true">⌕</span><strong>No products found</strong><p>Try another search, change the filter or scan a new product.</p>
-              <div><Link href="/products">Clear filters</Link><Link href="/scan">Scan product</Link></div>
+              <span aria-hidden="true">⌕</span><strong>No products found</strong><p>Try another search or filter.</p>
             </div>
           )}
         </div>
