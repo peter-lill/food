@@ -29,8 +29,34 @@ const weightVariableTerms = [
   "grapes", "mince", "mushroom", "nuts", "prawns", "spinach",
 ];
 
+const sizeNeutralProduce = new Set([
+  "apple", "apples", "apricot", "apricots", "avocado", "avocados",
+  "banana", "bananas", "capsicum", "capsicums", "carrot", "carrots",
+  "cucumber", "cucumbers", "kiwifruit", "lemon", "lemons", "lime", "limes",
+  "mandarin", "mandarins", "mango", "mangoes", "mushroom", "mushrooms",
+  "nectarine", "nectarines", "onion", "onions", "orange", "oranges",
+  "peach", "peaches", "pear", "pears", "potato", "potatoes",
+  "sweet potato", "sweet potatoes", "tomato", "tomatoes",
+]);
+
+function canonicalShoppingDescription(value: string) {
+  let identity = normaliseProductText(value);
+
+  const sizedProduce = identity.match(/^(?:small|medium|large)\s+(.+)$/);
+  if (sizedProduce && sizeNeutralProduce.has(sizedProduce[1])) {
+    identity = sizedProduce[1];
+  }
+
+  identity = identity
+    .replace(/^(?:extra\s+lean|very\s+lean|lean|regular)\s+(beef\s+mince)$/, "$1")
+    .replace(/^(beef\s+mince)\s+(?:extra\s+lean|very\s+lean|lean|regular)$/, "$1")
+    .trim();
+
+  return identity;
+}
+
 function cleanIdentityName(value: string) {
-  return normaliseProductText(parseProductName(value).canonicalName);
+  return canonicalShoppingDescription(parseProductName(value).canonicalName);
 }
 
 export function foodItemIdentity(value: string) {
