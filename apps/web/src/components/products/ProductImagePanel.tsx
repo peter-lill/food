@@ -9,6 +9,7 @@ import {
 import { resolveDirectRetailerImage } from "@/lib/products/direct-retailer-image.actions";
 import { listProductImageCandidates } from "@/lib/products/image-candidate.repository";
 import type { ImageSearchDiagnostics } from "@/lib/products/image-recovery";
+import styles from "./ProductImagePanel.module.css";
 
 type ProductImagePanelProps = {
   productId: string;
@@ -33,23 +34,25 @@ function parseStatus(value: string | undefined): ImageSearchStatus | null {
     if (
       (parsed.tone === "success" || parsed.tone === "warning" || parsed.tone === "error")
       && typeof parsed.message === "string"
-    ) return {
-      tone: parsed.tone,
-      message: parsed.message,
-      diagnostics: parsed.diagnostics,
-    };
+    ) {
+      return {
+        tone: parsed.tone,
+        message: parsed.message,
+        diagnostics: parsed.diagnostics,
+      };
+    }
   } catch {
     return null;
   }
   return null;
 }
 
-function scoreLabel(score: number | null) {
+function qualityLabel(score: number | null) {
   if (score === null) return "Not scored";
-  if (score >= 90) return `Excellent · ${Math.round(score)}`;
-  if (score >= 75) return `Good · ${Math.round(score)}`;
-  if (score >= 50) return `Acceptable · ${Math.round(score)}`;
-  return `Needs review · ${Math.round(score)}`;
+  if (score >= 90) return "Excellent";
+  if (score >= 75) return "Good";
+  if (score >= 50) return "Fair";
+  return "Needs review";
 }
 
 export async function ProductImagePanel({ productId, productName, hasImage }: ProductImagePanelProps) {
@@ -61,56 +64,53 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
   const rejectedCandidates = candidates.filter((candidate) => candidate.rejected);
 
   const renderCandidate = (candidate: (typeof candidates)[number]) => {
-    const dimensions = candidate.width && candidate.height ? `${candidate.width} × ${candidate.height}` : "Dimensions unknown";
-    const reasons = candidate.rejectionReasons.length
-      ? candidate.rejectionReasons.join(" · ")
-      : candidate.accepted ? "Passed validation" : "Awaiting assessment";
+    const dimensions = candidate.width && candidate.height
+      ? `${candidate.width} × ${candidate.height}`
+      : "Size pending";
+    const score = candidate.overallScore === null ? null : Math.round(candidate.overallScore);
 
     return (
       <article
         id={`image-candidate-${candidate.id}`}
         key={candidate.id}
-        style={{
-          border: "1px solid var(--border)",
-          borderRadius: "18px",
-          padding: "12px",
-          display: "grid",
-          gap: "10px",
-          background: candidate.selected ? "var(--surface-soft, #f1faf5)" : "var(--surface, #fff)",
-          opacity: candidate.rejected ? 0.82 : 1,
-          scrollMarginTop: "96px",
-        }}
+        className={`${styles.candidate} ${candidate.selected ? styles.primary : ""} ${candidate.rejected ? styles.rejected : ""}`}
       >
-        <div style={{ aspectRatio: "1 / 1", borderRadius: "14px", overflow: "hidden", background: "#f4f4f0", display: "grid", placeItems: "center" }}>
+        <div className={styles.preview}>
           <img
-            alt={`${productName} candidate from ${candidate.sourceLabel}`}
+            alt={`${productName} candidate from ${candidate.sourceLabel || candidate.source}`}
+            loading="lazy"
             src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}`}
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
           />
         </div>
-        <div>
-          <div style={{ display: "flex", justifyContent: "space-between", gap: "8px", alignItems: "flex-start" }}>
-            <strong>{candidate.sourceLabel || candidate.source}</strong>
-            <span className={`badge ${candidate.selected ? "neutral" : candidate.rejected ? "warning" : ""}`}>
-              {candidate.selected ? "Primary" : candidate.rejected ? "Rejected" : candidate.accepted ? "Usable" : "Review"}
-            </span>
-          </div>
-          <p className="subtle" style={{ margin: "6px 0 0" }}>{scoreLabel(candidate.overallScore)} · {dimensions}</p>
-          <p className="subtle" style={{ margin: "4px 0 0", fontSize: "0.9rem" }}>{reasons}</p>
+
+        <div className={styles.candidateHeader}>
+          <strong className={styles.source}>{candidate.sourceLabel || candidate.source}</strong>
+          <span className={`badge ${candidate.selected ? "neutral" : candidate.rejected ? "warning" : ""}`}>
+            {candidate.selected ? "Primary" : candidate.rejected ? "Rejected" : candidate.accepted ? "Usable" : "Review"}
+          </span>
         </div>
-        <div className="form-actions" style={{ marginTop: 0, justifyContent: "flex-start" }}>
+
+        <p className={styles.meta}>
+          <span>{qualityLabel(candidate.overallScore)}</span>
+          {score !== null ? <span>{score}%</span> : null}
+          <span>{dimensions}</span>
+        </p>
+
+        {candidate.selected ? <p className={styles.localNote}>Stored and served by Food</p> : null}
+
+        <div className={styles.actions}>
           {!candidate.selected ? (
             <form action={selectProductImageCandidate.bind(null, productId, candidate.id)}>
-              <button className="primary-button" type="submit">Make primary</button>
+              <button className={`primary-button ${styles.primaryAction}`} type="submit">Make primary</button>
             </form>
           ) : null}
           {candidate.rejected ? (
             <form action={restoreGalleryImageCandidate.bind(null, productId, candidate.id)}>
-              <button className="secondary-button" type="submit">Restore to review</button>
+              <button className={`secondary-button ${styles.secondaryAction}`} type="submit">Restore</button>
             </form>
           ) : (
             <form action={rejectGalleryImageCandidate.bind(null, productId, candidate.id)}>
-              <button className="danger-button" type="submit">Reject</button>
+              <button className={`danger-button ${styles.dangerAction}`} type="submit">Reject</button>
             </form>
           )}
         </div>
@@ -119,7 +119,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
   };
 
   return (
-    <article className="card" id="image-intelligence" style={{ scrollMarginTop: "96px" }}>
+    <article className={`card ${styles.panel}`} id="image-intelligence">
       <div className="dashboard-card-heading">
         <div>
           <p className="eyebrow">IMAGE INTELLIGENCE</p>
@@ -129,103 +129,100 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
           {hasImage ? "Image selected" : "Image needed"}
         </span>
       </div>
-      <p className="subtle">
-        Compare discovered images, choose the primary image, or resolve an exact Woolworths product link for {productName}.
+
+      <p className={`subtle ${styles.intro}`}>
+        Food searches trusted product, retailer and food sources. Compare the candidates below and choose the best image for {productName}.
       </p>
+
       {searchStatus ? (
-        <p className={`badge ${searchStatus.tone === "success" ? "neutral" : "warning"}`} role="status">
+        <p className={`badge ${searchStatus.tone === "success" ? "neutral" : "warning"} ${styles.status}`} role="status">
           {searchStatus.message}
         </p>
       ) : null}
 
-      <form action={resolveDirectRetailerImage.bind(null, productId)} className="pantry-form compact" style={{ marginTop: "18px" }}>
-        <label className="field">
-          <span>Exact Woolworths product link or product ID</span>
-          <input
-            name="retailerReference"
-            placeholder="Paste a Woolworths link or enter 6035677"
-            required
-          />
-        </label>
-        <div className="form-actions" style={{ marginTop: 0 }}>
-          <button className="primary-button" type="submit">Resolve exact product image</button>
-        </div>
-      </form>
-
-      {diagnostics ? (
-        <details style={{ marginTop: "16px" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Search diagnostics</summary>
-          <div style={{ display: "grid", gap: "14px", marginTop: "14px" }}>
-            <div>
-              <strong>Identity</strong>
-              <p className="subtle" style={{ margin: "4px 0 0" }}>
-                {diagnostics.identity}{diagnostics.barcode ? ` · Barcode ${diagnostics.barcode}` : " · No barcode"}
-              </p>
-            </div>
-
-            {diagnostics.queries.length ? (
-              <div>
-                <strong>Queries</strong>
-                <p className="subtle" style={{ margin: "4px 0 0" }}>{diagnostics.queries.join(" · ")}</p>
-              </div>
-            ) : null}
-
-            <div style={{ display: "grid", gap: "8px" }}>
-              <strong>Providers</strong>
-              {diagnostics.steps.map((step, index) => (
-                <div key={`${step.provider}-${index}`} style={{ display: "grid", gridTemplateColumns: "minmax(130px, 0.8fr) minmax(0, 2fr)", gap: "10px", padding: "10px 0", borderTop: "1px solid var(--border)" }}>
-                  <span><strong>{step.provider}</strong><br /><small>{step.candidates} candidate{step.candidates === 1 ? "" : "s"}</small></span>
-                  <span className="subtle">{step.status === "skipped" ? "Skipped: " : step.status === "failed" ? "Failed: " : ""}{step.detail}</span>
-                </div>
-              ))}
-            </div>
-
-            {diagnostics.validation.length ? (
-              <div style={{ display: "grid", gap: "8px" }}>
-                <strong>Candidate validation</strong>
-                {diagnostics.validation.slice(0, 12).map((item, index) => (
-                  <div key={`${item.source}-${index}`} style={{ display: "flex", justifyContent: "space-between", gap: "12px", padding: "8px 0", borderTop: "1px solid var(--border)" }}>
-                    <span>{item.accepted ? "✓" : "✕"} {item.source}</span>
-                    <span className="subtle" style={{ textAlign: "right" }}>{item.reason}{item.score === null ? "" : ` · Score ${item.score}`}</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            <p className="subtle" style={{ margin: 0 }}>
-              {diagnostics.selectedSource ? `Selected from ${diagnostics.selectedSource}.` : "No candidate passed validation."}
-            </p>
-          </div>
-        </details>
-      ) : null}
-
       {activeCandidates.length ? (
-        <details open style={{ marginTop: "22px" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Candidate gallery ({activeCandidates.length})</summary>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginTop: "14px" }}>
-            {activeCandidates.map(renderCandidate)}
-          </div>
+        <details className={styles.gallerySection} open>
+          <summary className={styles.summary}>Candidate images ({activeCandidates.length})</summary>
+          <div className={styles.gallery}>{activeCandidates.map(renderCandidate)}</div>
         </details>
-      ) : null}
+      ) : (
+        <p className="subtle">No image candidates are currently available.</p>
+      )}
 
       {rejectedCandidates.length ? (
-        <details style={{ marginTop: "18px" }}>
-          <summary style={{ cursor: "pointer", fontWeight: 800 }}>Rejected images ({rejectedCandidates.length})</summary>
-          <p className="subtle">Rejected images are retained. Restore one to return it to the main gallery, or make it primary immediately.</p>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: "14px", marginTop: "14px" }}>
-            {rejectedCandidates.map(renderCandidate)}
-          </div>
+        <details className={styles.rejectedSection}>
+          <summary className={styles.summary}>Rejected images ({rejectedCandidates.length})</summary>
+          <p className="subtle">Rejected images are retained and can be restored at any time.</p>
+          <div className={styles.gallery}>{rejectedCandidates.map(renderCandidate)}</div>
         </details>
       ) : null}
 
-      <div className="form-actions">
+      <details className={styles.advanced}>
+        <summary className={styles.summary}>Advanced tools</summary>
+        <div className={styles.advancedBody}>
+          <form action={resolveDirectRetailerImage.bind(null, productId)} className={styles.resolver}>
+            <label className="field">
+              <span>Retailer product page</span>
+              <input name="retailerReference" placeholder="Paste a Woolworths product link" required />
+            </label>
+            <div className="form-actions">
+              <button className="secondary-button" type="submit">Retrieve retailer image</button>
+            </div>
+          </form>
+
+          {diagnostics ? (
+            <details>
+              <summary className={styles.summary}>Search diagnostics</summary>
+              <div className={styles.diagnostics}>
+                <div>
+                  <strong>Identity</strong>
+                  <p className="subtle">
+                    {diagnostics.identity}{diagnostics.barcode ? ` · Barcode ${diagnostics.barcode}` : " · No barcode"}
+                  </p>
+                </div>
+
+                {diagnostics.queries.length ? (
+                  <div>
+                    <strong>Queries</strong>
+                    <p className="subtle">{diagnostics.queries.join(" · ")}</p>
+                  </div>
+                ) : null}
+
+                <div>
+                  <strong>Providers</strong>
+                  {diagnostics.steps.map((step, index) => (
+                    <div className={styles.providerRow} key={`${step.provider}-${index}`}>
+                      <span><strong>{step.provider}</strong><br /><small>{step.candidates} candidate{step.candidates === 1 ? "" : "s"}</small></span>
+                      <span className="subtle">{step.status === "skipped" ? "Skipped: " : step.status === "failed" ? "Failed: " : ""}{step.detail}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {diagnostics.validation.length ? (
+                  <div>
+                    <strong>Candidate validation</strong>
+                    {diagnostics.validation.slice(0, 12).map((item, index) => (
+                      <div className={styles.validationRow} key={`${item.source}-${index}`}>
+                        <span>{item.accepted ? "✓" : "✕"} {item.source}</span>
+                        <span className="subtle">{item.reason}{item.score === null ? "" : ` · Score ${item.score}`}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </details>
+          ) : null}
+        </div>
+      </details>
+
+      <div className={styles.footerActions}>
         {hasImage ? (
           <form action={removeProductImage.bind(null, productId)}>
             <button className="danger-button" type="submit">Reject and replace image</button>
           </form>
         ) : null}
         <form action={refreshProductImage.bind(null, productId)}>
-          <button className="secondary-button" type="submit">Search for image</button>
+          <button className="secondary-button" type="submit">Refresh image search</button>
         </form>
       </div>
     </article>
