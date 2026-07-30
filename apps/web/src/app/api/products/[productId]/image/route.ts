@@ -39,7 +39,9 @@ async function localAssetResponse(productId: string) {
     headers: {
       "Content-Type": asset.mimeType,
       "Content-Length": String(body.byteLength),
-      "Cache-Control": "private, max-age=86400, immutable",
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+      Pragma: "no-cache",
+      Expires: "0",
       "X-Content-Type-Options": "nosniff",
       ETag: `"${asset.sha256}"`,
     },
