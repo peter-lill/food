@@ -1,0 +1,21 @@
+[Unit]
+Description=Food background worker
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=peter
+WorkingDirectory=/home/peter/Development/food/apps/web
+Environment=NODE_ENV=production
+Environment=FOOD_WORKER_QUEUE=default
+Environment=FOOD_WORKER_POLL_MS=1500
+Environment=FOOD_IMAGE_STORAGE_DIR=/home/peter/Development/food/apps/web/storage/product-images
+ExecStart=/usr/bin/env npm run worker
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target
