@@ -128,17 +128,20 @@ function identityText(product: { name: string; canonicalName: string | null }) {
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({
-    where: search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { canonicalName: { contains: search, mode: "insensitive" } },
-            { brand: { contains: search, mode: "insensitive" } },
-            { barcode: { contains: search } },
-            { aliases: { some: { alias: { contains: search, mode: "insensitive" } } } },
-          ],
-        }
-      : undefined,
+    where: {
+      lifecycle: { not: "ARCHIVED" },
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { canonicalName: { contains: search, mode: "insensitive" as const } },
+              { brand: { contains: search, mode: "insensitive" as const } },
+              { barcode: { contains: search } },
+              { aliases: { some: { alias: { contains: search, mode: "insensitive" as const } } } },
+            ],
+          }
+        : {}),
+    },
     include: {
       aliases: { select: { id: true } },
       inventoryItems: { select: { quantity: true } },
@@ -220,6 +223,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
 export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
   const product = await prisma.product.findFirst({
     where: {
+      lifecycle: { not: "ARCHIVED" },
       OR: [{ id: idOrSlug }, { slug: idOrSlug }],
     },
     include: {
