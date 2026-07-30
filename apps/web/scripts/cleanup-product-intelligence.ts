@@ -25,6 +25,7 @@ const preparationTailTokens = new Set([
   "cored", "peeled", "sliced", "diced", "chopped", "grated", "crushed", "drained",
   "rinsed", "trimmed", "halved", "quartered", "softened", "melted", "toasted", "roasted",
   "cooked", "seeded", "deseeded", "finely", "roughly", "thinly", "thickly", "lightly",
+  "unpeeled", "removed",
 ]);
 
 const danglingTokens = new Set(["and", "or", "with", "plus", "to", "serve", "approximately", "per"]);
@@ -40,14 +41,36 @@ async function foodKnowledgeFor(name: string) {
   return existing ?? prisma.foodKnowledge.create({ data: { commonName: name } });
 }
 
+function isTechnicalClassToken(token: string) {
+  return /^[a-z0-9]*[a-z][a-z0-9]*\d[a-z0-9]*$/i.test(token)
+    || /^[a-z0-9]*\d[a-z0-9]*[a-z][a-z0-9]*$/i.test(token);
+}
+
+function stripRecipeWording(value: string) {
+  return value
+    .replace(/^(?:quantity\s+of\s+)/, "")
+    .replace(/^(?:tablespoons?|teaspoons?)\s+/, "")
+    .replace(/^(?:small|medium|large)\s+/, "")
+    .replace(/^spray\s+/, "")
+    .replace(/^traditional\s+(?=rolled\s+oats\b)/, "")
+    .replace(/^hot\s+(?=oats\b)/, "")
+    .replace(/\bcorn\s+cobs?\b/, "corn")
+    .replace(
+      /\b(?:cored|cut\s+into|husks?\s+and\s+silk\s+removed|unpeeled|peeled|sliced|diced|chopped|grated|crushed|drained|rinsed|trimmed|halved|quartered|softened|melted|toasted|roasted|cooked|seeded|deseeded)\b.*$/,
+      "",
+    )
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function recoverCandidateFromCorruptedName(value: string) {
   const normalised = normaliseProductText(value);
   const tokens = normalised.split(" ").filter(Boolean);
   const recovered: string[] = [];
 
   for (const token of tokens) {
-    if (/^css\d*[a-z0-9]*$/.test(token) || /^[a-z]+\d+[a-z0-9]*$/.test(token)) continue;
     if (technicalTokens.has(token)) continue;
+    if (isTechnicalClassToken(token)) continue;
     recovered.push(token);
   }
 
@@ -55,12 +78,14 @@ function recoverCandidateFromCorruptedName(value: string) {
     recovered.pop();
   }
 
-  const cleaned = recovered
-    .filter((token) => !preparationTailTokens.has(token))
-    .filter((token, index, values) => !(danglingTokens.has(token) && (index === 0 || index === values.length - 1)))
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const cleaned = stripRecipeWording(
+    recovered
+      .filter((token) => !preparationTailTokens.has(token))
+      .filter((token, index, values) => !(danglingTokens.has(token) && (index === 0 || index === values.length - 1)))
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 
   if (!cleaned) return null;
   const identity = foodItemIdentity(cleaned);
