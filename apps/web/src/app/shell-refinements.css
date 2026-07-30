@@ -1,0 +1,59 @@
+.app-frame {
+  grid-template-columns: 216px minmax(0, 1fr);
+}
+
+.sidebar {
+  padding: 18px 14px 16px;
+}
+
+.wordmark {
+  gap: 9px;
+  padding: 2px 7px 16px;
+}
+
+.wordmark-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+}
+
+.wordmark-mark svg {
+  width: 36px;
+  height: 36px;
+}
+
+.wordmark strong {
+  font-size: 18px;
+}
+
+.side-nav {
+  gap: 3px;
+}
+
+.side-link {
+  min-height: 41px;
+  gap: 10px;
+  padding: 0 11px;
+  border-radius: 12px;
+  font-size: 0.96rem;
+}
+
+.side-link span {
+  width: 20px;
+}
+
+.sidebar-note {
+  padding: 10px 11px;
+  border-radius: 12px;
+  font-size: 11px;
+}
+
+.workspace > .content-shell {
+  padding-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .workspace > .content-shell {
+    padding-top: 22px;
+  }
+}
