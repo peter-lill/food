@@ -3,6 +3,11 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 import { assessProductImage } from "@/lib/products/image-quality";
+import {
+  ensureProductPrimaryAsset,
+  getProductPrimaryImageAsset,
+  readImageAsset,
+} from "@/lib/images/image-asset.service";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,6 +18,31 @@ function noImageResponse() {
   return new NextResponse(null, {
     status: 404,
     headers: { "Cache-Control": "private, no-store, max-age=0" },
+  });
+}
+
+async function localAssetResponse(productId: string) {
+  const asset = await getProductPrimaryImageAsset(productId)
+    ?? await ensureProductPrimaryAsset(productId).catch((error) => {
+      console.warn("Primary image asset import failed", {
+        productId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return null;
+    });
+  if (!asset) return null;
+
+  const body = await readImageAsset(asset).catch(() => null);
+  if (!body) return null;
+  return new NextResponse(body, {
+    status: 200,
+    headers: {
+      "Content-Type": asset.mimeType,
+      "Content-Length": String(body.byteLength),
+      "Cache-Control": "private, max-age=86400, immutable",
+      "X-Content-Type-Options": "nosniff",
+      ETag: `"${asset.sha256}"`,
+    },
   });
 }
 
@@ -59,6 +89,9 @@ export async function GET(request: Request, context: RouteContext) {
   if (!session) return new NextResponse(null, { status: 401 });
 
   const { productId } = await context.params;
+  const stored = await localAssetResponse(productId);
+  if (stored) return stored;
+
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: {
@@ -94,6 +127,8 @@ export async function GET(request: Request, context: RouteContext) {
   });
 
   if (result?.imageUrl) {
+    const imported = await localAssetResponse(product.id);
+    if (imported) return imported;
     const proxied = await proxyImage(result.imageUrl);
     if (proxied) return proxied;
   }
