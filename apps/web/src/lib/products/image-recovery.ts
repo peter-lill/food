@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
+import { resolveWoolworthsProductByBarcode } from "@/lib/prices/woolworths-barcode-resolver";
 import { findBestProductImage } from "@/lib/products/image-intelligence";
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
 import {
@@ -244,6 +245,23 @@ export async function recoverProductImage(productId: string) {
 
   const candidates: Candidate[] = [];
   if (/^\d{7,14}$/.test(barcode)) {
+    const woolworths = await resolveWoolworthsProductByBarcode(barcode);
+    diagnostics.steps.push({
+      provider: "Woolworths barcode",
+      status: "success",
+      candidates: woolworths?.imageUrl ? 1 : 0,
+      detail: woolworths?.externalId
+        ? `Matched barcode to Woolworths product ${woolworths.externalId}`
+        : "No exact Woolworths barcode match",
+    });
+    if (woolworths?.imageUrl) candidates.push({
+      url: woolworths.imageUrl,
+      source: "Woolworths barcode",
+      sourceLabel: `Woolworths · ${woolworths.productName}`,
+      providerScore: 98,
+      identityScore: 100,
+    });
+
     const exact = await openFoodFactsImage(barcode);
     diagnostics.steps.push({ provider: "Open Food Facts", status: "success", candidates: exact ? 1 : 0, detail: exact ? "Exact barcode image returned" : "No exact barcode image" });
     if (exact) candidates.push({
@@ -254,6 +272,7 @@ export async function recoverProductImage(productId: string) {
       identityScore: 100,
     });
   } else {
+    diagnostics.steps.push({ provider: "Woolworths barcode", status: "skipped", candidates: 0, detail: "No barcode available" });
     diagnostics.steps.push({ provider: "Open Food Facts", status: "skipped", candidates: 0, detail: "No barcode available" });
   }
 
@@ -329,7 +348,9 @@ export async function recoverProductImage(productId: string) {
       data: {
         imageUrl: candidate.url,
         lifecycle: "READY",
-        confidenceScore: produceIdentity ? 0.85 : genericIdentity ? 0.8 : 0.75,
+        confidenceScore: candidate.source === "Woolworths barcode"
+          ? 0.98
+          : produceIdentity ? 0.85 : genericIdentity ? 0.8 : 0.75,
       },
     });
     await markSelectedCandidate(product.id, candidateId);
