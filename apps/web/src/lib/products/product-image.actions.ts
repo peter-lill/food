@@ -8,7 +8,6 @@ import { rejectCurrentProductImage } from "@/lib/products/image-intelligence";
 import { recoverProductImage, type ImageSearchDiagnostics } from "@/lib/products/image-recovery";
 import {
   getProductImageCandidate,
-  markSelectedCandidate,
   rejectProductImageCandidate,
   restoreProductImageCandidate,
 } from "@/lib/products/image-candidate.repository";
@@ -132,14 +131,30 @@ export async function selectProductImageCandidate(productId: string, candidateId
   const candidate = await getProductImageCandidate(productId, candidateId);
   if (!candidate) throw new Error("Image candidate not found.");
 
-  await prisma.product.update({
-    where: { id: productId },
-    data: { imageUrl: candidate.url, lifecycle: "READY" },
-  });
-  await markSelectedCandidate(productId, candidateId);
+  await prisma.$transaction([
+    prisma.$executeRaw`
+      UPDATE "ProductImageCandidate"
+      SET "selected" = false, "updatedAt" = NOW()
+      WHERE "productId" = ${productId}
+    `,
+    prisma.$executeRaw`
+      UPDATE "ProductImageCandidate"
+      SET "selected" = true,
+          "accepted" = true,
+          "rejected" = false,
+          "rejectionReasons" = array_remove("rejectionReasons", 'Rejected by user'),
+          "updatedAt" = NOW()
+      WHERE "productId" = ${productId} AND "id" = ${candidateId}
+    `,
+    prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: candidate.url, lifecycle: "READY", updatedAt: new Date() },
+    }),
+  ]);
+
   await setImageSearchStatus(productId, { tone: "success", message: "The selected candidate is now the primary product image." });
   revalidateProduct(productId, destination);
-  redirect(destination);
+  redirect(`${destination}?image=${encodeURIComponent(candidateId)}`);
 }
 
 export async function rejectGalleryImageCandidate(productId: string, candidateId: string) {
