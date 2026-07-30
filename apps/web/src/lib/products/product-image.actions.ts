@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { makeCandidatePrimaryAsset } from "@/lib/images/image-asset.service";
 import { prisma } from "@/lib/prisma";
 import { rejectCurrentProductImage } from "@/lib/products/image-intelligence";
 import { recoverProductImage, type ImageSearchDiagnostics } from "@/lib/products/image-recovery";
@@ -71,7 +72,10 @@ function revalidateProduct(productId: string, destination: string) {
 async function clearRejectedImage(productId: string) {
   await rejectCurrentProductImage(productId);
   await prisma.$transaction([
-    prisma.product.update({ where: { id: productId }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } }),
+    prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: null, primaryImageAssetId: null, lifecycle: "REVIEW_REQUIRED" },
+    }),
     prisma.storeProduct.updateMany({ where: { productId }, data: { imageUrl: null } }),
   ]);
 }
@@ -136,6 +140,8 @@ export async function selectProductImageCandidate(productId: string, candidateId
   const candidate = await getProductImageCandidate(productId, candidateId);
   if (!candidate) throw new Error("Image candidate not found.");
 
+  const asset = await makeCandidatePrimaryAsset(productId, candidateId);
+
   await prisma.$transaction([
     prisma.$executeRaw`
       UPDATE "ProductImageCandidate"
@@ -153,7 +159,12 @@ export async function selectProductImageCandidate(productId: string, candidateId
     `,
     prisma.product.update({
       where: { id: productId },
-      data: { imageUrl: candidate.url, lifecycle: "READY", updatedAt: new Date() },
+      data: {
+        imageUrl: candidate.url,
+        primaryImageAssetId: asset.id,
+        lifecycle: "READY",
+        updatedAt: new Date(),
+      },
     }),
   ]);
 
@@ -170,7 +181,10 @@ export async function rejectGalleryImageCandidate(productId: string, candidateId
   await rejectProductImageCandidate(productId, candidateId);
   const product = await prisma.product.findUnique({ where: { id: productId }, select: { imageUrl: true } });
   if (product?.imageUrl === candidate.url) {
-    await prisma.product.update({ where: { id: productId }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } });
+    await prisma.product.update({
+      where: { id: productId },
+      data: { imageUrl: null, primaryImageAssetId: null, lifecycle: "REVIEW_REQUIRED" },
+    });
   }
   await setImageSearchStatus(productId, { tone: "warning", message: "The candidate was rejected and will not be selected automatically." });
   revalidateProduct(productId, destination);
@@ -193,25 +207,33 @@ export async function restoreGalleryImageCandidate(productId: string, candidateI
 
 export async function restorePreviousProductImage(productId: string) {
   const destination = await productDestination(productId);
-  const previous = await prisma.$queryRaw<Array<{ url: string }>>`
-    SELECT "url" FROM "ProductImageCandidate"
+  const previous = await prisma.$queryRaw<Array<{ id: string; url: string }>>`
+    SELECT "id", "url" FROM "ProductImageCandidate"
     WHERE "productId" = ${productId} AND "rejected" = true
     ORDER BY "updatedAt" DESC LIMIT 1
   `;
-  const url = previous[0]?.url ?? null;
+  const candidate = previous[0] ?? null;
 
-  if (url) {
+  if (candidate) {
+    const asset = await makeCandidatePrimaryAsset(productId, candidate.id);
     await prisma.$transaction([
       prisma.$executeRaw`
         UPDATE "ProductImageCandidate"
         SET "rejected" = false,
-            "selected" = ("url" = ${url}),
-            "sourceLabel" = CASE WHEN "url" = ${url} THEN 'Restored by user' ELSE "sourceLabel" END,
+            "selected" = ("id" = ${candidate.id}),
+            "sourceLabel" = CASE WHEN "id" = ${candidate.id} THEN 'Restored by user' ELSE "sourceLabel" END,
             "rejectionReasons" = array_remove("rejectionReasons", 'Rejected by user'),
             "updatedAt" = NOW()
         WHERE "productId" = ${productId}
       `,
-      prisma.product.update({ where: { id: productId }, data: { imageUrl: url, lifecycle: "READY" } }),
+      prisma.product.update({
+        where: { id: productId },
+        data: {
+          imageUrl: candidate.url,
+          primaryImageAssetId: asset.id,
+          lifecycle: "READY",
+        },
+      }),
     ]);
     await setImageSearchStatus(productId, { tone: "success", message: "The previous product image was restored." });
   }
