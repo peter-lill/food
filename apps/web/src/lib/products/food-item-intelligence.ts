@@ -39,8 +39,46 @@ const sizeNeutralProduce = new Set([
   "sweet potato", "sweet potatoes", "tomato", "tomatoes",
 ]);
 
+// These describe how a recipe wants an ingredient prepared. They are not
+// separate grocery identities and must not create additional Pantry products.
+const preparationNeutralWords = new Set([
+  "blanched", "boiled", "cooked", "cooled", "crushed", "deseeded", "diced",
+  "drained", "finely", "grated", "halved", "lightly", "melted", "minced",
+  "peeled", "quartered", "rinsed", "roasted", "roughly", "shredded", "sifted",
+  "sliced", "softened", "steamed", "thickly", "thinly", "toasted", "trimmed",
+  "warmed",
+]);
+
+const preparationNeutralPhrases = [
+  "dry toasted",
+  "lightly toasted",
+  "freshly grated",
+  "finely chopped",
+  "roughly chopped",
+  "thinly sliced",
+  "thickly sliced",
+] as const;
+
+function stripPreparationState(value: string) {
+  let identity = value;
+
+  for (const phrase of preparationNeutralPhrases) {
+    const escaped = phrase.replace(/\s+/g, "\\s+");
+    identity = identity.replace(new RegExp(`\\b${escaped}\\b`, "g"), " ");
+  }
+
+  identity = identity
+    .split(" ")
+    .filter((word) => word && !preparationNeutralWords.has(word))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return identity;
+}
+
 function canonicalShoppingDescription(value: string) {
-  let identity = normaliseProductText(value);
+  let identity = stripPreparationState(normaliseProductText(value));
 
   const sizedProduce = identity.match(/^(?:small|medium|large)\s+(.+)$/);
   if (sizedProduce && sizeNeutralProduce.has(sizedProduce[1])) {
