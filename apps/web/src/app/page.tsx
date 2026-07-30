@@ -5,6 +5,7 @@ import { formatLitres } from "@/lib/health/health.format";
 import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
 import { getPantryItems } from "@/lib/pantry/pantry.repository";
+import type { PantryQuantitySummary } from "@/lib/pantry/pantry.types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,17 @@ function randomRecipes(count: number) {
   }
 
   return pool.slice(0, count);
+}
+
+function formatPantryQuantities(quantities: PantryQuantitySummary[]) {
+  return quantities
+    .map(({ quantity, unit }) => {
+      const amount = Number.isInteger(quantity)
+        ? quantity.toLocaleString("en-AU")
+        : quantity.toLocaleString("en-AU", { maximumFractionDigits: 2 });
+      return `${amount} ${unit}`;
+    })
+    .join(" + ");
 }
 
 export default async function Dashboard() {
@@ -62,8 +74,8 @@ export default async function Dashboard() {
             <article className="v2-stat"><div className="v2-stat-label"><span>Steps</span><span className="v2-stat-icon">↗</span></div><div className="v2-stat-value">{health ? Math.round(health.steps).toLocaleString("en-AU") : "—"}</div><div className="v2-stat-note">{health ? "of 10,000 target" : "No activity synced"}</div></article>
           </>
         ) : null}
-        <article className="v2-stat"><div className="v2-stat-label"><span>Pantry</span><span className="v2-stat-icon">□</span></div><div className="v2-stat-value">{pantryItems.length}</div><div className="v2-stat-note">items currently stocked</div></article>
-        <article className="v2-stat"><div className="v2-stat-label"><span>Use soon</span><span className="v2-stat-icon">!</span></div><div className="v2-stat-value">{attentionItems.length}</div><div className="v2-stat-note">items need attention</div></article>
+        <article className="v2-stat"><div className="v2-stat-label"><span>Pantry</span><span className="v2-stat-icon">□</span></div><div className="v2-stat-value">{pantryItems.length}</div><div className="v2-stat-note">grocery items currently stocked</div></article>
+        <article className="v2-stat"><div className="v2-stat-label"><span>Use soon</span><span className="v2-stat-icon">!</span></div><div className="v2-stat-value">{attentionItems.length}</div><div className="v2-stat-note">grocery items need attention</div></article>
       </section>
 
       <section className="v2-dashboard-grid">
@@ -85,7 +97,7 @@ export default async function Dashboard() {
         <div>
           <article className="v2-panel">
             <div className="v2-panel-heading"><div><p className="eyebrow">PANTRY WATCH</p><h2>Use soon</h2></div><Link href="/pantry">Open Pantry</Link></div>
-            {attentionItems.length ? <div className="v2-alerts">{attentionItems.map((item) => <div className="v2-alert" key={item.id}><span>{item.name}</span><span className={`badge ${item.expired ? "danger" : "warning"}`}>{item.expired ? "Expired" : `${item.quantity} ${item.unit}`}</span></div>)}</div> : <p className="v2-empty">Nothing needs attention. Your pantry is in good shape.</p>}
+            {attentionItems.length ? <div className="v2-alerts">{attentionItems.map((item) => <div className="v2-alert" key={item.key}><span>{item.canonicalName}</span><span className={`badge ${item.expired ? "danger" : "warning"}`}>{item.expired ? "Expired" : formatPantryQuantities(item.quantities)}</span></div>)}</div> : <p className="v2-empty">Nothing needs attention. Your pantry is in good shape.</p>}
           </article>
           <article className="v2-panel" style={{ marginTop: 16 }}>
             <div className="v2-panel-heading"><div><p className="eyebrow">SHORTCUTS</p><h2>Get things done</h2></div></div>
