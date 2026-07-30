@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 import { assessProductImage } from "@/lib/products/image-quality";
@@ -54,8 +53,17 @@ async function localAssetResponse(productId: string) {
 
   if (!asset) return null;
 
-  const body = await readImageAsset(asset).catch(() => null);
+  const body = await readImageAsset(asset).catch((error) => {
+    console.warn("Primary image asset read failed", {
+      productId,
+      assetId: asset.id,
+      storagePath: asset.storagePath,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return null;
+  });
   if (!body) return null;
+
   return new NextResponse(body, {
     status: 200,
     headers: {
@@ -108,10 +116,7 @@ async function usableExistingImage(imageUrl: string | null) {
     : null;
 }
 
-export async function GET(request: Request, context: RouteContext) {
-  const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) return new NextResponse(null, { status: 401 });
-
+export async function GET(_request: Request, context: RouteContext) {
   const { productId } = await context.params;
   const stored = await localAssetResponse(productId);
   if (stored) return stored;
