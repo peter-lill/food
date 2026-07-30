@@ -1,7 +1,7 @@
 import { Prisma, type Product, type FoodKnowledge } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { formatProductName } from "./product-formatter";
-import { shoppingIdentity } from "./food-item-intelligence";
+import { isPlausibleGroceryName, shoppingIdentity } from "./food-item-intelligence";
 
 export type CanonicalGroceryResolution = {
   canonicalName: string;
@@ -27,13 +27,14 @@ const canonicalOverrides = new Map<string, string>([
 ]);
 
 export function canonicalGroceryIdentity(value: string) {
+  if (!isPlausibleGroceryName(value)) return "";
   const resolved = shoppingIdentity(value).trim();
   return canonicalOverrides.get(resolved) ?? resolved;
 }
 
 export function canonicalGroceryName(value: string) {
   const identity = canonicalGroceryIdentity(value);
-  return formatProductName(identity || value.trim());
+  return identity ? formatProductName(identity) : "";
 }
 
 export async function resolveCanonicalGrocery(
@@ -43,8 +44,8 @@ export async function resolveCanonicalGrocery(
   const identity = canonicalGroceryIdentity(value);
   const canonicalName = canonicalGroceryName(value);
 
-  if (!identity || canonicalName.length < 2) {
-    throw new Error(`Unable to resolve canonical grocery identity for ${JSON.stringify(value)}.`);
+  if (!identity || canonicalName.length < 2 || !isPlausibleGroceryName(canonicalName)) {
+    throw new Error(`Unable to resolve plausible canonical grocery identity for ${JSON.stringify(value)}.`);
   }
 
   let foodKnowledge = await client.foodKnowledge.findFirst({
@@ -53,13 +54,9 @@ export async function resolveCanonicalGrocery(
 
   if (!foodKnowledge) {
     try {
-      foodKnowledge = await client.foodKnowledge.create({
-        data: { commonName: canonicalName },
-      });
+      foodKnowledge = await client.foodKnowledge.create({ data: { commonName: canonicalName } });
     } catch (error) {
-      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
-        throw error;
-      }
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
       foodKnowledge = await client.foodKnowledge.findFirstOrThrow({
         where: { commonName: { equals: canonicalName, mode: "insensitive" } },
       });
@@ -82,17 +79,11 @@ export async function resolveCanonicalProduct(
         { name: { equals: resolution.canonicalName, mode: "insensitive" } },
       ],
     },
-    orderBy: [
-      { foodKnowledgeId: "desc" },
-      { updatedAt: "desc" },
-    ],
+    orderBy: [{ foodKnowledgeId: "desc" }, { updatedAt: "desc" }],
   });
 
   if (existing) {
-    if (
-      existing.canonicalName !== resolution.canonicalName
-      || existing.foodKnowledgeId !== resolution.foodKnowledge.id
-    ) {
+    if (existing.canonicalName !== resolution.canonicalName || existing.foodKnowledgeId !== resolution.foodKnowledge.id) {
       return client.product.update({
         where: { id: existing.id },
         data: {
