@@ -1,7 +1,7 @@
 import { prisma } from "../src/lib/prisma";
 import { foodItemIdentity, isPlausibleGroceryName } from "../src/lib/products/food-item-intelligence";
 import { formatProductName } from "../src/lib/products/product-formatter";
-import { normaliseProductText } from "../src/lib/products/product-normalisation";
+import { normaliseProductText, parseProductName } from "../src/lib/products/product-normalisation";
 
 const apply = process.argv.includes("--apply");
 
@@ -22,13 +22,28 @@ const technicalTokens = new Set([
 ]);
 
 const preparationTailTokens = new Set([
-  "cored", "peeled", "sliced", "diced", "chopped", "grated", "crushed", "drained",
-  "rinsed", "trimmed", "halved", "quartered", "softened", "melted", "toasted", "roasted",
-  "cooked", "seeded", "deseeded", "finely", "roughly", "thinly", "thickly", "lightly",
-  "unpeeled", "removed",
+  "cored", "peeled", "unpeeled", "sliced", "diced", "chopped", "grated", "crushed",
+  "drained", "rinsed", "trimmed", "halved", "quartered", "softened", "melted", "toasted",
+  "roasted", "cooked", "seeded", "deseeded", "finely", "roughly", "thinly", "thickly",
+  "lightly", "removed",
 ]);
 
-const danglingTokens = new Set(["and", "or", "with", "plus", "to", "serve", "approximately", "per"]);
+const recipeMeasureTokens = new Set([
+  "quantity", "tablespoon", "tablespoons", "teaspoon", "teaspoons", "cup", "cups",
+  "small", "medium", "large", "approximately", "approx", "spray",
+]);
+
+const danglingTokens = new Set([
+  "and", "or", "with", "plus", "to", "serve", "approximately", "per", "of", "into",
+]);
+
+const recoveryCases: Array<[string, string]> = [
+  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Apple Cored and", "apple"],
+  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Brown Rice", "brown rice"],
+  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Tablespoon Olive Oil", "olive oil"],
+  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Teaspoon Baking Powder", "baking powder"],
+  [".Css 17zggtj Font Style Inherit Font Weight Inherit Webkit Text Decoration Inherit Text Decoration Inherit Spaghetti", "spaghetti"],
+];
 
 function safeDerived(product: { barcode: string | null; storeProducts: { id: string }[] }) {
   return !product.barcode && product.storeProducts.length === 0;
@@ -41,55 +56,56 @@ async function foodKnowledgeFor(name: string) {
   return existing ?? prisma.foodKnowledge.create({ data: { commonName: name } });
 }
 
-function isTechnicalClassToken(token: string) {
-  return /^[a-z0-9]*[a-z][a-z0-9]*\d[a-z0-9]*$/i.test(token)
-    || /^[a-z0-9]*\d[a-z0-9]*[a-z][a-z0-9]*$/i.test(token);
-}
-
-function stripRecipeWording(value: string) {
-  return value
-    .replace(/^(?:quantity\s+of\s+)/, "")
-    .replace(/^(?:tablespoons?|teaspoons?)\s+/, "")
-    .replace(/^(?:small|medium|large)\s+/, "")
-    .replace(/^spray\s+/, "")
-    .replace(/^traditional\s+(?=rolled\s+oats\b)/, "")
-    .replace(/^hot\s+(?=oats\b)/, "")
-    .replace(/\bcorn\s+cobs?\b/, "corn")
-    .replace(
-      /\b(?:cored|cut\s+into|husks?\s+and\s+silk\s+removed|unpeeled|peeled|sliced|diced|chopped|grated|crushed|drained|rinsed|trimmed|halved|quartered|softened|melted|toasted|roasted|cooked|seeded|deseeded)\b.*$/,
-      "",
-    )
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function recoverCandidateFromCorruptedName(value: string) {
   const normalised = normaliseProductText(value);
   const tokens = normalised.split(" ").filter(Boolean);
   const recovered: string[] = [];
 
   for (const token of tokens) {
-    if (technicalTokens.has(token)) continue;
-    if (isTechnicalClassToken(token)) continue;
+    const mixedClassToken = /[a-z]/.test(token) && /\d/.test(token);
+    if (mixedClassToken || technicalTokens.has(token)) continue;
     recovered.push(token);
   }
 
-  while (recovered.length && (preparationTailTokens.has(recovered.at(-1)!) || danglingTokens.has(recovered.at(-1)!))) {
-    recovered.pop();
-  }
+  let cleaned = recovered.join(" ")
+    .replace(/^quantity\s+of\s+/, "")
+    .replace(/\bcut\s+into\b.*$/, "")
+    .replace(/\bhusks?\s+and\s+silk\s+removed\b.*$/, "")
+    .replace(/\bcm\s+thick\s+slices?\b.*$/, "")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  const cleaned = stripRecipeWording(
-    recovered
-      .filter((token) => !preparationTailTokens.has(token))
-      .filter((token, index, values) => !(danglingTokens.has(token) && (index === 0 || index === values.length - 1)))
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim(),
-  );
+  const cleanedTokens = cleaned
+    .split(" ")
+    .filter(Boolean)
+    .filter((token, index) => !(recipeMeasureTokens.has(token) && index === 0))
+    .filter((token) => !preparationTailTokens.has(token));
+
+  while (cleanedTokens.length && danglingTokens.has(cleanedTokens.at(-1)!)) cleanedTokens.pop();
+  while (cleanedTokens.length && recipeMeasureTokens.has(cleanedTokens[0])) cleanedTokens.shift();
+
+  cleaned = cleanedTokens
+    .filter((token, index, values) => !(danglingTokens.has(token) && (index === 0 || index === values.length - 1)))
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   if (!cleaned) return null;
-  const identity = foodItemIdentity(cleaned);
+
+  // This is already a sanitised recovery candidate. Do not send it back through
+  // foodItemIdentity(), because that function intentionally rejects suspicious
+  // public input before parsing. Parse the clean tail directly instead.
+  const identity = normaliseProductText(parseProductName(cleaned).canonicalName);
   return identity && isPlausibleGroceryName(identity) ? identity : null;
+}
+
+function verifyRecoveryParser() {
+  for (const [input, expected] of recoveryCases) {
+    const recovered = recoverCandidateFromCorruptedName(input);
+    if (recovered !== expected) {
+      throw new Error(`CSS recovery self-test failed: expected ${JSON.stringify(expected)}, received ${JSON.stringify(recovered)} for ${JSON.stringify(input)}.`);
+    }
+  }
 }
 
 function candidateFromEvidence(value: string) {
@@ -226,6 +242,8 @@ async function loadProducts() {
 }
 
 async function main() {
+  verifyRecoveryParser();
+
   const products = await loadProducts();
   const summary = {
     scanned: products.length,
