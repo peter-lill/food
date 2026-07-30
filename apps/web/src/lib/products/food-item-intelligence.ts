@@ -39,14 +39,13 @@ const sizeNeutralProduce = new Set([
   "sweet potato", "sweet potatoes", "tomato", "tomatoes",
 ]);
 
-// These describe how a recipe wants an ingredient prepared. They are not
-// separate grocery identities and must not create additional Pantry products.
+// Recipe instructions describe preparation, not a separate grocery product.
 const preparationNeutralWords = new Set([
-  "blanched", "boiled", "cooked", "cooled", "crushed", "deseeded", "diced",
-  "drained", "finely", "grated", "halved", "lightly", "melted", "minced",
-  "peeled", "quartered", "rinsed", "roasted", "roughly", "shredded", "sifted",
-  "sliced", "softened", "steamed", "thickly", "thinly", "toasted", "trimmed",
-  "warmed",
+  "blanched", "boiled", "chopped", "cooked", "cooled", "crushed", "deseeded",
+  "diced", "drained", "finely", "grated", "halved", "lightly", "melted",
+  "minced", "peeled", "quartered", "rinsed", "roasted", "roughly", "shredded",
+  "sifted", "sliced", "softened", "steamed", "thickly", "thinly", "toasted",
+  "trimmed", "warmed",
 ]);
 
 const preparationNeutralPhrases = [
@@ -59,6 +58,22 @@ const preparationNeutralPhrases = [
   "thickly sliced",
 ] as const;
 
+const technicalNameTerms = [
+  "css", "font style", "font weight", "font family", "text decoration", "webkit",
+  "display flex", "align items", "justify content", "background color", "rgba",
+  "line height", "box sizing", "border radius",
+];
+
+export function isPlausibleGroceryName(value: string) {
+  const raw = value.trim();
+  if (raw.length < 2 || raw.length > 160) return false;
+  if (/^[.#][a-z0-9_-]+/i.test(raw) || /[{};]/.test(raw)) return false;
+
+  const normalised = normaliseProductText(raw);
+  const technicalHits = technicalNameTerms.filter((term) => normalised.includes(normaliseProductText(term))).length;
+  return technicalHits < 2;
+}
+
 function stripPreparationState(value: string) {
   let identity = value;
 
@@ -67,30 +82,24 @@ function stripPreparationState(value: string) {
     identity = identity.replace(new RegExp(`\\b${escaped}\\b`, "g"), " ");
   }
 
-  identity = identity
+  return identity
     .split(" ")
     .filter((word) => word && !preparationNeutralWords.has(word))
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
-
-  return identity;
 }
 
 function canonicalShoppingDescription(value: string) {
   let identity = stripPreparationState(normaliseProductText(value));
 
   const sizedProduce = identity.match(/^(?:small|medium|large)\s+(.+)$/);
-  if (sizedProduce && sizeNeutralProduce.has(sizedProduce[1])) {
-    identity = sizedProduce[1];
-  }
+  if (sizedProduce && sizeNeutralProduce.has(sizedProduce[1])) identity = sizedProduce[1];
 
-  identity = identity
+  return identity
     .replace(/^(?:extra\s+lean|very\s+lean|lean|regular)\s+(beef\s+mince)$/, "$1")
     .replace(/^(beef\s+mince)\s+(?:extra\s+lean|very\s+lean|lean|regular)$/, "$1")
     .trim();
-
-  return identity;
 }
 
 function cleanIdentityName(value: string) {
@@ -98,6 +107,7 @@ function cleanIdentityName(value: string) {
 }
 
 export function foodItemIdentity(value: string) {
+  if (!isPlausibleGroceryName(value)) return "";
   return cleanIdentityName(value);
 }
 
