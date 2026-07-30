@@ -110,7 +110,8 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ...product.storeProducts.map((listing) => listing.retailer),
     ...product.priceObservations.map((observation) => observation.retailer),
   ]).size;
-  const productImage = `/api/products/${encodeURIComponent(product.id)}/image`;
+  const imageVersion = encodeURIComponent(product.imageUrl ?? "none");
+  const productImage = `/api/products/${encodeURIComponent(product.id)}/image?v=${imageVersion}`;
   const nutrition: NutritionRow[] = [
     product.calories === null ? null : { label: "Energy", value: `${oneDecimal(product.calories * 4.184)} kJ` },
     product.proteinGrams === null ? null : { label: "Protein", value: `${oneDecimal(product.proteinGrams)} g` },
