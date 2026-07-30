@@ -103,6 +103,7 @@ export async function markSelectedCandidate(productId: string, candidateId: stri
       SET "selected" = true,
           "accepted" = true,
           "rejected" = false,
+          "rejectionReasons" = array_remove("rejectionReasons", 'Rejected by user'),
           "updatedAt" = NOW()
       WHERE "id" = ${candidateId}
     `,
@@ -141,6 +142,17 @@ export async function rejectProductImageCandidate(productId: string, candidateId
           WHEN 'Rejected by user' = ANY("rejectionReasons") THEN "rejectionReasons"
           ELSE array_append("rejectionReasons", 'Rejected by user')
         END,
+        "updatedAt" = NOW()
+    WHERE "productId" = ${productId} AND "id" = ${candidateId}
+  `;
+}
+
+export async function restoreProductImageCandidate(productId: string, candidateId: string) {
+  await prisma.$executeRaw`
+    UPDATE "ProductImageCandidate"
+    SET "rejected" = false,
+        "accepted" = CASE WHEN COALESCE("overallScore", "score", 0) >= 35 THEN true ELSE "accepted" END,
+        "rejectionReasons" = array_remove("rejectionReasons", 'Rejected by user'),
         "updatedAt" = NOW()
     WHERE "productId" = ${productId} AND "id" = ${candidateId}
   `;
