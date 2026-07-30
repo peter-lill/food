@@ -112,6 +112,43 @@ async function fetchRetailerPageImage(url: string | null) {
   }
 }
 
+async function reachableImageUrl(url: string) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: {
+        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8",
+        "User-Agent": "FoodCatalogue/0.1 (+https://food.coffeehq.coffee)",
+      },
+    });
+    const contentType = response.headers.get("content-type")?.toLocaleLowerCase("en-AU") ?? "";
+    return response.ok && contentType.startsWith("image/") ? url : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function resolveWoolworthsCdnImage(externalId: string) {
+  const encodedId = encodeURIComponent(externalId);
+  const candidates = [
+    `https://cdn0.woolworths.media/content/wowproductimages/large/${encodedId}.jpg`,
+    `https://cdn0.woolworths.media/content/wowproductimages/big/${encodedId}.jpg`,
+    `https://cdn0.woolworths.media/content/wowproductimages/medium/${encodedId}.jpg`,
+  ];
+
+  for (const candidate of candidates) {
+    const reachable = await reachableImageUrl(candidate);
+    if (reachable) return reachable;
+  }
+  return null;
+}
+
 async function hydrateCatalogueImage(candidate: RetailerCatalogueCandidate) {
   if (candidate.imageUrl) return candidate;
   const imageUrl = await fetchRetailerPageImage(candidate.sourceUrl);
@@ -139,21 +176,23 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
     candidate.retailer === "Woolworths"
     && candidate.externalId?.replace(/\D/g, "") === externalId
   ));
-  if (exact) return exact;
+  if (exact?.imageUrl) return exact;
 
-  const sourceUrl = retailerProductUrl("Woolworths", "product", externalId);
-  const imageUrl = await fetchRetailerPageImage(sourceUrl);
-  if (!imageUrl) return null;
+  const sourceUrl = retailerProductUrl("Woolworths", exact?.productName ?? "product", externalId);
+  const imageUrl = await resolveWoolworthsCdnImage(externalId)
+    ?? exact?.imageUrl
+    ?? await fetchRetailerPageImage(sourceUrl);
+  if (!imageUrl) return exact ?? null;
 
   return {
     retailer: "Woolworths",
-    productName: `Woolworths product ${externalId}`,
-    price: null,
-    packSize: null,
-    isSpecial: false,
+    productName: exact?.productName ?? `Woolworths product ${externalId}`,
+    price: exact?.price ?? null,
+    packSize: exact?.packSize ?? null,
+    isSpecial: exact?.isSpecial ?? false,
     sourceUrl,
     externalId,
-    barcode: null,
+    barcode: exact?.barcode ?? null,
     imageUrl,
   };
 }
