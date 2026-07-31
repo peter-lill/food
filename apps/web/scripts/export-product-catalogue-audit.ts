@@ -110,6 +110,7 @@ async function main() {
         recipeName: link.recipe.name,
         sourceName: link.recipe.sourceName,
       })),
+    ),
     inventory: product.inventoryItems,
     shoppingNames: unique(product.shoppingItems.map((item) => item.name)),
     shoppingItems: product.shoppingItems,
