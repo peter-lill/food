@@ -30,6 +30,10 @@ export type ProductHubDetail = {
   description: string | null;
   imageUrl: string | null;
   packSize: string | null;
+  servingSize: string | null;
+  servingQuantity: number | null;
+  servingUnit: string | null;
+  servingsPerPackage: number | null;
   calories: number | null;
   proteinGrams: number | null;
   carbsGrams: number | null;
@@ -269,6 +273,10 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     description: product.description,
     imageUrl: genericFamilyImage(familyName) ?? bestProductImage(product.imageUrl, product.storeProducts),
     packSize: product.packSize,
+    servingSize: product.servingSize,
+    servingQuantity: product.servingQuantity,
+    servingUnit: product.servingUnit,
+    servingsPerPackage: product.servingsPerPackage,
     calories: product.calories,
     proteinGrams: product.proteinGrams,
     carbsGrams: product.carbsGrams,
