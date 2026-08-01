@@ -223,21 +223,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => { const price = latestPriceByRetailer.get(listing.retailer); return <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{price ? money(price.price) : listing.packSize ?? "—"}</strong><small>{price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>; })}</ul></article> : null}
         {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><ul className={styles.list}>{product.recipes.map((recipe) => <li className={styles.listItem} key={recipe.id}><strong>{recipe.name}</strong><small>{recipe.sourceName ?? "Recipe"}</small></li>)}</ul></article> : null}
-        {nutrition.length ? (
-          <article className={`${styles.panel} ${styles.nutritionPanel}`}>
-            <div className={styles.nip}>
-              <h2>Nutrition Information</h2>
-              <p><strong>Servings per package:</strong> {product.servingsPerPackage === null ? "Not recorded" : formatQuantity(product.servingsPerPackage)}</p>
-              <p><strong>Serving size:</strong> {product.servingSize ?? (product.servingQuantity !== null && product.servingUnit ? `${formatQuantity(product.servingQuantity)} ${product.servingUnit}` : "Not recorded")}</p>
-              <p>Average quantity</p>
-              <table>
-                <thead><tr><th>Nutrient</th>{hasPerServing ? <th>Per serving</th> : null}<th>Per 100 g / 100 mL</th></tr></thead>
-                <tbody>{nutrition.map((row) => <tr key={row.label}><th className={row.sub ? styles.nutritionSub : undefined}>{row.label}</th>{hasPerServing ? <td>{row.perServing ?? "—"}</td> : null}<td>{row.per100}</td></tr>)}</tbody>
-              </table>
-              <small>{hasPerServing ? "Per-serving values are calculated from the recorded serving quantity and the source per-100 values." : "A per-serving column is shown only when a numeric serving quantity in grams or millilitres is recorded."}</small>
-            </div>
-          </article>
-        ) : null}
+
+        <article className={`${styles.panel} ${styles.nutritionPanel}`}>
+          <div className={styles.nip}>
+            <h2>Nutrition Information</h2>
+            <p><strong>Servings per package:</strong> {product.servingsPerPackage === null ? "Not recorded" : formatQuantity(product.servingsPerPackage)}</p>
+            <p><strong>Serving size:</strong> {product.servingSize ?? (product.servingQuantity !== null && product.servingUnit ? `${formatQuantity(product.servingQuantity)} ${product.servingUnit}` : "Not recorded")}</p>
+            {nutrition.length ? (
+              <>
+                <p>Average quantity</p>
+                <table>
+                  <thead><tr><th>Nutrient</th>{hasPerServing ? <th>Per serving</th> : null}<th>Per 100 g / 100 mL</th></tr></thead>
+                  <tbody>{nutrition.map((row) => <tr key={row.label}><th className={row.sub ? styles.nutritionSub : undefined}>{row.label}</th>{hasPerServing ? <td>{row.perServing ?? "—"}</td> : null}<td>{row.per100}</td></tr>)}</tbody>
+                </table>
+                <small>{hasPerServing ? "Per-serving values are calculated from the recorded serving quantity and the source per-100 values." : "A per-serving column is shown only when a numeric serving quantity in grams or millilitres is recorded."}</small>
+              </>
+            ) : (
+              <p className="subtle">Nutrition values have not been recorded for this product yet. Add or enrich the product data to complete this panel.</p>
+            )}
+          </div>
+        </article>
       </section>
     </div>
   );
