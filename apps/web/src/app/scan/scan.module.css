@@ -10,36 +10,20 @@
   box-shadow: none;
 }
 
+/* The dedicated Scan route starts with the camera. Detailed pantry fields
+   remain part of the normal Pantry add flow rather than covering the preview. */
+.workspace :global(.pantry-field-grid),
+.workspace :global(.pantry-form > .form-actions),
+.workspace :global(.pantry-form > .form-message) {
+  display: none;
+}
+
 .shortcuts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  margin: 18px auto 0;
-  padding: 0 16px 24px;
+  display: none;
 }
 
 @media (max-width: 900px) {
   .workspace {
-    margin-top: -22px;
-  }
-
-  .shortcuts {
-    position: sticky;
-    z-index: 5;
-    bottom: 10px;
-    width: min(calc(100% - 20px), 620px);
-    margin-top: 10px;
-    padding: 10px;
-    border: 1px solid rgba(255, 255, 255, .45);
-    border-radius: 18px;
-    background: rgba(255, 255, 255, .9);
-    backdrop-filter: blur(16px);
-    box-shadow: 0 14px 36px rgba(20, 35, 26, .18);
-  }
-
-  .shortcuts > a {
-    flex: 1;
-    justify-content: center;
+    margin-top: 0;
   }
 }
