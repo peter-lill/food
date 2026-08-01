@@ -1,7 +1,7 @@
 import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 import { findGroceryConcept } from "./ontology";
 
-export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.0";
+export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.1";
 
 export type GroceryIdentity = {
   source: string;
@@ -34,7 +34,10 @@ const preparationPhrases: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bcored\b/g, label: "Cored" },
   { pattern: /\bhusks?\s+and\s+silk\s+removed\b/g, label: "Husks And Silk Removed" },
   { pattern: /\bseeds?\s+removed\b/g, label: "Seeds Removed" },
-  { pattern: /\bcut\s+into\s+(?:\d+(?:\.\d+)?\s*)?cm\s+thick\s+slices?\b/g, label: "Cut Into Thick Slices" },
+  {
+    pattern: /\bcut\s+into\s+(?:(?:\d+(?:\.\d+)?)\s*)?(?:cm|centimetres?)?\s*thick\s+slices?\b/g,
+    label: "Cut Into Thick Slices",
+  },
   { pattern: /\bcut\s+into\s+thin\s+wedges\b/g, label: "Cut Into Thin Wedges" },
   { pattern: /\bcut\s+into\s+wedges\b/g, label: "Cut Into Wedges" },
   { pattern: /\bcut\s+into\s+[^,;]+$/g, label: "Cut Into Pieces" },
@@ -111,6 +114,7 @@ function extractPreparation(value: string, evidence: string[]) {
   let result = value;
   const preparation: string[] = [];
   for (const phrase of preparationPhrases) {
+    phrase.pattern.lastIndex = 0;
     if (!phrase.pattern.test(result)) {
       phrase.pattern.lastIndex = 0;
       continue;
