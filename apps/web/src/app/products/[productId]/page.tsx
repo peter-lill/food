@@ -122,7 +122,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
     ? product.servingQuantity / 100
     : null;
   const servingValue = (value: number, unit: "kJ" | "g" | "mg") => servingFactor === null ? undefined : `${oneDecimal(value * servingFactor)} ${unit}`;
-  const nutrition: NutritionRow[] = [
+  const nutrition = [
     product.calories === null ? null : { label: "Energy", per100: `${oneDecimal(product.calories * 4.184)} kJ`, perServing: servingValue(product.calories * 4.184, "kJ") },
     product.proteinGrams === null ? null : { label: "Protein", per100: `${oneDecimal(product.proteinGrams)} g`, perServing: servingValue(product.proteinGrams, "g") },
     product.fatGrams === null ? null : { label: "Fat, total", per100: `${oneDecimal(product.fatGrams)} g`, perServing: servingValue(product.fatGrams, "g") },
