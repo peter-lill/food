@@ -15,6 +15,9 @@ type OpenFoodFactsProduct = {
   image_front_url?: unknown;
   image_url?: unknown;
   allergens_tags?: unknown;
+  serving_size?: unknown;
+  serving_quantity?: unknown;
+  product_quantity?: unknown;
   nutriments?: Record<string, unknown>;
 };
 
@@ -32,6 +35,23 @@ function numeric(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) return value;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function parseServing(servingSize: string, sourceQuantity: unknown) {
+  const match = servingSize.match(/([0-9]+(?:\.[0-9]+)?)\s*(g|ml|mL|item|slice|piece|tablet|capsule)s?\b/i);
+  const quantity = numeric(sourceQuantity) ?? (match ? Number(match[1]) : null);
+  const rawUnit = match?.[2] ?? "";
+  const servingUnit = rawUnit.toLocaleLowerCase("en-AU") === "ml" ? "mL" : rawUnit.toLocaleLowerCase("en-AU");
+  return {
+    servingQuantity: quantity && quantity > 0 ? quantity : null,
+    servingUnit: servingUnit || null,
+  };
+}
+
+function servingsPerPackage(packQuantity: number | null, servingQuantity: number | null) {
+  if (!packQuantity || !servingQuantity || packQuantity <= 0 || servingQuantity <= 0) return null;
+  const value = packQuantity / servingQuantity;
+  return Number.isFinite(value) && value > 0 ? Math.round(value * 10) / 10 : null;
 }
 
 function validGtin(value: unknown) {
@@ -72,7 +92,7 @@ async function fetchOpenFoodFacts(barcode: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
-    const fields = ["status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url", "allergens_tags", "nutriments"].join(",");
+    const fields = ["status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url", "allergens_tags", "serving_size", "serving_quantity", "product_quantity", "nutriments"].join(",");
     const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`, {
       cache: "no-store",
       signal: controller.signal,
@@ -149,6 +169,7 @@ export async function enrichProductKnowledge(productId: string) {
       where: { id: productId },
       select: {
         id: true, name: true, canonicalName: true, brand: true, barcode: true, category: true, packSize: true, imageUrl: true,
+        servingSize: true, servingQuantity: true, servingUnit: true, servingsPerPackage: true,
         calories: true, proteinGrams: true, carbsGrams: true, fatGrams: true, saturatedFatGrams: true,
         fibreGrams: true, sugarGrams: true, sodiumMg: true, allergens: true,
       },
@@ -184,6 +205,10 @@ export async function enrichProductKnowledge(productId: string) {
         const sourcePackSize = clean(source.quantity) || null;
         const sourceCategory = clean(source.categories).split(",")[0]?.trim() || null;
         const sourceImage = clean(source.image_front_url) || clean(source.image_url) || null;
+        const sourceServingSize = clean(source.serving_size) || null;
+        const parsedServing = parseServing(sourceServingSize ?? "", source.serving_quantity);
+        const sourcePackQuantity = numeric(source.product_quantity);
+        const sourceServingsPerPackage = servingsPerPackage(sourcePackQuantity, parsedServing.servingQuantity);
         await prisma.product.update({
           where: { id: product.id },
           data: {
@@ -191,6 +216,10 @@ export async function enrichProductKnowledge(productId: string) {
             packSize: product.packSize ?? sourcePackSize,
             category: product.category ?? sourceCategory,
             imageUrl: product.imageUrl ?? sourceImage,
+            servingSize: product.servingSize ?? sourceServingSize,
+            servingQuantity: product.servingQuantity ?? parsedServing.servingQuantity,
+            servingUnit: product.servingUnit ?? parsedServing.servingUnit,
+            servingsPerPackage: product.servingsPerPackage ?? sourceServingsPerPackage,
             calories: product.calories ?? numeric(nutrients["energy-kcal_100g"]),
             proteinGrams: product.proteinGrams ?? numeric(nutrients.proteins_100g),
             carbsGrams: product.carbsGrams ?? numeric(nutrients.carbohydrates_100g),
