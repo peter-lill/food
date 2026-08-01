@@ -37,6 +37,23 @@ function normalise(value: string | null | undefined) {
   return value?.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
 
+function survivorScore(product: {
+  name: string;
+  canonicalName: string | null;
+  barcode: string | null;
+  _count: { inventoryItems: number; ingredientRecords: number; shoppingItems: number; receiptItems: number; storeProducts: number; priceObservations: number };
+}, canonicalName: string) {
+  const exact = normalise(product.name) === normalise(canonicalName) ? 1000 : 0;
+  return exact
+    + Number(Boolean(product.barcode)) * 200
+    + product._count.storeProducts * 30
+    + product._count.priceObservations * 5
+    + product._count.inventoryItems * 4
+    + product._count.ingredientRecords * 3
+    + product._count.shoppingItems * 2
+    + product._count.receiptItems;
+}
+
 export async function simulateCatalogueRepair(): Promise<CatalogueSimulation> {
   const products = await prisma.product.findMany({
     where: { lifecycle: { not: ProductLifecycle.ARCHIVED } },
@@ -70,8 +87,24 @@ export async function simulateCatalogueRepair(): Promise<CatalogueSimulation> {
     byIdentity.set(candidate.identity.normalised, group);
   }
 
+  const survivorByIdentity = new Map<string, (typeof products)[number]>();
+  for (const [identity, group] of byIdentity) {
+    const canonicalName = candidates.find((candidate) => candidate.identity?.normalised === identity)?.identity?.canonicalName ?? identity;
+    const survivor = [...group].sort((left, right) => survivorScore(right, canonicalName) - survivorScore(left, canonicalName))[0];
+    if (survivor) survivorByIdentity.set(identity, survivor);
+  }
+
   const proposals: RepairProposal[] = [];
   for (const { product, identity } of candidates) {
+    const impact = {
+      inventory: product._count.inventoryItems,
+      ingredients: product._count.ingredientRecords,
+      shopping: product._count.shoppingItems,
+      receipts: product._count.receiptItems,
+      retailerListings: product._count.storeProducts,
+      prices: product._count.priceObservations,
+    };
+
     if (!identity) {
       proposals.push({
         key: `review:${product.id}`,
@@ -83,51 +116,30 @@ export async function simulateCatalogueRepair(): Promise<CatalogueSimulation> {
         suggestedName: product.canonicalName ?? product.name,
         confidence: 0.3,
         evidence: ["No reliable grocery identity could be resolved"],
-        impact: {
-          inventory: product._count.inventoryItems,
-          ingredients: product._count.ingredientRecords,
-          shopping: product._count.shoppingItems,
-          receipts: product._count.receiptItems,
-          retailerListings: product._count.storeProducts,
-          prices: product._count.priceObservations,
-        },
+        impact,
       });
       continue;
     }
 
     const group = byIdentity.get(identity.normalised) ?? [];
-    const target = group
-      .filter((item) => item.id !== product.id)
-      .sort((left, right) => {
-        const leftScore = Number(Boolean(left.barcode)) * 100 + left._count.storeProducts * 10 + left._count.inventoryItems;
-        const rightScore = Number(Boolean(right.barcode)) * 100 + right._count.storeProducts * 10 + right._count.inventoryItems;
-        return rightScore - leftScore;
-      })[0] ?? null;
-
-    const currentIdentity = normalise(product.canonicalName ?? product.name);
-    if (target && normalise(target.canonicalName ?? target.name) === identity.normalised) {
+    const survivor = survivorByIdentity.get(identity.normalised) ?? null;
+    if (group.length > 1 && survivor && survivor.id !== product.id) {
       proposals.push({
-        key: `merge:${product.id}:${target.id}`,
+        key: `merge:${product.id}:${survivor.id}`,
         action: "MERGE",
         productId: product.id,
         productName: product.name,
-        targetProductId: target.id,
-        targetProductName: target.canonicalName ?? target.name,
+        targetProductId: survivor.id,
+        targetProductName: survivor.canonicalName ?? survivor.name,
         suggestedName: identity.canonicalName,
         confidence: Math.min(0.99, identity.confidence + 0.03),
-        evidence: [...identity.evidence, "Existing canonical product found"],
-        impact: {
-          inventory: product._count.inventoryItems,
-          ingredients: product._count.ingredientRecords,
-          shopping: product._count.shoppingItems,
-          receipts: product._count.receiptItems,
-          retailerListings: product._count.storeProducts,
-          prices: product._count.priceObservations,
-        },
+        evidence: [...identity.evidence, "Single preferred survivor selected for identity group"],
+        impact,
       });
       continue;
     }
 
+    const currentIdentity = normalise(product.canonicalName ?? product.name);
     if (currentIdentity !== identity.normalised || product.name !== identity.canonicalName) {
       proposals.push({
         key: `rename:${product.id}`,
@@ -139,14 +151,7 @@ export async function simulateCatalogueRepair(): Promise<CatalogueSimulation> {
         suggestedName: identity.canonicalName,
         confidence: identity.confidence,
         evidence: identity.evidence,
-        impact: {
-          inventory: product._count.inventoryItems,
-          ingredients: product._count.ingredientRecords,
-          shopping: product._count.shoppingItems,
-          receipts: product._count.receiptItems,
-          retailerListings: product._count.storeProducts,
-          prices: product._count.priceObservations,
-        },
+        impact,
       });
     }
   }
