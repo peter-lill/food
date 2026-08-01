@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 
 type ProductPageProps = { params: Promise<{ productId: string }> };
 type ProductKnowledge = { overview: string; origin?: string; uses: string[]; storage: string[] };
-type NutritionRow = { label: string; per100: string; perServing?: string; sub?: boolean };
+type NutritionRow = { label: string; per100: string; perServing: string | undefined; sub?: boolean };
 
 const departments = [
   "Fruit & vegetables", "Bakery", "Meat & seafood", "Dairy & eggs", "Frozen", "Pantry",
