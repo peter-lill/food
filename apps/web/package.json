@@ -15,6 +15,7 @@
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
+    "grocery:intelligence:test": "tsx scripts/test-grocery-intelligence.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",
     "products:backfill": "tsx scripts/backfill-product-intelligence.ts",
