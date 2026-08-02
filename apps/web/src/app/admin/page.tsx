@@ -9,6 +9,13 @@ export const metadata = {
 
 const adminTools = [
   {
+    title: "Food Style Guide",
+    description: "Review the shared Food v1 colour, typography, cards, controls, statuses, empty states and loading patterns.",
+    href: "/admin/style-guide",
+    icon: "✦",
+    primary: true,
+  },
+  {
     title: "Catalogue Manager",
     description: "Review incomplete products, duplicate records, enrichment jobs and catalogue operations from one workspace.",
     href: "/admin/product-intelligence?view=review",
@@ -132,10 +139,10 @@ export default async function AdminPage() {
       <section>
         <div className={styles.sectionHeading}>
           <div>
-            <p className="eyebrow">PRODUCT KNOWLEDGE OPERATIONS</p>
+            <p className="eyebrow">PRODUCT AND DESIGN OPERATIONS</p>
             <h2>Administration tools</h2>
           </div>
-          <p className="subtle">Six focused workspaces for catalogue maintenance, data integrity and diagnostics.</p>
+          <p className="subtle">Seven focused workspaces for design consistency, catalogue maintenance, data integrity and diagnostics.</p>
         </div>
       </section>
 
