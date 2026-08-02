@@ -14,6 +14,11 @@ export type ProductNameRepairResult = {
   }>;
 };
 
+function safeLeadingPunctuationRepair(value: string) {
+  const repaired = value.replace(/^\s*[.,;:|_-]+\s*(?=[A-Za-z0-9])/, "").trim();
+  return repaired && repaired !== value.trim() ? repaired : null;
+}
+
 export async function repairContaminatedProductNames(limit = 500): Promise<ProductNameRepairResult> {
   const products = await prisma.product.findMany({
     orderBy: { updatedAt: "asc" },
@@ -25,6 +30,26 @@ export async function repairContaminatedProductNames(limit = 500): Promise<Produ
 
   for (const product of products) {
     const validation = validateProductName(product.name);
+    const safeRepair = safeLeadingPunctuationRepair(product.name);
+
+    if (safeRepair) {
+      const repairedValidation = validateProductName(safeRepair);
+      if (repairedValidation.valid && !repairedValidation.changed && repairedValidation.sanitised === safeRepair) {
+        await prisma.product.update({
+          where: { id: product.id },
+          data: { name: safeRepair },
+        });
+        items.push({
+          productId: product.id,
+          previousName: product.name,
+          nextName: safeRepair,
+          status: "repaired",
+          issues: ["leading-punctuation"],
+        });
+        continue;
+      }
+    }
+
     if (!validation.changed && validation.valid) {
       items.push({
         productId: product.id,
@@ -36,28 +61,13 @@ export async function repairContaminatedProductNames(limit = 500): Promise<Produ
       continue;
     }
 
-    if (!validation.sanitised) {
-      items.push({
-        productId: product.id,
-        previousName: product.name,
-        nextName: null,
-        status: "review",
-        issues: validation.issues.length ? validation.issues : ["name-invalid"],
-      });
-      continue;
-    }
-
-    await prisma.product.update({
-      where: { id: product.id },
-      data: { name: validation.sanitised },
-    });
-
+    // Broader sanitiser suggestions are review-only. They are never written automatically.
     items.push({
       productId: product.id,
       previousName: product.name,
       nextName: validation.sanitised,
-      status: "repaired",
-      issues: validation.issues,
+      status: "review",
+      issues: validation.issues.length ? validation.issues : ["name-invalid"],
     });
   }
 
