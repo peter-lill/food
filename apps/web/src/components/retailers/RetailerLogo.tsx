@@ -9,6 +9,10 @@ type RetailerLogoDefinition = {
   alt: string;
   width: number;
   height: number;
+  compactMaxHeight?: number;
+  compactMaxWidth?: number;
+  maxHeight?: number;
+  maxWidth?: number;
 };
 
 const logoSources = {
@@ -17,36 +21,54 @@ const logoSources = {
     alt: "Coles",
     width: 1000,
     height: 312,
+    compactMaxHeight: 30,
+    compactMaxWidth: 112,
   },
   woolworths: {
-    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Woolworths_Limited_Logo.svg",
+    src: "https://cdn0.woolworths.media/content/content/icon-header-logo-only.png",
     alt: "Woolworths",
-    width: 839,
-    height: 119,
+    width: 128,
+    height: 128,
+    compactMaxHeight: 38,
+    compactMaxWidth: 38,
+    maxHeight: 48,
+    maxWidth: 48,
   },
   aldi: {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aldi_S%C3%BCd_2017_logo.svg",
     alt: "ALDI",
     width: 82,
     height: 99,
+    compactMaxHeight: 42,
+    compactMaxWidth: 42,
+    maxHeight: 52,
+    maxWidth: 52,
   },
   iga: {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/IGA_logo.svg",
     alt: "IGA",
     width: 346,
     height: 224,
+    compactMaxHeight: 34,
+    compactMaxWidth: 70,
   },
   drakes: {
-    src: "https://dtgxwmigmg3gc.cloudfront.net/images/5a615f7252ba0b73b201addb",
+    src: "https://drakes.com.au/wp-content/themes/drakes/dist/images/logo_f58734b9.png",
     alt: "Drakes Supermarkets",
     width: 320,
     height: 120,
+    compactMaxHeight: 34,
+    compactMaxWidth: 112,
+    maxHeight: 42,
+    maxWidth: 142,
   },
   costco: {
-    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Costco_Wholesale.svg",
+    src: "https://azure-na-images.contentstack.com/v3/assets/bltb4bed6e99fbc58cf/blte277240c426b2ca2/6823cf47e7c6dbe1c2e5d016/australia-consignments-invoice-logo.png",
     alt: "Costco Wholesale",
     width: 512,
     height: 183,
+    compactMaxHeight: 30,
+    compactMaxWidth: 112,
   },
 } satisfies Record<string, RetailerLogoDefinition>;
 
@@ -88,8 +110,8 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
     return <span className={className}>{retailer}</span>;
   }
 
-  const maxHeight = compact ? 24 : 38;
-  const maxWidth = compact ? 92 : 132;
+  const maxHeight = compact ? (logo.compactMaxHeight ?? 24) : (logo.maxHeight ?? 38);
+  const maxWidth = compact ? (logo.compactMaxWidth ?? 92) : (logo.maxWidth ?? 132);
   const ratio = logo.width / logo.height;
   const height = Math.min(maxHeight, Math.round(maxWidth / ratio));
   const width = Math.min(maxWidth, Math.round(height * ratio));
@@ -103,7 +125,7 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         loading="lazy"
         referrerPolicy="no-referrer"
         src={logo.src}
-        style={{ background: "transparent", objectFit: "contain" }}
+        style={{ background: "transparent", display: "block", objectFit: "contain" }}
         width={width}
       />
     </span>
