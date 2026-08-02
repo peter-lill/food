@@ -58,9 +58,16 @@ function verifiedDate(value: string | null) {
 function findNutritionPanel() {
   const headings = [...document.querySelectorAll("h2")];
   const heading = headings.find((item) => item.textContent?.trim() === "Nutrition Information");
+  const panel = heading?.closest("article") ?? null;
+  const duplicateArticles = [...document.querySelectorAll("article")].filter((article) => {
+    if (article === panel) return false;
+    const text = article.textContent ?? "";
+    return /ALLERGEN INFORMATION/i.test(text) || /^\s*Ingredients\s*/i.test(text);
+  });
   return {
-    panel: heading?.closest("article") ?? null,
+    panel,
     legacy: heading?.parentElement ?? null,
+    duplicateArticles,
   };
 }
 
@@ -72,6 +79,9 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
     const found = findNutritionPanel();
     setTarget(found.panel);
     if (found.legacy instanceof HTMLElement) found.legacy.style.display = "none";
+    for (const article of found.duplicateArticles) {
+      if (article instanceof HTMLElement) article.style.display = "none";
+    }
 
     fetch(`/api/products/${encodeURIComponent(productId)}/label`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() as Promise<ProductLabelPayload> : null)
