@@ -15,6 +15,8 @@ const invalidNamePatterns = [
   /https?:\/\//i,
 ];
 
+const leadingPunctuationPattern = /^[.,;:|_-]+\s*[A-Za-z0-9]/;
+
 function normaliseWhitespace(value: string) {
   return value
     .replace(/&nbsp;/gi, " ")
@@ -67,7 +69,7 @@ export function hasProductNameContamination(value: string | null | undefined) {
   if (!value) return true;
   const clean = normaliseWhitespace(value);
   return clean.length > 180
-    || /^[.,;:|_-]+\s*[A-Za-z0-9]/.test(clean)
+    || leadingPunctuationPattern.test(clean)
     || invalidNamePatterns.some((pattern) => pattern.test(clean));
 }
 
@@ -94,6 +96,7 @@ export function validateProductName(value: string | null | undefined) {
   const sanitised = sanitiseProductName(value);
   const original = value ? normaliseWhitespace(value) : "";
   const changed = Boolean(sanitised && sanitised !== original);
+  const leadingPunctuation = leadingPunctuationPattern.test(original);
 
   return {
     valid: Boolean(sanitised),
@@ -101,7 +104,8 @@ export function validateProductName(value: string | null | undefined) {
     changed,
     issues: [
       ...(!original ? ["name-missing"] : []),
-      ...(original && hasProductNameContamination(original) ? ["name-contaminated"] : []),
+      ...(leadingPunctuation ? ["name-leading-punctuation"] : []),
+      ...(original && invalidNamePatterns.some((pattern) => pattern.test(original)) ? ["name-contaminated"] : []),
       ...(original.length > 180 ? ["name-too-long"] : []),
     ],
   };
