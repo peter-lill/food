@@ -2,9 +2,10 @@
 
 import { useEffect } from "react";
 
+const logoVersion = "20260802-2";
 const retailerLogos = {
-  Coles: "/retailer-logos/coles.svg",
-  Woolworths: "/retailer-logos/woolworths.svg",
+  Coles: `/retailer-logos/coles.svg?v=${logoVersion}`,
+  Woolworths: `/retailer-logos/woolworths.svg?v=${logoVersion}`,
 } as const;
 
 type RetailerName = keyof typeof retailerLogos;
