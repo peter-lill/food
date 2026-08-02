@@ -37,6 +37,13 @@ function normalise(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function displayAllergen(value: string) {
+  return value
+    .replace(/^[a-z]{2}:/i, "")
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toLocaleUpperCase("en-AU"));
+}
+
 function collapseRepeatedPhrase(value: string) {
   const words = value.trim().split(/\s+/).filter(Boolean);
   for (let size = 1; size <= Math.floor(words.length / 2); size += 1) {
@@ -194,6 +201,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <label className="field"><span>Serving quantity</span><input defaultValue={product.servingQuantity ?? ""} inputMode="decimal" min="0.01" name="servingQuantity" step="0.01" type="number" /></label>
               <label className="field"><span>Serving unit</span><select defaultValue={product.servingUnit ?? ""} name="servingUnit"><option value="">Choose a unit</option>{servingUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></label>
               <label className="field"><span>Servings per package</span><input defaultValue={product.servingsPerPackage ?? ""} inputMode="decimal" min="0.01" name="servingsPerPackage" step="0.1" type="number" /></label>
+              <label className="field"><span>Allergens</span><textarea defaultValue={product.allergens.map(displayAllergen).join(", ")} maxLength={500} name="allergens" placeholder="e.g. Milk, soy, wheat" rows={3} /></label>
               <label className="field"><span>Department</span><select defaultValue={product.category ?? ""} name="department"><option value="">Choose a department</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
               <label className="field"><span>Barcode / GTIN</span><input defaultValue={product.barcode ?? ""} inputMode="numeric" maxLength={14} name="barcode" /></label>
               <label className="field"><span>Product type</span><select defaultValue={product.productType} name="productType"><option value="PACKAGED">Packaged product</option><option value="GENERIC_PRODUCE">Loose produce</option><option value="FRESH_MEAT">Fresh meat</option><option value="SEAFOOD">Seafood</option><option value="DAIRY">Dairy</option><option value="BAKERY">Bakery</option><option value="FROZEN">Frozen</option><option value="HOUSEHOLD">Household</option><option value="PERSONAL_CARE">Personal care</option><option value="BEVERAGE">Beverage</option><option value="OTHER">Other</option></select></label>
@@ -218,6 +226,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
             {product.barcode ? <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode}</strong></li> : barcodeRequired ? <li className={styles.listItem}><span>Barcode</span><strong>Not known</strong></li> : null}
             {department ? <li className={styles.listItem}><span>Department</span><strong>{department}</strong></li> : null}
           </ul>
+        </article>
+
+        <article className={styles.panel}>
+          <p className="eyebrow">ALLERGEN INFORMATION</p>
+          <h2>Contains</h2>
+          {product.allergens.length ? (
+            <div className={styles.tags}>{product.allergens.map((allergen) => <span key={allergen}>{displayAllergen(allergen)}</span>)}</div>
+          ) : (
+            <p className="subtle">No allergen information has been recorded for this product. Always check the product packaging before consumption.</p>
+          )}
         </article>
 
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => { const price = latestPriceByRetailer.get(listing.retailer); return <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{price ? money(price.price) : listing.packSize ?? "—"}</strong><small>{price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>; })}</ul></article> : null}
