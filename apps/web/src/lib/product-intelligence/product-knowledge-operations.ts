@@ -1,10 +1,9 @@
 import { EnrichmentJobStatus, ProductLifecycle } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCatalogueQualityMetrics, inspectProductQuality } from "@/lib/product-intelligence/product-quality-engine";
-import { sanitiseProductName } from "@/lib/product-intelligence/product-name-quality";
 import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
 
-const selfHealingProvider = "product-knowledge-self-healing-v1";
+const selfHealingProvider = "product-knowledge-self-healing-v2";
 
 export async function getProductKnowledgeOperationsSummary() {
   const [quality, activeJobs, failedJobs, recentRepairs] = await Promise.all([
@@ -69,19 +68,8 @@ export async function runProductKnowledgeSelfHealing(batchSize = 10) {
     });
 
     try {
-      const product = await prisma.product.findUnique({
-        where: { id: candidate.productId },
-        select: { name: true },
-      });
-
-      const cleanName = sanitiseProductName(product?.name);
-      if (cleanName && cleanName !== product?.name) {
-        await prisma.product.update({
-          where: { id: candidate.productId },
-          data: { name: cleanName },
-        });
-      }
-
+      // Product identity fields are protected. Self-healing may enrich label data
+      // and update quality metadata, but it must never overwrite the canonical name.
       await enrichProductFromRetailerLabels(candidate.productId).catch(() => ({ status: "not-found" as const }));
       const inspection = await inspectProductQuality(candidate.productId);
       const after = inspection?.score ?? candidate.score;
@@ -105,13 +93,13 @@ export async function runProductKnowledgeSelfHealing(batchSize = 10) {
         data: {
           status: EnrichmentJobStatus.COMPLETED,
           completedAt: new Date(),
-          lastError: resolved || improved ? null : "Self-healing completed without improving product confidence.",
+          lastError: resolved || improved ? null : "Self-healing completed without improving product confidence. Product identity was not modified.",
         },
       });
 
       results.push({
         productId: candidate.productId,
-        name: cleanName ?? candidate.name,
+        name: candidate.name,
         before: candidate.score,
         after,
         status: resolved ? "repaired" : improved ? "improved" : "unchanged",
