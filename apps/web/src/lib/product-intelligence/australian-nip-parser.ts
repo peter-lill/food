@@ -97,6 +97,7 @@ function parseServing(lines: string[]) {
     /^servingsPerPackage\s*:/i,
     /^numberOfServings\s*:/i,
     /^servingsPerPack\s*:/i,
+    /^servesPerPack\s*:/i,
   ]);
   const sizeMatch = servingSize?.match(/([0-9]+(?:\.[0-9]+)?)\s*(g|kg|ml|mL|L|item|slice|piece|tablet|capsule)s?\b/i) ?? null;
   let quantity = sizeMatch ? Number(sizeMatch[1]) : null;
@@ -155,7 +156,7 @@ function allergens(value: string | null) {
 
 export function parseAustralianNip(source: string): AustralianNipParseResult | null {
   const lines = linesFromSource(source);
-  if (!lines.some((line) => /nutrition information|serving size|servings per|ingredients?\s*:/i.test(line))) return null;
+  if (!lines.some((line) => /nutrition information|serving size|servings per|servesPerPack|ingredients?\s*:/i.test(line))) return null;
   const serving = parseServing(lines);
   const ingredientsText = valueAfter(lines, [/^ingredients?\s*:/i, /^ingredientsList\s*:/i, /^ingredientStatement\s*:/i])
     ?? section(lines, [/^ingredients?$/i], [/^allergens?$/i, /^contains\b/i, /^may contain\b/i, /^nutrition information$/i, /^storage$/i]);
