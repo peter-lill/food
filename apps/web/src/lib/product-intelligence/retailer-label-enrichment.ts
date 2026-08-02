@@ -174,26 +174,32 @@ export async function enrichProductFromRetailerLabels(productId: string) {
     if (!listing.productUrl) continue;
     const label = await fetchLabel(listing.productUrl, listing.retailer);
     if (!label) continue;
-    await prisma.product.update({
-      where: { id: productId },
-      data: {
-        servingSize: label.servingSize,
-        servingQuantity: label.servingQuantity,
-        servingUnit: label.servingUnit,
-        servingsPerPackage: label.servingsPerPackage,
-        calories: label.calories,
-        proteinGrams: label.proteinGrams,
-        carbsGrams: label.carbsGrams,
-        fatGrams: label.fatGrams,
-        saturatedFatGrams: label.saturatedFatGrams,
-        fibreGrams: label.fibreGrams,
-        sugarGrams: label.sugarGrams,
-        sodiumMg: label.sodiumMg,
-        ingredientsText: label.ingredientsText,
-        allergens: label.allergens,
-        mayContainAllergens: label.mayContainAllergens,
-      },
-    });
+    await prisma.$transaction([
+      prisma.product.update({
+        where: { id: productId },
+        data: {
+          servingSize: label.servingSize,
+          servingQuantity: label.servingQuantity,
+          servingUnit: label.servingUnit,
+          servingsPerPackage: label.servingsPerPackage,
+          calories: label.calories,
+          proteinGrams: label.proteinGrams,
+          carbsGrams: label.carbsGrams,
+          fatGrams: label.fatGrams,
+          saturatedFatGrams: label.saturatedFatGrams,
+          fibreGrams: label.fibreGrams,
+          sugarGrams: label.sugarGrams,
+          sodiumMg: label.sodiumMg,
+          allergens: label.allergens,
+        },
+      }),
+      prisma.$executeRaw`
+        UPDATE "Product"
+        SET "ingredientsText" = ${label.ingredientsText},
+            "mayContainAllergens" = ${label.mayContainAllergens}::text[]
+        WHERE "id" = ${productId}
+      `,
+    ]);
     return { status: "completed" as const, retailer: listing.retailer };
   }
   return { status: "not-found" as const };
