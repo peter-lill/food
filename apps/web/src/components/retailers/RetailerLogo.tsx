@@ -15,7 +15,7 @@ type RetailerLogoDefinition = {
   maxWidth?: number;
 };
 
-const logoSources = {
+const logoSources: Record<string, RetailerLogoDefinition> = {
   coles: {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Coles_logo.svg",
     alt: "Coles",
@@ -70,9 +70,9 @@ const logoSources = {
     compactMaxHeight: 30,
     compactMaxWidth: 112,
   },
-} satisfies Record<string, RetailerLogoDefinition>;
+};
 
-const aliases: Record<string, keyof typeof logoSources> = {
+const aliases: Record<string, string> = {
   coles: "coles",
   "coles supermarket": "coles",
   "coles supermarkets": "coles",
