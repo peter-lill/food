@@ -46,7 +46,7 @@ function logo(retailer: RetailerName) {
 
 function replaceRetailerText(element: HTMLElement) {
   if (element.dataset.retailerBrandingProcessed === "true") return;
-  if (element.closest("option, select, input, textarea, script, style, [data-retailer-branding]") || element.children.length > 0) return;
+  if (element.closest("option, select, input, textarea, script, style, [data-retailer-branding], [data-retailer-logo]") || element.children.length > 0) return;
 
   const text = element.textContent?.trim() ?? "";
   const retailer = retailerFromText(text);
@@ -79,6 +79,10 @@ function applyRetailerBranding(root: ParentNode) {
 
 export function RetailerBrandingController() {
   useEffect(() => {
+    // Prices already renders the shared RetailerLogo component directly.
+    // Running the legacy text replacement there creates duplicate branding.
+    if (window.location.pathname.startsWith("/prices")) return;
+
     applyRetailerBranding(document);
     const observer = new MutationObserver((mutations) => {
       for (const mutation of mutations) {
