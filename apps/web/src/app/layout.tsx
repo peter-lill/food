@@ -11,7 +11,6 @@ import { AppShell } from "@/components/AppShell";
 import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { ProductQualityController } from "@/components/products/ProductQualityController";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
-import { RetailerBrandingController } from "@/components/retailers/RetailerBrandingController";
 import { getAuthSession } from "@/lib/auth-session";
 import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 
@@ -43,7 +42,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       <body>
         <SavedProductDeleteController />
         <PlannerCopyCorrection />
-        <RetailerBrandingController />
         <ProductQualityController />
         <AppShell
           initialHealthPaired={initialHealthPaired}
