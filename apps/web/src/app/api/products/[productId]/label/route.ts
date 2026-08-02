@@ -11,6 +11,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
     prisma.product.findUnique({
       where: { id: decodedProductId },
       select: {
+        name: true,
+        canonicalName: true,
+        productType: true,
         servingSize: true,
         servingQuantity: true,
         servingUnit: true,
@@ -35,6 +38,9 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
+  const ingredientsText = labelText.ingredientsText
+    ?? (product.productType === "GENERIC_PRODUCE" ? product.canonicalName ?? product.name : null);
+
   return NextResponse.json({
     servingSize: product.servingSize,
     servingQuantity: product.servingQuantity,
@@ -50,7 +56,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       sugarGrams: product.sugarGrams,
       sodiumMg: product.sodiumMg,
     },
-    ingredientsText: labelText.ingredientsText,
+    ingredientsText,
     contains: product.allergens,
     mayContain: labelText.mayContainAllergens,
     retailers: [...new Set(product.storeProducts.map((listing) => listing.retailer))],
