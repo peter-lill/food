@@ -30,7 +30,10 @@ export default async function AustralianProductLabelsPage() {
           <h1 className="page-title">Australian product labels</h1>
           <p className="subtle">Audit and re-enrich every packaged product linked to Coles or Woolworths.</p>
         </div>
-        <Link className="secondary-button" href="/admin/product-intelligence">Catalogue Manager</Link>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link className="secondary-button" href="/admin/product-intelligence/diagnostics">Provider diagnostics</Link>
+          <Link className="secondary-button" href="/admin/product-intelligence">Catalogue Manager</Link>
+        </div>
       </header>
 
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
@@ -72,8 +75,9 @@ export default async function AustralianProductLabelsPage() {
                   <Link href={`/products/${encodeURIComponent(product.productId)}`}><strong>{product.name}</strong></Link>
                   <p className="subtle" style={{ margin: "5px 0 0" }}>{product.retailers.join(" + ")}</p>
                 </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "flex-end" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
                   {product.missing.map((field) => <span className="badge warning" key={field}>{label(field)}</span>)}
+                  <Link className="secondary-button" href={`/admin/product-intelligence/diagnostics?productId=${encodeURIComponent(product.productId)}`}>Diagnose</Link>
                 </div>
               </article>
             ))}
