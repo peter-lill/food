@@ -8,6 +8,12 @@ function label(value: string) {
   return value.replaceAll("-", " ").replace(/(^|\s)([a-z])/g, (_, prefix: string, letter: string) => `${prefix}${letter.toUpperCase()}`);
 }
 
+function qualityBadge(quality: string) {
+  if (quality === "excellent") return "success";
+  if (quality === "good") return "neutral";
+  return "warning";
+}
+
 async function enrichBatch(formData: FormData) {
   "use server";
   const requested = Number(formData.get("batchSize") ?? 20);
@@ -39,8 +45,10 @@ export default async function AustralianProductLabelsPage() {
       <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 12 }}>
         <article className="card"><p className="eyebrow">LINKED PRODUCTS</p><h2>{audit.linkedProducts}</h2><p className="subtle">With an active Australian retailer URL</p></article>
         <article className="card"><p className="eyebrow">COMPLETE</p><h2>{audit.completeProducts}</h2><p className="subtle">All expected label fields recorded</p></article>
+        <article className="card"><p className="eyebrow">CONFIDENCE</p><h2>{audit.averageConfidence}%</h2><p className="subtle">Average catalogue label confidence</p></article>
         <article className="card"><p className="eyebrow">NEEDS ENRICHMENT</p><h2>{audit.needsEnrichment}</h2><p className="subtle">Missing one or more label fields</p></article>
         <article className="card"><p className="eyebrow">MISSING SERVING SIZE</p><h2>{audit.missingServingSize}</h2><p className="subtle">Serving size not stored</p></article>
+        <article className="card"><p className="eyebrow">MISSING SERVINGS/PACK</p><h2>{audit.missingServingsPerPackage}</h2><p className="subtle">Package serving count not stored</p></article>
         <article className="card"><p className="eyebrow">MISSING NUTRITION</p><h2>{audit.missingNutrition}</h2><p className="subtle">No usable NIP values</p></article>
         <article className="card"><p className="eyebrow">MISSING INGREDIENTS</p><h2>{audit.missingIngredients}</h2><p className="subtle">Ingredient statement not stored</p></article>
       </section>
@@ -49,8 +57,8 @@ export default async function AustralianProductLabelsPage() {
         <div className="dashboard-card-heading">
           <div>
             <p className="eyebrow">BULK ENRICHMENT</p>
-            <h2 className="section-title">Process incomplete products</h2>
-            <p className="subtle">Runs Coles and Woolworths providers, merges fields independently and saves the canonical label.</p>
+            <h2 className="section-title">Process weakest products first</h2>
+            <p className="subtle">Reads embedded retailer JSON before visible HTML, merges fields independently and saves the canonical Australian label.</p>
           </div>
         </div>
         <form action={enrichBatch} style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "end" }}>
@@ -64,7 +72,7 @@ export default async function AustralianProductLabelsPage() {
 
       <section className="card">
         <div className="dashboard-card-heading">
-          <div><p className="eyebrow">REVIEW QUEUE</p><h2 className="section-title">Incomplete retailer-linked products</h2></div>
+          <div><p className="eyebrow">PRIORITISED REVIEW QUEUE</p><h2 className="section-title">Incomplete retailer-linked products</h2><p className="subtle">Lowest-confidence products appear first.</p></div>
           <span className="badge warning">{incomplete.length} products</span>
         </div>
         {incomplete.length ? (
@@ -76,6 +84,7 @@ export default async function AustralianProductLabelsPage() {
                   <p className="subtle" style={{ margin: "5px 0 0" }}>{product.retailers.join(" + ")}</p>
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                  <span className={`badge ${qualityBadge(product.quality)}`}>{product.confidence}% · {label(product.quality)}</span>
                   {product.missing.map((field) => <span className="badge warning" key={field}>{label(field)}</span>)}
                   <Link className="secondary-button" href={`/admin/product-intelligence/diagnostics?productId=${encodeURIComponent(product.productId)}`}>Diagnose</Link>
                 </div>
