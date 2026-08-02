@@ -2,6 +2,7 @@ import { EnrichmentJobStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths, type RetailerPriceCandidate } from "@/lib/prices/coles-woolworths-provider";
 import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
+import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
 
 const provider = "barcode-knowledge-v1";
 const refreshWindowMs = 7 * 24 * 60 * 60 * 1000;
@@ -138,6 +139,22 @@ async function saveRetailerListing(productId: string, match: ReturnType<typeof b
   });
 }
 
+async function refreshAustralianRetailerKnowledge(productId: string) {
+  await enrichProductRetailers(productId, { force: true }).catch((error) => {
+    console.warn("Retailer intelligence refresh failed", {
+      productId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+  return enrichProductFromRetailerLabels(productId).catch((error) => {
+    console.warn("Australian retailer label enrichment failed", {
+      productId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return { status: "failed" as const };
+  });
+}
+
 export async function enrichProductKnowledge(productId: string) {
   const recent = await prisma.productEnrichmentJob.findFirst({
     where: {
@@ -149,12 +166,7 @@ export async function enrichProductKnowledge(productId: string) {
     select: { id: true },
   });
   if (recent) {
-    await enrichProductRetailers(productId).catch((error) => {
-      console.warn("Retailer intelligence refresh failed", {
-        productId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    });
+    await refreshAustralianRetailerKnowledge(productId);
     return { status: "fresh" as const };
   }
 
@@ -234,13 +246,13 @@ export async function enrichProductKnowledge(productId: string) {
       }
     }
 
-    await enrichProductRetailers(product.id, { force: true });
+    const retailerLabel = await refreshAustralianRetailerKnowledge(product.id);
 
     await prisma.productEnrichmentJob.update({
       where: { id: job.id },
       data: { status: EnrichmentJobStatus.COMPLETED, completedAt: new Date(), lastError: null },
     });
-    return { status: "completed" as const, barcode };
+    return { status: "completed" as const, barcode, retailerLabel };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await prisma.productEnrichmentJob.update({
