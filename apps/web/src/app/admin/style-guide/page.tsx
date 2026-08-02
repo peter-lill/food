@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import {
   FoodBadge,
   FoodButton,
@@ -46,11 +47,11 @@ export default function StyleGuidePage() {
       <section className="food-demo-stack">
         <FoodSectionHeader eyebrow="TOKENS" title="Colour palette" description="A restrained palette built around forest green, leaf green, coral, cream and functional accents." />
         <div className="food-token-grid">
-          <div className="food-token" style={{ "--token": "#174a37", "--token-ink": "#fff" } as React.CSSProperties}><strong>Forest</strong><small>#174A37</small></div>
-          <div className="food-token" style={{ "--token": "#2f7d5b", "--token-ink": "#fff" } as React.CSSProperties}><strong>Green</strong><small>#2F7D5B</small></div>
-          <div className="food-token" style={{ "--token": "#7fa63a", "--token-ink": "#fff" } as React.CSSProperties}><strong>Leaf</strong><small>#7FA63A</small></div>
-          <div className="food-token" style={{ "--token": "#f06a4f", "--token-ink": "#fff" } as React.CSSProperties}><strong>Coral</strong><small>#F06A4F</small></div>
-          <div className="food-token" style={{ "--token": "#faf6ee" } as React.CSSProperties}><strong>Cream</strong><small>#FAF6EE</small></div>
+          <div className="food-token" style={{ "--token": "#174a37", "--token-ink": "#fff" } as CSSProperties}><strong>Forest</strong><small>#174A37</small></div>
+          <div className="food-token" style={{ "--token": "#2f7d5b", "--token-ink": "#fff" } as CSSProperties}><strong>Green</strong><small>#2F7D5B</small></div>
+          <div className="food-token" style={{ "--token": "#7fa63a", "--token-ink": "#fff" } as CSSProperties}><strong>Leaf</strong><small>#7FA63A</small></div>
+          <div className="food-token" style={{ "--token": "#f06a4f", "--token-ink": "#fff" } as CSSProperties}><strong>Coral</strong><small>#F06A4F</small></div>
+          <div className="food-token" style={{ "--token": "#faf6ee" } as CSSProperties}><strong>Cream</strong><small>#FAF6EE</small></div>
         </div>
       </section>
 
