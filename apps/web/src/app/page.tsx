@@ -10,7 +10,7 @@ import type { PantryQuantitySummary } from "@/lib/pantry/pantry.types";
 export const dynamic = "force-dynamic";
 
 const nonDinnerTerms = [
-  "dessert", "sweet", "cake", "biscuit", "cookie", "muffin", "slice", "pudding", "yoghurt coated",
+  "dessert", "sweet", "cake", "biscuit", "cookie", "muffin", "slice", "pudding",
   "smoothie", "drink", "beverage", "snack", "breakfast", "porridge", "granola", "pancake",
 ] as const;
 
@@ -36,13 +36,11 @@ function recipeInspiration(count: number) {
 }
 
 function brisbaneGreeting(date = new Date()) {
-  const hour = Number(
-    new Intl.DateTimeFormat("en-AU", {
-      hour: "2-digit",
-      hour12: false,
-      timeZone: "Australia/Brisbane",
-    }).format(date),
-  );
+  const hour = Number(new Intl.DateTimeFormat("en-AU", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: "Australia/Brisbane",
+  }).format(date));
 
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
@@ -50,14 +48,12 @@ function brisbaneGreeting(date = new Date()) {
 }
 
 function formatPantryQuantities(quantities: PantryQuantitySummary[]) {
-  return quantities
-    .map(({ quantity, unit }) => {
-      const amount = Number.isInteger(quantity)
-        ? quantity.toLocaleString("en-AU")
-        : quantity.toLocaleString("en-AU", { maximumFractionDigits: 2 });
-      return `${amount} ${unit}`;
-    })
-    .join(" + ");
+  return quantities.map(({ quantity, unit }) => {
+    const amount = Number.isInteger(quantity)
+      ? quantity.toLocaleString("en-AU")
+      : quantity.toLocaleString("en-AU", { maximumFractionDigits: 2 });
+    return `${amount} ${unit}`;
+  }).join(" + ");
 }
 
 export default async function Dashboard() {
@@ -69,116 +65,104 @@ export default async function Dashboard() {
     session && healthPaired ? getLatestHealthSummary(session.user.id).catch(() => null) : Promise.resolve(null),
     getPantryItems().catch(() => []),
   ]);
-  const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 5);
-  const inspiration = recipeInspiration(3);
+
+  const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 4);
+  const inspiration = recipeInspiration(4);
+  const featuredRecipe = inspiration.find(isDinnerRecipe) ?? inspiration[0];
   const firstName = session?.user.name?.trim().split(/\s+/)[0] || "there";
   const greeting = brisbaneGreeting();
 
-  const summaryCards = [
-    {
-      label: "Pantry overview",
-      value: pantryItems.length.toLocaleString("en-AU"),
-      unit: "items",
-      note: `${attentionItems.length} need attention`,
-      href: "/pantry",
-      icon: "▣",
-    },
-    {
-      label: "Shopping list",
-      value: "Open",
-      unit: "list",
-      note: "Plan the next shop",
-      href: "/shopping",
-      icon: "▤",
-    },
-    {
-      label: "Recipes to cook",
-      value: inspiration.length.toLocaleString("en-AU"),
-      unit: "ideas",
-      note: "Dinner-ready inspiration",
-      href: "/recipes",
-      icon: "◇",
-    },
-    {
-      label: healthPaired ? "Health today" : "Health",
-      value: healthPaired && health ? Math.round(health.steps).toLocaleString("en-AU") : "Connect",
-      unit: healthPaired && health ? "steps" : "health",
-      note: healthPaired && health ? `${formatLitres(health.hydrationMl)} hydration` : "Pair your health data",
-      href: "/health",
-      icon: "♡",
-    },
-  ];
-
   return (
-    <main className="brand-dashboard">
-      <header className="brand-dashboard-header">
-        <div>
-          <p className="eyebrow">YOUR KITCHEN TODAY</p>
-          <h1>{greeting}, {firstName} <span aria-hidden="true">👋</span></h1>
-          <p>Here&apos;s what&apos;s happening in your kitchen today.</p>
+    <main className="food-home">
+      <section className="food-home-hero">
+        <div className="food-home-hero-copy">
+          <p className="food-home-kicker">YOUR KITCHEN, ORGANISED</p>
+          <h1>{greeting}, {firstName}.</h1>
+          <p>Plan the week, use what you already have and make better food choices without turning dinner into admin.</p>
+          <div className="food-home-hero-actions">
+            <Link className="food-home-primary" href="/planner">Plan this week</Link>
+            <Link className="food-home-secondary" href="/recipes">Browse recipes</Link>
+          </div>
         </div>
-        <div className="brand-dashboard-actions">
-          <Link className="secondary-button" href="/scan">Scan product</Link>
-          <Link className="primary-button" href="/planner">Plan this week</Link>
-        </div>
-      </header>
-
-      <section className="brand-summary-grid" aria-label="Kitchen summary">
-        {summaryCards.map((card) => (
-          <Link className="brand-summary-card" href={card.href} key={card.label}>
-            <span className="brand-summary-icon" aria-hidden="true">{card.icon}</span>
-            <span className="brand-summary-label">{card.label}</span>
-            <strong>{card.value} <small>{card.unit}</small></strong>
-            <span className="brand-summary-note">{card.note}</span>
-          </Link>
-        ))}
+        {featuredRecipe ? (
+          <aside className="food-home-featured">
+            <small>FEATURED RECIPE · {featuredRecipe.sourceName.toUpperCase()}</small>
+            <strong>{featuredRecipe.name}</strong>
+            <span>{featuredRecipe.tags.slice(0, 2).join(" · ")}</span>
+            <a href={featuredRecipe.sourceUrl} rel="noopener noreferrer" target="_blank">Open recipe →</a>
+          </aside>
+        ) : null}
       </section>
 
-      <section className="brand-dashboard-grid">
-        <article className="brand-panel brand-panel-wide">
-          <div className="brand-panel-heading">
-            <div><p className="eyebrow">PANTRY WATCH</p><h2>Use soon</h2></div>
-            <Link href="/pantry">View all</Link>
-          </div>
-          {attentionItems.length ? (
-            <div className="brand-attention-grid">
-              {attentionItems.map((item) => (
-                <Link className="brand-attention-item" href="/pantry" key={item.key}>
-                  <span className="brand-food-placeholder" aria-hidden="true">◌</span>
-                  <strong>{item.canonicalName}</strong>
-                  <small>{item.expired ? "Expired" : formatPantryQuantities(item.quantities)}</small>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="brand-empty-state">
-              <span aria-hidden="true">✓</span>
-              <div><strong>Your pantry is in good shape.</strong><p>Nothing currently needs urgent attention.</p></div>
-            </div>
-          )}
-        </article>
+      <section className="food-home-stats" aria-label="Today at a glance">
+        <Link href="/health" className="food-home-stat">
+          <span><b>Hydration</b><i>◌</i></span>
+          <strong>{healthPaired && health ? formatLitres(health.hydrationMl) : "—"}</strong>
+          <small>{healthPaired ? "of 3.0 L target" : "Connect health data"}</small>
+        </Link>
+        <Link href="/health" className="food-home-stat">
+          <span><b>Steps</b><i>↗</i></span>
+          <strong>{healthPaired && health ? Math.round(health.steps).toLocaleString("en-AU") : "—"}</strong>
+          <small>{healthPaired ? "of 10,000 target" : "Connect activity data"}</small>
+        </Link>
+        <Link href="/pantry" className="food-home-stat">
+          <span><b>Pantry</b><i>□</i></span>
+          <strong>{pantryItems.length.toLocaleString("en-AU")}</strong>
+          <small>grocery items currently stocked</small>
+        </Link>
+        <Link href="/pantry" className="food-home-stat">
+          <span><b>Use soon</b><i>!</i></span>
+          <strong>{attentionItems.length.toLocaleString("en-AU")}</strong>
+          <small>grocery items need attention</small>
+        </Link>
+      </section>
 
-        <article className="brand-panel">
-          <div className="brand-panel-heading">
-            <div><p className="eyebrow">TONIGHT</p><h2>Recipe ideas</h2></div>
+      <section className="food-home-content-grid">
+        <article className="food-home-panel food-home-recipes-panel">
+          <div className="food-home-panel-heading">
+            <div><p>QUICK INSPIRATION</p><h2>Recipe ideas</h2></div>
             <Link href="/recipes">View all</Link>
           </div>
-          <div className="brand-recipe-list">
-            {inspiration.map((recipe) => (
+          <div className="food-home-recipe-list">
+            {inspiration.slice(0, 3).map((recipe) => (
               <a href={recipe.sourceUrl} key={recipe.id} rel="noopener noreferrer" target="_blank">
                 <span><strong>{recipe.name}</strong><small>{recipe.sourceName} · {recipe.tags.slice(0, 2).join(" · ")}</small></span>
-                <span aria-hidden="true">→</span>
+                <b aria-hidden="true">→</b>
               </a>
             ))}
           </div>
         </article>
-      </section>
 
-      <section className="brand-shortcuts" aria-label="Shortcuts">
-        <Link href="/scan"><span aria-hidden="true">⌗</span><strong>Scan product</strong><small>Add something quickly</small></Link>
-        <Link href="/shopping"><span aria-hidden="true">✓</span><strong>Shopping list</strong><small>See what you need</small></Link>
-        <Link href="/prices"><span aria-hidden="true">$</span><strong>Compare prices</strong><small>Find the best retailer</small></Link>
-        <Link href="/receipts"><span aria-hidden="true">≡</span><strong>Add receipt</strong><small>Update pantry and spend</small></Link>
+        <div className="food-home-side-stack">
+          <article className="food-home-panel">
+            <div className="food-home-panel-heading">
+              <div><p>PANTRY WATCH</p><h2>Use soon</h2></div>
+              <Link href="/pantry">Open Pantry</Link>
+            </div>
+            {attentionItems.length ? (
+              <div className="food-home-alerts">
+                {attentionItems.map((item) => (
+                  <Link href="/pantry" key={item.key}>
+                    <span>{item.canonicalName}</span>
+                    <b>{item.expired ? "Expired" : formatPantryQuantities(item.quantities)}</b>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="food-home-empty"><span>✓</span><div><strong>Your pantry is in good shape.</strong><p>Nothing needs attention right now.</p></div></div>
+            )}
+          </article>
+
+          <article className="food-home-panel">
+            <div className="food-home-panel-heading"><div><p>SHORTCUTS</p><h2>Get things done</h2></div></div>
+            <div className="food-home-shortcuts">
+              <Link href="/scan">Scan product</Link>
+              <Link href="/shopping">Shopping list</Link>
+              <Link href="/planner">Weekly planner</Link>
+              <Link href="/receipts">Add receipt</Link>
+            </div>
+          </article>
+        </div>
       </section>
     </main>
   );
