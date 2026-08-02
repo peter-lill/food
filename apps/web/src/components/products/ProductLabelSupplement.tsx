@@ -16,6 +16,7 @@ type Nutrition = {
   sodiumMg: number | null;
 };
 type ProductLabelPayload = {
+  productType: string;
   servingSize: string | null;
   servingQuantity: number | null;
   servingUnit: string | null;
@@ -91,6 +92,7 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
 
   if (!target || !payload) return null;
   const hasPerServing = rows.some((row) => row.perServing !== null);
+  const isFreshProduce = payload.productType === "GENERIC_PRODUCE";
   const servingSize = payload.servingSize
     ?? (payload.servingQuantity !== null && payload.servingUnit ? `${quantity(payload.servingQuantity)} ${payload.servingUnit}` : "Not recorded");
 
@@ -117,9 +119,9 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
       <section className="product-label-section">
         <p className="eyebrow">ALLERGEN INFORMATION</p>
         <h2>Contains</h2>
-        {contains.length ? <div className="product-label-tags">{contains.map((item) => <span key={item}>{item}</span>)}</div> : <p className="subtle">No contains statement has been recorded. Always check the product packaging.</p>}
+        {contains.length ? <div className="product-label-tags">{contains.map((item) => <span key={item}>{item}</span>)}</div> : <p className="subtle">{isFreshProduce ? "None" : "No contains statement has been recorded. Always check the product packaging."}</p>}
         <h2 className="product-label-subheading">May contain</h2>
-        {mayContain.length ? <div className="product-label-tags">{mayContain.map((item) => <span key={item}>{item}</span>)}</div> : <p className="subtle">No may-contain statement has been recorded.</p>}
+        {mayContain.length ? <div className="product-label-tags">{mayContain.map((item) => <span key={item}>{item}</span>)}</div> : <p className="subtle">{isFreshProduce ? "None known" : "No may-contain statement has been recorded."}</p>}
       </section>
 
       {payload.retailers.length ? (
