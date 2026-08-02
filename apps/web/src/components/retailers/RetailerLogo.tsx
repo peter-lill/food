@@ -95,16 +95,17 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
   const width = Math.min(maxWidth, Math.round(height * ratio));
 
   return (
-    <img
-      alt={logo.alt}
-      className={className}
-      decoding="async"
-      height={height}
-      loading="lazy"
-      referrerPolicy="no-referrer"
-      src={logo.src}
-      style={{ background: "transparent", objectFit: "contain" }}
-      width={width}
-    />
+    <span aria-label={logo.alt} className={className} data-retailer-logo={sourceKey} role="img">
+      <img
+        alt=""
+        decoding="async"
+        height={height}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+        src={logo.src}
+        style={{ background: "transparent", objectFit: "contain" }}
+        width={width}
+      />
+    </span>
   );
 }
