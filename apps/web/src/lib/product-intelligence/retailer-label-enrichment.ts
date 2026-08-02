@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const browserHeaders = {
@@ -5,7 +6,10 @@ const browserHeaders = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
 };
 
-type RetailerLabel = {
+export type RetailerLabel = {
+  retailer: string;
+  sourceUrl: string;
+  retrievedAt: Date;
   servingSize: string | null;
   servingQuantity: number | null;
   servingUnit: string | null;
@@ -48,7 +52,12 @@ function htmlLines(html: string) {
 }
 
 function normalise(value: string) {
-  return value.toLocaleLowerCase("en-AU").replace(/[–—-]/g, " ").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+  return value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[–—-]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function numberFrom(value: string) {
@@ -84,9 +93,14 @@ function parseServing(lines: string[]) {
 function nutrientPer100(lines: string[], aliases: string[], unit: "kJ" | "g" | "mg") {
   const index = lines.findIndex((line) => aliases.some((alias) => normalise(line) === normalise(alias)));
   if (index < 0) return null;
+
   const values: number[] = [];
   for (const line of lines.slice(index + 1, index + 14)) {
-    const unitPattern = unit === "kJ" ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*kJ\b/i : unit === "mg" ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*mg\b/i : /<?\s*[0-9]+(?:\.[0-9]+)?\s*g\b/i;
+    const unitPattern = unit === "kJ"
+      ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*kJ\b/i
+      : unit === "mg"
+        ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*mg\b/i
+        : /<?\s*[0-9]+(?:\.[0-9]+)?\s*g\b/i;
     if (!unitPattern.test(line)) continue;
     const parsed = numberFrom(line);
     if (parsed === null || values.includes(parsed)) continue;
@@ -119,23 +133,36 @@ function allergenList(value: string | null) {
     .filter(Boolean))];
 }
 
-function parseWoolworthsLabel(html: string): RetailerLabel | null {
+function parseLabel(html: string, retailer: string, sourceUrl: string): RetailerLabel | null {
   const lines = htmlLines(html);
   if (!lines.some((line) => /nutrition information/i.test(line))) return null;
+
   const serving = parseServing(lines);
-  const ingredientsText = section(lines, /^ingredients$/i, [/^allergens?$/i, /^nutrition information$/i, /^directions$/i]);
-  const contains = firstMatchingLine(lines, /^contains\s*:/i);
+  const ingredientsText = section(lines, /^ingredients?$/i, [
+    /^allergens?$/i,
+    /^contains\b/i,
+    /^may contain\b/i,
+    /^nutrition information$/i,
+    /^directions$/i,
+    /^storage$/i,
+  ]);
+  const contains = firstMatchingLine(lines, /^contains\s*:/i)
+    ?? valueAfterLabel(lines, /^allergens?$/i);
   const mayContain = firstMatchingLine(lines, /^may contain\s*:/i);
   const energyKj = nutrientPer100(lines, ["Energy"], "kJ");
+
   return {
+    retailer,
+    sourceUrl,
+    retrievedAt: new Date(),
     ...serving,
     calories: energyKj === null ? null : energyKj / 4.184,
     proteinGrams: nutrientPer100(lines, ["Protein"], "g"),
-    carbsGrams: nutrientPer100(lines, ["Carbohydrate"], "g"),
+    carbsGrams: nutrientPer100(lines, ["Carbohydrate", "Carbohydrate Total"], "g"),
     fatGrams: nutrientPer100(lines, ["Fat, Total", "Fat Total"], "g"),
-    saturatedFatGrams: nutrientPer100(lines, ["Saturated", "– Saturated"], "g"),
+    saturatedFatGrams: nutrientPer100(lines, ["Saturated", "– Saturated", "- Saturated"], "g"),
     fibreGrams: nutrientPer100(lines, ["Dietary Fibre", "Fibre"], "g"),
-    sugarGrams: nutrientPer100(lines, ["Sugars", "– Sugars"], "g"),
+    sugarGrams: nutrientPer100(lines, ["Sugars", "– Sugars", "- Sugars"], "g"),
     sodiumMg: nutrientPer100(lines, ["Sodium"], "mg"),
     ingredientsText,
     allergens: allergenList(contains),
@@ -144,7 +171,7 @@ function parseWoolworthsLabel(html: string): RetailerLabel | null {
 }
 
 async function fetchLabel(url: string, retailer: string) {
-  if (retailer !== "Woolworths") return null;
+  if (!/^(Coles|Woolworths)$/i.test(retailer)) return null;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12_000);
   try {
@@ -155,7 +182,7 @@ async function fetchLabel(url: string, retailer: string) {
       headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml" },
     });
     if (!response.ok) return null;
-    return parseWoolworthsLabel(await response.text());
+    return parseLabel(await response.text(), retailer, url);
   } catch {
     return null;
   } finally {
@@ -163,44 +190,119 @@ async function fetchLabel(url: string, retailer: string) {
   }
 }
 
+function completeness(label: RetailerLabel) {
+  return [
+    label.servingSize,
+    label.servingsPerPackage,
+    label.calories,
+    label.proteinGrams,
+    label.carbsGrams,
+    label.fatGrams,
+    label.saturatedFatGrams,
+    label.sugarGrams,
+    label.sodiumMg,
+    label.ingredientsText,
+    label.allergens.length ? label.allergens : null,
+    label.mayContainAllergens.length ? label.mayContainAllergens : null,
+  ].filter((value) => value !== null && value !== undefined).length;
+}
+
+function mergeLabels(labels: RetailerLabel[]) {
+  const ranked = [...labels].sort((left, right) => completeness(right) - completeness(left));
+  const pick = <K extends keyof RetailerLabel>(key: K) => ranked.find((label) => {
+    const value = label[key];
+    return Array.isArray(value) ? value.length > 0 : value !== null && value !== undefined && value !== "";
+  })?.[key] ?? null;
+
+  return {
+    servingSize: pick("servingSize") as string | null,
+    servingQuantity: pick("servingQuantity") as number | null,
+    servingUnit: pick("servingUnit") as string | null,
+    servingsPerPackage: pick("servingsPerPackage") as number | null,
+    calories: pick("calories") as number | null,
+    proteinGrams: pick("proteinGrams") as number | null,
+    carbsGrams: pick("carbsGrams") as number | null,
+    fatGrams: pick("fatGrams") as number | null,
+    saturatedFatGrams: pick("saturatedFatGrams") as number | null,
+    fibreGrams: pick("fibreGrams") as number | null,
+    sugarGrams: pick("sugarGrams") as number | null,
+    sodiumMg: pick("sodiumMg") as number | null,
+    ingredientsText: pick("ingredientsText") as string | null,
+    allergens: (pick("allergens") as string[] | null) ?? [],
+    mayContainAllergens: (pick("mayContainAllergens") as string[] | null) ?? [],
+    source: [...new Set(ranked.map((label) => label.retailer))].join(" + "),
+    retrievedAt: ranked[0]?.retrievedAt ?? new Date(),
+  };
+}
+
 export async function enrichProductFromRetailerLabels(productId: string) {
   const listings = await prisma.storeProduct.findMany({
-    where: { productId, active: true, productUrl: { not: null } },
-    orderBy: [{ retailer: "desc" }, { lastSeenAt: "desc" }],
+    where: {
+      productId,
+      active: true,
+      productUrl: { not: null },
+      retailer: { in: ["Coles", "Woolworths"] },
+    },
+    orderBy: [{ lastSeenAt: "desc" }],
     select: { retailer: true, productUrl: true },
   });
 
-  for (const listing of listings) {
-    if (!listing.productUrl) continue;
-    const label = await fetchLabel(listing.productUrl, listing.retailer);
-    if (!label) continue;
-    await prisma.$transaction([
-      prisma.product.update({
-        where: { id: productId },
-        data: {
-          servingSize: label.servingSize,
-          servingQuantity: label.servingQuantity,
-          servingUnit: label.servingUnit,
-          servingsPerPackage: label.servingsPerPackage,
-          calories: label.calories,
-          proteinGrams: label.proteinGrams,
-          carbsGrams: label.carbsGrams,
-          fatGrams: label.fatGrams,
-          saturatedFatGrams: label.saturatedFatGrams,
-          fibreGrams: label.fibreGrams,
-          sugarGrams: label.sugarGrams,
-          sodiumMg: label.sodiumMg,
-          allergens: label.allergens,
-        },
-      }),
-      prisma.$executeRaw`
-        UPDATE "Product"
-        SET "ingredientsText" = ${label.ingredientsText},
-            "mayContainAllergens" = ${label.mayContainAllergens}::text[]
-        WHERE "id" = ${productId}
-      `,
-    ]);
-    return { status: "completed" as const, retailer: listing.retailer };
-  }
-  return { status: "not-found" as const };
+  const labels = (await Promise.all(listings.map(async (listing) => {
+    if (!listing.productUrl) return null;
+    return fetchLabel(listing.productUrl, listing.retailer);
+  }))).filter((label): label is RetailerLabel => label !== null);
+
+  if (!labels.length) return { status: "not-found" as const };
+
+  const merged = mergeLabels(labels);
+  await prisma.$transaction([
+    prisma.product.update({
+      where: { id: productId },
+      data: {
+        servingSize: merged.servingSize ?? undefined,
+        servingQuantity: merged.servingQuantity ?? undefined,
+        servingUnit: merged.servingUnit ?? undefined,
+        servingsPerPackage: merged.servingsPerPackage ?? undefined,
+        calories: merged.calories ?? undefined,
+        proteinGrams: merged.proteinGrams ?? undefined,
+        carbsGrams: merged.carbsGrams ?? undefined,
+        fatGrams: merged.fatGrams ?? undefined,
+        saturatedFatGrams: merged.saturatedFatGrams ?? undefined,
+        fibreGrams: merged.fibreGrams ?? undefined,
+        sugarGrams: merged.sugarGrams ?? undefined,
+        sodiumMg: merged.sodiumMg ?? undefined,
+        allergens: merged.allergens.length ? merged.allergens : undefined,
+      },
+    }),
+    prisma.$executeRaw(Prisma.sql`
+      UPDATE "Product"
+      SET
+        "ingredientsText" = COALESCE(${merged.ingredientsText}, "ingredientsText"),
+        "mayContainAllergens" = CASE
+          WHEN cardinality(${merged.mayContainAllergens}::text[]) > 0 THEN ${merged.mayContainAllergens}::text[]
+          ELSE "mayContainAllergens"
+        END
+      WHERE "id" = ${productId}
+    `),
+  ]);
+
+  return {
+    status: "completed" as const,
+    retailers: [...new Set(labels.map((label) => label.retailer))],
+    source: merged.source,
+    retrievedAt: merged.retrievedAt,
+  };
+}
+
+export async function getProductLabelText(productId: string) {
+  const rows = await prisma.$queryRaw<Array<{
+    ingredientsText: string | null;
+    mayContainAllergens: string[];
+  }>>(Prisma.sql`
+    SELECT "ingredientsText", "mayContainAllergens"
+    FROM "Product"
+    WHERE "id" = ${productId}
+    LIMIT 1
+  `);
+  return rows[0] ?? { ingredientsText: null, mayContainAllergens: [] };
 }
