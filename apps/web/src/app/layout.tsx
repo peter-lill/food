@@ -6,6 +6,7 @@ import "./saved-product-delete.css";
 import "./v2.css";
 import "./bright-theme.css";
 import "./shell-refinements.css";
+import "./retailer-branding.css";
 import { AppShell } from "@/components/AppShell";
 import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
