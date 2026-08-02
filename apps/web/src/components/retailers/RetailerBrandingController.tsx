@@ -2,18 +2,32 @@
 
 import { useEffect } from "react";
 
-const logoVersion = "20260802-2";
 const retailerLogos = {
-  Coles: `/retailer-logos/coles.svg?v=${logoVersion}`,
-  Woolworths: `/retailer-logos/woolworths.svg?v=${logoVersion}`,
+  Woolworths: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Woolworths_Limited_Logo.svg",
+  Coles: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Coles_logo.svg",
+  ALDI: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aldi_S%C3%BCd_2017_logo.svg",
+  IGA: "https://commons.wikimedia.org/wiki/Special:Redirect/file/IGA_logo.svg",
+  Drakes: "https://dtgxwmigmg3gc.cloudfront.net/images/5a615f7252ba0b73b201addb",
+  Costco: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Costco_Wholesale.svg",
 } as const;
 
 type RetailerName = keyof typeof retailerLogos;
 
+const retailerPatterns: Array<[RetailerName, RegExp]> = [
+  ["Woolworths", /\b(?:Woolworths|Woolies)\b/i],
+  ["Coles", /\bColes\b/i],
+  ["ALDI", /\bALDI\b/i],
+  ["IGA", /\bIGA\b/i],
+  ["Drakes", /\bDrakes(?:\s+Supermarkets?)?\b/i],
+  ["Costco", /\bCostco(?:\s+Wholesale)?\b/i],
+];
+
 function retailerFromText(value: string): RetailerName | null {
-  if (/\bWoolworths\b/i.test(value)) return "Woolworths";
-  if (/\bColes\b/i.test(value)) return "Coles";
-  return null;
+  return retailerPatterns.find(([, pattern]) => pattern.test(value))?.[0] ?? null;
+}
+
+function retailerPattern(retailer: RetailerName) {
+  return retailerPatterns.find(([name]) => name === retailer)?.[1] ?? new RegExp(retailer, "i");
 }
 
 function logo(retailer: RetailerName) {
@@ -21,8 +35,12 @@ function logo(retailer: RetailerName) {
   image.src = retailerLogos[retailer];
   image.alt = retailer;
   image.loading = "lazy";
+  image.decoding = "async";
+  image.referrerPolicy = "no-referrer";
   image.className = "retailer-inline-logo";
   image.dataset.retailerBranding = retailer;
+  image.style.background = "transparent";
+  image.style.objectFit = "contain";
   return image;
 }
 
@@ -34,9 +52,10 @@ function replaceRetailerText(element: HTMLElement) {
   const retailer = retailerFromText(text);
   if (!retailer) return;
 
-  const exact = new RegExp(`^${retailer}$`, "i");
-  const special = new RegExp(`^(On special at|Best retailer:|Best complete store:)\\s+${retailer}(.*)$`, "i");
-  const priceMeta = new RegExp(`^(On special|Regular price)\\s*·\\s*${retailer}(.*)$`, "i");
+  const namePattern = retailerPattern(retailer).source.replace(/^\\b|\\b$/g, "");
+  const exact = new RegExp(`^(?:${namePattern})$`, "i");
+  const special = new RegExp(`^(On special at|Best retailer:|Best complete store:)\\s+(?:${namePattern})(.*)$`, "i");
+  const priceMeta = new RegExp(`^(On special|Regular price)\\s*·\\s*(?:${namePattern})(.*)$`, "i");
   const specialMatch = text.match(special);
   const priceMatch = text.match(priceMeta);
 
