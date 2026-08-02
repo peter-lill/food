@@ -1,4 +1,5 @@
 import Link from "next/link";
+import styles from "./admin.module.css";
 
 export const metadata = {
   title: "Admin | Food",
@@ -7,60 +8,95 @@ export const metadata = {
 const adminTools = [
   {
     title: "Catalogue Manager",
-    description: "Review incomplete products, duplicate records and recent enrichment activity.",
+    description: "Review incomplete products, duplicate records, enrichment jobs and catalogue operations from one workspace.",
     href: "/admin/product-intelligence",
     icon: "◈",
+    primary: true,
   },
   {
     title: "Australian Labels",
-    description: "Audit and bulk-enrich Coles and Woolworths nutrition, serving and ingredient data.",
+    description: "Audit and bulk-enrich Coles and Woolworths nutrition, serving, ingredient and allergen data.",
     href: "/admin/product-intelligence/labels",
     icon: "▤",
+    primary: true,
   },
   {
     title: "Quality Dashboard",
-    description: "Inspect catalogue confidence, validation failures and the weakest product records.",
+    description: "Inspect catalogue confidence, validation failures and the records most in need of attention.",
     href: "/admin/product-intelligence/quality",
     icon: "✓",
+    primary: false,
   },
   {
     title: "Provider Diagnostics",
-    description: "Check retailer responses and identify parser, page or connectivity failures.",
+    description: "Check retailer responses and identify parser, page, structured-data or connectivity failures.",
     href: "/admin/product-intelligence/diagnostics",
     icon: "⌁",
+    primary: false,
   },
   {
     title: "Product Inspector",
-    description: "Inspect canonical values, validation checks, retailers and enrichment history for one product.",
+    description: "Inspect canonical values, validation checks, retailer coverage and enrichment history for one product.",
     href: "/admin/product-intelligence/inspector",
     icon: "⌕",
+    primary: false,
   },
 ] as const;
 
 export default function AdminPage() {
   return (
-    <main style={{ display: "grid", gap: 20 }}>
-      <header className="page-header">
-        <div>
+    <main className={styles.page}>
+      <section className={styles.hero}>
+        <div className={styles.heroCopy}>
           <p className="eyebrow">OWNER ADMINISTRATION</p>
-          <h1 className="page-title">Food Admin</h1>
-          <p className="subtle">Manage Australian Product Knowledge, catalogue quality and provider operations.</p>
+          <h1>Food control centre</h1>
+          <p className={styles.intro}>
+            Operate Australian Product Knowledge, review catalogue quality and diagnose retailer enrichment from one owner-only workspace.
+          </p>
         </div>
-        <Link className="secondary-button" href="/account">Back to account</Link>
-      </header>
+        <div className={styles.ownerBadge}>
+          <span>Access</span>
+          <strong>Owner only</strong>
+          <small>Protected server-side</small>
+        </div>
+      </section>
 
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 16 }}>
+      <section>
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className="eyebrow">PRODUCT KNOWLEDGE OPERATIONS</p>
+            <h2>Administration tools</h2>
+          </div>
+          <p className="subtle">Five focused workspaces for catalogue maintenance and diagnostics.</p>
+        </div>
+      </section>
+
+      <section className={styles.toolGrid} aria-label="Administration tools">
         {adminTools.map((tool) => (
-          <article className="card" key={tool.href} style={{ display: "grid", gap: 14 }}>
-            <span aria-hidden="true" style={{ fontSize: 28 }}>{tool.icon}</span>
-            <div>
-              <h2 style={{ margin: 0 }}>{tool.title}</h2>
-              <p className="subtle">{tool.description}</p>
+          <article
+            className={`${styles.toolCard} ${tool.primary ? styles.toolCardPrimary : ""}`}
+            key={tool.href}
+          >
+            <div className={styles.cardTop}>
+              <span aria-hidden="true" className={styles.iconWrap}>{tool.icon}</span>
+              <span className={styles.status}>Available</span>
             </div>
-            <Link className="primary-button" href={tool.href}>Open {tool.title}</Link>
+            <div className={styles.toolContent}>
+              <h3>{tool.title}</h3>
+              <p>{tool.description}</p>
+            </div>
+            <Link className={styles.toolLink} href={tool.href}>
+              <span>Open workspace</span>
+              <span aria-hidden="true">→</span>
+            </Link>
           </article>
         ))}
       </section>
+
+      <footer className={styles.footerBar}>
+        <p>Admin tools are hidden from standard accounts and protected from direct access.</p>
+        <Link className={styles.backLink} href="/account"><span aria-hidden="true">←</span> Back to account</Link>
+      </footer>
     </main>
   );
 }
