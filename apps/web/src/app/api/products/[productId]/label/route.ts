@@ -38,10 +38,11 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-  const ingredientsText = labelText.ingredientsText
-    ?? (product.productType === "GENERIC_PRODUCE" ? product.canonicalName ?? product.name : null);
+  const isFreshProduce = product.productType === "GENERIC_PRODUCE";
+  const produceIngredient = product.canonicalName?.trim() || product.name.trim();
 
   return NextResponse.json({
+    productType: product.productType,
     servingSize: product.servingSize,
     servingQuantity: product.servingQuantity,
     servingUnit: product.servingUnit,
@@ -56,7 +57,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       sugarGrams: product.sugarGrams,
       sodiumMg: product.sodiumMg,
     },
-    ingredientsText,
+    ingredientsText: labelText.ingredientsText ?? (isFreshProduce ? produceIngredient : null),
     contains: product.allergens,
     mayContain: labelText.mayContainAllergens,
     retailers: [...new Set(product.storeProducts.map((listing) => listing.retailer))],
