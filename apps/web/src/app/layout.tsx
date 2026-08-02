@@ -10,6 +10,7 @@ import "./retailer-branding.css";
 import "./brand-system.css";
 import "./design-system.css";
 import "./home-editorial.css";
+import "./logo-render.css";
 import { AppShell } from "@/components/AppShell";
 import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { ProductQualityController } from "@/components/products/ProductQualityController";
@@ -20,7 +21,7 @@ import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 export const metadata: Metadata = {
   title: "Food",
   description: "Know what is in your kitchen and make better choices every day.",
-  icons: { icon: "/brand/food-mark.svg" },
+  icons: { icon: "/brand/food-mark.svg?v=20260802-3" },
 };
 
 export const viewport: Viewport = {
