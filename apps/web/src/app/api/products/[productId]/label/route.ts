@@ -7,37 +7,39 @@ type RouteContext = { params: Promise<{ productId: string }> };
 export async function GET(_request: Request, { params }: RouteContext) {
   const { productId } = await params;
   const decodedProductId = decodeURIComponent(productId);
-  const [product, labelText] = await Promise.all([
-    prisma.product.findUnique({
-      where: { id: decodedProductId },
-      select: {
-        name: true,
-        canonicalName: true,
-        productType: true,
-        servingSize: true,
-        servingQuantity: true,
-        servingUnit: true,
-        servingsPerPackage: true,
-        calories: true,
-        proteinGrams: true,
-        carbsGrams: true,
-        fatGrams: true,
-        saturatedFatGrams: true,
-        fibreGrams: true,
-        sugarGrams: true,
-        sodiumMg: true,
-        allergens: true,
-        storeProducts: {
-          where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
-          select: { retailer: true },
-        },
+  const product = await prisma.product.findFirst({
+    where: {
+      lifecycle: { not: "ARCHIVED" },
+      OR: [{ id: decodedProductId }, { slug: decodedProductId }],
+    },
+    select: {
+      id: true,
+      name: true,
+      canonicalName: true,
+      productType: true,
+      servingSize: true,
+      servingQuantity: true,
+      servingUnit: true,
+      servingsPerPackage: true,
+      calories: true,
+      proteinGrams: true,
+      carbsGrams: true,
+      fatGrams: true,
+      saturatedFatGrams: true,
+      fibreGrams: true,
+      sugarGrams: true,
+      sodiumMg: true,
+      allergens: true,
+      storeProducts: {
+        where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
+        select: { retailer: true },
       },
-    }),
-    getProductLabelText(decodedProductId),
-  ]);
+    },
+  });
 
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
+  const labelText = await getProductLabelText(product.id);
   const isFreshProduce = product.productType === "GENERIC_PRODUCE";
   const produceIngredient = product.canonicalName?.trim() || product.name.trim();
 
