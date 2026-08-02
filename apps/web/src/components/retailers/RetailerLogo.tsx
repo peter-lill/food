@@ -4,9 +4,11 @@ type RetailerLogoProps = {
   className?: string;
 };
 
+const logoVersion = "20260802-2";
+
 const logos: Record<string, { src: string; alt: string; width: number; height: number }> = {
-  coles: { src: "/retailer-logos/coles.svg", alt: "Coles", width: 90, height: 32 },
-  woolworths: { src: "/retailer-logos/woolworths.svg", alt: "Woolworths", width: 110, height: 32 },
+  coles: { src: `/retailer-logos/coles.svg?v=${logoVersion}`, alt: "Coles", width: 90, height: 32 },
+  woolworths: { src: `/retailer-logos/woolworths.svg?v=${logoVersion}`, alt: "Woolworths", width: 110, height: 32 },
 };
 
 export function RetailerLogo({ retailer, compact = false, className }: RetailerLogoProps) {
