@@ -26,6 +26,9 @@ type ProductLabelPayload = {
   contains: string[];
   mayContain: string[];
   retailers: string[];
+  source: string | null;
+  sourceUrl: string | null;
+  verifiedAt: string | null;
 };
 
 type NutritionRow = { label: string; per100: string; perServing: string | null; sub?: boolean };
@@ -43,6 +46,13 @@ function oneDecimal(value: number) {
 
 function quantity(value: number) {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value);
+}
+
+function verifiedDate(value: string | null) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(parsed);
 }
 
 function findNutritionPanel() {
@@ -95,6 +105,8 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
   const isFreshProduce = payload.productType === "GENERIC_PRODUCE";
   const servingSize = payload.servingSize
     ?? (payload.servingQuantity !== null && payload.servingUnit ? `${quantity(payload.servingQuantity)} ${payload.servingUnit}` : "Not recorded");
+  const basis = payload.servingUnit === "mL" ? "100 mL" : "100 g";
+  const checked = verifiedDate(payload.verifiedAt);
 
   return createPortal(
     <div className="product-label-complete">
@@ -104,7 +116,9 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
         <p><strong>Serving size:</strong> {servingSize}</p>
         {rows.length ? (
           <table>
-            <thead><tr><th>Nutrient</th>{hasPerServing ? <th>Avg qty per serving</th> : null}<th>Avg qty per 100 g / 100 mL</th></tr></thead>
+            <thead>
+              <tr><th>Average Quantity</th>{hasPerServing ? <th>Per Serving</th> : null}<th>Per {basis}</th></tr>
+            </thead>
             <tbody>{rows.map((row) => <tr key={row.label}><th className={row.sub ? "product-nip-sub" : undefined}>{row.label}</th>{hasPerServing ? <td>{row.perServing ?? "—"}</td> : null}<td>{row.per100}</td></tr>)}</tbody>
           </table>
         ) : <p className="subtle">Nutrition values have not been recorded for this product yet.</p>}
@@ -124,10 +138,11 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
         {mayContain.length ? <div className="product-label-tags">{mayContain.map((item) => <span key={item}>{item}</span>)}</div> : <p className="subtle">{isFreshProduce ? "None known" : "No may-contain statement has been recorded."}</p>}
       </section>
 
-      {payload.retailers.length ? (
+      {payload.retailers.length || payload.source || checked ? (
         <section className="product-label-section">
-          <p className="eyebrow">AUSTRALIAN RETAILER SOURCES</p>
-          <div className="product-label-retailers">{payload.retailers.map((retailer) => <RetailerLogo key={retailer} retailer={retailer} />)}</div>
+          <p className="eyebrow">LABEL SOURCE</p>
+          {payload.retailers.length ? <div className="product-label-retailers">{payload.retailers.map((retailer) => <RetailerLogo key={retailer} retailer={retailer} />)}</div> : null}
+          <p className="product-label-source">{payload.source ? `Source: ${payload.source}` : "Source recorded from product enrichment"}{checked ? ` · Verified ${checked}` : ""}</p>
         </section>
       ) : null}
 
@@ -144,6 +159,7 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
         .product-label-tags { display: flex; flex-wrap: wrap; gap: 8px; }
         .product-label-tags span { border: 1px solid var(--border, #d8ddd8); border-radius: 999px; padding: 7px 11px; font-weight: 700; }
         .product-label-retailers { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; }
+        .product-label-source { margin: 16px 0 0; color: var(--muted, #66756d); font-size: 13px; }
       `}</style>
     </div>,
     target,
