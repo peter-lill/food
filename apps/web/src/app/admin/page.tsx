@@ -23,6 +23,13 @@ const adminTools = [
     primary: true,
   },
   {
+    title: "Repair Queue",
+    description: "Approve or reject protected canonical-name changes with a complete audit trail and rollback support.",
+    href: "/admin/product-intelligence/repairs",
+    icon: "↺",
+    primary: false,
+  },
+  {
     title: "Quality Dashboard",
     description: "Inspect catalogue confidence, validation failures and the records most in need of attention.",
     href: "/admin/product-intelligence/quality",
@@ -38,7 +45,7 @@ const adminTools = [
   },
   {
     title: "Product Inspector",
-    description: "Inspect canonical values, validation checks, retailer coverage and enrichment history for one product.",
+    description: "Inspect canonical values, validation checks, retailer coverage, enrichment and field-change history.",
     href: "/admin/product-intelligence/inspector",
     icon: "⌕",
     primary: false,
@@ -107,18 +114,18 @@ export default async function AdminPage() {
       <section className={styles.healingPanel}>
         <div>
           <p className="eyebrow">SELF-HEALING</p>
-          <h2>Repair the weakest products</h2>
+          <h2>Enrich the weakest products</h2>
           <p>
-            Sanitises contaminated names, retries Coles and Woolworths label enrichment, recalculates confidence and sends unresolved records to review.
+            Retries Coles and Woolworths label enrichment, recalculates confidence and sends unresolved records to review. Protected identity fields are never overwritten.
           </p>
-          <small>{operations.recentRepairs} successful repairs in the past seven days</small>
+          <small>{operations.recentRepairs} successful enrichment repairs in the past seven days</small>
         </div>
         <form action={runSelfHealing} className={styles.healingForm}>
           <label>
             <span>Batch size</span>
             <input defaultValue="10" max="25" min="1" name="batchSize" type="number" />
           </label>
-          <button type="submit">Repair weakest products <span aria-hidden="true">→</span></button>
+          <button type="submit">Enrich weakest products <span aria-hidden="true">→</span></button>
         </form>
       </section>
 
@@ -128,7 +135,7 @@ export default async function AdminPage() {
             <p className="eyebrow">PRODUCT KNOWLEDGE OPERATIONS</p>
             <h2>Administration tools</h2>
           </div>
-          <p className="subtle">Five focused workspaces for catalogue maintenance and diagnostics.</p>
+          <p className="subtle">Six focused workspaces for catalogue maintenance, data integrity and diagnostics.</p>
         </div>
       </section>
 
