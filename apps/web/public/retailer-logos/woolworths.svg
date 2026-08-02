@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 64" role="img" aria-labelledby="title">
+  <title id="title">Woolworths</title>
+  <rect width="220" height="64" rx="12" fill="#ffffff"/>
+  <circle cx="34" cy="32" r="18" fill="#74b82a"/>
+  <path d="M24 23c5 1 8 5 10 10 2-5 5-9 10-10-1 9-4 15-10 19-6-4-9-10-10-19z" fill="#ffffff"/>
+  <text x="132" y="39" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="700" fill="#4f8f24">Woolworths</text>
+</svg>
