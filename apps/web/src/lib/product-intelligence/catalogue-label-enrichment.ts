@@ -2,7 +2,9 @@ import { EnrichmentJobStatus, Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
 
-const provider = "australian-retailer-labels-v1";
+const provider = "australian-retailer-labels-v2";
+
+export type CatalogueQuality = "excellent" | "good" | "fair" | "review";
 
 export type CatalogueLabelAuditItem = {
   productId: string;
@@ -10,6 +12,8 @@ export type CatalogueLabelAuditItem = {
   productType: ProductType;
   retailers: string[];
   missing: string[];
+  confidence: number;
+  quality: CatalogueQuality;
 };
 
 export type CatalogueLabelAudit = {
@@ -21,6 +25,7 @@ export type CatalogueLabelAudit = {
   missingNutrition: number;
   missingIngredients: number;
   missingAllergens: number;
+  averageConfidence: number;
   products: CatalogueLabelAuditItem[];
 };
 
@@ -52,6 +57,27 @@ function missingFields(row: ProductLabelRow) {
   return missing;
 }
 
+function confidenceFor(row: ProductLabelRow, missing: string[]) {
+  if (row.productType === ProductType.GENERIC_PRODUCE) return 100;
+
+  const deductions: Record<string, number> = {
+    "serving-size": 15,
+    "servings-per-package": 10,
+    nutrition: 30,
+    ingredients: 25,
+    allergens: 10,
+  };
+  const retailerBonus = Math.min(Math.max((row.retailers?.length ?? 0) - 1, 0) * 5, 5);
+  return Math.max(0, Math.min(100, 95 + retailerBonus - missing.reduce((total, field) => total + (deductions[field] ?? 5), 0)));
+}
+
+function qualityFor(confidence: number): CatalogueQuality {
+  if (confidence >= 95) return "excellent";
+  if (confidence >= 80) return "good";
+  if (confidence >= 60) return "fair";
+  return "review";
+}
+
 export async function getCatalogueLabelAudit(limit = 250): Promise<CatalogueLabelAudit> {
   const rows = await prisma.$queryRaw<ProductLabelRow[]>(Prisma.sql`
     SELECT
@@ -78,13 +104,19 @@ export async function getCatalogueLabelAudit(limit = 250): Promise<CatalogueLabe
     LIMIT ${limit}
   `);
 
-  const products = rows.map((row) => ({
-    productId: row.id,
-    name: row.name,
-    productType: row.productType,
-    retailers: row.retailers ?? [],
-    missing: missingFields(row),
-  }));
+  const products = rows.map((row) => {
+    const missing = missingFields(row);
+    const confidence = confidenceFor(row, missing);
+    return {
+      productId: row.id,
+      name: row.name,
+      productType: row.productType,
+      retailers: row.retailers ?? [],
+      missing,
+      confidence,
+      quality: qualityFor(confidence),
+    };
+  }).sort((left, right) => left.confidence - right.confidence || right.missing.length - left.missing.length || left.name.localeCompare(right.name));
 
   return {
     linkedProducts: products.length,
@@ -95,13 +127,16 @@ export async function getCatalogueLabelAudit(limit = 250): Promise<CatalogueLabe
     missingNutrition: products.filter((item) => item.missing.includes("nutrition")).length,
     missingIngredients: products.filter((item) => item.missing.includes("ingredients")).length,
     missingAllergens: products.filter((item) => item.missing.includes("allergens")).length,
+    averageConfidence: products.length ? Math.round(products.reduce((sum, item) => sum + item.confidence, 0) / products.length) : 0,
     products,
   };
 }
 
 export async function runCatalogueLabelEnrichmentBatch(batchSize = 20) {
   const audit = await getCatalogueLabelAudit(1000);
-  const candidates = audit.products.filter((item) => item.missing.length > 0).slice(0, Math.max(1, Math.min(batchSize, 50)));
+  const candidates = audit.products
+    .filter((item) => item.missing.length > 0)
+    .slice(0, Math.max(1, Math.min(batchSize, 50)));
 
   const results: Array<{ productId: string; name: string; status: string; error?: string }> = [];
 
@@ -111,6 +146,7 @@ export async function runCatalogueLabelEnrichmentBatch(batchSize = 20) {
         productId: candidate.productId,
         provider,
         status: EnrichmentJobStatus.RUNNING,
+        priority: Math.max(1, 100 - candidate.confidence),
         startedAt: new Date(),
       },
       select: { id: true },
@@ -150,6 +186,7 @@ export async function runCatalogueLabelEnrichmentBatch(batchSize = 20) {
     completed: results.filter((item) => item.status === "completed").length,
     failed: results.filter((item) => item.status !== "completed").length,
     remaining: after.needsEnrichment,
+    averageConfidence: after.averageConfidence,
     results,
   };
 }
