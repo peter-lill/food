@@ -89,7 +89,9 @@ body {
 }
 
 .sidebar-note {
+  padding: 10px 11px;
   border: 1px solid var(--food-line);
+  border-radius: 12px;
   background: #fff;
   box-shadow: 0 8px 24px rgba(25, 67, 49, .055);
 }
@@ -151,22 +153,313 @@ body {
   box-shadow: 0 14px 28px rgba(23, 74, 55, .28);
 }
 
-.v2-hero {
-  background: linear-gradient(135deg, #153f31 0%, #216b4c 58%, #3a8d66 100%) !important;
-  box-shadow: 0 24px 64px rgba(23, 74, 55, .2) !important;
+.brand-dashboard {
+  display: grid;
+  gap: 20px;
 }
 
-.v2-tonight {
-  background: rgba(255, 255, 255, .11) !important;
-  border-color: rgba(255, 255, 255, .2) !important;
+.brand-dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 8px 2px 4px;
 }
 
-.v2-quick-actions a {
+.brand-dashboard-header h1 {
+  margin: 4px 0 8px;
   color: var(--food-ink);
+  font-size: clamp(34px, 4vw, 54px);
+  line-height: 1;
+  letter-spacing: -.055em;
+}
+
+.brand-dashboard-header > div > p:last-child {
+  margin: 0;
+  color: #718078;
+  font-size: 16px;
+}
+
+.brand-dashboard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.brand-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.brand-summary-card,
+.brand-panel,
+.brand-shortcuts > a {
+  border: 1px solid var(--food-line);
+  background: rgba(255, 255, 255, .94);
+  box-shadow: var(--food-shadow);
+}
+
+.brand-summary-card {
+  position: relative;
+  display: grid;
+  min-height: 154px;
+  padding: 20px;
+  border-radius: 22px;
+  color: var(--food-ink);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.brand-summary-card:hover,
+.brand-shortcuts > a:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 22px 54px rgba(25, 67, 49, .12);
+}
+
+.brand-summary-icon {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 13px;
+  background: var(--food-mint);
+  color: var(--food-green);
+  font-weight: 900;
+}
+
+.brand-summary-label {
+  color: #64736b;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.brand-summary-card > strong {
+  align-self: end;
+  margin-top: 22px;
+  font-size: 31px;
+  letter-spacing: -.045em;
+}
+
+.brand-summary-card > strong small {
+  color: #718078;
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0;
+}
+
+.brand-summary-note {
+  margin-top: 5px;
+  color: var(--food-green);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.brand-dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(340px, .85fr);
+  gap: 16px;
+}
+
+.brand-panel {
+  padding: 22px;
+  border-radius: 24px;
+}
+
+.brand-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.brand-panel-heading h2 {
+  margin: 2px 0 0;
+  color: var(--food-ink);
+  font-size: 22px;
+  letter-spacing: -.035em;
+}
+
+.brand-panel-heading a {
+  color: var(--food-green);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.brand-attention-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.brand-attention-item {
+  display: grid;
+  align-content: start;
+  min-height: 145px;
+  padding: 14px;
+  border: 1px solid rgba(23, 74, 55, .1);
+  border-radius: 17px;
+  background: #fcfdfb;
+  color: var(--food-ink);
+}
+
+.brand-food-placeholder {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 18px;
+  border-radius: 15px;
+  background: linear-gradient(145deg, #edf6ee, #f8efd7);
+  color: var(--food-green);
+  font-size: 24px;
+}
+
+.brand-attention-item strong {
+  line-height: 1.25;
+}
+
+.brand-attention-item small {
+  margin-top: 7px;
+  color: var(--food-coral);
+  font-weight: 800;
+}
+
+.brand-empty-state {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  min-height: 145px;
+  padding: 20px;
+  border-radius: 18px;
+  background: var(--food-mint);
+}
+
+.brand-empty-state > span {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--food-green);
+  font-size: 22px;
+  font-weight: 900;
+}
+
+.brand-empty-state p {
+  margin: 5px 0 0;
+  color: #6f7d75;
+}
+
+.brand-recipe-list {
+  display: grid;
+  gap: 10px;
+}
+
+.brand-recipe-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #fafbf8;
+  color: var(--food-ink);
+}
+
+.brand-recipe-list a:hover {
+  background: var(--food-mint);
+}
+
+.brand-recipe-list strong,
+.brand-recipe-list small {
+  display: block;
+}
+
+.brand-recipe-list small {
+  margin-top: 4px;
+  color: #748179;
+}
+
+.brand-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.brand-shortcuts > a {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 12px;
+  padding: 16px;
+  border-radius: 18px;
+  color: var(--food-ink);
+  transition: transform .18s ease, box-shadow .18s ease;
+}
+
+.brand-shortcuts > a > span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  background: var(--food-mint);
+  color: var(--food-green);
+  font-weight: 900;
+}
+
+.brand-shortcuts small {
+  color: #748179;
+}
+
+@media (max-width: 1100px) {
+  .brand-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brand-dashboard-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 900px) {
   .workspace > .content-shell {
     padding-inline: 16px;
+  }
+
+  .brand-dashboard-header {
+    display: grid;
+  }
+
+  .brand-attention-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .brand-shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .brand-summary-grid,
+  .brand-shortcuts {
+    grid-template-columns: 1fr;
+  }
+
+  .brand-dashboard-header h1 {
+    font-size: 38px;
+  }
+
+  .brand-dashboard-actions > a {
+    flex: 1 1 auto;
+  }
+
+  .brand-attention-grid {
+    grid-template-columns: 1fr;
   }
 }
