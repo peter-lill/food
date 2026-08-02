@@ -1,0 +1,264 @@
+.page {
+  display: grid;
+  gap: 24px;
+  padding-bottom: 32px;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  padding: 32px;
+  border: 1px solid rgba(0, 143, 96, .18);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 191, 120, .18), transparent 34%),
+    linear-gradient(135deg, #0b513c 0%, #087152 58%, #078d5e 100%);
+  box-shadow: 0 24px 60px rgba(4, 78, 56, .16);
+  color: #fff;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -80px;
+  bottom: -160px;
+  border-radius: 999px;
+  border: 38px solid rgba(255, 255, 255, .06);
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+}
+
+.heroCopy p {
+  margin: 0;
+}
+
+.heroCopy h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.heroCopy .intro {
+  max-width: 680px;
+  color: rgba(255, 255, 255, .78);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.ownerBadge {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .1);
+  backdrop-filter: blur(8px);
+}
+
+.ownerBadge span {
+  color: rgba(255, 255, 255, .72);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.ownerBadge strong {
+  font-size: 1.05rem;
+}
+
+.sectionHeading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+}
+
+.sectionHeading h2 {
+  margin: 4px 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  letter-spacing: -.035em;
+}
+
+.sectionHeading p {
+  margin: 0;
+}
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.toolCard {
+  grid-column: span 4;
+  position: relative;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(8, 113, 82, .15);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 12px 30px rgba(11, 81, 60, .08);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.toolCard:hover {
+  transform: translateY(-3px);
+  border-color: rgba(0, 143, 96, .35);
+  box-shadow: 0 20px 42px rgba(11, 81, 60, .13);
+}
+
+.toolCardPrimary {
+  grid-column: span 6;
+  min-height: 270px;
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.iconWrap {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #e9f9f1, #dff5ea);
+  color: #087152;
+  font-size: 1.55rem;
+  font-weight: 800;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eef8f3;
+  color: #087152;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #00a66f;
+  box-shadow: 0 0 0 4px rgba(0, 166, 111, .12);
+}
+
+.toolContent {
+  flex: 1;
+}
+
+.toolContent h3 {
+  margin: 0 0 10px;
+  font-size: 1.45rem;
+  letter-spacing: -.025em;
+}
+
+.toolContent p {
+  margin: 0;
+  color: var(--muted, #5f6f68);
+  line-height: 1.55;
+}
+
+.toolLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: #078d5e;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(7, 141, 94, .16);
+}
+
+.toolLink:hover {
+  background: #067b53;
+}
+
+.footerBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid rgba(8, 113, 82, .13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.footerBar p {
+  margin: 0;
+  color: var(--muted, #5f6f68);
+}
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 800;
+  color: #087152;
+  text-decoration: none;
+}
+
+@media (max-width: 1100px) {
+  .toolCard,
+  .toolCardPrimary {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 760px) {
+  .hero {
+    grid-template-columns: 1fr;
+    padding: 24px;
+  }
+
+  .ownerBadge {
+    min-width: 0;
+  }
+
+  .toolCard,
+  .toolCardPrimary {
+    grid-column: 1 / -1;
+    min-height: 0;
+  }
+
+  .sectionHeading,
+  .footerBar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
