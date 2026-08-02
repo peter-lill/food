@@ -74,22 +74,38 @@ export default async function Dashboard() {
 
   return (
     <main className="food-home">
-      <section className="food-home-hero">
-        <div className="food-home-hero-copy">
-          <p className="food-home-kicker">YOUR KITCHEN, ORGANISED</p>
-          <h1>{greeting}, {firstName}.</h1>
-          <p>Plan the week, use what you already have and make better food choices without turning dinner into admin.</p>
-          <div className="food-home-hero-actions">
-            <Link className="food-home-primary" href="/planner">Plan this week</Link>
-            <Link className="food-home-secondary" href="/recipes">Browse recipes</Link>
+      <section className="food-home-editorial-hero">
+        <div className="food-home-brand-block">
+          <img alt="" aria-hidden="true" className="food-home-brand-mark" src="/brand/food-mark.svg" />
+          <div>
+            <p className="food-home-kicker">FOOD · YOUR KITCHEN COMPANION</p>
+            <h1>{greeting}, {firstName}.</h1>
+            <p>Know what you have, decide what to cook and make better choices today.</p>
           </div>
         </div>
+
+        <div className="food-home-today-focus">
+          <span className="food-home-focus-label">TODAY</span>
+          <h2>{attentionItems.length ? `${attentionItems.length} pantry item${attentionItems.length === 1 ? "" : "s"} need attention.` : "Your kitchen is ready for the day."}</h2>
+          <p>{attentionItems.length ? "Use what needs attention first, then plan a meal around what is already in your kitchen." : "Plan dinner, check your pantry or add anything you picked up today."}</p>
+          <div className="food-home-hero-actions">
+            <Link className="food-home-primary" href="/planner">Plan this week</Link>
+            <Link className="food-home-secondary" href="/pantry">Open pantry</Link>
+          </div>
+        </div>
+
         {featuredRecipe ? (
-          <aside className="food-home-featured">
-            <small>FEATURED RECIPE · {featuredRecipe.sourceName.toUpperCase()}</small>
-            <strong>{featuredRecipe.name}</strong>
-            <span>{featuredRecipe.tags.slice(0, 2).join(" · ")}</span>
-            <a href={featuredRecipe.sourceUrl} rel="noopener noreferrer" target="_blank">Open recipe →</a>
+          <aside className="food-home-featured-card">
+            <div className="food-home-featured-art" aria-hidden="true">
+              <span>Tonight</span>
+              <b>Cook with what you have</b>
+            </div>
+            <div className="food-home-featured-copy">
+              <small>{featuredRecipe.sourceName.toUpperCase()}</small>
+              <strong>{featuredRecipe.name}</strong>
+              <span>{featuredRecipe.tags.slice(0, 2).join(" · ")}</span>
+              <a href={featuredRecipe.sourceUrl} rel="noopener noreferrer" target="_blank">Open recipe →</a>
+            </div>
           </aside>
         ) : null}
       </section>
