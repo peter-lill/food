@@ -53,6 +53,15 @@ function normaliseDepartment(value: string, productType: ProductType) {
   return value;
 }
 
+function parseAllergens(value: string) {
+  return [...new Set(
+    value
+      .split(/[,;\n]/)
+      .map((item) => item.replace(/^[a-z]{2}:/i, "").trim().toLocaleLowerCase("en-AU"))
+      .filter(Boolean),
+  )].slice(0, 30);
+}
+
 export async function updateProductDetails(productId: string, formData: FormData) {
   const name = text(formData, "name");
   const brand = text(formData, "brand");
@@ -64,9 +73,12 @@ export async function updateProductDetails(productId: string, formData: FormData
   const servingQuantity = optionalNumber(formData, "servingQuantity");
   const servingUnit = text(formData, "servingUnit");
   const servingsPerPackage = optionalNumber(formData, "servingsPerPackage");
+  const allergensInput = text(formData, "allergens");
+  const allergens = parseAllergens(allergensInput);
 
   if (name.length < 2 || name.length > 140) throw new Error("Enter a product name between 2 and 140 characters.");
   if (brand.length > 100 || packSize.length > 60 || servingSize.length > 60) throw new Error("One or more product fields are too long.");
+  if (allergensInput.length > 500) throw new Error("Allergen information must be 500 characters or fewer.");
   if (barcode && !/^\d{8,14}$/.test(barcode)) throw new Error("Enter an 8 to 14 digit GTIN/EAN barcode, or leave it blank.");
   if (!Object.values(ProductType).includes(productTypeInput as ProductType)) throw new Error("Choose a valid product type.");
   if (servingUnit && !servingUnits.includes(servingUnit as (typeof servingUnits)[number])) throw new Error("Choose a valid serving unit.");
@@ -106,6 +118,7 @@ export async function updateProductDetails(productId: string, formData: FormData
       servingQuantity,
       servingUnit: nullable(servingUnit),
       servingsPerPackage,
+      allergens,
       lifecycle: "REVIEW_REQUIRED",
     },
     select: { id: true, slug: true },
