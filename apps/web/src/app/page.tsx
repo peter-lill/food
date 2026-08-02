@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getAuthSession } from "@/lib/auth-session";
-import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { externalRecipes, type ExternalRecipe } from "@/lib/recipes/external-recipes";
 import { formatLitres } from "@/lib/health/health.format";
 import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 import { getLatestHealthSummary } from "@/lib/health/health.repository";
@@ -9,15 +9,30 @@ import type { PantryQuantitySummary } from "@/lib/pantry/pantry.types";
 
 export const dynamic = "force-dynamic";
 
-function randomRecipes(count: number) {
-  const pool = externalRecipes.filter((recipe) => recipe.sourceName !== "Mayo Clinic");
+const nonDinnerTerms = [
+  "dessert", "sweet", "cake", "biscuit", "cookie", "muffin", "slice", "pudding", "yoghurt coated",
+  "smoothie", "drink", "beverage", "snack", "breakfast", "porridge", "granola", "pancake",
+] as const;
 
+function isDinnerRecipe(recipe: ExternalRecipe) {
+  const text = [recipe.name, recipe.description, ...recipe.tags].join(" ").toLocaleLowerCase("en-AU");
+  return !nonDinnerTerms.some((term) => text.includes(term));
+}
+
+function shuffledRecipes(recipes: ExternalRecipe[]) {
+  const pool = [...recipes];
   for (let index = pool.length - 1; index > 0; index -= 1) {
     const randomIndex = Math.floor(Math.random() * (index + 1));
     [pool[index], pool[randomIndex]] = [pool[randomIndex], pool[index]];
   }
+  return pool;
+}
 
-  return pool.slice(0, count);
+function recipeInspiration(count: number) {
+  const available = externalRecipes.filter((recipe) => recipe.sourceName !== "Mayo Clinic");
+  const dinners = shuffledRecipes(available.filter(isDinnerRecipe));
+  const remaining = shuffledRecipes(available.filter((recipe) => !isDinnerRecipe(recipe)));
+  return [...dinners, ...remaining].slice(0, count);
 }
 
 function brisbaneGreeting(date = new Date()) {
@@ -55,8 +70,8 @@ export default async function Dashboard() {
     getPantryItems().catch(() => []),
   ]);
   const attentionItems = pantryItems.filter((item) => item.expired || item.useSoon).slice(0, 4);
-  const inspiration = randomRecipes(3);
-  const featuredRecipe = inspiration[0];
+  const inspiration = recipeInspiration(3);
+  const featuredRecipe = inspiration.find(isDinnerRecipe) ?? inspiration[0];
   const firstName = session?.user.name?.trim().split(/\s+/)[0] || "there";
   const greeting = brisbaneGreeting();
 
@@ -74,7 +89,7 @@ export default async function Dashboard() {
         </div>
         {featuredRecipe ? (
           <aside className="v2-tonight">
-            <small>FEATURED RECIPE · {featuredRecipe.sourceName.toUpperCase()}</small>
+            <small>TONIGHT&apos;S IDEA · {featuredRecipe.sourceName.toUpperCase()}</small>
             <strong>{featuredRecipe.name}</strong>
             <span>{featuredRecipe.tags.slice(0, 2).join(" · ")}</span>
             <a href={featuredRecipe.sourceUrl} rel="noopener noreferrer" target="_blank">Open recipe →</a>
