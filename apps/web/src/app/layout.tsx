@@ -7,6 +7,7 @@ import "./v2.css";
 import "./bright-theme.css";
 import "./shell-refinements.css";
 import "./retailer-branding.css";
+import "./brand-system.css";
 import { AppShell } from "@/components/AppShell";
 import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { ProductQualityController } from "@/components/products/ProductQualityController";
@@ -16,7 +17,7 @@ import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 
 export const metadata: Metadata = {
   title: "Food",
-  description: "Personal food, shopping and nutrition companion",
+  description: "Know what is in your kitchen and make better choices every day.",
   icons: { icon: "/brand/food-mark.svg" },
 };
 
