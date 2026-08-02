@@ -38,6 +38,20 @@ function decodeHtml(value: string) {
     .replace(/&#(\d+);/g, (_match, code: string) => String.fromCharCode(Number(code)));
 }
 
+function decodeEmbedded(value: string) {
+  return decodeHtml(value)
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u003c/gi, "<")
+    .replace(/\\u003e/gi, ">")
+    .replace(/\\u0027/gi, "'")
+    .replace(/\\u0022/gi, '"')
+    .replace(/\\n/g, "\n")
+    .replace(/\\r/g, "\n")
+    .replace(/\\t/g, " ")
+    .replace(/\\\//g, "/")
+    .replace(/\\"/g, '"');
+}
+
 function htmlLines(html: string) {
   return decodeHtml(
     html
@@ -49,6 +63,28 @@ function htmlLines(html: string) {
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
     .filter(Boolean);
+}
+
+function embeddedLines(html: string) {
+  const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
+    .map((match) => decodeEmbedded(match[1]))
+    .filter((value) => /serving|nutrition|ingredient|allergen|contains/i.test(value));
+
+  return scripts
+    .join("\n")
+    .replace(/[{}\[\]]/g, "\n")
+    .replace(/",\s*"/g, "\n")
+    .replace(/"\s*:\s*"/g, ": ")
+    .replace(/"\s*:\s*/g, ": ")
+    .replace(/<[^>]+>/g, " ")
+    .split(/\r?\n/)
+    .map((line) => line.replace(/[",]+$/g, "").replace(/^\s*[",]+/g, "").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}
+
+function combinedLines(html: string) {
+  const values = [...embeddedLines(html), ...htmlLines(html)];
+  return [...new Set(values)];
 }
 
 function normalise(value: string) {
@@ -77,9 +113,25 @@ function valueAfterLabel(lines: string[], pattern: RegExp) {
   return lines[index + 1] ?? null;
 }
 
+function valueFromKeys(lines: string[], keys: RegExp[]) {
+  for (const key of keys) {
+    const value = valueAfterLabel(lines, key);
+    if (value && !/^null$/i.test(value)) return value.replace(/^['"]|['"]$/g, "").trim();
+  }
+  return null;
+}
+
 function parseServing(lines: string[]) {
-  const servingsText = valueAfterLabel(lines, /servings?\s+per\s+(?:pack|package)/i);
-  const servingSize = valueAfterLabel(lines, /serving\s+size/i);
+  const servingsText = valueFromKeys(lines, [
+    /^servings?\s+per\s+(?:pack|package)/i,
+    /^servingsPerPackage\s*:/i,
+    /^numberOfServings\s*:/i,
+  ]);
+  const servingSize = valueFromKeys(lines, [
+    /^serving\s+size/i,
+    /^servingSize\s*:/i,
+    /^servingSizeDescription\s*:/i,
+  ]);
   const match = servingSize?.match(/([0-9]+(?:\.[0-9]+)?)\s*(g|ml|mL|item|slice|piece|tablet|capsule)s?\b/i) ?? null;
   const rawUnit = match?.[2] ?? "";
   return {
@@ -91,18 +143,22 @@ function parseServing(lines: string[]) {
 }
 
 function nutrientPer100(lines: string[], aliases: string[], unit: "kJ" | "g" | "mg") {
-  const index = lines.findIndex((line) => aliases.some((alias) => normalise(line) === normalise(alias)));
+  const aliasValues = aliases.map(normalise);
+  const index = lines.findIndex((line) => {
+    const candidate = normalise(line.split(":")[0]);
+    return aliasValues.includes(candidate) || aliasValues.some((alias) => candidate.endsWith(` ${alias}`));
+  });
   if (index < 0) return null;
 
   const values: number[] = [];
-  for (const line of lines.slice(index + 1, index + 14)) {
+  for (const line of lines.slice(index, index + 18)) {
     const unitPattern = unit === "kJ"
       ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*kJ\b/i
       : unit === "mg"
         ? /<?\s*[0-9]+(?:\.[0-9]+)?\s*mg\b/i
         : /<?\s*[0-9]+(?:\.[0-9]+)?\s*g\b/i;
     if (!unitPattern.test(line)) continue;
-    const parsed = numberFrom(line);
+    const parsed = numberFrom(line.replace(/^[^:]*:\s*/, ""));
     if (parsed === null || values.includes(parsed)) continue;
     values.push(parsed);
     if (values.length === 2) break;
@@ -113,6 +169,8 @@ function nutrientPer100(lines: string[], aliases: string[], unit: "kJ" | "g" | "
 function section(lines: string[], start: RegExp, ends: RegExp[]) {
   const startIndex = lines.findIndex((line) => start.test(line));
   if (startIndex < 0) return null;
+  const sameLine = lines[startIndex].replace(start, "").replace(/^\s*[:,]\s*/, "").trim();
+  if (sameLine && sameLine.length > 2) return sameLine;
   let endIndex = lines.length;
   for (let index = startIndex + 1; index < lines.length; index += 1) {
     if (ends.some((pattern) => pattern.test(lines[index]))) {
@@ -127,18 +185,23 @@ function section(lines: string[], start: RegExp, ends: RegExp[]) {
 function allergenList(value: string | null) {
   if (!value) return [];
   return [...new Set(value
-    .replace(/^(?:contains|may contain)\s*:?\s*/i, "")
+    .replace(/^(?:contains|may contain|allergens?)\s*:?\s*/i, "")
     .split(/[,;]|\band\b/i)
     .map((item) => item.replace(/[.]+$/g, "").trim())
-    .filter(Boolean))];
+    .filter((item) => item && !/^not (?:available|specified|provided)$/i.test(item)))];
 }
 
 function parseLabel(html: string, retailer: string, sourceUrl: string): RetailerLabel | null {
-  const lines = htmlLines(html);
-  if (!lines.some((line) => /nutrition information/i.test(line))) return null;
+  const lines = combinedLines(html);
+  const hasLabelMarkers = lines.some((line) => /nutrition information|servingSize|ingredients?\s*:|allergens?\s*:/i.test(line));
+  if (!hasLabelMarkers) return null;
 
   const serving = parseServing(lines);
-  const ingredientsText = section(lines, /^ingredients?$/i, [
+  const ingredientsText = valueFromKeys(lines, [
+    /^ingredients?\s*:/i,
+    /^ingredientsList\s*:/i,
+    /^ingredientStatement\s*:/i,
+  ]) ?? section(lines, /^ingredients?$/i, [
     /^allergens?$/i,
     /^contains\b/i,
     /^may contain\b/i,
@@ -146,10 +209,17 @@ function parseLabel(html: string, retailer: string, sourceUrl: string): Retailer
     /^directions$/i,
     /^storage$/i,
   ]);
-  const contains = firstMatchingLine(lines, /^contains\s*:/i)
-    ?? valueAfterLabel(lines, /^allergens?$/i);
-  const mayContain = firstMatchingLine(lines, /^may contain\s*:/i);
-  const energyKj = nutrientPer100(lines, ["Energy"], "kJ");
+  const contains = valueFromKeys(lines, [
+    /^contains\s*:/i,
+    /^allergens?\s*:/i,
+    /^allergenStatement\s*:/i,
+  ]);
+  const mayContain = valueFromKeys(lines, [
+    /^may contain\s*:/i,
+    /^mayContain\s*:/i,
+    /^mayContainStatement\s*:/i,
+  ]);
+  const energyKj = nutrientPer100(lines, ["Energy", "Energy Per 100g", "Energy Per 100mL"], "kJ");
 
   return {
     retailer,
@@ -157,13 +227,13 @@ function parseLabel(html: string, retailer: string, sourceUrl: string): Retailer
     retrievedAt: new Date(),
     ...serving,
     calories: energyKj === null ? null : energyKj / 4.184,
-    proteinGrams: nutrientPer100(lines, ["Protein"], "g"),
-    carbsGrams: nutrientPer100(lines, ["Carbohydrate", "Carbohydrate Total"], "g"),
-    fatGrams: nutrientPer100(lines, ["Fat, Total", "Fat Total"], "g"),
-    saturatedFatGrams: nutrientPer100(lines, ["Saturated", "– Saturated", "- Saturated"], "g"),
-    fibreGrams: nutrientPer100(lines, ["Dietary Fibre", "Fibre"], "g"),
-    sugarGrams: nutrientPer100(lines, ["Sugars", "– Sugars", "- Sugars"], "g"),
-    sodiumMg: nutrientPer100(lines, ["Sodium"], "mg"),
+    proteinGrams: nutrientPer100(lines, ["Protein", "Protein Per 100g", "Protein Per 100mL"], "g"),
+    carbsGrams: nutrientPer100(lines, ["Carbohydrate", "Carbohydrate Total", "Carbohydrate Per 100g"], "g"),
+    fatGrams: nutrientPer100(lines, ["Fat, Total", "Fat Total", "Fat Per 100g"], "g"),
+    saturatedFatGrams: nutrientPer100(lines, ["Saturated", "Saturated Fat", "Saturated Per 100g"], "g"),
+    fibreGrams: nutrientPer100(lines, ["Dietary Fibre", "Fibre", "Fibre Per 100g"], "g"),
+    sugarGrams: nutrientPer100(lines, ["Sugars", "Sugar", "Sugars Per 100g"], "g"),
+    sodiumMg: nutrientPer100(lines, ["Sodium", "Sodium Per 100g"], "mg"),
     ingredientsText,
     allergens: allergenList(contains),
     mayContainAllergens: allergenList(mayContain),
@@ -173,13 +243,13 @@ function parseLabel(html: string, retailer: string, sourceUrl: string): Retailer
 async function fetchLabel(url: string, retailer: string) {
   if (!/^(Coles|Woolworths)$/i.test(retailer)) return null;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 12_000);
+  const timer = setTimeout(() => controller.abort(), 15_000);
   try {
     const response = await fetch(url, {
       cache: "no-store",
       redirect: "follow",
       signal: controller.signal,
-      headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml" },
+      headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml,application/json;q=0.9" },
     });
     if (!response.ok) return null;
     return parseLabel(await response.text(), retailer, url);
