@@ -1,6 +1,9 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
-import { getProductLabelText } from "@/lib/product-intelligence/retailer-label-enrichment";
+import {
+  enrichProductFromRetailerLabels,
+  getProductLabelText,
+} from "@/lib/product-intelligence/retailer-label-enrichment";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = { params: Promise<{ productId: string }> };
@@ -26,10 +29,25 @@ type CanonicalNip = {
   verifiedAt: Date | null;
 };
 
+async function canonicalNip(productId: string) {
+  const rows = await prisma.$queryRaw<CanonicalNip[]>(Prisma.sql`
+    SELECT
+      "servingsPerPackage", "servingSize", "servingQuantity", "servingUnit",
+      "energyKjPer100", "proteinGramsPer100", "carbsGramsPer100", "fatGramsPer100",
+      "saturatedFatGramsPer100", "fibreGramsPer100", "sugarGramsPer100", "sodiumMgPer100",
+      "ingredientsText", "containsAllergens", "mayContainAllergens", "source", "sourceUrl", "verifiedAt"
+    FROM "ProductNutritionPanel"
+    WHERE "productId" = ${productId}
+    LIMIT 1
+  `).catch(() => [] as CanonicalNip[]);
+  return rows[0] ?? null;
+}
+
 export async function GET(_request: Request, { params }: RouteContext) {
   const { productId } = await params;
   const decodedProductId = decodeURIComponent(productId);
-  const product = await prisma.product.findFirst({
+
+  let product = await prisma.product.findFirst({
     where: {
       lifecycle: { not: "ARCHIVED" },
       OR: [{ id: decodedProductId }, { slug: decodedProductId }],
@@ -62,18 +80,43 @@ export async function GET(_request: Request, { params }: RouteContext) {
 
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
-  const canonicalRows = await prisma.$queryRaw<CanonicalNip[]>(Prisma.sql`
-    SELECT
-      "servingsPerPackage", "servingSize", "servingQuantity", "servingUnit",
-      "energyKjPer100", "proteinGramsPer100", "carbsGramsPer100", "fatGramsPer100",
-      "saturatedFatGramsPer100", "fibreGramsPer100", "sugarGramsPer100", "sodiumMgPer100",
-      "ingredientsText", "containsAllergens", "mayContainAllergens", "source", "sourceUrl", "verifiedAt"
-    FROM "ProductNutritionPanel"
-    WHERE "productId" = ${product.id}
-    LIMIT 1
-  `).catch(() => [] as CanonicalNip[]);
+  let canonical = await canonicalNip(product.id);
+  const incomplete = !canonical?.servingSize
+    || canonical.servingsPerPackage === null
+    || !canonical.ingredientsText;
 
-  const canonical = canonicalRows[0] ?? null;
+  if (incomplete && product.storeProducts.length) {
+    await enrichProductFromRetailerLabels(product.id).catch(() => null);
+    canonical = await canonicalNip(product.id);
+    product = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+      select: {
+        id: true,
+        name: true,
+        canonicalName: true,
+        productType: true,
+        servingSize: true,
+        servingQuantity: true,
+        servingUnit: true,
+        servingsPerPackage: true,
+        calories: true,
+        proteinGrams: true,
+        carbsGrams: true,
+        fatGrams: true,
+        saturatedFatGrams: true,
+        fibreGrams: true,
+        sugarGrams: true,
+        sodiumMg: true,
+        allergens: true,
+        updatedAt: true,
+        storeProducts: {
+          where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
+          select: { retailer: true },
+        },
+      },
+    });
+  }
+
   const labelText = canonical ? null : await getProductLabelText(product.id);
   const isFreshProduce = product.productType === "GENERIC_PRODUCE";
   const produceIngredient = product.canonicalName?.trim() || product.name.trim();
