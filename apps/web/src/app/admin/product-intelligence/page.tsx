@@ -135,7 +135,11 @@ export default async function ProductIntelligenceAdminPage({ searchParams }: Pag
           <h1 className="page-title">Catalogue Manager</h1>
           <p className="subtle">Find incomplete records, repair product identity and consolidate duplicates.</p>
         </div>
-        <Link className="secondary-button" href="/products">Open Product Library</Link>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <Link className="secondary-button" href="/admin/product-intelligence/quality">Quality dashboard</Link>
+          <Link className="secondary-button" href="/admin/product-intelligence/labels">Australian labels</Link>
+          <Link className="secondary-button" href="/products">Open Product Library</Link>
+        </div>
       </header>
 
       <section className={styles.summaryGrid} aria-label="Catalogue summary">
@@ -171,12 +175,12 @@ export default async function ProductIntelligenceAdminPage({ searchParams }: Pag
         <div className={styles.cardList}>
           {reviewProducts.length ? reviewProducts.map(({ product, score, issues, hasImage, missingBarcode, missingDepartment }) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
-            const findings = [
+            const findings = [...new Set([
               !hasImage ? "Image missing" : null,
               missingBarcode ? "Barcode missing" : null,
               missingDepartment ? "Department missing" : null,
               ...issues.map((issue) => label(issue.code)),
-            ].filter(Boolean);
+            ].filter((item): item is string => Boolean(item)))];
             return (
               <article className={styles.mobileCard} key={product.id}>
                 <div className={styles.mobileTitle}><Link href={href}>{product.name}</Link><span className={styles.badge}>{score}%</span></div>
@@ -187,7 +191,10 @@ export default async function ProductIntelligenceAdminPage({ searchParams }: Pag
                   <div><small>Barcode</small><strong>{product.productType === ProductType.GENERIC_PRODUCE ? "Not required" : product.barcode ?? "Missing"}</strong></div>
                 </div>
                 <p className={styles.findings}>{findings.length ? findings.join(" · ") : "No outstanding findings"}</p>
-                <Link className={styles.reviewLink} href={href}>Review product →</Link>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  <Link className={styles.reviewLink} href={href}>Review product →</Link>
+                  <Link className={styles.reviewLink} href={`/admin/product-intelligence/inspector?productId=${encodeURIComponent(product.id)}`}>Inspect knowledge →</Link>
+                </div>
               </article>
             );
           }) : <p className={styles.empty}>No products match this review queue.</p>}
