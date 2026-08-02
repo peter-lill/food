@@ -8,7 +8,6 @@ import {
 } from "@/lib/products/product-image.actions";
 import { resolveDirectRetailerImage } from "@/lib/products/direct-retailer-image.actions";
 import { listProductImageCandidates } from "@/lib/products/image-candidate.repository";
-import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
 import type { ImageSearchDiagnostics } from "@/lib/products/image-recovery";
 import { ProductLabelSupplement } from "./ProductLabelSupplement";
 import styles from "./ProductImagePanel.module.css";
@@ -58,13 +57,6 @@ function qualityLabel(score: number | null) {
 }
 
 export async function ProductImagePanel({ productId, productName, hasImage }: ProductImagePanelProps) {
-  await enrichProductFromRetailerLabels(productId).catch((error) => {
-    console.warn("Retailer product label enrichment failed", {
-      productId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  });
-
   const cookieStore = await cookies();
   const searchStatus = parseStatus(cookieStore.get(statusCookieName(productId))?.value);
   const diagnostics = searchStatus?.diagnostics;
@@ -150,7 +142,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
       ) : null}
 
       {activeCandidates.length ? (
-        <details className={styles.gallerySection} open>
+        <details className={styles.gallerySection}>
           <summary className={styles.summary}>Candidate images ({activeCandidates.length})</summary>
           <div className={styles.gallery}>{activeCandidates.map(renderCandidate)}</div>
         </details>
