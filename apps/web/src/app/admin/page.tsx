@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
+import { getProductKnowledgeOperationsSummary, runProductKnowledgeSelfHealing } from "@/lib/product-intelligence/product-knowledge-operations";
 import styles from "./admin.module.css";
 
 export const metadata = {
@@ -9,7 +11,7 @@ const adminTools = [
   {
     title: "Catalogue Manager",
     description: "Review incomplete products, duplicate records, enrichment jobs and catalogue operations from one workspace.",
-    href: "/admin/product-intelligence",
+    href: "/admin/product-intelligence?view=review",
     icon: "◈",
     primary: true,
   },
@@ -43,7 +45,29 @@ const adminTools = [
   },
 ] as const;
 
-export default function AdminPage() {
+async function runSelfHealing(formData: FormData) {
+  "use server";
+  const requested = Number(formData.get("batchSize") ?? 10);
+  const batchSize = Number.isFinite(requested) ? Math.max(1, Math.min(Math.floor(requested), 25)) : 10;
+  await runProductKnowledgeSelfHealing(batchSize);
+  revalidatePath("/admin");
+  revalidatePath("/admin/product-intelligence");
+  revalidatePath("/admin/product-intelligence/quality");
+  revalidatePath("/admin/product-intelligence/labels");
+  revalidatePath("/products");
+}
+
+export default async function AdminPage() {
+  const operations = await getProductKnowledgeOperationsSummary();
+  const metrics = [
+    { label: "Catalogue confidence", value: `${operations.catalogueConfidence}%`, note: `${operations.products} products assessed`, href: "/admin/product-intelligence/quality" },
+    { label: "Needs review", value: operations.needsReview.toLocaleString("en-AU"), note: "Broken or validation-blocked", href: "/admin/product-intelligence?view=review" },
+    { label: "Missing ingredients", value: operations.missingIngredients.toLocaleString("en-AU"), note: "Packaged products", href: "/admin/product-intelligence/labels" },
+    { label: "Missing serving size", value: operations.missingServingSizes.toLocaleString("en-AU"), note: "Retailer-linked labels", href: "/admin/product-intelligence/labels" },
+    { label: "Provider failures", value: operations.providerFailures.toLocaleString("en-AU"), note: "Failed enrichment jobs", href: "/admin/product-intelligence/diagnostics" },
+    { label: "Active jobs", value: operations.activeJobs.toLocaleString("en-AU"), note: "Queued, running or retrying", href: "/admin/product-intelligence" },
+  ] as const;
+
   return (
     <main className={styles.page}>
       <section className={styles.hero}>
@@ -59,6 +83,43 @@ export default function AdminPage() {
           <strong>Owner only</strong>
           <small>Protected server-side</small>
         </div>
+      </section>
+
+      <section className={styles.operationsSection}>
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className="eyebrow">LIVE OPERATIONS</p>
+            <h2>Product Knowledge health</h2>
+          </div>
+          <p className="subtle">Current quality, enrichment and provider status.</p>
+        </div>
+        <div className={styles.metricGrid}>
+          {metrics.map((metric) => (
+            <Link className={styles.metricCard} href={metric.href} key={metric.label}>
+              <span>{metric.label}</span>
+              <strong>{metric.value}</strong>
+              <small>{metric.note}</small>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.healingPanel}>
+        <div>
+          <p className="eyebrow">SELF-HEALING</p>
+          <h2>Repair the weakest products</h2>
+          <p>
+            Sanitises contaminated names, retries Coles and Woolworths label enrichment, recalculates confidence and sends unresolved records to review.
+          </p>
+          <small>{operations.recentRepairs} successful repairs in the past seven days</small>
+        </div>
+        <form action={runSelfHealing} className={styles.healingForm}>
+          <label>
+            <span>Batch size</span>
+            <input defaultValue="10" max="25" min="1" name="batchSize" type="number" />
+          </label>
+          <button type="submit">Repair weakest products <span aria-hidden="true">→</span></button>
+        </form>
       </section>
 
       <section>
