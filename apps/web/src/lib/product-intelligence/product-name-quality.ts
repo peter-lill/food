@@ -59,10 +59,16 @@ function collapseRepeatedPhrase(value: string) {
   return value;
 }
 
+function stripUnsafeLeadingPunctuation(value: string) {
+  return value.replace(/^\s*[.,;:|_-]+\s*(?=[A-Za-z0-9])/, "").trim();
+}
+
 export function hasProductNameContamination(value: string | null | undefined) {
   if (!value) return true;
   const clean = normaliseWhitespace(value);
-  return clean.length > 180 || invalidNamePatterns.some((pattern) => pattern.test(clean));
+  return clean.length > 180
+    || /^[.,;:|_-]+\s*[A-Za-z0-9]/.test(clean)
+    || invalidNamePatterns.some((pattern) => pattern.test(clean));
 }
 
 export function sanitiseProductName(value: string | null | undefined) {
@@ -71,11 +77,13 @@ export function sanitiseProductName(value: string | null | undefined) {
   if (!initial) return null;
 
   const repeatedSuffix = repeatedCleanSuffix(initial);
-  if (repeatedSuffix) return collapseRepeatedPhrase(normaliseWhitespace(repeatedSuffix));
+  if (repeatedSuffix) return collapseRepeatedPhrase(stripUnsafeLeadingPunctuation(normaliseWhitespace(repeatedSuffix)));
 
   let cleaned = initial;
   for (const pattern of cssNoisePatterns) cleaned = cleaned.replace(pattern, " ");
-  cleaned = collapseRepeatedPhrase(normaliseWhitespace(cleaned.replace(/[;|]+/g, " ")));
+  cleaned = stripUnsafeLeadingPunctuation(
+    collapseRepeatedPhrase(normaliseWhitespace(cleaned.replace(/[;|]+/g, " "))),
+  );
 
   if (!cleaned || cleaned.length > 180 || invalidNamePatterns.some((pattern) => pattern.test(cleaned))) return null;
   if (!/[a-z]/i.test(cleaned)) return null;
@@ -85,7 +93,7 @@ export function sanitiseProductName(value: string | null | undefined) {
 export function validateProductName(value: string | null | undefined) {
   const sanitised = sanitiseProductName(value);
   const original = value ? normaliseWhitespace(value) : "";
-  const changed = Boolean(sanitised && normaliseForComparison(sanitised) !== normaliseForComparison(original));
+  const changed = Boolean(sanitised && sanitised !== original);
 
   return {
     valid: Boolean(sanitised),
