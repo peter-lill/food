@@ -16,6 +16,7 @@ type ProductImagePanelProps = {
   productId: string;
   productName: string;
   hasImage: boolean;
+  showLabelDetails?: boolean;
 };
 
 type ImageSearchStatus = {
@@ -56,7 +57,7 @@ function qualityLabel(score: number | null) {
   return "Needs review";
 }
 
-export async function ProductImagePanel({ productId, productName, hasImage }: ProductImagePanelProps) {
+export async function ProductImagePanel({ productId, productName, hasImage, showLabelDetails = true }: ProductImagePanelProps) {
   const cookieStore = await cookies();
   const searchStatus = parseStatus(cookieStore.get(statusCookieName(productId))?.value);
   const diagnostics = searchStatus?.diagnostics;
@@ -227,7 +228,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
         </form>
       </div>
 
-      <ProductLabelSupplement productId={productId} />
+      {showLabelDetails ? <ProductLabelSupplement productId={productId} /> : null}
     </article>
   );
 }

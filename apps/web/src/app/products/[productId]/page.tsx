@@ -107,6 +107,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   await enrichProductKnowledge(decodedProductId);
   const product = await getProductHubDetail(decodedProductId, { specific: specific === "1" });
   if (!product) notFound();
+  const isGenericProduct = !product.brand && !product.barcode && product.storeProducts.length === 0;
 
   const rawDisplayName = collapseRepeatedPhrase(product.name);
   const genericFamily = !product.brand && !product.barcode && product.canonicalName
@@ -115,7 +116,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const displayName = genericFamily ?? rawDisplayName;
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
   const department = cleanDepartment(product.category, displayName, canonicalName);
-  const barcodeRequired = product.productType !== "GENERIC_PRODUCE";
+  const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const description = product.description ?? knowledge?.overview ?? null;
   const latestPrice = product.priceObservations[0] ?? null;
@@ -150,7 +151,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   return (
     <div className={styles.page}>
       <Link className={`secondary-button ${styles.backLink}`} href="/products">← Product Hub</Link>
-      <section className={styles.detailHero}>
+      <section className={`${styles.detailHero} ${isGenericProduct ? styles.genericDetailHero : ""}`}>
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
@@ -172,7 +173,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             </div>
           </div>
         </div>
-        <aside className={styles.panel}>
+        {!isGenericProduct ? <aside className={styles.panel}>
           <p className="eyebrow">YOUR PRODUCT</p>
           <div className={styles.metricGrid}>
             <div className={styles.metric}><small>{latestPrice?.isSpecial ? "Special price" : "Latest price"}</small><strong>{latestPrice ? money(latestPrice.price) : "—"}</strong><small>{latestPrice ? `${latestPrice.isSpecial ? "On special" : "Regular price"} · ${latestPrice.retailer} · ${date(latestPrice.observedAt)}` : "No observation"}</small></div>
@@ -180,11 +181,11 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <div className={styles.metric}><small>Known names</small><strong>{product.aliases.length + (canonicalName ? 1 : 0)}</strong><small>Aliases and family</small></div>
             <div className={styles.metric}><small>Price records</small><strong>{product.priceObservations.length}</strong><small>Latest 100 retained</small></div>
           </div>
-        </aside>
+        </aside> : null}
       </section>
 
       <section className={styles.sections}>
-        <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} />
+        <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} showLabelDetails={!isGenericProduct} />
 
         {product.variants.length ? (
           <article className={styles.panel}>
@@ -214,6 +215,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           <article className={`${styles.panel} ${styles.barcodePanel}`}><div><p className="eyebrow">GTIN / EAN</p><h2>Barcode not known</h2><p className="subtle">Food will continue checking trusted retailer and barcode sources for this product.</p></div></article>
         ) : null}
 
+        {!isGenericProduct ? <>
         <article className={styles.panel}>
           <details>
             <summary><strong>Edit product details</strong></summary>
@@ -235,11 +237,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         </article>
 
         <ProductMergePanel sourceProductId={product.id} sourceProductName={displayName} />
+        </> : null}
 
         {knowledge ? <article className={styles.panel}><h2>About {canonicalName ?? displayName}</h2><p className="subtle">{knowledge.overview}</p>{knowledge.origin ? <><h3>Origin and production</h3><p className="subtle">{knowledge.origin}</p></> : null}</article> : null}
         {knowledge ? <article className={styles.panel}><h2>Common uses</h2><div className={styles.tags}>{knowledge.uses.map((use) => <span key={use}>{use}</span>)}</div><h3>Storage</h3><ul className={styles.list}>{knowledge.storage.map((tip) => <li className={styles.listItem} key={tip}><span>{tip}</span></li>)}</ul></article> : null}
 
-        <article className={styles.panel}>
+        {!isGenericProduct ? <article className={styles.panel}>
           <h2>Product identity</h2>
           <ul className={styles.list}>
             <li className={styles.listItem}><span>Detailed name</span><strong>{displayName}</strong></li>
@@ -250,9 +253,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             {product.barcode ? <li className={styles.listItem}><span>Barcode</span><strong>{product.barcode}</strong></li> : barcodeRequired ? <li className={styles.listItem}><span>Barcode</span><strong>Not known</strong></li> : null}
             {department ? <li className={styles.listItem}><span>Department</span><strong>{department}</strong></li> : null}
           </ul>
-        </article>
+        </article> : null}
 
-        <article className={styles.panel}>
+        {!isGenericProduct ? <article className={styles.panel}>
           <p className="eyebrow">ALLERGEN INFORMATION</p>
           <h2>Contains</h2>
           {product.allergens.length ? (
@@ -260,13 +263,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           ) : (
             <p className="subtle">No allergen information has been recorded for this product. Always check the product packaging before consumption.</p>
           )}
-        </article>
+        </article> : null}
 
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => { const price = latestPriceByRetailer.get(listing.retailer); return <li className={styles.listItem} key={listing.id}><div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div><div><strong>{price ? money(price.price) : listing.packSize ?? "—"}</strong><small>{price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt)}</small></div></li>; })}</ul></article> : null}
         {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><ul className={styles.list}>{product.recipes.map((recipe) => <li className={styles.listItem} key={recipe.id}><strong>{recipe.name}</strong><small>{recipe.sourceName ?? "Recipe"}</small></li>)}</ul></article> : null}
 
-        <article className={`${styles.panel} ${styles.nutritionPanel}`}>
+        {!isGenericProduct ? <article className={`${styles.panel} ${styles.nutritionPanel}`}>
           <div className={styles.nip}>
             <h2>Nutrition Information</h2>
             <p><strong>Servings per package:</strong> {product.servingsPerPackage === null ? "Not recorded" : formatQuantity(product.servingsPerPackage)}</p>
@@ -284,7 +287,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               <p className="subtle">Nutrition values have not been recorded for this product yet. Add or enrich the product data to complete this panel.</p>
             )}
           </div>
-        </article>
+        </article> : null}
       </section>
     </div>
   );
