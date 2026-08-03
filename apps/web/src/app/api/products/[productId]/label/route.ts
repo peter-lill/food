@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { NextResponse } from "next/server";
+import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import {
   enrichProductFromRetailerLabels,
   getProductLabelText,
@@ -29,6 +30,31 @@ type CanonicalNip = {
   verifiedAt: Date | null;
 };
 
+const productSelect = {
+  id: true,
+  name: true,
+  canonicalName: true,
+  productType: true,
+  servingSize: true,
+  servingQuantity: true,
+  servingUnit: true,
+  servingsPerPackage: true,
+  calories: true,
+  proteinGrams: true,
+  carbsGrams: true,
+  fatGrams: true,
+  saturatedFatGrams: true,
+  fibreGrams: true,
+  sugarGrams: true,
+  sodiumMg: true,
+  allergens: true,
+  updatedAt: true,
+  storeProducts: {
+    where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
+    select: { retailer: true },
+  },
+} as const;
+
 async function canonicalNip(productId: string) {
   const rows = await prisma.$queryRaw<CanonicalNip[]>(Prisma.sql`
     SELECT
@@ -43,6 +69,15 @@ async function canonicalNip(productId: string) {
   return rows[0] ?? null;
 }
 
+function labelIncomplete(
+  canonical: CanonicalNip | null,
+  product: { servingSize: string | null; servingQuantity: number | null; servingsPerPackage: number | null },
+) {
+  const servingRecorded = Boolean(canonical?.servingSize || canonical?.servingQuantity || product.servingSize || product.servingQuantity);
+  const servingsRecorded = (canonical?.servingsPerPackage ?? product.servingsPerPackage) !== null;
+  return !servingRecorded || !servingsRecorded || !canonical?.ingredientsText;
+}
+
 export async function GET(_request: Request, { params }: RouteContext) {
   const { productId } = await params;
   const decodedProductId = decodeURIComponent(productId);
@@ -52,69 +87,32 @@ export async function GET(_request: Request, { params }: RouteContext) {
       lifecycle: { not: "ARCHIVED" },
       OR: [{ id: decodedProductId }, { slug: decodedProductId }],
     },
-    select: {
-      id: true,
-      name: true,
-      canonicalName: true,
-      productType: true,
-      servingSize: true,
-      servingQuantity: true,
-      servingUnit: true,
-      servingsPerPackage: true,
-      calories: true,
-      proteinGrams: true,
-      carbsGrams: true,
-      fatGrams: true,
-      saturatedFatGrams: true,
-      fibreGrams: true,
-      sugarGrams: true,
-      sodiumMg: true,
-      allergens: true,
-      updatedAt: true,
-      storeProducts: {
-        where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
-        select: { retailer: true },
-      },
-    },
+    select: productSelect,
   });
 
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
   let canonical = await canonicalNip(product.id);
-  const incomplete = !canonical?.servingSize
-    || canonical.servingsPerPackage === null
-    || !canonical.ingredientsText;
 
-  if (incomplete && product.storeProducts.length) {
+  if (labelIncomplete(canonical, product) && product.storeProducts.length) {
     await enrichProductFromRetailerLabels(product.id).catch(() => null);
     canonical = await canonicalNip(product.id);
-    product = await prisma.product.findUniqueOrThrow({
-      where: { id: product.id },
-      select: {
-        id: true,
-        name: true,
-        canonicalName: true,
-        productType: true,
-        servingSize: true,
-        servingQuantity: true,
-        servingUnit: true,
-        servingsPerPackage: true,
-        calories: true,
-        proteinGrams: true,
-        carbsGrams: true,
-        fatGrams: true,
-        saturatedFatGrams: true,
-        fibreGrams: true,
-        sugarGrams: true,
-        sodiumMg: true,
-        allergens: true,
-        updatedAt: true,
-        storeProducts: {
-          where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
-          select: { retailer: true },
-        },
+    product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
+  }
+
+  if (labelIncomplete(canonical, product)) {
+    // Older completed jobs may pre-date serving-size support. Clear that cache once so
+    // the authoritative barcode lookup is allowed to repopulate the full label.
+    await prisma.productEnrichmentJob.deleteMany({
+      where: {
+        productId: product.id,
+        provider: "barcode-knowledge-v1",
+        status: "COMPLETED",
       },
     });
+    await enrichProductKnowledge(product.id).catch(() => null);
+    canonical = await canonicalNip(product.id);
+    product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
   }
 
   const labelText = canonical ? null : await getProductLabelText(product.id);
