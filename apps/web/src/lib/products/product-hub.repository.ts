@@ -1,5 +1,16 @@
 import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { withSourceImage } from "@/lib/recipes/recipe-image";
+
+const externalRecipeByName = new Map(externalRecipes.map(withSourceImage).map((recipe) => [recipe.name, recipe]));
+const localRecipeImages: Record<string, string> = {
+  "Mushroom and Thyme Cob Loaf": "/recipes/mushroom-thyme-cob-loaf.webp",
+  "Spinach and Cheese Cob Loaf": "/recipes/spinach-cheese-cob-loaf.webp",
+  "Creamy Chicken and Corn Cob Loaf": "/recipes/creamy-chicken-corn-cob-loaf.webp",
+  "Roasted Capsicum and Feta Cob Loaf": "/recipes/roasted-capsicum-feta-cob-loaf.webp",
+  "Sweet Chilli Prawn Cob Loaf": "/recipes/sweet-chilli-prawn-cob-loaf.webp",
+};
 
 export type ProductHubListItem = {
   id: string;
@@ -53,7 +64,7 @@ export type ProductHubDetail = {
     unit: string;
     expiresAt: Date | null;
   }>;
-  recipes: Array<{ id: string; name: string; sourceName: string | null }>;
+  recipes: Array<{ id: string; name: string; description: string | null; sourceName: string | null; sourceUrl: string | null; imageUrl: string | null; minutes: number | null }>;
   storeProducts: Array<{
     id: string;
     retailer: string;
@@ -289,7 +300,7 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
         include: {
           recipes: {
             include: {
-              recipe: { select: { id: true, name: true, sourceName: true } },
+              recipe: { select: { id: true, name: true, description: true, sourceName: true, sourceUrl: true, prepMinutes: true, cookMinutes: true } },
             },
           },
         },
@@ -304,10 +315,22 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
 
   if (!product) return null;
 
-  const recipeMap = new Map<string, { id: string; name: string; sourceName: string | null }>();
+  const recipeMap = new Map<string, ProductHubDetail["recipes"][number]>();
   for (const ingredient of product.ingredientRecords) {
     for (const link of ingredient.recipes) {
-      recipeMap.set(link.recipe.id, link.recipe);
+      const external = externalRecipeByName.get(link.recipe.name);
+      const totalMinutes = (link.recipe.prepMinutes ?? 0) + (link.recipe.cookMinutes ?? 0);
+      recipeMap.set(link.recipe.id, {
+        id: link.recipe.id,
+        name: link.recipe.name,
+        description: link.recipe.description,
+        sourceName: link.recipe.sourceName,
+        sourceUrl: link.recipe.sourceUrl ?? external?.sourceUrl ?? null,
+        imageUrl: localRecipeImages[link.recipe.name]
+          ?? (external?.sourceName === "Heart Foundation" ? `/api/recipes/local-image/${external.id}` : external?.imageUrl)
+          ?? null,
+        minutes: totalMinutes || external?.minutes || null,
+      });
     }
   }
 

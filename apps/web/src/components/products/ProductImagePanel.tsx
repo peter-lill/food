@@ -66,6 +66,9 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
   const rejectedCandidates = candidates.filter((candidate) => candidate.rejected);
 
   const renderCandidate = (candidate: (typeof candidates)[number]) => {
+    const candidateCaption = /(?:openai|gpt-image|generated)/i.test(`${candidate.source} ${candidate.sourceLabel}`)
+      ? productName
+      : candidate.sourceLabel || candidate.source;
     const dimensions = candidate.width && candidate.height
       ? `${candidate.width} × ${candidate.height}`
       : "Size pending";
@@ -79,14 +82,14 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
       >
         <div className={styles.preview}>
           <img
-            alt={`${productName} candidate from ${candidate.sourceLabel || candidate.source}`}
+            alt={`${productName} image candidate`}
             loading="lazy"
             src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}`}
           />
         </div>
 
         <div className={styles.candidateHeader}>
-          <strong className={styles.source}>{candidate.sourceLabel || candidate.source}</strong>
+          <strong className={styles.source}>{candidateCaption}</strong>
           <span className={`badge ${candidate.selected ? "neutral" : candidate.rejected ? "warning" : ""}`}>
             {candidate.selected ? "Primary" : candidate.rejected ? "Rejected" : candidate.accepted ? "Usable" : "Review"}
           </span>

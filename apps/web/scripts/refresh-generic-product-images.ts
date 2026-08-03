@@ -1,8 +1,10 @@
 import { prisma } from "../src/lib/prisma";
 import { backgroundJobTypes, enqueueBackgroundJob } from "../src/lib/jobs/background-jobs";
 import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
+import { readImageAsset, type ImageAssetRecord } from "../src/lib/images/image-asset.service";
 
 const apply = process.argv.includes("--apply");
+const missingOnly = process.argv.includes("--missing-only");
 const familyFilter = process.argv.find((argument) => argument.startsWith("--family="))?.slice("--family=".length).trim() ?? "";
 
 async function main() {
@@ -30,12 +32,34 @@ async function main() {
     if (!families.has(key)) families.set(key, { product, identity });
   }
 
+  const eligibleFamilies: typeof families extends Map<string, infer Value> ? Value[] : never = [];
+  for (const family of families.values()) {
+    if (!missingOnly) {
+      eligibleFamilies.push(family);
+      continue;
+    }
+    if (!family.product.imageUrl) {
+      eligibleFamilies.push(family);
+      continue;
+    }
+    if (!family.product.imageUrl.startsWith("generated://")) continue;
+    const assets = await prisma.$queryRaw<ImageAssetRecord[]>`
+      SELECT a."id", a."sha256", a."mimeType", a."fileSizeBytes", a."width", a."height",
+             a."storagePath", a."originalUrl", a."provider"
+      FROM "Product" p
+      JOIN "ImageAsset" a ON a."id" = p."primaryImageAssetId"
+      WHERE p."id" = ${family.product.id}
+      LIMIT 1
+    `;
+    const readable = assets[0] ? await readImageAsset(assets[0]).then(() => true).catch(() => false) : false;
+    if (!readable) eligibleFamilies.push(family);
+  }
   const selectedFamilies = familyFilter
-    ? [...families.values()].filter(({ identity }) => identity.toLocaleLowerCase("en-AU") === familyFilter.toLocaleLowerCase("en-AU"))
-    : [...families.values()];
+    ? eligibleFamilies.filter(({ identity }) => identity.toLocaleLowerCase("en-AU") === familyFilter.toLocaleLowerCase("en-AU"))
+    : eligibleFamilies;
   if (familyFilter && !selectedFamilies.length) throw new Error(`No safe generic image family matched ${JSON.stringify(familyFilter)}.`);
 
-  console.log(`${apply ? "Refreshing" : "Would refresh"} ${selectedFamilies.length} safe generic family image(s).`);
+  console.log(`${apply ? "Refreshing" : "Would refresh"} ${selectedFamilies.length} ${missingOnly ? "missing " : ""}safe generic family image(s).`);
   console.log(`Skipped ${skipped.length} unresolved recipe identit${skipped.length === 1 ? "y" : "ies"}.`);
   for (const identity of skipped.slice(0, 25)) console.log(`  skipped: ${identity}`);
   if (skipped.length > 25) console.log(`  ...and ${skipped.length - 25} more`);
