@@ -126,6 +126,8 @@ export async function GET(_request: Request, context: RouteContext) {
     select: {
       id: true,
       imageUrl: true,
+      brand: true,
+      barcode: true,
       storeProducts: {
         where: { imageUrl: { not: null }, active: true },
         orderBy: [{ lastSeenAt: "desc" }, { updatedAt: "desc" }],
@@ -134,10 +136,11 @@ export async function GET(_request: Request, context: RouteContext) {
     },
   });
   if (!product) return noImageResponse();
+  const genericFamily = !product.brand && !product.barcode;
 
   const imageOptions = [
     product.imageUrl,
-    ...product.storeProducts.map((listing) => listing.imageUrl),
+    ...(genericFamily ? [] : product.storeProducts.map((listing) => listing.imageUrl)),
   ].filter((value): value is string => Boolean(value));
 
   for (const imageUrl of imageOptions) {

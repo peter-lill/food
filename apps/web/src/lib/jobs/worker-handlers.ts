@@ -59,7 +59,7 @@ export async function handleBackgroundJob(job: BackgroundJob) {
       const typed: ProductImageEnrichmentPayload = {
         productId: requireString(payload, "productId"),
       };
-      const result = await recoverProductImage(typed.productId);
+      const result = await recoverProductImage(typed.productId, { allowGenerated: true });
       return {
         productId: typed.productId,
         status: result.status,
