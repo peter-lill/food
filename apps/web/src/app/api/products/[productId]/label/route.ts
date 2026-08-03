@@ -34,6 +34,7 @@ const productSelect = {
   id: true,
   name: true,
   canonicalName: true,
+  barcode: true,
   productType: true,
   servingSize: true,
   servingQuantity: true,
@@ -78,6 +79,118 @@ function labelIncomplete(
   return !servingRecorded || !servingsRecorded || !canonical?.ingredientsText;
 }
 
+function cleanIngredientText(value: unknown) {
+  if (typeof value !== "string") return null;
+  const cleaned = value.replace(/\s+/g, " ").trim();
+  return cleaned.length >= 3 ? cleaned : null;
+}
+
+async function fetchBarcodeIngredients(barcode: string | null) {
+  if (!barcode) return null;
+  const digits = barcode.replace(/\D/g, "");
+  if (!/^\d{8,14}$/.test(digits)) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8_000);
+  try {
+    const fields = "ingredients_text,ingredients_text_en,allergens_tags,traces_tags";
+    const response = await fetch(
+      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(digits)}.json?fields=${fields}`,
+      {
+        cache: "no-store",
+        signal: controller.signal,
+        headers: {
+          Accept: "application/json",
+          "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
+        },
+      },
+    );
+    if (!response.ok) return null;
+    const payload = await response.json() as {
+      status?: number;
+      product?: {
+        ingredients_text?: unknown;
+        ingredients_text_en?: unknown;
+        allergens_tags?: unknown;
+        traces_tags?: unknown;
+      };
+    };
+    if (payload.status === 0 || !payload.product) return null;
+
+    const normaliseTags = (value: unknown) => Array.isArray(value)
+      ? value
+        .filter((entry): entry is string => typeof entry === "string")
+        .map((entry) => entry.replace(/^[a-z]{2}:/i, "").replace(/[-_]+/g, " ").trim())
+        .filter(Boolean)
+      : [];
+
+    const ingredientsText = cleanIngredientText(payload.product.ingredients_text)
+      ?? cleanIngredientText(payload.product.ingredients_text_en);
+    if (!ingredientsText) return null;
+
+    return {
+      ingredientsText,
+      contains: normaliseTags(payload.product.allergens_tags),
+      mayContain: normaliseTags(payload.product.traces_tags),
+      sourceUrl: `https://world.openfoodfacts.org/product/${digits}`,
+    };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function saveBarcodeIngredients(productId: string, barcode: string | null) {
+  const result = await fetchBarcodeIngredients(barcode);
+  if (!result) return false;
+
+  await prisma.$transaction([
+    prisma.$executeRaw(Prisma.sql`
+      UPDATE "Product"
+      SET
+        "ingredientsText" = COALESCE("ingredientsText", ${result.ingredientsText}),
+        "mayContainAllergens" = CASE
+          WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${result.mayContain}::text[]) > 0
+            THEN ${result.mayContain}::text[]
+          ELSE "mayContainAllergens"
+        END,
+        "allergens" = CASE
+          WHEN cardinality("allergens") = 0 AND cardinality(${result.contains}::text[]) > 0
+            THEN ${result.contains}::text[]
+          ELSE "allergens"
+        END,
+        "updatedAt" = NOW()
+      WHERE "id" = ${productId}
+    `),
+    prisma.$executeRaw(Prisma.sql`
+      UPDATE "ProductNutritionPanel"
+      SET
+        "ingredientsText" = COALESCE("ingredientsText", ${result.ingredientsText}),
+        "containsAllergens" = CASE
+          WHEN cardinality("containsAllergens") = 0 AND cardinality(${result.contains}::text[]) > 0
+            THEN ${result.contains}::text[]
+          ELSE "containsAllergens"
+        END,
+        "mayContainAllergens" = CASE
+          WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${result.mayContain}::text[]) > 0
+            THEN ${result.mayContain}::text[]
+          ELSE "mayContainAllergens"
+        END,
+        "source" = CASE
+          WHEN "source" IS NULL OR "source" = '' THEN 'Open Food Facts'
+          WHEN "source" NOT ILIKE '%Open Food Facts%' THEN "source" || ' + Open Food Facts'
+          ELSE "source"
+        END,
+        "sourceUrl" = COALESCE("sourceUrl", ${result.sourceUrl}),
+        "verifiedAt" = NOW(),
+        "updatedAt" = NOW()
+      WHERE "productId" = ${productId}
+    `),
+  ]);
+  return true;
+}
+
 export async function GET(_request: Request, { params }: RouteContext) {
   const { productId } = await params;
   const decodedProductId = decodeURIComponent(productId);
@@ -101,8 +214,6 @@ export async function GET(_request: Request, { params }: RouteContext) {
   }
 
   if (labelIncomplete(canonical, product)) {
-    // Older completed jobs may pre-date serving-size support. Clear that cache once so
-    // the authoritative barcode lookup is allowed to repopulate the full label.
     await prisma.productEnrichmentJob.deleteMany({
       where: {
         productId: product.id,
@@ -111,6 +222,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
       },
     });
     await enrichProductKnowledge(product.id).catch(() => null);
+    canonical = await canonicalNip(product.id);
+    product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
+  }
+
+  if (!canonical?.ingredientsText && product.barcode) {
+    await saveBarcodeIngredients(product.id, product.barcode).catch(() => false);
     canonical = await canonicalNip(product.id);
     product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
   }
