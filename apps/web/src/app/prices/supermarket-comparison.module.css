@@ -117,6 +117,23 @@
   gap: 12px;
 }
 
+.productTitle > :global(.badge.success) {
+  flex: 0 0 auto;
+  min-width: 72px;
+  min-height: 48px;
+  justify-content: flex-end;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.productTitle > :global(.badge.success) img {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
 .productTitle h3 {
   margin: 0 0 4px;
   font-size: 18px;
@@ -375,6 +392,12 @@
   .productCard footer,
   .captureActions {
     display: grid;
+  }
+
+  .productTitle > :global(.badge.success) {
+    min-width: 0;
+    min-height: 40px;
+    justify-content: flex-start;
   }
 
   .storeRow > div:last-child,

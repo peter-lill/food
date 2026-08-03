@@ -9,6 +9,7 @@ import {
 import { resolveDirectRetailerImage } from "@/lib/products/direct-retailer-image.actions";
 import { listProductImageCandidates } from "@/lib/products/image-candidate.repository";
 import type { ImageSearchDiagnostics } from "@/lib/products/image-recovery";
+import { ProductLabelSupplement } from "./ProductLabelSupplement";
 import styles from "./ProductImagePanel.module.css";
 
 type ProductImagePanelProps = {
@@ -141,7 +142,7 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
       ) : null}
 
       {activeCandidates.length ? (
-        <details className={styles.gallerySection} open>
+        <details className={styles.gallerySection}>
           <summary className={styles.summary}>Candidate images ({activeCandidates.length})</summary>
           <div className={styles.gallery}>{activeCandidates.map(renderCandidate)}</div>
         </details>
@@ -225,6 +226,8 @@ export async function ProductImagePanel({ productId, productName, hasImage }: Pr
           <button className="secondary-button" type="submit">Refresh image search</button>
         </form>
       </div>
+
+      <ProductLabelSupplement productId={productId} />
     </article>
   );
 }

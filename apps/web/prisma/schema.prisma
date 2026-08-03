@@ -61,44 +61,48 @@ enum EnrichmentJobStatus {
 }
 
 model Product {
-  id                 String               @id @default(cuid())
-  name               String
-  canonicalName      String?
-  slug               String?              @unique
-  brand              String?
-  barcode            String?              @unique
-  category           String?
-  description        String?
-  imageUrl            String?
-  packSize           String?
-  packQuantity       Float?
-  packUnit           String?
-  calories           Float?
-  proteinGrams       Float?
-  carbsGrams         Float?
-  fatGrams           Float?
-  saturatedFatGrams  Float?
-  fibreGrams         Float?
-  sugarGrams         Float?
-  sodiumMg           Float?
-  allergens          String[]             @default([])
-  dietaryTags        String[]             @default([])
-  foodKnowledgeId    String?
-  productType        ProductType          @default(PACKAGED)
-  lifecycle          ProductLifecycle     @default(NEW)
-  confidenceScore    Float                @default(0)
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  foodKnowledge      FoodKnowledge?       @relation(fields: [foodKnowledgeId], references: [id], onDelete: SetNull)
-  aliases            ProductAlias[]
-  inventoryItems     InventoryItem[]
-  ingredientRecords  Ingredient[]
-  shoppingItems      ShoppingItem[]
-  receiptItems       ReceiptItem[]
-  supermarketPrices  SupermarketPrice[]
-  storeProducts      StoreProduct[]
-  priceObservations  PriceObservation[]
-  enrichmentJobs     ProductEnrichmentJob[]
+  id                  String               @id @default(cuid())
+  name                String
+  canonicalName       String?
+  slug                String?              @unique
+  brand               String?
+  barcode             String?              @unique
+  category            String?
+  description         String?
+  imageUrl             String?
+  packSize             String?
+  packQuantity         Float?
+  packUnit             String?
+  servingSize          String?
+  servingQuantity      Float?
+  servingUnit          String?
+  servingsPerPackage   Float?
+  calories             Float?
+  proteinGrams         Float?
+  carbsGrams           Float?
+  fatGrams             Float?
+  saturatedFatGrams    Float?
+  fibreGrams           Float?
+  sugarGrams           Float?
+  sodiumMg             Float?
+  allergens            String[]             @default([])
+  dietaryTags          String[]             @default([])
+  foodKnowledgeId      String?
+  productType          ProductType          @default(PACKAGED)
+  lifecycle            ProductLifecycle     @default(NEW)
+  confidenceScore      Float                @default(0)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  foodKnowledge        FoodKnowledge?       @relation(fields: [foodKnowledgeId], references: [id], onDelete: SetNull)
+  aliases              ProductAlias[]
+  inventoryItems       InventoryItem[]
+  ingredientRecords    Ingredient[]
+  shoppingItems        ShoppingItem[]
+  receiptItems         ReceiptItem[]
+  supermarketPrices    SupermarketPrice[]
+  storeProducts        StoreProduct[]
+  priceObservations    PriceObservation[]
+  enrichmentJobs       ProductEnrichmentJob[]
 
   @@index([foodKnowledgeId])
   @@index([productType, lifecycle])
@@ -353,14 +357,14 @@ model User {
   email            String            @unique
   emailVerified    Boolean           @default(false)
   image            String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  sessions         Session[]
-  accounts         Account[]
-  members          Member[]
-  invitations      Invitation[]
-  recipeFavourites RecipeFavourite[]
-  preference       UserPreference?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  sessions          Session[]
+  accounts          Account[]
+  members           Member[]
+  invitations       Invitation[]
+  recipeFavourites  RecipeFavourite[]
+  preference        UserPreference?
 
   @@map("user")
 }
@@ -371,9 +375,9 @@ model Session {
   token                String   @unique
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-  ipAddress            String?
-  userAgent            String?
-  userId               String
+  ipAddress             String?
+  userAgent             String?
+  userId                String
   activeOrganizationId String?
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -386,16 +390,16 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken            String?
+  refreshToken           String?
+  idToken                String?
+  accessTokenExpiresAt   DateTime?
+  refreshTokenExpiresAt  DateTime?
+  scope                  String?
+  password               String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("account")

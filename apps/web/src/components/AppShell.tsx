@@ -51,24 +51,13 @@ type InitialUser = {
 
 function FoodMark() {
   return (
-    <svg aria-hidden="true" height="40" viewBox="0 0 64 64" width="40">
-      <defs>
-        <linearGradient id="food-mark-bg" x1="8" x2="56" y1="5" y2="59" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#00bf78" />
-          <stop offset=".55" stopColor="#008f60" />
-          <stop offset="1" stopColor="#075f45" />
-        </linearGradient>
-        <linearGradient id="food-mark-fruit" x1="19" x2="46" y1="19" y2="48" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ffcf3d" />
-          <stop offset="1" stopColor="#ff7457" />
-        </linearGradient>
-      </defs>
-      <rect width="64" height="64" rx="19" fill="url(#food-mark-bg)" />
-      <path d="M18 34.5c0-10 6.4-16.5 14.2-16.5S46 24.5 46 34.5C46 45.4 38.9 51 32 51S18 45.4 18 34.5Z" fill="url(#food-mark-fruit)" />
-      <path d="M31.8 19.2c1-6 5.1-9.7 10.7-10.2.7 5.8-2.5 10.1-8.8 11.8" fill="#d8ff80" />
-      <path d="M32 27.5v16M24 35.5h16" stroke="#fff" strokeWidth="4.3" strokeLinecap="round" />
-      <circle cx="32" cy="35.5" r="13.8" fill="none" stroke="rgba(255,255,255,.2)" strokeWidth="2" />
-    </svg>
+    <img
+      alt=""
+      aria-hidden="true"
+      height="46"
+      src="/brand/food-mark.svg?v=20260802-3"
+      width="46"
+    />
   );
 }
 

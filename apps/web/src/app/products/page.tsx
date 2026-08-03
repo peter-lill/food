@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getProductHubList } from "@/lib/products/product-hub.repository";
+import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
 
 export const dynamic = "force-dynamic";
@@ -73,16 +74,13 @@ function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName"
 
 function needsDetails(product: CompletionProduct) {
   if (product.barcode) return false;
-  if (isGenericFood(product)) return !product.imageUrl || !product.category;
+  if (isGenericFood(product)) return !product.name.trim();
   return !product.imageUrl || !product.category || !product.brand;
 }
 
 function completionScore(product: CompletionProduct) {
   if (product.barcode) return 100;
-  if (isGenericFood(product)) {
-    const checks = [Boolean(product.name), Boolean(product.category), Boolean(product.imageUrl)];
-    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }
+  if (isGenericFood(product)) return product.name.trim() ? 100 : 0;
   const checks = [Boolean(product.name), Boolean(product.category), Boolean(product.brand), Boolean(product.imageUrl)];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
@@ -218,7 +216,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                         boxSizing: "border-box",
                       }}
                     />
-                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>Image pending</small></div>}
+                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>◈</span><small>{generic ? "Fresh produce" : "Image pending"}</small></div>}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
                     {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
@@ -235,14 +233,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   {completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}
                   <div className={styles.priceRow}>
                     <div><small>Latest price</small><strong>{latestPrice ?? "Not priced"}</strong></div>
-                    <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ?? "Not linked"}</strong></div>
+                    <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
                   </div>
                   <div className={styles.meta}>
                     {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
                     {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
                     {product.aliasCount > 0 ? <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span> : null}
-                    {!product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
-                    {!product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
+                    {!generic && !product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
+                    {!generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
                   </div>
                   <span className={styles.openLabel}>View product <span aria-hidden="true">→</span></span>
                 </div>
