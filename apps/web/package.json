@@ -56,7 +56,7 @@
     "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
-    "@types/react": "^20",
+    "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
