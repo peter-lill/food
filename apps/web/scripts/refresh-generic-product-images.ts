@@ -1,5 +1,6 @@
 import { prisma } from "../src/lib/prisma";
 import { backgroundJobTypes, enqueueBackgroundJob } from "../src/lib/jobs/background-jobs";
+import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
 
 const apply = process.argv.includes("--apply");
 
@@ -12,12 +13,28 @@ async function main() {
       ingredientRecords: { some: {} },
     },
     select: { id: true, name: true, canonicalName: true, imageUrl: true },
-    orderBy: { name: "asc" },
+    orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
   });
 
-  console.log(`${apply ? "Refreshing" : "Would refresh"} ${products.length} generic family image(s).`);
+  const families = new Map<string, { product: (typeof products)[number]; identity: string }>();
+  const skipped: string[] = [];
   for (const product of products) {
-    console.log(`- ${product.canonicalName ?? product.name}${product.imageUrl ? " (replacing current image)" : ""}`);
+    const sourceIdentity = product.canonicalName ?? product.name;
+    const identity = genericImageIdentity(sourceIdentity);
+    if (!identity) {
+      skipped.push(sourceIdentity);
+      continue;
+    }
+    const key = identity.toLocaleLowerCase("en-AU");
+    if (!families.has(key)) families.set(key, { product, identity });
+  }
+
+  console.log(`${apply ? "Refreshing" : "Would refresh"} ${families.size} safe generic family image(s).`);
+  console.log(`Skipped ${skipped.length} unresolved recipe identit${skipped.length === 1 ? "y" : "ies"}.`);
+  for (const identity of skipped.slice(0, 25)) console.log(`  skipped: ${identity}`);
+  if (skipped.length > 25) console.log(`  ...and ${skipped.length - 25} more`);
+  for (const { product, identity } of families.values()) {
+    console.log(`- ${identity}${product.imageUrl ? " (replacing current image)" : ""}`);
     if (!apply) continue;
     await prisma.$transaction([
       prisma.$executeRaw`

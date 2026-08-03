@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
+import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
 
 const cases: Array<{
   input: string;
@@ -106,3 +107,11 @@ for (const testCase of cases) {
 }
 
 console.log(`Grocery Intelligence ${cases.length} regression checks passed.`);
+
+assert.equal(genericImageIdentity("Chicken Breast Horizontally"), "Chicken Breast");
+assert.equal(genericImageIdentity("Freshly Grated Parmesan"), "Parmesan");
+assert.equal(genericImageIdentity("Garlic Cloves"), "Garlic Clove");
+assert.equal(genericImageIdentity("Cm Pieces"), null);
+assert.equal(genericImageIdentity("Or Blueberries"), null);
+assert.equal(genericImageIdentity("Coriander Leaves To Garnish"), "Coriander Leaves");
+console.log("Generic image identity safety checks passed.");
