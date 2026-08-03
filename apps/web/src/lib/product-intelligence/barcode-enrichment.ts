@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths, type RetailerPriceCandidate } from "@/lib/prices/coles-woolworths-provider";
 import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
 import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
+import { recoverProductImage } from "@/lib/products/image-recovery";
 
 const provider = "barcode-knowledge-v1";
 const refreshWindowMs = 7 * 24 * 60 * 60 * 1000;
@@ -155,6 +156,17 @@ async function refreshAustralianRetailerKnowledge(productId: string) {
   });
 }
 
+async function recoverMissingImage(productId: string) {
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { imageUrl: true } });
+  if (product?.imageUrl) return;
+  await recoverProductImage(productId).catch((error) => {
+    console.warn("Product image recovery during enrichment failed", {
+      productId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
+}
+
 export async function enrichProductKnowledge(productId: string) {
   const recent = await prisma.productEnrichmentJob.findFirst({
     where: {
@@ -167,6 +179,7 @@ export async function enrichProductKnowledge(productId: string) {
   });
   if (recent) {
     await refreshAustralianRetailerKnowledge(productId);
+    await recoverMissingImage(productId);
     return { status: "fresh" as const };
   }
 
@@ -247,6 +260,7 @@ export async function enrichProductKnowledge(productId: string) {
     }
 
     const retailerLabel = await refreshAustralianRetailerKnowledge(product.id);
+    await recoverMissingImage(product.id);
 
     await prisma.productEnrichmentJob.update({
       where: { id: job.id },
