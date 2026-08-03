@@ -33,6 +33,10 @@ function observedLabel(value: Date | null) {
   return value ? new Intl.DateTimeFormat("en-AU", { day: "numeric", month: "short", year: "numeric" }).format(value) : null;
 }
 
+function imageVersion(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
 function normaliseView(value: string | undefined): ProductView {
   return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "") ? value as ProductView : "all";
 }
@@ -193,7 +197,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const generic = isGenericFood(product);
             const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" · ") || "Brand not added";
             const productImage = product.imageUrl
-              ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(product.imageUrl)}`
+              ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
               : null;
 
             return (
