@@ -64,6 +64,7 @@ const preparationPhrases: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bsoftened\b/g, label: "Softened" },
   { pattern: /\bmelted\b/g, label: "Melted" },
   { pattern: /\btrimmed\b/g, label: "Trimmed" },
+  { pattern: /\bends?\b/g, label: "Ends Removed" },
   { pattern: /\bhalved\b/g, label: "Halved" },
   { pattern: /\bquartered\b/g, label: "Quartered" },
 ];
