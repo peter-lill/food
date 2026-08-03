@@ -81,6 +81,20 @@ function valueAfter(lines: string[], patterns: RegExp[]) {
   return null;
 }
 
+function plausibleIngredients(value: string | null) {
+  if (!value) return null;
+  const cleaned = value.replace(/^ingredients?\s*:?\s*/i, "").replace(/\s+/g, " ").trim();
+  if (cleaned.length < 12 || cleaned.length > 5000) return null;
+  if (/\$\s*\d|\bsave\s*\$|\bper\s+100g\b|\benergy\b|\bmax\s+load\b|\bnew\s+[a-z]+\b/i.test(cleaned)) return null;
+  const letters = (cleaned.match(/[a-z]/gi) ?? []).length;
+  const digits = (cleaned.match(/\d/g) ?? []).length;
+  if (letters < 10 || digits > letters * 0.35) return null;
+  const ingredientWords = /\b(sugar|milk|wheat|flour|cocoa|oil|fat|salt|soy|lecithin|emulsifier|flavour|colour|starch|syrup|butter|yeast|acid|gum|powder|solids|extract|water)\b/i;
+  const hasStructure = /[,;()]|\bcontains\b/i.test(cleaned);
+  if (!hasStructure || !ingredientWords.test(cleaned)) return null;
+  return cleaned;
+}
+
 function parseServing(lines: string[]) {
   const servingSize = valueAfter(lines, [
     /^serving\s*size\b/i,
@@ -158,8 +172,9 @@ export function parseAustralianNip(source: string): AustralianNipParseResult | n
   const lines = linesFromSource(source);
   if (!lines.some((line) => /nutrition information|serving size|servings per|servesPerPack|ingredients?\s*:/i.test(line))) return null;
   const serving = parseServing(lines);
-  const ingredientsText = valueAfter(lines, [/^ingredients?\s*:/i, /^ingredientsList\s*:/i, /^ingredientStatement\s*:/i])
+  const rawIngredients = valueAfter(lines, [/^ingredients?\s*:/i, /^ingredientsList\s*:/i, /^ingredientStatement\s*:/i])
     ?? section(lines, [/^ingredients?$/i], [/^allergens?$/i, /^contains\b/i, /^may contain\b/i, /^nutrition information$/i, /^storage$/i]);
+  const ingredientsText = plausibleIngredients(rawIngredients);
   const containsText = valueAfter(lines, [/^contains\s*:/i, /^allergens?\s*:/i, /^allergenStatement\s*:/i]);
   const mayContainText = valueAfter(lines, [/^may contain\s*:/i, /^mayContain\s*:/i, /^mayContainStatement\s*:/i]);
   const nutrients = {
