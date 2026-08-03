@@ -144,6 +144,10 @@ function identityText(product: { name: string; canonicalName: string | null }) {
   return product.canonicalName?.trim() || product.name;
 }
 
+function productVarietyName(product: { name: string; canonicalName: string | null }) {
+  return identifyGrocery(identityText(product))?.canonicalName ?? productFamilyName(identityText(product));
+}
+
 function normaliseFamily(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -211,6 +215,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   const genericFamilies = genericFamilyNames(products);
 
   for (const product of products) {
+    if (/^(?:cm\s+pieces?|each\s+of\b.*|mint\s+leaves\s+and\s+lemon\s+wedges)$/i.test(normaliseFamily(identityText(product)))) continue;
     const recipeIds = new Set(
       product.ingredientRecords.flatMap((ingredient) =>
         ingredient.recipes.map((recipe) => recipe.recipeId),
@@ -222,6 +227,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     const familyKey = familyName.toLocaleLowerCase("en-AU");
     const current = grouped.get(familyKey);
     const familyImage = genericFamilyImage(familyName);
+    const isGeneric = !product.brand && !product.barcode && product.storeProducts.length === 0;
 
     if (!current) {
       grouped.set(familyKey, {
@@ -248,8 +254,13 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.recipeCount += recipeIds.size;
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount += retailers.size;
-    current.imageUrl = familyImage ?? current.imageUrl ?? bestProductImage(product.imageUrl, product.storeProducts);
-    current.category ??= product.category;
+    if (isGeneric) {
+      current.id = product.id;
+      current.name = familyName;
+      current.slug = product.slug;
+      current.category = product.category;
+      current.imageUrl = familyImage ?? product.imageUrl;
+    }
     current.brand = null;
     current.barcode = null;
 
@@ -265,7 +276,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   );
 }
 
-export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
+export async function getProductHubDetail(idOrSlug: string, options: { specific?: boolean } = {}): Promise<ProductHubDetail | null> {
   const product = await prisma.product.findFirst({
     where: {
       lifecycle: { not: "ARCHIVED" },
@@ -315,13 +326,17 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
   });
   const genericFamilies = genericFamilyNames(familyCandidates);
   const familyName = resolvedFamilyName(product, genericFamilies);
+  const specificName = productVarietyName(product);
   const variants = familyCandidates
-    .filter((candidate) => candidate.id !== product.id)
     .filter((candidate) => resolvedFamilyName(candidate, genericFamilies) === familyName)
-    .filter((candidate) => Boolean(candidate.brand || candidate.barcode || candidate.storeProducts.length))
+    .filter((candidate) => {
+      const varietyName = productVarietyName(candidate);
+      return Boolean(candidate.brand || candidate.barcode || candidate.storeProducts.length)
+        || normaliseFamily(varietyName) !== normaliseFamily(familyName);
+    })
     .map((candidate) => ({
       id: candidate.id,
-      name: candidate.name,
+      name: productVarietyName(candidate),
       slug: candidate.slug,
       brand: candidate.brand,
       barcode: candidate.barcode,
@@ -334,7 +349,7 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
   return {
     id: product.id,
     name: product.name,
-    canonicalName: familyName,
+    canonicalName: options.specific ? specificName : familyName,
     slug: product.slug,
     brand: product.brand,
     barcode: product.barcode,
@@ -388,6 +403,6 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
       sourceUrl: observation.sourceUrl,
       observedAt: observation.observedAt,
     })),
-    variants,
+    variants: options.specific ? [] : variants,
   };
 }

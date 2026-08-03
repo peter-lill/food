@@ -3,6 +3,7 @@ import { backgroundJobTypes, enqueueBackgroundJob } from "../src/lib/jobs/backgr
 import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
 
 const apply = process.argv.includes("--apply");
+const familyFilter = process.argv.find((argument) => argument.startsWith("--family="))?.slice("--family=".length).trim() ?? "";
 
 async function main() {
   const products = await prisma.product.findMany({
@@ -29,11 +30,16 @@ async function main() {
     if (!families.has(key)) families.set(key, { product, identity });
   }
 
-  console.log(`${apply ? "Refreshing" : "Would refresh"} ${families.size} safe generic family image(s).`);
+  const selectedFamilies = familyFilter
+    ? [...families.values()].filter(({ identity }) => identity.toLocaleLowerCase("en-AU") === familyFilter.toLocaleLowerCase("en-AU"))
+    : [...families.values()];
+  if (familyFilter && !selectedFamilies.length) throw new Error(`No safe generic image family matched ${JSON.stringify(familyFilter)}.`);
+
+  console.log(`${apply ? "Refreshing" : "Would refresh"} ${selectedFamilies.length} safe generic family image(s).`);
   console.log(`Skipped ${skipped.length} unresolved recipe identit${skipped.length === 1 ? "y" : "ies"}.`);
   for (const identity of skipped.slice(0, 25)) console.log(`  skipped: ${identity}`);
   if (skipped.length > 25) console.log(`  ...and ${skipped.length - 25} more`);
-  for (const { product, identity } of families.values()) {
+  for (const { product, identity } of selectedFamilies) {
     console.log(`- ${identity}${product.imageUrl ? " (replacing current image)" : ""}`);
     if (!apply) continue;
     await prisma.$transaction([
