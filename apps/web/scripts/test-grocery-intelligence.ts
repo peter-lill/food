@@ -65,6 +65,12 @@ const cases: Array<{
     canonical: "Soy Sauce",
     family: "Soy Sauce",
   },
+  {
+    input: "Avocado Stoned Medium",
+    canonical: "Avocado",
+    family: "Avocado",
+    preparation: ["Stone Removed"],
+  },
 ];
 
 for (const testCase of cases) {

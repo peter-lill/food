@@ -141,7 +141,7 @@ function productFamilyName(value: string) {
 }
 
 function identityText(product: { name: string; canonicalName: string | null }) {
-  return [product.canonicalName, product.name].filter(Boolean).join(" ");
+  return product.canonicalName?.trim() || product.name;
 }
 
 function normaliseFamily(value: string) {
