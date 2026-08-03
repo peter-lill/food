@@ -314,7 +314,7 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
   const familyCandidates = await prisma.product.findMany({
     where: { lifecycle: { not: "ARCHIVED" } },
     include: {
-      storeProducts: { select: { imageUrl: true } },
+      storeProducts: { select: { imageUrl: true, brand: true } },
       priceObservations: {
         orderBy: { observedAt: "desc" },
         take: 1,
@@ -338,7 +338,9 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
       id: candidate.id,
       name: productVarietyName(candidate),
       slug: candidate.slug,
-      brand: candidate.brand,
+      brand: candidate.brand
+        ?? candidate.storeProducts.find((listing) => listing.brand)?.brand
+        ?? (candidate.barcode ? "Packaged product" : null),
       barcode: candidate.barcode,
       packSize: candidate.packSize,
       imageUrl: bestProductImage(candidate.imageUrl, candidate.storeProducts),
