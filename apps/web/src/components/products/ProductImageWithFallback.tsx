@@ -9,10 +9,11 @@ type ProductImageWithFallbackProps = {
 };
 
 export function ProductImageWithFallback({ alt, imageVersion, productId }: ProductImageWithFallbackProps) {
-  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
 
-  if (failed) return <span aria-hidden="true">&#9671;</span>;
+  if (attempt > 1) return <span aria-hidden="true">&#9671;</span>;
 
-  const version = imageVersion ? `?v=${encodeURIComponent(imageVersion)}` : "";
-  return <img alt={alt} onError={() => setFailed(true)} src={`/api/products/${encodeURIComponent(productId)}/image${version}`} />;
+  const safeVersion = imageVersion?.replace(/[^a-zA-Z0-9_-]/g, "") ?? "current";
+  const version = `?v=${encodeURIComponent(safeVersion)}&attempt=${attempt}`;
+  return <img alt={alt} onError={() => setAttempt((current) => current + 1)} src={`/api/products/${encodeURIComponent(productId)}/image${version}`} />;
 }
