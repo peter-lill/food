@@ -34,7 +34,6 @@ const productSelect = {
   id: true,
   name: true,
   canonicalName: true,
-  barcode: true,
   productType: true,
   servingSize: true,
   servingQuantity: true,
@@ -56,6 +55,19 @@ const productSelect = {
   },
 } as const;
 
+function plausibleIngredients(value: string | null | undefined) {
+  if (!value) return null;
+  const cleaned = value.replace(/^ingredients?\s*:?\s*/i, "").replace(/\s+/g, " ").trim();
+  if (cleaned.length < 12 || cleaned.length > 5000) return null;
+  if (/\$\s*\d|\bsave\s*\$|\bper\s+100g\b|\benergy\b|\bmax\s+load\b|\bnew\s+[a-z]+\b/i.test(cleaned)) return null;
+  const letters = (cleaned.match(/[a-z]/gi) ?? []).length;
+  const digits = (cleaned.match(/\d/g) ?? []).length;
+  if (letters < 10 || digits > letters * 0.35) return null;
+  if (!/[,;()]|\bcontains\b/i.test(cleaned)) return null;
+  if (!/\b(sugar|milk|wheat|flour|cocoa|oil|fat|salt|soy|lecithin|emulsifier|flavour|colour|starch|syrup|butter|yeast|acid|gum|powder|solids|extract|water)\b/i.test(cleaned)) return null;
+  return cleaned;
+}
+
 async function canonicalNip(productId: string) {
   const rows = await prisma.$queryRaw<CanonicalNip[]>(Prisma.sql`
     SELECT
@@ -76,119 +88,7 @@ function labelIncomplete(
 ) {
   const servingRecorded = Boolean(canonical?.servingSize || canonical?.servingQuantity || product.servingSize || product.servingQuantity);
   const servingsRecorded = (canonical?.servingsPerPackage ?? product.servingsPerPackage) !== null;
-  return !servingRecorded || !servingsRecorded || !canonical?.ingredientsText;
-}
-
-function cleanIngredientText(value: unknown) {
-  if (typeof value !== "string") return null;
-  const cleaned = value.replace(/\s+/g, " ").trim();
-  return cleaned.length >= 3 ? cleaned : null;
-}
-
-async function fetchBarcodeIngredients(barcode: string | null) {
-  if (!barcode) return null;
-  const digits = barcode.replace(/\D/g, "");
-  if (!/^\d{8,14}$/.test(digits)) return null;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 8_000);
-  try {
-    const fields = "ingredients_text,ingredients_text_en,allergens_tags,traces_tags";
-    const response = await fetch(
-      `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(digits)}.json?fields=${fields}`,
-      {
-        cache: "no-store",
-        signal: controller.signal,
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "Food/0.1 (https://food.coffeehq.coffee)",
-        },
-      },
-    );
-    if (!response.ok) return null;
-    const payload = await response.json() as {
-      status?: number;
-      product?: {
-        ingredients_text?: unknown;
-        ingredients_text_en?: unknown;
-        allergens_tags?: unknown;
-        traces_tags?: unknown;
-      };
-    };
-    if (payload.status === 0 || !payload.product) return null;
-
-    const normaliseTags = (value: unknown) => Array.isArray(value)
-      ? value
-        .filter((entry): entry is string => typeof entry === "string")
-        .map((entry) => entry.replace(/^[a-z]{2}:/i, "").replace(/[-_]+/g, " ").trim())
-        .filter(Boolean)
-      : [];
-
-    const ingredientsText = cleanIngredientText(payload.product.ingredients_text)
-      ?? cleanIngredientText(payload.product.ingredients_text_en);
-    if (!ingredientsText) return null;
-
-    return {
-      ingredientsText,
-      contains: normaliseTags(payload.product.allergens_tags),
-      mayContain: normaliseTags(payload.product.traces_tags),
-      sourceUrl: `https://world.openfoodfacts.org/product/${digits}`,
-    };
-  } catch {
-    return null;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function saveBarcodeIngredients(productId: string, barcode: string | null) {
-  const result = await fetchBarcodeIngredients(barcode);
-  if (!result) return false;
-
-  await prisma.$transaction([
-    prisma.$executeRaw(Prisma.sql`
-      UPDATE "Product"
-      SET
-        "ingredientsText" = COALESCE("ingredientsText", ${result.ingredientsText}),
-        "mayContainAllergens" = CASE
-          WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${result.mayContain}::text[]) > 0
-            THEN ${result.mayContain}::text[]
-          ELSE "mayContainAllergens"
-        END,
-        "allergens" = CASE
-          WHEN cardinality("allergens") = 0 AND cardinality(${result.contains}::text[]) > 0
-            THEN ${result.contains}::text[]
-          ELSE "allergens"
-        END,
-        "updatedAt" = NOW()
-      WHERE "id" = ${productId}
-    `),
-    prisma.$executeRaw(Prisma.sql`
-      UPDATE "ProductNutritionPanel"
-      SET
-        "ingredientsText" = COALESCE("ingredientsText", ${result.ingredientsText}),
-        "containsAllergens" = CASE
-          WHEN cardinality("containsAllergens") = 0 AND cardinality(${result.contains}::text[]) > 0
-            THEN ${result.contains}::text[]
-          ELSE "containsAllergens"
-        END,
-        "mayContainAllergens" = CASE
-          WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${result.mayContain}::text[]) > 0
-            THEN ${result.mayContain}::text[]
-          ELSE "mayContainAllergens"
-        END,
-        "source" = CASE
-          WHEN "source" IS NULL OR "source" = '' THEN 'Open Food Facts'
-          WHEN "source" NOT ILIKE '%Open Food Facts%' THEN "source" || ' + Open Food Facts'
-          ELSE "source"
-        END,
-        "sourceUrl" = COALESCE("sourceUrl", ${result.sourceUrl}),
-        "verifiedAt" = NOW(),
-        "updatedAt" = NOW()
-      WHERE "productId" = ${productId}
-    `),
-  ]);
-  return true;
+  return !servingRecorded || !servingsRecorded || !plausibleIngredients(canonical?.ingredientsText);
 }
 
 export async function GET(_request: Request, { params }: RouteContext) {
@@ -206,6 +106,13 @@ export async function GET(_request: Request, { params }: RouteContext) {
   if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
 
   let canonical = await canonicalNip(product.id);
+  if (canonical?.ingredientsText && !plausibleIngredients(canonical.ingredientsText)) {
+    await prisma.$transaction([
+      prisma.$executeRaw(Prisma.sql`UPDATE "ProductNutritionPanel" SET "ingredientsText" = NULL, "updatedAt" = NOW() WHERE "productId" = ${product.id}`),
+      prisma.$executeRaw(Prisma.sql`UPDATE "Product" SET "ingredientsText" = NULL, "updatedAt" = NOW() WHERE "id" = ${product.id}`),
+    ]).catch(() => undefined);
+    canonical = await canonicalNip(product.id);
+  }
 
   if (labelIncomplete(canonical, product) && product.storeProducts.length) {
     await enrichProductFromRetailerLabels(product.id).catch(() => null);
@@ -226,15 +133,12 @@ export async function GET(_request: Request, { params }: RouteContext) {
     product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
   }
 
-  if (!canonical?.ingredientsText && product.barcode) {
-    await saveBarcodeIngredients(product.id, product.barcode).catch(() => false);
-    canonical = await canonicalNip(product.id);
-    product = await prisma.product.findUniqueOrThrow({ where: { id: product.id }, select: productSelect });
-  }
-
   const labelText = canonical ? null : await getProductLabelText(product.id);
   const isFreshProduce = product.productType === "GENERIC_PRODUCE";
   const produceIngredient = product.canonicalName?.trim() || product.name.trim();
+  const ingredientsText = plausibleIngredients(canonical?.ingredientsText)
+    ?? plausibleIngredients(labelText?.ingredientsText)
+    ?? (isFreshProduce ? produceIngredient : null);
 
   return NextResponse.json({
     productType: product.productType,
@@ -252,7 +156,7 @@ export async function GET(_request: Request, { params }: RouteContext) {
       sugarGrams: canonical?.sugarGramsPer100 ?? product.sugarGrams,
       sodiumMg: canonical?.sodiumMgPer100 ?? product.sodiumMg,
     },
-    ingredientsText: canonical?.ingredientsText ?? labelText?.ingredientsText ?? (isFreshProduce ? produceIngredient : null),
+    ingredientsText,
     contains: canonical?.containsAllergens?.length ? canonical.containsAllergens : product.allergens,
     mayContain: canonical?.mayContainAllergens ?? labelText?.mayContainAllergens ?? [],
     retailers: [...new Set(product.storeProducts.map((listing) => listing.retailer))],
