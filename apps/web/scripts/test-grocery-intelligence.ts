@@ -109,6 +109,8 @@ const cases: Array<{
   { input: "Extra Pinch Ground Cinnamon", canonical: "Ground Cinnamon", family: "Cinnamon" },
   { input: "Feta Cheese Crumbled", canonical: "Feta", family: "Feta", preparation: ["Crumbled"] },
   { input: "Mozzarella Cheese", canonical: "Mozzarella", family: "Mozzarella" },
+  { input: "Simply Spread", canonical: "Margarine", family: "Margarine" },
+  { input: "White Sandwich Loaf", canonical: "White Bread", family: "Bread" },
   { input: "Firmly Packed Parsley Leaves", canonical: "Parsley", family: "Parsley" },
   { input: "Flat Leaf Parsley Leaves", canonical: "Parsley", family: "Parsley" },
   { input: "Garlic Clove", canonical: "Garlic", family: "Garlic" },
