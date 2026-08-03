@@ -110,6 +110,8 @@ const cases: Array<{
   { input: "Feta Cheese Crumbled", canonical: "Feta", family: "Feta", preparation: ["Crumbled"] },
   { input: "Mozzarella Cheese", canonical: "Mozzarella", family: "Mozzarella" },
   { input: "Simply Spread", canonical: "Margarine", family: "Margarine" },
+  { input: "Raw Nut and Seed Mix", canonical: "Seed Mix", family: "Seed Mix" },
+  { input: "Sticks Celery", canonical: "Celery", family: "Celery" },
   { input: "White Sandwich Loaf", canonical: "White Bread", family: "Bread" },
   { input: "Soft Wholemeal Sandwich Loaf", canonical: "Soft Wholemeal Sandwich Loaf", family: "Bread" },
   { input: "Coles Olive Oil Table Spread", canonical: "Coles Olive Oil Table Spread", family: "Margarine" },

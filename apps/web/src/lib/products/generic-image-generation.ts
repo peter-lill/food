@@ -56,7 +56,9 @@ export async function generateGenericProductImage(productId: string, identity: s
     `,
     prisma.$executeRaw`
       UPDATE "ProductImageCandidate"
-      SET "selected" = false, "updatedAt" = NOW()
+      SET "selected" = false,
+          "rejected" = CASE WHEN "source" = 'OpenAI generated' THEN true ELSE "rejected" END,
+          "updatedAt" = NOW()
       WHERE "productId" = ${productId} AND "url" <> ${candidateUrl}
     `,
     prisma.$executeRaw`

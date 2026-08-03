@@ -62,7 +62,10 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
   const searchStatus = parseStatus(cookieStore.get(statusCookieName(productId))?.value);
   const diagnostics = searchStatus?.diagnostics;
   const candidates = await listProductImageCandidates(productId, 24).catch(() => []);
-  const activeCandidates = candidates.filter((candidate) => !candidate.rejected);
+  const activeCandidates = candidates.filter((candidate) => {
+    const generated = /(?:openai|gpt-image|generated)/i.test(`${candidate.source} ${candidate.sourceLabel}`);
+    return !candidate.rejected && (!generated || candidate.selected);
+  });
   const rejectedCandidates = candidates.filter((candidate) => candidate.rejected);
 
   const renderCandidate = (candidate: (typeof candidates)[number]) => {
