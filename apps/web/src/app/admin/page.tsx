@@ -9,35 +9,49 @@ export const metadata = {
 
 const adminTools = [
   {
+    title: "Catalogue Health",
+    description: "Monitor APKE quality, GTIN verification, Australian label completeness, retailer coverage and repair workload.",
+    href: "/admin/product-intelligence/catalogue-health",
+    icon: "◎",
+    primary: true,
+  },
+  {
+    title: "Product Review Queue",
+    description: "Work through identity conflicts, failed repairs and missing nutrition, label, retailer and image data.",
+    href: "/admin/product-intelligence/review-queue",
+    icon: "☷",
+    primary: true,
+  },
+  {
     title: "Food Style Guide",
     description: "Review the shared Food v1 colour, typography, cards, controls, statuses, empty states and loading patterns.",
     href: "/admin/style-guide",
     icon: "✦",
-    primary: true,
+    primary: false,
   },
   {
     title: "Catalogue Manager",
     description: "Review incomplete products, duplicate records, enrichment jobs and catalogue operations from one workspace.",
     href: "/admin/product-intelligence?view=review",
     icon: "◈",
-    primary: true,
+    primary: false,
   },
   {
     title: "Australian Labels",
     description: "Audit and bulk-enrich Coles and Woolworths nutrition, serving, ingredient and allergen data.",
     href: "/admin/product-intelligence/labels",
     icon: "▤",
-    primary: true,
+    primary: false,
   },
   {
-    title: "Repair Queue",
+    title: "Legacy Repair Workflow",
     description: "Approve or reject protected canonical-name changes with a complete audit trail and rollback support.",
     href: "/admin/product-intelligence/repairs",
     icon: "↺",
     primary: false,
   },
   {
-    title: "Quality Dashboard",
+    title: "Quality Diagnostics",
     description: "Inspect catalogue confidence, validation failures and the records most in need of attention.",
     href: "/admin/product-intelligence/quality",
     icon: "✓",
@@ -66,6 +80,8 @@ async function runSelfHealing(formData: FormData) {
   await runProductKnowledgeSelfHealing(batchSize);
   revalidatePath("/admin");
   revalidatePath("/admin/product-intelligence");
+  revalidatePath("/admin/product-intelligence/catalogue-health");
+  revalidatePath("/admin/product-intelligence/review-queue");
   revalidatePath("/admin/product-intelligence/quality");
   revalidatePath("/admin/product-intelligence/labels");
   revalidatePath("/products");
@@ -74,12 +90,12 @@ async function runSelfHealing(formData: FormData) {
 export default async function AdminPage() {
   const operations = await getProductKnowledgeOperationsSummary();
   const metrics = [
-    { label: "Catalogue confidence", value: `${operations.catalogueConfidence}%`, note: `${operations.products} products assessed`, href: "/admin/product-intelligence/quality" },
-    { label: "Needs review", value: operations.needsReview.toLocaleString("en-AU"), note: "Broken or validation-blocked", href: "/admin/product-intelligence?view=review" },
-    { label: "Missing ingredients", value: operations.missingIngredients.toLocaleString("en-AU"), note: "Packaged products", href: "/admin/product-intelligence/labels" },
-    { label: "Missing serving size", value: operations.missingServingSizes.toLocaleString("en-AU"), note: "Retailer-linked labels", href: "/admin/product-intelligence/labels" },
-    { label: "Provider failures", value: operations.providerFailures.toLocaleString("en-AU"), note: "Failed enrichment jobs", href: "/admin/product-intelligence/diagnostics" },
-    { label: "Active jobs", value: operations.activeJobs.toLocaleString("en-AU"), note: "Queued, running or retrying", href: "/admin/product-intelligence" },
+    { label: "Catalogue confidence", value: `${operations.catalogueConfidence}%`, note: `${operations.products} products assessed`, href: "/admin/product-intelligence/catalogue-health" },
+    { label: "Needs review", value: operations.needsReview.toLocaleString("en-AU"), note: "Broken or validation-blocked", href: "/admin/product-intelligence/review-queue?filter=review" },
+    { label: "Missing ingredients", value: operations.missingIngredients.toLocaleString("en-AU"), note: "Packaged products", href: "/admin/product-intelligence/review-queue?filter=label" },
+    { label: "Missing serving size", value: operations.missingServingSizes.toLocaleString("en-AU"), note: "Retailer-linked labels", href: "/admin/product-intelligence/review-queue?filter=nutrition" },
+    { label: "Provider failures", value: operations.providerFailures.toLocaleString("en-AU"), note: "Failed enrichment jobs", href: "/admin/product-intelligence/review-queue?filter=failed" },
+    { label: "Active jobs", value: operations.activeJobs.toLocaleString("en-AU"), note: "Queued, running or retrying", href: "/admin/product-intelligence/review-queue?filter=queued" },
   ] as const;
 
   return (
@@ -142,7 +158,7 @@ export default async function AdminPage() {
             <p className="eyebrow">PRODUCT AND DESIGN OPERATIONS</p>
             <h2>Administration tools</h2>
           </div>
-          <p className="subtle">Seven focused workspaces for design consistency, catalogue maintenance, data integrity and diagnostics.</p>
+          <p className="subtle">Focused workspaces for catalogue maintenance, product integrity, enrichment diagnostics and design consistency.</p>
         </div>
       </section>
 
