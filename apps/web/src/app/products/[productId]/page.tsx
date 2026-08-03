@@ -107,7 +107,11 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const product = await getProductHubDetail(decodedProductId);
   if (!product) notFound();
 
-  const displayName = collapseRepeatedPhrase(product.name);
+  const rawDisplayName = collapseRepeatedPhrase(product.name);
+  const genericFamily = !product.brand && !product.barcode && product.canonicalName
+    ? collapseRepeatedPhrase(product.canonicalName)
+    : null;
+  const displayName = genericFamily ?? rawDisplayName;
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
   const department = cleanDepartment(product.category, displayName, canonicalName);
   const barcodeRequired = product.productType !== "GENERIC_PRODUCE";
@@ -180,6 +184,25 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
       <section className={styles.sections}>
         <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} />
+
+        {product.variants.length ? (
+          <article className={styles.panel}>
+            <p className="eyebrow">SPECIFIC PRODUCTS</p>
+            <h2>Brands and products</h2>
+            <p className="subtle">Choose a specific product for its retailer, price, image and package details.</p>
+            <ul className={styles.list}>
+              {product.variants.map((variant) => (
+                <li className={styles.listItem} key={variant.id}>
+                  <div className={styles.listingIdentity}>
+                    <div className={styles.listingImage}>{variant.imageUrl ? <img alt="" src={variant.imageUrl} /> : <span>â—ˆ</span>}</div>
+                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Specific product"}</small></div>
+                  </div>
+                  <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
+                </li>
+              ))}
+            </ul>
+          </article>
+        ) : null}
 
         {product.barcode ? (
           <article className={`${styles.panel} ${styles.barcodePanel}`}>

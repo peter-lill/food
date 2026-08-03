@@ -15,6 +15,7 @@ type CompletionProduct = {
   brand: string | null;
   barcode: string | null;
   latestPrice: number | null;
+  recipeCount: number;
 };
 
 const genericFoodTerms = [
@@ -54,8 +55,8 @@ function collapseRepeatedPhrase(value: string) {
 function productDisplay(product: { name: string; canonicalName: string | null; category: string | null }) {
   const rawName = collapseRepeatedPhrase(product.name);
   const canonicalName = product.canonicalName ? collapseRepeatedPhrase(product.canonicalName) : null;
-  const title = rawName || canonicalName || "Product";
-  const receiptName = canonicalName && normaliseName(canonicalName) !== normaliseName(title) ? canonicalName : null;
+  const title = canonicalName || rawName || "Product";
+  const receiptName = rawName && normaliseName(rawName) !== normaliseName(title) ? rawName : null;
   const category = product.category && ![title, canonicalName, rawName]
     .filter(Boolean)
     .some((value) => normaliseName(product.category ?? "") === normaliseName(value ?? ""))
@@ -64,8 +65,9 @@ function productDisplay(product: { name: string; canonicalName: string | null; c
   return { title, receiptName, category };
 }
 
-function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category">) {
+function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category" | "recipeCount">) {
   if (product.brand || product.barcode) return false;
+  if (product.recipeCount > 0) return true;
   const category = normaliseName(product.category ?? "");
   if (/produce|fruit|vegetable|fresh food/.test(category)) return true;
   const name = normaliseName(product.name || product.canonicalName || "");

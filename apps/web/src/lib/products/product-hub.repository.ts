@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
 
 export type ProductHubListItem = {
   id: string;
@@ -75,6 +76,17 @@ export type ProductHubDetail = {
     sourceUrl: string | null;
     observedAt: Date;
   }>;
+  variants: Array<{
+    id: string;
+    name: string;
+    slug: string | null;
+    brand: string | null;
+    barcode: string | null;
+    packSize: string | null;
+    imageUrl: string | null;
+    latestPrice: number | null;
+    latestRetailer: string | null;
+  }>;
 };
 
 function bestProductImage(
@@ -108,6 +120,9 @@ function canonicalProduceFamily(value: string) {
 }
 
 function productFamilyName(value: string) {
+  const identity = identifyGrocery(value);
+  if (identity) return identity.family ?? identity.canonicalName;
+
   const cleaned = value
     .replace(/^\s*(?:qty\s*)?\d+\s*[x×]\s*/i, "")
     .replace(/^\s*[x×]\s*/i, "")
@@ -127,6 +142,31 @@ function productFamilyName(value: string) {
 
 function identityText(product: { name: string; canonicalName: string | null }) {
   return [product.canonicalName, product.name].filter(Boolean).join(" ");
+}
+
+function normaliseFamily(value: string) {
+  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function genericFamilyNames(products: Array<{ name: string; canonicalName: string | null; brand: string | null; barcode: string | null }>) {
+  return products
+    .filter((product) => !product.brand && !product.barcode)
+    .map((product) => productFamilyName(identityText(product)))
+    .filter(Boolean)
+    .sort((left, right) => right.length - left.length);
+}
+
+function resolvedFamilyName(
+  product: { name: string; canonicalName: string | null; brand: string | null; barcode: string | null },
+  genericFamilies: string[],
+) {
+  const ownFamily = productFamilyName(identityText(product));
+  if (!product.brand && !product.barcode) return ownFamily;
+  const normalisedOwnFamily = normaliseFamily(ownFamily);
+  return genericFamilies.find((family) => {
+    const normalisedGeneric = normaliseFamily(family);
+    return normalisedOwnFamily === normalisedGeneric || normalisedOwnFamily.endsWith(` ${normalisedGeneric}`);
+  }) ?? ownFamily;
 }
 
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
@@ -168,6 +208,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   });
 
   const grouped = new Map<string, ProductHubListItem>();
+  const genericFamilies = genericFamilyNames(products);
 
   for (const product of products) {
     const recipeIds = new Set(
@@ -177,7 +218,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
-    const familyName = productFamilyName(identityText(product));
+    const familyName = resolvedFamilyName(product, genericFamilies);
     const familyKey = familyName.toLocaleLowerCase("en-AU");
     const current = grouped.get(familyKey);
     const familyImage = genericFamilyImage(familyName);
@@ -208,9 +249,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount += retailers.size;
     current.imageUrl = familyImage ?? current.imageUrl ?? bestProductImage(product.imageUrl, product.storeProducts);
-    current.brand ??= product.brand;
     current.category ??= product.category;
-    current.barcode ??= product.barcode;
+    current.brand = null;
+    current.barcode = null;
 
     if (latest && (!current.latestObservedAt || latest.observedAt > current.latestObservedAt)) {
       current.latestPrice = latest.price;
@@ -259,7 +300,36 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     }
   }
 
-  const familyName = productFamilyName(identityText(product));
+  const familyCandidates = await prisma.product.findMany({
+    where: { lifecycle: { not: "ARCHIVED" } },
+    include: {
+      storeProducts: { select: { imageUrl: true } },
+      priceObservations: {
+        orderBy: { observedAt: "desc" },
+        take: 1,
+        select: { price: true, retailer: true },
+      },
+    },
+    orderBy: [{ brand: "asc" }, { name: "asc" }],
+    take: 1000,
+  });
+  const genericFamilies = genericFamilyNames(familyCandidates);
+  const familyName = resolvedFamilyName(product, genericFamilies);
+  const variants = familyCandidates
+    .filter((candidate) => candidate.id !== product.id)
+    .filter((candidate) => resolvedFamilyName(candidate, genericFamilies) === familyName)
+    .filter((candidate) => Boolean(candidate.brand || candidate.barcode || candidate.storeProducts.length))
+    .map((candidate) => ({
+      id: candidate.id,
+      name: candidate.name,
+      slug: candidate.slug,
+      brand: candidate.brand,
+      barcode: candidate.barcode,
+      packSize: candidate.packSize,
+      imageUrl: bestProductImage(candidate.imageUrl, candidate.storeProducts),
+      latestPrice: candidate.priceObservations[0]?.price ?? null,
+      latestRetailer: candidate.priceObservations[0]?.retailer ?? null,
+    }));
 
   return {
     id: product.id,
@@ -318,5 +388,6 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
       sourceUrl: observation.sourceUrl,
       observedAt: observation.observedAt,
     })),
+    variants,
   };
 }
