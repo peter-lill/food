@@ -8,6 +8,7 @@ const familyAliases = new Map<string, string>([
   ["garlic clove", "Garlic"],
   ["garlic cloves", "Garlic"],
   ["leek white part only", "Leek"],
+  ["leeks", "Leek"],
   ["mozzarella cheese", "Mozzarella"],
   ["oregano leaves", "Oregano"],
   ["thyme leaves", "Thyme"],
@@ -20,6 +21,7 @@ const familyAliases = new Map<string, string>([
   ["plain greek yoghurt", "Greek Yoghurt"],
   ["wholegrain sourdough bread", "Wholegrain Sourdough"],
   ["lemon zest rind", "Lemon Rind"],
+  ["extra virgin olive oil", "Olive Oil"],
 ]);
 
 function normalise(value: string) {
@@ -28,7 +30,7 @@ function normalise(value: string) {
 
 export function genericImageIdentity(value: string) {
   const grocery = identifyGrocery(value);
-  let identity = (grocery?.family ?? grocery?.canonicalName ?? "").trim();
+  let identity = (grocery?.canonicalName ?? "").trim();
   identity = familyAliases.get(normalise(identity)) ?? identity;
   identity = identity
     .replace(/^(?:extra\s+)?pinch\s+/i, "")
