@@ -4,6 +4,7 @@ import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 const cases: Array<{
   input: string;
   canonical: string;
+  family?: string | null;
   size?: string | null;
   preparation?: string[];
 }> = [
@@ -49,12 +50,28 @@ const cases: Array<{
     canonical: "Pine Nuts",
     preparation: ["Lightly Toasted"],
   },
+  {
+    input: "Tablespoons Soy Sauce",
+    canonical: "Soy Sauce",
+    family: "Soy Sauce",
+  },
+  {
+    input: "Teaspoon Baking Powder",
+    canonical: "Baking Powder",
+    family: "Baking Powder",
+  },
+  {
+    input: "Kikkoman Soy Sauce 600mL",
+    canonical: "Soy Sauce",
+    family: "Soy Sauce",
+  },
 ];
 
 for (const testCase of cases) {
   const result = identifyGrocery(testCase.input);
   assert.ok(result, `Expected an identity for ${JSON.stringify(testCase.input)}`);
   assert.equal(result.canonicalName, testCase.canonical, `Canonical grocery mismatch for ${JSON.stringify(testCase.input)}`);
+  if ("family" in testCase) assert.equal(result.family, testCase.family ?? null, `Family mismatch for ${JSON.stringify(testCase.input)}`);
   if ("size" in testCase) assert.equal(result.size, testCase.size ?? null, `Size mismatch for ${JSON.stringify(testCase.input)}`);
   if (testCase.preparation) {
     for (const phrase of testCase.preparation) {
