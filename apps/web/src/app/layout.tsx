@@ -1,19 +1,34 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import "./shopping.css";
 import "./navigation.css";
 import "./saved-product-delete.css";
 import "./v2.css";
 import "./bright-theme.css";
+import "./shell-refinements.css";
+import "./retailer-branding.css";
+import "./brand-system.css";
+import "./design-system.css";
+import "./home-editorial.css";
+import "./home-v3.css";
+import "./logo-render.css";
 import { AppShell } from "@/components/AppShell";
+import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
+import { ProductQualityController } from "@/components/products/ProductQualityController";
 import { SavedProductDeleteController } from "@/components/products/SavedProductDeleteController";
 import { getAuthSession } from "@/lib/auth-session";
 import { isHealthConnectPaired } from "@/lib/health/health-pairing";
 
 export const metadata: Metadata = {
   title: "Food",
-  description: "Personal food, shopping and nutrition companion",
-  icons: { icon: "/brand/food-mark.svg" },
+  description: "Know what is in your kitchen and make better choices every day.",
+  icons: { icon: "/brand/food-mark.svg?v=20260802-3" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -31,6 +46,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="en">
       <body>
         <SavedProductDeleteController />
+        <PlannerCopyCorrection />
+        <ProductQualityController />
         <AppShell
           initialHealthPaired={initialHealthPaired}
           initialUser={initialUser}

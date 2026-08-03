@@ -12,12 +12,23 @@
 .captureStage {
   position: relative;
   min-height: 62dvh;
-  display: grid;
-  place-items: center;
   overflow: hidden;
   background:
     radial-gradient(circle at 20% 10%, rgba(255, 194, 92, .32), transparent 36%),
     linear-gradient(145deg, #123d35 0%, #071c19 70%);
+}
+
+.emptyStage {
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+  place-items: center;
+  gap: 22px;
+  padding: 34px 24px 28px;
+}
+
+.previewStage {
+  display: grid;
+  place-items: center;
 }
 
 .receiptPreview {
@@ -31,9 +42,9 @@
 .emptyCapture {
   display: grid;
   justify-items: center;
+  align-content: center;
   gap: 14px;
-  max-width: 430px;
-  padding: 34px;
+  width: min(100%, 430px);
   color: #fff;
   text-align: center;
 }
@@ -44,6 +55,7 @@
 }
 
 .emptyCapture p {
+  max-width: 400px;
   margin: 0;
   color: rgba(255,255,255,.76);
   line-height: 1.55;
@@ -51,6 +63,7 @@
 
 .captureFrame {
   width: min(76vw, 310px);
+  max-height: 58dvh;
   aspect-ratio: .45;
   border: 3px solid rgba(255,255,255,.9);
   border-radius: 22px;
@@ -58,12 +71,22 @@
 }
 
 .captureActions {
-  position: absolute;
-  inset: auto 16px 18px;
   z-index: 2;
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 10px;
+}
+
+.previewStage .captureActions {
+  position: absolute;
+  inset: auto 16px 18px;
+}
+
+.emptyStage .captureActions {
+  position: static;
+  align-self: end;
+  width: 100%;
 }
 
 .captureButton,
@@ -236,6 +259,31 @@
   .captureStage,
   .receiptPreview {
     min-height: calc(100dvh - 92px);
+  }
+
+  .emptyStage {
+    grid-template-rows: minmax(0, 1fr) auto;
+    gap: 18px;
+    padding: 24px 14px 20px;
+  }
+
+  .captureFrame {
+    width: min(72vw, 280px);
+    max-height: 53dvh;
+  }
+
+  .captureActions {
+    width: 100%;
+  }
+
+  .captureButton,
+  .secondaryCaptureButton {
+    flex: 1 1 145px;
+    max-width: 240px;
+  }
+
+  .previewStage .captureActions {
+    inset: auto 12px 14px;
   }
 
   .reviewPanel {

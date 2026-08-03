@@ -29,39 +29,118 @@ enum ReceiptStatus {
   CANCELLED
 }
 
+enum ProductType {
+  GENERIC_PRODUCE
+  PACKAGED
+  FRESH_MEAT
+  SEAFOOD
+  DAIRY
+  BAKERY
+  FROZEN
+  HOUSEHOLD
+  PERSONAL_CARE
+  BEVERAGE
+  OTHER
+}
+
+enum ProductLifecycle {
+  NEW
+  MATCHED
+  ENRICHING
+  READY
+  REVIEW_REQUIRED
+  ARCHIVED
+}
+
+enum EnrichmentJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  RETRY_SCHEDULED
+}
+
 model Product {
-  id                 String               @id @default(cuid())
-  name               String
-  canonicalName      String?
-  slug               String?              @unique
-  brand              String?
-  barcode            String?              @unique
-  category           String?
-  description        String?
-  imageUrl            String?
-  packSize           String?
-  packQuantity       Float?
-  packUnit           String?
-  calories           Float?
-  proteinGrams       Float?
-  carbsGrams         Float?
-  fatGrams           Float?
-  saturatedFatGrams  Float?
-  fibreGrams         Float?
-  sugarGrams         Float?
-  sodiumMg           Float?
-  allergens          String[]             @default([])
-  dietaryTags        String[]             @default([])
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  aliases            ProductAlias[]
-  inventoryItems     InventoryItem[]
-  ingredientRecords  Ingredient[]
-  shoppingItems      ShoppingItem[]
-  receiptItems       ReceiptItem[]
-  supermarketPrices  SupermarketPrice[]
-  storeProducts      StoreProduct[]
-  priceObservations  PriceObservation[]
+  id                  String               @id @default(cuid())
+  name                String
+  canonicalName       String?
+  slug                String?              @unique
+  brand               String?
+  barcode             String?              @unique
+  category            String?
+  description         String?
+  imageUrl             String?
+  packSize             String?
+  packQuantity         Float?
+  packUnit             String?
+  servingSize          String?
+  servingQuantity      Float?
+  servingUnit          String?
+  servingsPerPackage   Float?
+  calories             Float?
+  proteinGrams         Float?
+  carbsGrams           Float?
+  fatGrams             Float?
+  saturatedFatGrams    Float?
+  fibreGrams           Float?
+  sugarGrams           Float?
+  sodiumMg             Float?
+  allergens            String[]             @default([])
+  dietaryTags          String[]             @default([])
+  foodKnowledgeId      String?
+  productType          ProductType          @default(PACKAGED)
+  lifecycle            ProductLifecycle     @default(NEW)
+  confidenceScore      Float                @default(0)
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+  foodKnowledge        FoodKnowledge?       @relation(fields: [foodKnowledgeId], references: [id], onDelete: SetNull)
+  aliases              ProductAlias[]
+  inventoryItems       InventoryItem[]
+  ingredientRecords    Ingredient[]
+  shoppingItems        ShoppingItem[]
+  receiptItems         ReceiptItem[]
+  supermarketPrices    SupermarketPrice[]
+  storeProducts        StoreProduct[]
+  priceObservations    PriceObservation[]
+  enrichmentJobs       ProductEnrichmentJob[]
+
+  @@index([foodKnowledgeId])
+  @@index([productType, lifecycle])
+}
+
+model FoodKnowledge {
+  id             String    @id @default(cuid())
+  commonName     String    @unique
+  scientificName String?
+  foodGroup      String?
+  category       String?
+  subCategory    String?
+  description    String?
+  storageGuide   String?
+  seasonality    String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  products       Product[]
+}
+
+model ProductEnrichmentJob {
+  id          String              @id @default(cuid())
+  productId   String
+  provider    String
+  status      EnrichmentJobStatus @default(QUEUED)
+  priority    Int                 @default(100)
+  attempts    Int                 @default(0)
+  lastError   String?
+  nextRetryAt DateTime?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  product     Product             @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([status, priority, createdAt])
+  @@index([productId, status])
+  @@index([nextRetryAt])
 }
 
 model ProductAlias {
@@ -87,14 +166,14 @@ model StoreProduct {
   packQuantity        Float?
   packUnit            String?
   productUrl          String?
-  imageUrl            String?
+  imageUrl             String?
   aisle               String?
-  active               Boolean            @default(true)
-  lastSeenAt           DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  product              Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
-  priceObservations    PriceObservation[]
+  active              Boolean            @default(true)
+  lastSeenAt          DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  product             Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  priceObservations   PriceObservation[]
 
   @@unique([retailer, externalId])
   @@index([productId, retailer])
@@ -278,14 +357,14 @@ model User {
   email            String            @unique
   emailVerified    Boolean           @default(false)
   image            String?
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  sessions         Session[]
-  accounts         Account[]
-  members          Member[]
-  invitations      Invitation[]
-  recipeFavourites RecipeFavourite[]
-  preference       UserPreference?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  sessions          Session[]
+  accounts          Account[]
+  members           Member[]
+  invitations       Invitation[]
+  recipeFavourites  RecipeFavourite[]
+  preference        UserPreference?
 
   @@map("user")
 }
@@ -296,9 +375,9 @@ model Session {
   token                String   @unique
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
-  ipAddress            String?
-  userAgent            String?
-  userId               String
+  ipAddress             String?
+  userAgent             String?
+  userId                String
   activeOrganizationId String?
   user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -311,16 +390,16 @@ model Account {
   accountId             String
   providerId            String
   userId                String
-  accessToken           String?
-  refreshToken          String?
-  idToken               String?
-  accessTokenExpiresAt  DateTime?
-  refreshTokenExpiresAt DateTime?
-  scope                 String?
-  password              String?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken            String?
+  refreshToken           String?
+  idToken                String?
+  accessTokenExpiresAt   DateTime?
+  refreshTokenExpiresAt  DateTime?
+  scope                  String?
+  password               String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  user                   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("account")

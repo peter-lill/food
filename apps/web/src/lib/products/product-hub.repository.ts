@@ -25,10 +25,15 @@ export type ProductHubDetail = {
   slug: string | null;
   brand: string | null;
   barcode: string | null;
+  productType: string;
   category: string | null;
   description: string | null;
   imageUrl: string | null;
   packSize: string | null;
+  servingSize: string | null;
+  servingQuantity: number | null;
+  servingUnit: string | null;
+  servingsPerPackage: number | null;
   calories: number | null;
   proteinGrams: number | null;
   carbsGrams: number | null;
@@ -79,10 +84,27 @@ function bestProductImage(
   return productImageUrl ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl ?? null;
 }
 
+function genericFamilyImage(familyName: string) {
+  if (familyName === "Button Mushroom") return "/product-images/button-mushroom.svg";
+  return null;
+}
+
 function titleCase(value: string) {
   return value
     .toLocaleLowerCase("en-AU")
     .replace(/(^|[\s/(-])([a-z])/g, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase("en-AU")}`);
+}
+
+function canonicalProduceFamily(value: string) {
+  const normalised = value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
+
+  return null;
 }
 
 function productFamilyName(value: string) {
@@ -91,26 +113,39 @@ function productFamilyName(value: string) {
     .replace(/^\s*[x×]\s*/i, "")
     .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/^\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
+    .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
+    .replace(/\bcoles\b/gi, "")
+    .replace(/\bslcd\b/gi, "sliced")
     .replace(/\s+/g, " ")
     .trim();
 
+  const produceFamily = canonicalProduceFamily(cleaned);
+  if (produceFamily) return produceFamily;
+
   return cleaned ? titleCase(cleaned) : titleCase(value.trim());
+}
+
+function identityText(product: { name: string; canonicalName: string | null }) {
+  return [product.canonicalName, product.name].filter(Boolean).join(" ");
 }
 
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({
-    where: search
-      ? {
-          OR: [
-            { name: { contains: search, mode: "insensitive" } },
-            { canonicalName: { contains: search, mode: "insensitive" } },
-            { brand: { contains: search, mode: "insensitive" } },
-            { barcode: { contains: search } },
-            { aliases: { some: { alias: { contains: search, mode: "insensitive" } } } },
-          ],
-        }
-      : undefined,
+    where: {
+      lifecycle: { not: "ARCHIVED" },
+      ...(search
+        ? {
+            OR: [
+              { name: { contains: search, mode: "insensitive" as const } },
+              { canonicalName: { contains: search, mode: "insensitive" as const } },
+              { brand: { contains: search, mode: "insensitive" as const } },
+              { barcode: { contains: search } },
+              { aliases: { some: { alias: { contains: search, mode: "insensitive" as const } } } },
+            ],
+          }
+        : {}),
+    },
     include: {
       aliases: { select: { id: true } },
       inventoryItems: { select: { quantity: true } },
@@ -142,9 +177,10 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
-    const familyName = productFamilyName(product.canonicalName ?? product.name);
+    const familyName = productFamilyName(identityText(product));
     const familyKey = familyName.toLocaleLowerCase("en-AU");
     const current = grouped.get(familyKey);
+    const familyImage = genericFamilyImage(familyName);
 
     if (!current) {
       grouped.set(familyKey, {
@@ -154,7 +190,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         category: product.category,
-        imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
+        imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts),
         barcode: product.barcode,
         aliasCount: product.aliases.length,
         recipeCount: recipeIds.size,
@@ -171,7 +207,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.recipeCount += recipeIds.size;
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount += retailers.size;
-    current.imageUrl ??= bestProductImage(product.imageUrl, product.storeProducts);
+    current.imageUrl = familyImage ?? current.imageUrl ?? bestProductImage(product.imageUrl, product.storeProducts);
     current.brand ??= product.brand;
     current.category ??= product.category;
     current.barcode ??= product.barcode;
@@ -191,6 +227,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
 export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubDetail | null> {
   const product = await prisma.product.findFirst({
     where: {
+      lifecycle: { not: "ARCHIVED" },
       OR: [{ id: idOrSlug }, { slug: idOrSlug }],
     },
     include: {
@@ -222,17 +259,24 @@ export async function getProductHubDetail(idOrSlug: string): Promise<ProductHubD
     }
   }
 
+  const familyName = productFamilyName(identityText(product));
+
   return {
     id: product.id,
     name: product.name,
-    canonicalName: product.canonicalName,
+    canonicalName: familyName,
     slug: product.slug,
     brand: product.brand,
     barcode: product.barcode,
+    productType: product.productType,
     category: product.category,
     description: product.description,
-    imageUrl: bestProductImage(product.imageUrl, product.storeProducts),
+    imageUrl: genericFamilyImage(familyName) ?? bestProductImage(product.imageUrl, product.storeProducts),
     packSize: product.packSize,
+    servingSize: product.servingSize,
+    servingQuantity: product.servingQuantity,
+    servingUnit: product.servingUnit,
+    servingsPerPackage: product.servingsPerPackage,
     calories: product.calories,
     proteinGrams: product.proteinGrams,
     carbsGrams: product.carbsGrams,

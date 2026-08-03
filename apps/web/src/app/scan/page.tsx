@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AddPantryForm } from "@/components/pantry/PantryManager";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
+import { ScannerCloseButton } from "./ScannerCloseButton";
 import styles from "./scan.module.css";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ export default async function ScanPage() {
 
   return (
     <div className={styles.workspace}>
+      <ScannerCloseButton />
       <datalist id="pantry-units">
         <option value="item" />
         <option value="pack" />

@@ -6,6 +6,7 @@ export type PantryLocation = (typeof pantryLocations)[number];
 
 export type PantryItem = {
   id: string;
+  productId: string;
   name: string;
   barcode: string | null;
   location: PantryLocation;
@@ -17,6 +18,26 @@ export type PantryItem = {
   expired: boolean;
 };
 
+export type PantryQuantitySummary = {
+  unit: string;
+  quantity: number;
+};
+
+export type PantryGroup = {
+  key: string;
+  canonicalName: string;
+  category: string;
+  productId: string;
+  imageUrl: string | null;
+  locations: PantryLocation[];
+  quantities: PantryQuantitySummary[];
+  earliestExpiry: string | null;
+  useSoon: boolean;
+  expired: boolean;
+  recordCount: number;
+  items: PantryItem[];
+};
+
 export type PantryActionState = {
   status: "idle" | "success" | "error";
   message: string;
@@ -24,7 +45,7 @@ export type PantryActionState = {
 };
 
 export type PantryPageData = {
-  items: PantryItem[];
+  groups: PantryGroup[];
   products: ProductCatalogueItem[];
 };
 

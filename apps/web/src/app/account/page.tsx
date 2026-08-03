@@ -1,5 +1,5 @@
 import { AccountPanel } from "@/components/account/AccountPanel";
-import { requireAuthSession } from "@/lib/auth-session";
+import { isOwnerEmail, requireAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/prisma";
 
 export const metadata = {
@@ -22,6 +22,7 @@ export default async function AccountPage() {
       email={session.user.email}
       homeLocation={preference?.homeLocation ?? ""}
       homePostcode={preference?.homePostcode ?? ""}
+      isOwner={isOwnerEmail(session.user.email)}
       lockToHomeLocation={preference?.lockToHomeLocation ?? false}
       name={session.user.name}
     />

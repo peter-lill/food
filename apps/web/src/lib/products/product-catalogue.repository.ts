@@ -3,6 +3,7 @@ import type { ProductCatalogueItem } from "./product-catalogue.types";
 
 export async function getProductCatalogue(): Promise<ProductCatalogueItem[]> {
   const products = await prisma.product.findMany({
+    where: { lifecycle: { not: "ARCHIVED" } },
     select: {
       id: true,
       name: true,

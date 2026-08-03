@@ -14,6 +14,7 @@ type AccountPanelProps = {
   homeLocation: string;
   homePostcode: string;
   lockToHomeLocation: boolean;
+  isOwner: boolean;
 };
 
 export function AccountPanel({
@@ -22,6 +23,7 @@ export function AccountPanel({
   homeLocation,
   homePostcode,
   lockToHomeLocation,
+  isOwner,
 }: AccountPanelProps) {
   const router = useRouter();
   const initial = name.trim().charAt(0).toUpperCase() || "F";
@@ -65,6 +67,18 @@ export function AccountPanel({
       </section>
 
       <div className={styles.accountGrid}>
+        {isOwner ? (
+          <section className={`${styles.accountCard} ${styles.householdCard}`}>
+            <div className={styles.cardIcon} aria-hidden="true">⚙</div>
+            <div>
+              <p className="eyebrow">OWNER ADMINISTRATION</p>
+              <h2>Food Admin</h2>
+              <p className="subtle">Manage Australian Product Knowledge, catalogue quality, enrichment and provider diagnostics.</p>
+            </div>
+            <Link className={styles.primaryLink} href="/admin">Open Admin</Link>
+          </section>
+        ) : null}
+
         <section className={`${styles.accountCard} ${styles.householdCard}`}>
           <div className={styles.cardIcon} aria-hidden="true">⌂</div>
           <div>

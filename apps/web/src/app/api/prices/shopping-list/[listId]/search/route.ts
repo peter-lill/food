@@ -25,6 +25,7 @@ const cacheWindowMs = 6 * 60 * 60 * 1000;
 const requestTimeoutMs = 5_500;
 const searchConcurrency = 4;
 const serpCircuitBreakerMs = 12 * 60 * 60 * 1000;
+const primaryRetailers = new Set<SupermarketRetailer>(["Coles", "Woolworths"]);
 
 type CandidateSource = "food" | "open-prices" | "retailer-api" | "serpapi";
 type Candidate = {
@@ -32,6 +33,7 @@ type Candidate = {
   productName: string;
   price: number;
   packSize: string | null;
+  barcode: string | null;
   isSpecial: boolean;
   sourceUrl: string | null;
   cached: boolean;
@@ -41,6 +43,10 @@ type SearchableItem = {
   item: SupermarketShoppingItem;
   productId: string | null;
   barcode: string | null;
+  productName: string | null;
+  canonicalName: string | null;
+  brand: string | null;
+  packSize: string | null;
 };
 type SearchRequestBody = {
   allowSubstitutes?: unknown;
@@ -108,6 +114,19 @@ function packSize(value: string) {
   return value.match(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|pieces?|capsules?|tablets?|cans?|bottles?|rolls?)\b/i)?.[0] ?? null;
 }
 
+function normalisedPack(value: string | null) {
+  if (!value) return null;
+  const match = normalise(value).match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pack|pk|piece|pieces|capsule|capsules|tablet|tablets|can|cans|bottle|bottles|roll|rolls)/);
+  if (!match) return normalise(value);
+  let amount = Number(match[1]);
+  let unit = match[2];
+  if (unit === "kg") { amount *= 1000; unit = "g"; }
+  if (unit === "l") { amount *= 1000; unit = "ml"; }
+  if (["pk", "pieces", "piece"].includes(unit)) unit = "pack";
+  if (unit.endsWith("s")) unit = unit.slice(0, -1);
+  return `${amount}${unit}`;
+}
+
 function retailer(value: unknown): SupermarketRetailer | null {
   const source = normalise(clean(value));
   if (source.includes("woolworths")) return "Woolworths";
@@ -135,19 +154,53 @@ function currentLocation(value: unknown): CurrentSearchLocation | null {
   };
 }
 
-function matchScore(query: string, productName: string, allowSubstitutes: boolean) {
-  const requested = normalise(query);
-  const candidate = normalise(productName);
-  if (candidate === requested) return { score: 1000, exact: true };
-  if (candidate.includes(requested)) return { score: 900, exact: true };
+function searchQueries(entry: SearchableItem) {
+  const rich = [entry.brand, entry.canonicalName ?? entry.productName, entry.packSize]
+    .map(clean)
+    .filter(Boolean)
+    .join(" ");
+  return [...new Set([
+    entry.barcode,
+    rich,
+    entry.canonicalName,
+    entry.productName,
+    entry.item.name,
+  ].map(clean).filter(Boolean))].slice(0, 4);
+}
+
+function matchScore(entry: SearchableItem, query: string, candidate: Candidate, allowSubstitutes: boolean) {
+  const expectedBarcode = clean(entry.barcode).replace(/\D/g, "");
+  const candidateBarcode = clean(candidate.barcode).replace(/\D/g, "");
+  if (expectedBarcode && candidateBarcode && expectedBarcode === candidateBarcode) {
+    return { score: 10_000, exact: true, reason: "Exact barcode match." };
+  }
+  if (expectedBarcode && candidateBarcode && expectedBarcode !== candidateBarcode) return null;
+
+  const requested = normalise(entry.canonicalName ?? entry.productName ?? query);
+  const candidateName = normalise(candidate.productName);
   const queryTokens = requested.split(" ").filter((token) => token.length > 1);
-  const productTokens = new Set(candidate.split(" "));
+  const productTokens = new Set(candidateName.split(" "));
   const ratio = queryTokens.length
     ? queryTokens.filter((token) => productTokens.has(token)).length / queryTokens.length
     : 0;
-  if (ratio >= 0.8) return { score: 700 + ratio * 100, exact: true };
-  if (!allowSubstitutes || ratio < 0.5) return null;
-  return { score: 400 + ratio * 100, exact: false };
+
+  const expectedBrand = normalise(entry.brand ?? "");
+  if (expectedBrand && !candidateName.includes(expectedBrand)) {
+    if (!allowSubstitutes) return null;
+  }
+
+  const expectedPack = normalisedPack(entry.packSize ?? packSize(entry.item.name));
+  const candidatePack = normalisedPack(candidate.packSize ?? packSize(candidate.productName));
+  const packMatches = !expectedPack || !candidatePack || expectedPack === candidatePack;
+  if (!packMatches && !allowSubstitutes) return null;
+
+  if (candidateName === requested) return { score: 1_000 + (packMatches ? 80 : 0), exact: true, reason: "Exact product name match." };
+  if (candidateName.includes(requested) && ratio >= 0.8) {
+    return { score: 900 + ratio * 50 + (packMatches ? 50 : -100), exact: packMatches, reason: packMatches ? "Product name and pack size match." : "Product name matches; pack size differs." };
+  }
+  if (ratio >= 0.75 && packMatches) return { score: 750 + ratio * 100, exact: true, reason: "Strong product and pack-size match." };
+  if (!allowSubstitutes || ratio < 0.45) return null;
+  return { score: 400 + ratio * 100 + (packMatches ? 30 : -80), exact: false, reason: "Comparable substitute; check brand and pack size." };
 }
 
 async function storedCandidates(searchItem: SearchableItem, query: string): Promise<Candidate[]> {
@@ -165,12 +218,7 @@ async function storedCandidates(searchItem: SearchableItem, query: string): Prom
         productName: { contains: query, mode: "insensitive" as const },
       };
 
-  const prices = await prisma.supermarketPrice.findMany({
-    where,
-    orderBy: { checkedAt: "desc" },
-    take: 100,
-  });
-
+  const prices = await prisma.supermarketPrice.findMany({ where, orderBy: { checkedAt: "desc" }, take: 100 });
   return prices.flatMap((price): Candidate[] => {
     const sourceRetailer = retailer(price.retailer);
     if (!sourceRetailer || price.price <= 0) return [];
@@ -179,6 +227,7 @@ async function storedCandidates(searchItem: SearchableItem, query: string): Prom
       productName: price.productName,
       price: price.price,
       packSize: price.packSize,
+      barcode: null,
       isSpecial: price.isSpecial,
       sourceUrl: null,
       cached: true,
@@ -205,9 +254,7 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
     const payload = await response.json().catch(() => ({})) as { results?: unknown };
     const results = Array.isArray(payload.results) ? payload.results as OpenPrice[] : [];
     return results.flatMap((result): Candidate[] => {
-      const sourceRetailer = retailer(
-        result.location_osm_display_name ?? result.location?.osm_display_name ?? result.location?.name,
-      );
+      const sourceRetailer = retailer(result.location_osm_display_name ?? result.location?.osm_display_name ?? result.location?.name);
       const price = numeric(result.price);
       if (!sourceRetailer || price === null || clean(result.currency).toUpperCase() !== "AUD") return [];
       const productName = clean(result.product_name) || query;
@@ -216,6 +263,7 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
         productName,
         price,
         packSize: packSize(productName),
+        barcode,
         isSpecial: result.price_is_discounted === true,
         sourceUrl: null,
         cached: false,
@@ -229,13 +277,26 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
   }
 }
 
-async function retailerApiCandidates(query: string): Promise<Candidate[]> {
-  const results = await searchColesAndWoolworths(query);
-  return results.map((result) => ({
-    ...result,
-    cached: false,
-    source: "retailer-api" as const,
-  }));
+async function retailerApiCandidates(queries: string[]): Promise<Candidate[]> {
+  const batches = await Promise.all(queries.map((query) => searchColesAndWoolworths(query).catch(() => [])));
+  const seen = new Set<string>();
+  return batches.flat().flatMap((result): Candidate[] => {
+    if (!Number.isFinite(result.price) || result.price <= 0) return [];
+    const key = `${result.retailer}:${result.externalId ?? normalise(result.productName)}:${result.price}`;
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{
+      retailer: result.retailer,
+      productName: result.productName,
+      price: result.price,
+      packSize: result.packSize,
+      barcode: result.barcode,
+      isSpecial: result.isSpecial,
+      sourceUrl: result.sourceUrl,
+      cached: false,
+      source: "retailer-api",
+    }];
+  });
 }
 
 async function cacheRetailerCandidates(productId: string | null, candidates: Candidate[]) {
@@ -257,10 +318,7 @@ async function cacheRetailerCandidates(productId: string | null, candidates: Can
 
 function quotaError(message: string) {
   const value = message.toLocaleLowerCase("en-AU");
-  return value.includes("run out of searches")
-    || value.includes("quota")
-    || value.includes("searches left")
-    || value.includes("monthly searches");
+  return value.includes("run out of searches") || value.includes("quota") || value.includes("searches left") || value.includes("monthly searches");
 }
 
 async function serpCandidates(query: string): Promise<Candidate[]> {
@@ -286,12 +344,10 @@ async function serpCandidates(query: string): Promise<Candidate[]> {
       if (quotaError(error)) priceGlobal.foodSerpDisabledUntil = Date.now() + serpCircuitBreakerMs;
       return [];
     }
-
     const results = [
       ...(Array.isArray(payload.shopping_results) ? payload.shopping_results : []),
       ...(Array.isArray(payload.inline_shopping_results) ? payload.inline_shopping_results : []),
     ] as SerpResult[];
-
     return results.flatMap((result): Candidate[] => {
       const sourceRetailer = retailer(result.source ?? result.seller ?? result.merchant);
       const productName = clean(result.title);
@@ -304,6 +360,7 @@ async function serpCandidates(query: string): Promise<Candidate[]> {
         productName,
         price,
         packSize: packSize([productName, ...extensions].join(" ")),
+        barcode: null,
         isSpecial: normalise(extensions.join(" ")).includes("special"),
         sourceUrl: typeof rawUrl === "string" && rawUrl.trim() ? rawUrl.trim() : null,
         cached: false,
@@ -317,15 +374,10 @@ async function serpCandidates(query: string): Promise<Candidate[]> {
   }
 }
 
-function buildMatches(
-  item: SupermarketShoppingItem,
-  query: string,
-  candidates: Candidate[],
-  allowSubstitutes: boolean,
-) {
+function buildMatches(entry: SearchableItem, query: string, candidates: Candidate[], allowSubstitutes: boolean) {
   const scored = candidates
     .map((candidate) => {
-      const assessment = matchScore(query, candidate.productName, allowSubstitutes);
+      const assessment = matchScore(entry, query, candidate, allowSubstitutes);
       if (!assessment) return null;
       const match: LiveGroceryPriceMatch = {
         retailer: candidate.retailer,
@@ -337,9 +389,7 @@ function buildMatches(
         unitLabel: null,
         isSpecial: candidate.isSpecial,
         matchKind: assessment.exact ? "exact" : "substitute",
-        matchReason: assessment.exact
-          ? "Matches the requested product."
-          : "Comparable product; check pack size and ingredients before buying.",
+        matchReason: assessment.reason,
         sourceUrl: candidate.sourceUrl,
         cached: candidate.cached,
       };
@@ -379,17 +429,11 @@ function providerLabel(sources: Set<CandidateSource>): GroceryPriceProvider {
 
 export async function POST(request: Request, context: { params: Promise<{ listId: string }> }) {
   const session = await auth.api.getSession({ headers: request.headers });
-  if (!session) {
-    return NextResponse.json({ status: "error", error: "Sign in to search current grocery prices." }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ status: "error", error: "Sign in to search current grocery prices." }, { status: 401 });
 
   const { listId } = await context.params;
   let body: SearchRequestBody = {};
-  try {
-    body = await request.json() as SearchRequestBody;
-  } catch {
-    // Defaults are valid.
-  }
+  try { body = await request.json() as SearchRequestBody; } catch { /* Defaults are valid. */ }
 
   const location = currentLocation(body.currentLocation);
   const requestedLocation = location ?? (typeof body.location === "string" ? body.location : null);
@@ -402,21 +446,22 @@ export async function POST(request: Request, context: { params: Promise<{ listId
       items: {
         where: { checked: false },
         orderBy: { id: "asc" },
-        include: { product: { select: { id: true, barcode: true } } },
+        include: {
+          product: { select: { id: true, barcode: true, name: true, canonicalName: true, brand: true, packSize: true } },
+        },
       },
     },
   });
   if (!list) return NextResponse.json({ status: "error", error: "Shopping list not found." }, { status: 404 });
 
   const searchItems: SearchableItem[] = list.items.map((entry) => ({
-    item: {
-      id: entry.id,
-      name: titleCase(entry.name),
-      quantity: entry.quantity,
-      unit: entry.unit,
-    },
+    item: { id: entry.id, name: titleCase(entry.name), quantity: entry.quantity, unit: entry.unit },
     productId: entry.productId,
     barcode: entry.product?.barcode ?? null,
+    productName: entry.product?.name ?? null,
+    canonicalName: entry.product?.canonicalName ?? null,
+    brand: entry.product?.brand ?? null,
+    packSize: entry.product?.packSize ?? null,
   }));
 
   const sources = new Set<CandidateSource>();
@@ -426,36 +471,34 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
     const query = titleCase(entry.item.name);
     let candidates = await storedCandidates(entry, query);
+    let matches = buildMatches(entry, query, candidates, allowSubstitutes);
+    const cachedPrimaryRetailers = new Set(matches.filter((match) => primaryRetailers.has(match.retailer)).map((match) => match.retailer));
 
-    if (!candidates.length) {
+    if (cachedPrimaryRetailers.size < primaryRetailers.size) {
+      const queries = searchQueries(entry);
       const [openPrices, retailerPrices] = await Promise.all([
         entry.barcode ? openPricesCandidates(entry.barcode, query) : Promise.resolve([]),
-        retailerApiCandidates(query),
+        retailerApiCandidates(queries),
       ]);
-      candidates = [...openPrices, ...retailerPrices];
+      candidates = [...candidates, ...openPrices, ...retailerPrices];
       await cacheRetailerCandidates(entry.productId, retailerPrices);
+      matches = buildMatches(entry, query, candidates, allowSubstitutes);
     }
 
-    if (!candidates.length) candidates = await serpCandidates(query);
+    if (!matches.length) {
+      candidates = [...candidates, ...await serpCandidates(searchQueries(entry)[1] ?? query)];
+      matches = buildMatches(entry, query, candidates, allowSubstitutes);
+    }
 
     for (const candidate of candidates) sources.add(candidate.source);
     if (candidates.some((candidate) => candidate.cached)) cachedItemCount += 1;
-    else if (candidates.length) liveItemCount += 1;
+    if (candidates.some((candidate) => !candidate.cached)) liveItemCount += 1;
 
-    const matches = buildMatches(entry.item, query, candidates, allowSubstitutes);
-    return {
-      item: entry.item,
-      query,
-      matches,
-      best: matches[0] ?? null,
-      error: null,
-    };
+    return { item: entry.item, query, matches, best: matches[0] ?? null, error: null };
   });
 
   const retailerTotals = supermarketRetailers.map((name) => {
-    const matches = items
-      .map((item) => item.matches.find((match) => match.retailer === name))
-      .filter((match): match is LiveGroceryPriceMatch => Boolean(match));
+    const matches = items.map((item) => item.matches.find((match) => match.retailer === name)).filter((match): match is LiveGroceryPriceMatch => Boolean(match));
     return {
       retailer: name,
       total: money(matches.reduce((sum, match) => sum + match.estimatedTotal, 0)),
@@ -465,9 +508,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   });
 
   const unmatched = items.filter((item) => !item.best).length;
-  const retailerApiConfigured = process.env.FOOD_DISABLE_WOOLWORTHS_API !== "1"
-    || Boolean(process.env.COLES_API_KEY?.trim());
-
+  const retailerApiConfigured = process.env.FOOD_DISABLE_WOOLWORTHS_API !== "1" || Boolean(process.env.COLES_API_KEY?.trim());
   const response: LiveGroceryPriceSearchResponse = {
     status: "success",
     provider: providerLabel(sources),

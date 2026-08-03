@@ -12,6 +12,11 @@ const recipeImages: Record<string, string | null> = {
   "Lemon herb chicken bowl": "/recipes/lemon-herb-chicken-bowl.webp",
   "Salmon, rice and greens": "/recipes/salmon-rice-greens.webp",
   "Lean beef burrito bowl": "/recipes/lean-beef-burrito-bowl.webp",
+  "Spinach and Cheese Cob Loaf": "/recipes/spinach-cheese-cob-loaf.webp",
+  "Creamy Chicken and Corn Cob Loaf": "/recipes/creamy-chicken-corn-cob-loaf.webp",
+  "Roasted Capsicum and Feta Cob Loaf": "/recipes/roasted-capsicum-feta-cob-loaf.webp",
+  "Mushroom and Thyme Cob Loaf": "/recipes/mushroom-thyme-cob-loaf.webp",
+  "Sweet Chilli Prawn Cob Loaf": "/recipes/sweet-chilli-prawn-cob-loaf.webp",
 };
 
 const externalRecipesWithImages = externalRecipes.map(withSourceImage);

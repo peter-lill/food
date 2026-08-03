@@ -1,8 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import {
+  canonicalGroceryIdentity,
+  canonicalGroceryName,
+  resolveCanonicalProduct,
+} from "@/lib/products/canonical-grocery.service";
+import {
   foodItemShape,
   normaliseGroceryUnit,
-  shoppingIdentity,
 } from "@/lib/products/food-item-intelligence";
 import { formatProductName } from "@/lib/products/product-formatter";
 import { normaliseProductText } from "@/lib/products/product-normalisation";
@@ -23,13 +27,11 @@ type ShoppingRecord = {
 };
 
 function sourceName(item: ShoppingRecord) {
-  // Shopping represents the household's request. Keep that request authoritative
-  // so an older broad Product link cannot change a standalone derived product.
   return item.name.trim() || item.product?.canonicalName || item.product?.name || "Unknown Item";
 }
 
 function canonicalIdentity(item: ShoppingRecord) {
-  return shoppingIdentity(sourceName(item));
+  return canonicalGroceryIdentity(sourceName(item));
 }
 
 function mergeUnit(item: ShoppingRecord) {
@@ -88,11 +90,9 @@ async function applyShoppingOptimisation(items: ShoppingRecord[]) {
     updates.map((update) => prisma.shoppingItem.update({
       where: { id: update.id },
       data: {
-        name: formatProductName(update.name),
+        name: canonicalGroceryName(update.name),
         quantity: update.quantity,
         unit: update.unit,
-        // The source purchase may differ from a previously linked derived
-        // Product, so allow the canonical product resolver to relink it later.
         productId: null,
       },
     })),
@@ -143,18 +143,17 @@ async function mergeDuplicateItems(items: ShoppingRecord[]) {
     const quantity = canSum
       ? quantities.reduce<number>((total, value) => total + (value ?? 0), 0)
       : keeper.quantity;
-    const identity = canonicalIdentity(keeper);
-    const productId = group.find((item) => item.productId)?.productId ?? null;
+    const canonicalProduct = await resolveCanonicalProduct(sourceName(keeper));
     const checked = group.every((item) => item.checked);
 
     await prisma.$transaction([
       prisma.shoppingItem.update({
         where: { id: keeper.id },
         data: {
-          name: formatProductName(identity),
+          name: canonicalProduct.canonicalName ?? canonicalProduct.name,
           quantity,
           unit: mergeUnit(keeper),
-          productId,
+          productId: canonicalProduct.id,
           checked,
         },
       }),
@@ -173,13 +172,18 @@ async function normaliseSingleItems(items: ShoppingRecord[]) {
   let changed = false;
 
   for (const item of items) {
-    const displayName = formatProductName(sourceName(item));
+    const canonicalProduct = await resolveCanonicalProduct(sourceName(item));
+    const displayName = formatProductName(canonicalProduct.canonicalName ?? canonicalProduct.name);
     const unit = mergeUnit(item);
-    if (item.name === displayName && item.unit === unit) continue;
+    if (item.name === displayName && item.unit === unit && item.productId === canonicalProduct.id) continue;
 
     await prisma.shoppingItem.update({
       where: { id: item.id },
-      data: { name: displayName, unit },
+      data: {
+        name: displayName,
+        unit,
+        productId: canonicalProduct.id,
+      },
     });
     changed = true;
   }
