@@ -103,6 +103,7 @@ const singularOverrides = new Map<string, string>([
   ["bananas", "banana"], ["apples", "apple"], ["pears", "pear"],
   ["chickpeas", "chickpea"], ["lentils", "lentil"], ["beans", "bean"],
   ["prawns", "prawn"], ["fillets", "fillet"], ["breasts", "breast"],
+  ["cloves", "clove"],
 ]);
 
 const titleLowercase = new Set(["and", "of", "or", "the", "with"]);
