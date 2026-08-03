@@ -51,10 +51,11 @@ export class EnrichmentQueue {
     });
   }
 
-  static async claimNext() {
+  static async claimNext(provider?: string) {
     return prisma.$transaction(async (transaction) => {
       const next = await transaction.productEnrichmentJob.findFirst({
         where: {
+          provider,
           OR: [
             { status: EnrichmentJobStatus.QUEUED },
             {
