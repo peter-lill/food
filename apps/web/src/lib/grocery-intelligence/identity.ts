@@ -34,6 +34,7 @@ const preparationPhrases: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bcored\b/g, label: "Cored" },
   { pattern: /\bhusks?\s+and\s+silk\s+removed\b/g, label: "Husks And Silk Removed" },
   { pattern: /\bseeds?\s+removed\b/g, label: "Seeds Removed" },
+  { pattern: /\bstoned\b/g, label: "Stone Removed" },
   {
     pattern: /\bcut\s+into\s+(?:(?:\d+(?:\.\d+)?)\s*)?(?:cm|centimetres?)?\s*thick\s+slices?\b/g,
     label: "Cut Into Thick Slices",
