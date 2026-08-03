@@ -10,7 +10,7 @@ import styles from "../products.module.css";
 
 export const dynamic = "force-dynamic";
 
-type ProductPageProps = { params: Promise<{ productId: string }> };
+type ProductPageProps = { params: Promise<{ productId: string }>; searchParams: Promise<{ specific?: string }> };
 type ProductKnowledge = { overview: string; origin?: string; uses: string[]; storage: string[] };
 type NutritionRow = { label: string; per100: string; perServing: string | undefined; sub?: boolean };
 
@@ -100,11 +100,12 @@ function knowledgeFor(name: string): ProductKnowledge | null {
   return null;
 }
 
-export default async function ProductPage({ params }: ProductPageProps) {
+export default async function ProductPage({ params, searchParams }: ProductPageProps) {
   const { productId } = await params;
+  const { specific } = await searchParams;
   const decodedProductId = decodeURIComponent(productId);
   await enrichProductKnowledge(decodedProductId);
-  const product = await getProductHubDetail(decodedProductId);
+  const product = await getProductHubDetail(decodedProductId, { specific: specific === "1" });
   if (!product) notFound();
 
   const rawDisplayName = collapseRepeatedPhrase(product.name);
@@ -195,7 +196,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
                 <li className={styles.listItem} key={variant.id}>
                   <div className={styles.listingIdentity}>
                     <div className={styles.listingImage}>{variant.imageUrl ? <img alt="" src={variant.imageUrl} /> : <span>â—ˆ</span>}</div>
-                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Specific product"}</small></div>
+                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Generic variety"}</small></div>
                   </div>
                   <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
                 </li>

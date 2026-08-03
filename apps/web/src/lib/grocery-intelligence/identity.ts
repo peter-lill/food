@@ -58,6 +58,10 @@ const preparationPhrases: Array<{ pattern: RegExp; label: string }> = [
   { pattern: /\bdiced\b/g, label: "Diced" },
   { pattern: /\bsliced\b/g, label: "Sliced" },
   { pattern: /\bgrated\b/g, label: "Grated" },
+  { pattern: /\bcrumbled\b/g, label: "Crumbled" },
+  { pattern: /\bthawed\b/g, label: "Thawed" },
+  { pattern: /\btorn\b/g, label: "Torn" },
+  { pattern: /\binto\s+(?:\d+(?:\.\d+)?\s*)?cm\s+cubes?\b/g, label: "Cut Into Cubes" },
   { pattern: /\bcrushed\b/g, label: "Crushed" },
   { pattern: /\bdrained\b/g, label: "Drained" },
   { pattern: /\brinsed\b/g, label: "Rinsed" },
@@ -96,10 +100,21 @@ function stripTechnicalNoise(value: string, evidence: string[]) {
 
 function stripRecipeNoise(value: string, evidence: string[]) {
   let result = value
+    .replace(/\b([a-z]+)\s+or\s+[a-z]+\s+([a-z]+)\b/gi, "$1 $2")
+    .replace(/^cm\s+pieces?\s*/i, "")
+    .replace(/^(?:extra\s+)?pinch\s+(?:of\s+)?/i, "")
+    .replace(/^firmly\s+packed\s+/i, "")
+    .replace(/^or\s+/i, "")
+    .replace(/^sized\s+/i, "")
+    .replace(/^store\s+bought\s+/i, "")
     .replace(/^quantity\s+of\s+/, "")
+    .replace(/\binto\s+thin\s+ribbons?\s+with\s+(?:a\s+)?vegetable\s+peeler\b.*$/i, "")
+    .replace(/\bwhite\s+part\s+only\b.*$/i, "")
+    .replace(/\bapproximately\s+per\s+tortilla\b.*$/i, "")
     .replace(/\bto\s+serve\b.*$/, "")
     .replace(/\bfor\s+garnish\b.*$/, "")
-    .replace(/\bplus\s+extra\b.*$/, "")
+    .replace(/\bto\s+garnish\b.*$/, "")
+    .replace(/\bplus\s+(?:teaspoons?\s+)?extra\b.*$/, "")
     .replace(/\bto\s+taste\b.*$/, "")
     .replace(/\s+/g, " ")
     .trim();
