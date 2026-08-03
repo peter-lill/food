@@ -41,6 +41,8 @@ const preparationPhrases: Array<{ pattern: RegExp; label: string }> = [
   },
   { pattern: /\bcut\s+into\s+thin\s+wedges\b/g, label: "Cut Into Thin Wedges" },
   { pattern: /\bcut\s+into\s+wedges\b/g, label: "Cut Into Wedges" },
+  { pattern: /\b(?:horizontally|vertically|lengthways|lengthwise|crosswise)\b/g, label: "Cut Direction Removed" },
+  { pattern: /\b(?:freshly|finely|roughly|thinly|lightly)\b/g, label: "Preparation Modifier Removed" },
   { pattern: /\bcut\s+into\s+[^,;]+$/g, label: "Cut Into Pieces" },
   { pattern: /\blightly\s+toasted\b/g, label: "Lightly Toasted" },
   { pattern: /\bdry[ -]toasted\b/g, label: "Dry Toasted" },
