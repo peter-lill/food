@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Ean13Barcode } from "@/components/products/Ean13Barcode";
 import { ProductImagePanel } from "@/components/products/ProductImagePanel";
+import { ProductImageWithFallback } from "@/components/products/ProductImageWithFallback";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
@@ -129,8 +130,6 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     ...product.storeProducts.map((listing) => listing.retailer),
     ...product.priceObservations.map((observation) => observation.retailer),
   ]).size;
-  const imageVersion = encodeURIComponent(product.imageUrl ?? "none");
-  const productImage = `/api/products/${encodeURIComponent(product.id)}/image?v=${imageVersion}`;
   const servingFactor = product.servingQuantity !== null && ["g", "mL"].includes(product.servingUnit ?? "")
     ? product.servingQuantity / 100
     : null;
@@ -155,7 +154,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
-              {product.imageUrl ? <img alt={displayName} src={productImage} /> : <span aria-hidden="true">◈</span>}
+              <ProductImageWithFallback alt={displayName} productId={product.id} />
             </div>
             <div>
               <p className="eyebrow">{department ?? "PRODUCT"}</p>
@@ -196,7 +195,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               {product.variants.map((variant) => (
                 <li className={styles.listItem} key={variant.id}>
                   <div className={styles.listingIdentity}>
-                    <div className={styles.listingImage}>{variant.imageUrl ? <img alt="" src={variant.imageUrl} /> : <span>â—ˆ</span>}</div>
+                    <div className={styles.listingImage}><ProductImageWithFallback alt={variant.name} productId={variant.id} /></div>
                     <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Generic variety"}</small></div>
                   </div>
                   <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
