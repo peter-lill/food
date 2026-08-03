@@ -87,7 +87,7 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
           <img
             alt={`${productName} image candidate`}
             loading="lazy"
-            src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}`}
+            src={`/api/products/${encodeURIComponent(productId)}/image-candidates/${encodeURIComponent(candidate.id)}?v=${encodeURIComponent(candidate.updatedAt.toISOString())}`}
           />
         </div>
 

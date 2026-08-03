@@ -27,6 +27,7 @@ export type ProductImageCandidateGalleryItem = {
   selected: boolean;
   rejectionReasons: string[];
   lastCheckedAt: Date | null;
+  updatedAt: Date;
 };
 
 export async function recordDiscoveredCandidate(productId: string, candidate: DiscoveredImageCandidate) {
@@ -114,7 +115,7 @@ export async function listProductImageCandidates(productId: string, limit = 12) 
   return prisma.$queryRaw<ProductImageCandidateGalleryItem[]>`
     SELECT "id", "url", "source", "sourceLabel", "width", "height", "contentType",
            "qualityScore", "identityScore", "providerScore", "overallScore",
-           "accepted", "rejected", "selected", "rejectionReasons", "lastCheckedAt"
+           "accepted", "rejected", "selected", "rejectionReasons", "lastCheckedAt", "updatedAt"
     FROM "ProductImageCandidate"
     WHERE "productId" = ${productId}
     ORDER BY "selected" DESC, "rejected" ASC, "overallScore" DESC NULLS LAST, "updatedAt" DESC
