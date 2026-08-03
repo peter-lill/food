@@ -49,7 +49,7 @@ export async function generateGenericProductImage(productId: string, identity: s
         "rejected", "assetId", "createdAt", "updatedAt"
       ) VALUES (
         ${candidateId}, ${productId}, ${candidateUrl}, 'OpenAI generated',
-        ${`${model} · ${safeIdentity}`}, 100, true, false, ${asset.id}, NOW(), NOW()
+        ${safeIdentity}, 100, true, false, ${asset.id}, NOW(), NOW()
       )
       ON CONFLICT ("productId", "url") DO UPDATE SET
         "selected" = true, "rejected" = false, "assetId" = EXCLUDED."assetId", "updatedAt" = NOW()

@@ -78,6 +78,16 @@ const variantPhrases = [
   "white", "skim", "full cream", "extra lean", "lean", "organic", "green", "red",
 ] as const;
 
+function inferredFamily(value: string) {
+  const normalised = normaliseProductText(value);
+  if (/\b(?:bread|loaf|loaves|roll|rolls|bun|buns|sourdough)\b/.test(normalised)) return "Bread";
+  if (
+    !/\b(?:peanut|almond|cashew|hazelnut|chocolate|jam|vegemite)\b/.test(normalised)
+    && /\b(?:margarine|table spread|vegetable oil spread|canola spread|olive oil spread|simply spread)\b/.test(normalised)
+  ) return "Margarine";
+  return null;
+}
+
 function titleCase(value: string) {
   return value
     .toLocaleLowerCase("en-AU")
@@ -190,6 +200,8 @@ export function identifyGrocery(value: string): GroceryIdentity | null {
     const parsed = normaliseProductText(parseProductName(working).canonicalName);
     if (!parsed || parsed.length > 120 || /^[.#]/.test(parsed)) return null;
     canonicalName = titleCase(parsed);
+    family = inferredFamily(parsed);
+    if (family) evidence.push("generic family inferred from product identity");
     for (const phrase of variantPhrases) {
       if (parsed.startsWith(`${phrase} `)) {
         variant = titleCase(phrase);
