@@ -34,6 +34,7 @@
     "grocery:canonical:backfill:apply": "tsx scripts/backfill-canonical-grocery-intelligence.ts --apply",
     "apke:backfill": "tsx scripts/backfill-apke.ts",
     "apke:backfill:apply": "tsx scripts/backfill-apke.ts --apply",
+    "apke:ingredients:seed": "tsx scripts/seed-ingredient-dictionary.ts",
     "prices:import:auscost": "tsx scripts/import-auscost-prices.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
