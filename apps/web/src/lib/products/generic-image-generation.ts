@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { importImageAssetBytes } from "@/lib/images/image-asset.service";
 import { prisma } from "@/lib/prisma";
+import { genericImageIdentity } from "@/lib/products/generic-image-policy";
 
 const defaultModel = "gpt-image-2";
 
@@ -9,6 +10,8 @@ function promptFor(identity: string) {
 }
 
 export async function generateGenericProductImage(productId: string, identity: string) {
+  const safeIdentity = genericImageIdentity(identity);
+  if (!safeIdentity) return null;
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
 
@@ -18,7 +21,7 @@ export async function generateGenericProductImage(productId: string, identity: s
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model,
-      prompt: promptFor(identity),
+      prompt: promptFor(safeIdentity),
       n: 1,
       size: "1024x1024",
       quality: "medium",
@@ -46,7 +49,7 @@ export async function generateGenericProductImage(productId: string, identity: s
         "rejected", "assetId", "createdAt", "updatedAt"
       ) VALUES (
         ${candidateId}, ${productId}, ${candidateUrl}, 'OpenAI generated',
-        ${`${model} · ${identity}`}, 100, true, false, ${asset.id}, NOW(), NOW()
+        ${`${model} · ${safeIdentity}`}, 100, true, false, ${asset.id}, NOW(), NOW()
       )
       ON CONFLICT ("productId", "url") DO UPDATE SET
         "selected" = true, "rejected" = false, "assetId" = EXCLUDED."assetId", "updatedAt" = NOW()
