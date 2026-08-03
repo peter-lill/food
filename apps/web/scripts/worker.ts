@@ -11,6 +11,8 @@ import {
   type BackgroundJob,
 } from "../src/lib/jobs/background-jobs";
 import { handleBackgroundJob, providerForJob } from "../src/lib/jobs/worker-handlers";
+import { EnrichmentQueue } from "../src/lib/product-intelligence/EnrichmentQueue";
+import { enrichProductKnowledge } from "../src/lib/product-intelligence/barcode-enrichment";
 
 const pollMs = Math.max(250, Number(process.env.FOOD_WORKER_POLL_MS ?? 1500));
 const queue = process.env.FOOD_WORKER_QUEUE?.trim() || "default";
@@ -81,21 +83,67 @@ async function processJob(job: BackgroundJob) {
   }
 }
 
+async function processProductEnrichmentJob(
+  job: NonNullable<Awaited<ReturnType<typeof EnrichmentQueue.claimNext>>>,
+) {
+  const started = Date.now();
+  log("product_enrichment.started", {
+    jobId: job.id,
+    productId: job.productId,
+    provider: job.provider,
+    attempts: job.attempts,
+  });
+
+  try {
+    const result = await enrichProductKnowledge(job.productId);
+    if (result.status === "failed" || result.status === "busy") {
+      throw new Error(`Product enrichment returned ${result.status}.`);
+    }
+    await EnrichmentQueue.complete(job.id);
+    log("product_enrichment.completed", {
+      jobId: job.id,
+      productId: job.productId,
+      result: result.status,
+      durationMs: Date.now() - started,
+    });
+  } catch (error) {
+    const retryAt = job.attempts < 5
+      ? new Date(Date.now() + Math.min(3600, 15 * 2 ** Math.max(0, job.attempts - 1)) * 1000)
+      : undefined;
+    await EnrichmentQueue.fail(job.id, error, retryAt);
+    log("product_enrichment.retry_or_failed", {
+      jobId: job.id,
+      productId: job.productId,
+      attempts: job.attempts,
+      retryAt: retryAt?.toISOString() ?? null,
+      error: error instanceof Error ? error.message : String(error),
+      durationMs: Date.now() - started,
+    });
+  }
+}
+
 async function main() {
   log("worker.starting", { queue, pollMs, once });
   const recovered = await releaseStaleBackgroundJobs();
   if (Number(recovered) > 0) log("jobs.recovered", { count: Number(recovered) });
 
   while (!stopping) {
-    const job = await claimBackgroundJob(workerId, queue);
-    if (!job) {
+    const backgroundJob = await claimBackgroundJob(workerId, queue);
+    if (backgroundJob) {
+      await processJob(backgroundJob);
       if (once) break;
-      await sleep(pollMs);
       continue;
     }
 
-    await processJob(job);
+    const productEnrichmentJob = await EnrichmentQueue.claimNext("default");
+    if (productEnrichmentJob) {
+      await processProductEnrichmentJob(productEnrichmentJob);
+      if (once) break;
+      continue;
+    }
+
     if (once) break;
+    await sleep(pollMs);
   }
 
   log("worker.stopped");
