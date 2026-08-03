@@ -34,6 +34,7 @@ const concepts: GroceryConcept[] = [
   { canonicalName: "Avocado", aliases: ["avocado", "avocados"], family: "Avocado", preservePhrase: true },
   { canonicalName: "Beetroot", aliases: ["beetroot", "beetroots", "beet"], family: "Beetroot", preservePhrase: true },
   { canonicalName: "Baking Powder", aliases: ["baking powder"], family: "Baking Powder", preservePhrase: true },
+  { canonicalName: "Broccolini", aliases: ["broccolini"], family: "Broccolini", preservePhrase: true },
   { canonicalName: "Soy Sauce", aliases: ["soy sauce"], family: "Soy Sauce", preservePhrase: true },
   { canonicalName: "Spaghetti", aliases: ["spaghetti"], family: "Pasta", preservePhrase: true },
 ];

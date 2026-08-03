@@ -78,6 +78,12 @@ const cases: Array<{
     preparation: ["Cut Direction Removed"],
   },
   {
+    input: "Broccolini Ends",
+    canonical: "Broccolini",
+    family: "Broccolini",
+    preparation: ["Ends Removed"],
+  },
+  {
     input: "Carrot Halved Lengthways",
     canonical: "Carrot",
     preparation: ["Halved", "Cut Direction Removed"],
