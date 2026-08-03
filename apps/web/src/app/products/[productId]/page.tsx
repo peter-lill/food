@@ -154,7 +154,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
-              <ProductImageWithFallback alt={displayName} productId={product.id} />
+              <ProductImageWithFallback alt={displayName} imageVersion={product.imageUrl} productId={product.id} />
             </div>
             <div>
               <p className="eyebrow">{department ?? "PRODUCT"}</p>
@@ -195,7 +195,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               {product.variants.map((variant) => (
                 <li className={styles.listItem} key={variant.id}>
                   <div className={styles.listingIdentity}>
-                    <div className={styles.listingImage}><ProductImageWithFallback alt={variant.name} productId={variant.id} /></div>
+                    <div className={styles.listingImage}><ProductImageWithFallback alt={variant.name} imageVersion={variant.imageUrl} productId={variant.id} /></div>
                     <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Generic variety"}</small></div>
                   </div>
                   <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
