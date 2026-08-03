@@ -12,7 +12,6 @@ export const australianIngredientDictionarySeed: IngredientDictionaryEntry[] = [
   { canonicalName: "Rye", category: "Cereal", aliases: ["Rye Flour"], allergens: ["Rye", "Gluten"] },
   { canonicalName: "Oats", category: "Cereal", aliases: ["Rolled Oats", "Oat Flour"] },
   { canonicalName: "Soy Lecithin", category: "Emulsifier", insCode: "322", additiveClass: "Emulsifier", isAdditive: true, aliases: ["Lecithin (Soy)", "Soy Lecithin 322", "Emulsifier 322", "322"], allergens: ["Soy"] },
-  { canonicalName: "Lecithin", category: "Emulsifier", insCode: "322", additiveClass: "Emulsifier", isAdditive: true, aliases: ["Lecithins", "Emulsifier (Lecithin)"] },
   { canonicalName: "Polyglycerol Polyricinoleate", category: "Emulsifier", insCode: "476", additiveClass: "Emulsifier", isAdditive: true, aliases: ["PGPR", "Emulsifier 476", "476"] },
   { canonicalName: "Citric Acid", category: "Acidity Regulator", insCode: "330", additiveClass: "Acidity Regulator", isAdditive: true, aliases: ["Acidity Regulator 330", "Food Acid 330", "330"] },
   { canonicalName: "Sodium Bicarbonate", category: "Raising Agent", insCode: "500", additiveClass: "Raising Agent", isAdditive: true, aliases: ["Bicarbonate of Soda", "Baking Soda", "Raising Agent 500", "500"] },
