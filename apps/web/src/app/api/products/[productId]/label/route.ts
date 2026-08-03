@@ -50,7 +50,7 @@ const productSelect = {
   allergens: true,
   updatedAt: true,
   storeProducts: {
-    where: { active: true, retailer: { in: ["Coles", "Woolworths"] } },
+    where: { active: true, retailer: { in: ["Coles", "Woolworths"] as string[] } },
     select: { retailer: true },
   },
 } as const;
