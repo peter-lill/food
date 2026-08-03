@@ -1,8 +1,9 @@
-import { EnrichmentJobStatus } from "@prisma/client";
+import { EnrichmentJobStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths, type RetailerPriceCandidate } from "@/lib/prices/coles-woolworths-provider";
 import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
 import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
+import { plausibleIngredients } from "@/lib/product-intelligence/australian-nip-parser";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 
 const provider = "barcode-knowledge-v1";
@@ -17,6 +18,9 @@ type OpenFoodFactsProduct = {
   image_front_url?: unknown;
   image_url?: unknown;
   allergens_tags?: unknown;
+  traces_tags?: unknown;
+  ingredients_text?: unknown;
+  ingredients_text_en?: unknown;
   serving_size?: unknown;
   serving_quantity?: unknown;
   product_quantity?: unknown;
@@ -94,7 +98,7 @@ async function fetchOpenFoodFacts(barcode: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), requestTimeoutMs);
   try {
-    const fields = ["status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url", "allergens_tags", "serving_size", "serving_quantity", "product_quantity", "nutriments"].join(",");
+    const fields = ["status", "product_name", "brands", "quantity", "categories", "image_front_url", "image_url", "allergens_tags", "traces_tags", "ingredients_text", "ingredients_text_en", "serving_size", "serving_quantity", "product_quantity", "nutriments"].join(",");
     const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(barcode)}.json?fields=${fields}`, {
       cache: "no-store",
       signal: controller.signal,
@@ -218,6 +222,7 @@ export async function enrichProductKnowledge(productId: string) {
       }
     }
 
+    let barcodeIngredients: { text: string; contains: string[]; mayContain: string[]; sourceUrl: string } | null = null;
     if (barcode) {
       const source = await fetchOpenFoodFacts(barcode);
       if (source) {
@@ -225,6 +230,16 @@ export async function enrichProductKnowledge(productId: string) {
         const allergens = Array.isArray(source.allergens_tags)
           ? source.allergens_tags.map(clean).filter(Boolean).map((value) => value.replace(/^[a-z]{2}:/i, ""))
           : [];
+        const mayContainAllergens = Array.isArray(source.traces_tags)
+          ? source.traces_tags.map(clean).filter(Boolean).map((value) => value.replace(/^[a-z]{2}:/i, "").replace(/[-_]+/g, " "))
+          : [];
+        const sourceIngredients = plausibleIngredients(clean(source.ingredients_text) || clean(source.ingredients_text_en) || null);
+        barcodeIngredients = sourceIngredients ? {
+          text: sourceIngredients,
+          contains: allergens,
+          mayContain: mayContainAllergens,
+          sourceUrl: `https://world.openfoodfacts.org/product/${barcode}`,
+        } : null;
         const sodiumGrams = numeric(nutrients.sodium_100g);
         const sourceBrand = clean(source.brands) || null;
         const sourcePackSize = clean(source.quantity) || null;
@@ -259,7 +274,49 @@ export async function enrichProductKnowledge(productId: string) {
       }
     }
 
+    if (barcodeIngredients) {
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE "Product"
+        SET
+          "ingredientsText" = COALESCE("ingredientsText", ${barcodeIngredients.text}),
+          "allergens" = CASE
+            WHEN cardinality("allergens") = 0 AND cardinality(${barcodeIngredients.contains}::text[]) > 0 THEN ${barcodeIngredients.contains}::text[]
+            ELSE "allergens"
+          END,
+          "mayContainAllergens" = CASE
+            WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${barcodeIngredients.mayContain}::text[]) > 0 THEN ${barcodeIngredients.mayContain}::text[]
+            ELSE "mayContainAllergens"
+          END,
+          "updatedAt" = NOW()
+        WHERE "id" = ${product.id}
+      `);
+    }
+
     const retailerLabel = await refreshAustralianRetailerKnowledge(product.id);
+    if (barcodeIngredients) {
+      await prisma.$executeRaw(Prisma.sql`
+        UPDATE "ProductNutritionPanel"
+        SET
+          "ingredientsText" = COALESCE("ingredientsText", ${barcodeIngredients.text}),
+          "containsAllergens" = CASE
+            WHEN cardinality("containsAllergens") = 0 AND cardinality(${barcodeIngredients.contains}::text[]) > 0 THEN ${barcodeIngredients.contains}::text[]
+            ELSE "containsAllergens"
+          END,
+          "mayContainAllergens" = CASE
+            WHEN cardinality("mayContainAllergens") = 0 AND cardinality(${barcodeIngredients.mayContain}::text[]) > 0 THEN ${barcodeIngredients.mayContain}::text[]
+            ELSE "mayContainAllergens"
+          END,
+          "source" = CASE
+            WHEN "source" IS NULL OR "source" = '' THEN 'Open Food Facts'
+            WHEN "source" NOT ILIKE '%Open Food Facts%' THEN "source" || ' + Open Food Facts'
+            ELSE "source"
+          END,
+          "sourceUrl" = COALESCE("sourceUrl", ${barcodeIngredients.sourceUrl}),
+          "verifiedAt" = NOW(),
+          "updatedAt" = NOW()
+        WHERE "productId" = ${product.id}
+      `);
+    }
     await recoverMissingImage(product.id);
 
     await prisma.productEnrichmentJob.update({

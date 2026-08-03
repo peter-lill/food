@@ -81,7 +81,7 @@ function valueAfter(lines: string[], patterns: RegExp[]) {
   return null;
 }
 
-function plausibleIngredients(value: string | null) {
+export function plausibleIngredients(value: string | null) {
   if (!value) return null;
   const cleaned = value.replace(/^ingredients?\s*:?\s*/i, "").replace(/\s+/g, " ").trim();
   if (cleaned.length < 12 || cleaned.length > 5000) return null;
