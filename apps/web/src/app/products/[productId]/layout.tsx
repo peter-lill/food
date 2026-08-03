@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { ProductLabelSupplement } from "@/components/products/ProductLabelSupplement";
 import { RetailerIntelligencePanel } from "@/components/products/RetailerIntelligencePanel";
 
 type ProductDetailLayoutProps = {
@@ -20,7 +19,6 @@ export default async function ProductDetailLayout({
         <RetailerIntelligencePanel productIdOrSlug={decodedProductId} />
       </div>
       {children}
-      <ProductLabelSupplement productId={decodedProductId} />
     </>
   );
 }
