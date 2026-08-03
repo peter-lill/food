@@ -64,7 +64,7 @@ async function localAssetResponse(productId: string) {
   });
   if (!body) return null;
 
-  return new NextResponse(body, {
+  return new NextResponse(new Uint8Array(body), {
     status: 200,
     headers: {
       "Content-Type": asset.mimeType,
