@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { parseAustralianNip } from "../src/lib/product-intelligence/australian-nip-parser";
+import { parseAustralianNip, plausibleIngredients } from "../src/lib/product-intelligence/australian-nip-parser";
 
 const fixtures = [
   {
@@ -58,5 +58,11 @@ for (const fixture of fixtures) {
   fixture.verify(result);
   console.log(`✓ ${fixture.name}`);
 }
+
+assert.equal(
+  plausibleIngredients("Sugar, milk solids, wheat flour, cocoa butter, vegetable oil, emulsifier (soy lecithin), salt."),
+  "Sugar, milk solids, wheat flour, cocoa butter, vegetable oil, emulsifier (soy lecithin), salt.",
+);
+assert.equal(plausibleIngredients("Save $2.50 per 100g, new low price"), null);
 
 console.log(`${fixtures.length} Australian NIP parser fixtures passed.`);
