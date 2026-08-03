@@ -89,6 +89,13 @@ async function fetchRemoteImage(url: string) {
   return { bytes, mimeType };
 }
 
+async function writeAssetBytes(asset: ImageAssetRecord, bytes: Buffer) {
+  const absolutePath = path.join(storageRoot(), asset.storagePath);
+  await mkdir(path.dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, bytes);
+  return bytes;
+}
+
 export async function importImageAsset(input: {
   url: string;
   provider?: string | null;
@@ -103,7 +110,10 @@ export async function importImageAsset(input: {
     WHERE "sha256" = ${sha256}
     LIMIT 1
   `;
-  if (existing[0]) return existing[0];
+  if (existing[0]) {
+    await writeAssetBytes(existing[0], bytes).catch(() => undefined);
+    return existing[0];
+  }
 
   const id = randomUUID();
   const extension = extensionForMime(mimeType);
@@ -225,5 +235,18 @@ export async function getCandidateImageAsset(productId: string, candidateId: str
 }
 
 export async function readImageAsset(asset: ImageAssetRecord) {
-  return readFile(path.join(storageRoot(), asset.storagePath));
+  const absolutePath = path.join(storageRoot(), asset.storagePath);
+  try {
+    return await readFile(absolutePath);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code !== "ENOENT" || !asset.originalUrl) throw error;
+
+    const restored = await fetchRemoteImage(asset.originalUrl);
+    const restoredHash = createHash("sha256").update(restored.bytes).digest("hex");
+    if (restoredHash !== asset.sha256) {
+      throw new Error("Restored image no longer matches the recorded asset");
+    }
+    return writeAssetBytes(asset, restored.bytes);
+  }
 }
