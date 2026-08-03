@@ -5,6 +5,19 @@ import styles from "./catalogue-health.module.css";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Catalogue Health | Food Admin" };
 
+type HealthCard = {
+  label: string;
+  value: number | string;
+  note: string;
+  href: string;
+  critical?: boolean;
+};
+
+type HealthGroup = {
+  title: string;
+  cards: HealthCard[];
+};
+
 function pct(value: number) {
   return `${Math.round(value * 10) / 10}%`;
 }
@@ -15,7 +28,7 @@ export default async function CatalogueHealthPage() {
   const completeRate = health.products ? (health.complete / health.products) * 100 : 0;
   const goldRate = health.products ? (health.gold / health.products) * 100 : 0;
 
-  const groups = [
+  const groups: HealthGroup[] = [
     {
       title: "Catalogue",
       cards: [
