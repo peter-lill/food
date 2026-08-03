@@ -13,7 +13,7 @@ export async function executeBackgroundJob(job: BackgroundJob) {
   switch (job.type) {
     case backgroundJobTypes.productImageEnrichment: {
       assertProductImagePayload(job.payload);
-      const result = await recoverProductImage(job.payload.productId);
+      const result = await recoverProductImage(job.payload.productId, { allowGenerated: true });
       return {
         productId: job.payload.productId,
         imageUrl: result.imageUrl,

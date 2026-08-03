@@ -3,6 +3,7 @@ import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider
 import { resolveWoolworthsProductByBarcode } from "@/lib/prices/woolworths-barcode-resolver";
 import { findBestProductImage } from "@/lib/products/image-intelligence";
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
+import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
 import {
   markSelectedCandidate,
   recordCandidateAssessment,
@@ -165,7 +166,7 @@ async function wikimediaFoodImages(identity: string) {
       return {
         url: info?.thumburl ?? info?.url ?? null,
         title: page.title ?? identity,
-        score: matchedTerms * 20 - (unsuitable ? 100 : 0) - landscapePenalty * 20,
+        score: Math.round((matchedTerms / Math.max(1, identityTerms.length)) * 100) - (unsuitable ? 100 : 0) - landscapePenalty * 20,
         mime: info?.mime ?? "",
       };
     })
@@ -173,7 +174,7 @@ async function wikimediaFoodImages(identity: string) {
     .sort((left, right) => right.score - left.score);
 }
 
-export async function recoverProductImage(productId: string) {
+export async function recoverProductImage(productId: string, options: { allowGenerated?: boolean } = {}) {
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: {
@@ -200,6 +201,7 @@ export async function recoverProductImage(productId: string) {
   ]);
   const produceIdentity = recognisedIdentity(identityValues, produceTerms);
   const genericIdentity = recognisedIdentity(identityValues, genericFoodTerms);
+  const isGeneric = !product.brand && !barcode;
   const identity = genericIdentity ?? product.canonicalName ?? product.name;
   const diagnostics: ImageSearchDiagnostics = {
     identity,
@@ -210,7 +212,7 @@ export async function recoverProductImage(productId: string) {
     selectedSource: null,
   };
 
-  const primary = await findBestProductImage(productId).catch((error) => {
+  const primary = isGeneric ? null : await findBestProductImage(productId).catch((error) => {
     diagnostics.steps.push({ provider: "Primary pipeline", status: "failed", candidates: 0, detail: error instanceof Error ? error.message : "Unknown failure" });
     return null;
   });
@@ -239,6 +241,8 @@ export async function recoverProductImage(productId: string) {
       diagnostics.selectedSource = candidate.source;
       return { ...primary, diagnostics };
     }
+  } else if (isGeneric) {
+    diagnostics.steps.push({ provider: "Primary pipeline", status: "skipped", candidates: 0, detail: "Generic families do not use retailer packaging images" });
   } else if (!diagnostics.steps.some((step) => step.provider === "Primary pipeline")) {
     diagnostics.steps.push({ provider: "Primary pipeline", status: "success", candidates: 0, detail: "No suitable candidate returned" });
   }
@@ -288,6 +292,7 @@ export async function recoverProductImage(productId: string) {
   diagnostics.queries = queries;
 
   let retailerCount = 0;
+  if (!isGeneric) {
   for (const query of queries) {
     const results = await searchColesAndWoolworths(query).catch(() => []);
     retailerCount += results.length;
@@ -302,11 +307,14 @@ export async function recoverProductImage(productId: string) {
       });
     }
   }
-  diagnostics.steps.push({ provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
+  }
+  diagnostics.steps.push(isGeneric
+    ? { provider: "Coles / Woolworths", status: "skipped", candidates: 0, detail: "Retailer packaging is excluded for generic families" }
+    : { provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
 
-  if (genericIdentity) {
-    const commons = await wikimediaFoodImages(genericIdentity);
-    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "success", candidates: commons.length, detail: `Searched for ${commonsQueries[genericIdentity] ?? `${genericIdentity} food isolated`}` });
+  if (isGeneric && options.allowGenerated) {
+    const commons = await wikimediaFoodImages(identity);
+    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "success", candidates: commons.length, detail: `Searched for ${commonsQueries[identity] ?? `${identity} food isolated`}` });
     candidates.push(...commons.map((candidate) => ({
       url: candidate.url as string,
       source: "Wikimedia Commons",
@@ -315,7 +323,7 @@ export async function recoverProductImage(productId: string) {
       identityScore: Math.min(100, Math.max(0, candidate.score)),
     })));
   } else {
-    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product was not recognised as a generic food" });
+    diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product is branded or barcoded" });
   }
 
   const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.url, candidate])).values()];
@@ -328,6 +336,10 @@ export async function recoverProductImage(productId: string) {
     const candidateId = candidateIds.get(candidate.url);
     if (!candidateId) continue;
     const inspection = await inspectCandidate(candidate);
+    if (isGeneric && candidate.source === "Wikimedia Commons" && (candidate.identityScore ?? 0) < 90) {
+      inspection.accepted = false;
+      inspection.reason = "Wikimedia identity match was below the professional generic-image threshold";
+    }
     const overallScore = Math.round(
       (inspection.assessment.score * 0.65)
       + (candidate.providerScore * 0.25)
@@ -356,6 +368,20 @@ export async function recoverProductImage(productId: string) {
     await markSelectedCandidate(product.id, candidateId);
     diagnostics.selectedSource = candidate.source;
     return { imageUrl: candidate.url, status: "selected" as const, diagnostics };
+  }
+
+  if (isGeneric) {
+    const generated = await generateGenericProductImage(product.id, identity);
+    diagnostics.steps.push({
+      provider: "OpenAI generated",
+      status: generated ? "success" : "skipped",
+      candidates: generated ? 1 : 0,
+      detail: generated ? `Generated and stored with ${generated.model}` : "OPENAI_API_KEY is not configured",
+    });
+    if (generated) {
+      diagnostics.selectedSource = "OpenAI generated";
+      return { imageUrl: generated.imageUrl, status: "selected" as const, diagnostics };
+    }
   }
 
   return {

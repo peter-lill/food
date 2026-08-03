@@ -101,6 +101,17 @@ export async function importImageAsset(input: {
   provider?: string | null;
 }) {
   const { bytes, mimeType } = await fetchRemoteImage(input.url);
+  return importImageAssetBytes({ bytes, mimeType, originalUrl: input.url, provider: input.provider });
+}
+
+export async function importImageAssetBytes(input: {
+  bytes: Buffer;
+  mimeType: string;
+  originalUrl?: string | null;
+  provider?: string | null;
+}) {
+  const { bytes, mimeType } = input;
+  if (!bytes.length || !mimeType.startsWith("image/")) throw new Error("Generated asset was not a valid image");
   const sha256 = createHash("sha256").update(bytes).digest("hex");
 
   const existing = await prisma.$queryRaw<ImageAssetRecord[]>`
@@ -130,7 +141,7 @@ export async function importImageAsset(input: {
       "originalUrl", "provider", "createdAt", "updatedAt"
     ) VALUES (
       ${id}, ${sha256}, ${mimeType}, ${bytes.length}, ${relativePath},
-      ${input.url}, ${input.provider ?? null}, NOW(), NOW()
+      ${input.originalUrl ?? null}, ${input.provider ?? null}, NOW(), NOW()
     )
     ON CONFLICT ("sha256") DO UPDATE SET
       "originalUrl" = COALESCE("ImageAsset"."originalUrl", EXCLUDED."originalUrl"),
