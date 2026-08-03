@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
+  formatGroceryUnit,
+  formatProductName,
+  formatRetailProductName,
+} from "@/lib/products/product-formatter";
+import { consolidateShoppingItems } from "@/lib/shopping/shopping-consolidation";
+import {
   supermarketRetailers,
   type SupermarketComparisonData,
   type SupermarketPriceView,
@@ -11,6 +17,11 @@ function normaliseName(value: string) {
 }
 
 export async function getSupermarketComparisonData(): Promise<SupermarketComparisonData> {
+  // Prices must consume the same canonical Shopping records as the Shopping
+  // screen. Reapply consolidation before reading the lists so a page refresh is
+  // authoritative across Shopping and Prices.
+  await consolidateShoppingItems();
+
   const [priceRows, shoppingLists] = await Promise.all([
     prisma.supermarketPrice.findMany({
       where: { retailer: { in: [...supermarketRetailers] } },
@@ -45,9 +56,9 @@ export async function getSupermarketComparisonData(): Promise<SupermarketCompari
     latestRows.push({
       id: row.id,
       retailer,
-      productName: row.productName,
-      brand: row.brand,
-      packSize: row.packSize,
+      productName: formatRetailProductName(row.productName),
+      brand: row.brand ? formatRetailProductName(row.brand) : null,
+      packSize: row.packSize ? formatRetailProductName(row.packSize) : null,
       price: row.price,
       unitPrice: row.unitPrice,
       isSpecial: row.isSpecial,
@@ -64,9 +75,9 @@ export async function getSupermarketComparisonData(): Promise<SupermarketCompari
       name: list.name,
       items: list.items.map((item) => ({
         id: item.id,
-        name: item.name,
+        name: formatProductName(item.name),
         quantity: item.quantity,
-        unit: item.unit,
+        unit: formatGroceryUnit(item.unit, item.quantity),
       })),
     })),
     priceCount: latestRows.length,

@@ -7,6 +7,12 @@ export type ReceiptActionState = {
   status: "idle" | "success" | "error";
   message?: string;
   fieldErrors?: Record<string, string>;
+  /**
+   * Legacy compatibility for older receipt components. New code should use
+   * `status === "success"` instead. Receipt creation redirects on success,
+   * so this is only used while rendering a non-redirect response.
+   */
+  ok?: boolean;
 };
 
 export const initialReceiptActionState: ReceiptActionState = { status: "idle" };

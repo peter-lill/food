@@ -1,11 +1,26 @@
 import { prisma } from "@/lib/prisma";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { withSourceImage } from "@/lib/recipes/recipe-image";
+import {
+  sanitiseIngredientName,
+  sanitiseInstruction,
+  sanitiseRecipeText,
+} from "@/lib/recipes/recipe-text-sanitizer";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 
-const recipeImages: Record<string, string> = {
+const recipeImages: Record<string, string | null> = {
   "Lemon herb chicken bowl": "/recipes/lemon-herb-chicken-bowl.webp",
   "Salmon, rice and greens": "/recipes/salmon-rice-greens.webp",
   "Lean beef burrito bowl": "/recipes/lean-beef-burrito-bowl.webp",
+  "Spinach and Cheese Cob Loaf": "/recipes/spinach-cheese-cob-loaf.webp",
+  "Creamy Chicken and Corn Cob Loaf": "/recipes/creamy-chicken-corn-cob-loaf.webp",
+  "Roasted Capsicum and Feta Cob Loaf": "/recipes/roasted-capsicum-feta-cob-loaf.webp",
+  "Mushroom and Thyme Cob Loaf": "/recipes/mushroom-thyme-cob-loaf.webp",
+  "Sweet Chilli Prawn Cob Loaf": "/recipes/sweet-chilli-prawn-cob-loaf.webp",
 };
+
+const externalRecipesWithImages = externalRecipes.map(withSourceImage);
+const externalRecipeByName = new Map(externalRecipesWithImages.map((recipe) => [recipe.name, recipe]));
 
 const starterRecipes: PlannerRecipe[] = [
   {
@@ -102,33 +117,67 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
     }),
   ]);
 
+  const importedNames = new Set(recipes.map((recipe) => recipe.name));
+
   const liveRecipes: PlannerRecipe[] = recipes.map((recipe) => {
     const totalMinutes = (recipe.prepMinutes ?? 0) + (recipe.cookMinutes ?? 0);
+    const externalRecipe = externalRecipeByName.get(recipe.name);
+
     return {
       id: recipe.id,
-      name: recipe.name,
-      description: recipe.description,
+      name: sanitiseRecipeText(recipe.name),
+      description: sanitiseRecipeText(recipe.description),
       minutes: totalMinutes > 0 ? totalMinutes : null,
       proteinGrams: recipe.proteinGrams,
       servings: recipe.servings,
-      imageUrl: recipeImages[recipe.name] ?? null,
+      imageUrl:
+        recipeImages[recipe.name] ??
+        (externalRecipe?.sourceName === "Heart Foundation"
+          ? `/api/recipes/local-image/${externalRecipe.id}`
+          : externalRecipe?.imageUrl ?? null),
       instructions: recipe.instructions
         ? recipe.instructions
           .split(/\r?\n/)
-          .map((step) => step.replace(/^\s*\d+[.)]\s*/, "").trim())
+          .map(sanitiseInstruction)
           .filter(Boolean)
         : [],
       source: "database",
-      ingredients: recipe.ingredients.map((entry) => ({
-        name: entry.ingredient.name,
-        quantity: entry.quantity,
-        unit: entry.unit,
-      })),
+      sourceKey: recipe.sourceKey,
+      originalSourceName: externalRecipe?.sourceName ?? null,
+      originalSourceUrl: externalRecipe?.sourceUrl ?? null,
+      ingredients: recipe.ingredients
+        .map((entry) => ({
+          name: sanitiseIngredientName(entry.ingredient.name),
+          quantity: entry.quantity,
+          unit: entry.unit,
+        }))
+        .filter((entry) => entry.name.length > 0),
     };
   });
 
+  const completeRecipes = [
+    ...starterRecipes.filter((recipe) => !importedNames.has(recipe.name)),
+    ...liveRecipes,
+  ];
+  const catalogueRecipes: PlannerRecipe[] = externalRecipesWithImages
+    .filter((recipe) => recipe.sourceName === "Heart Foundation" && !importedNames.has(recipe.name))
+    .map((recipe) => ({
+      id: `external-${recipe.id}`,
+      name: recipe.name,
+      description: `${recipe.description} Source: Australian Heart Foundation.`,
+      minutes: recipe.minutes,
+      proteinGrams: null,
+      servings: recipe.servings ?? 1,
+      imageUrl: recipe.imageUrl,
+      instructions: [],
+      ingredients: [],
+      source: "external",
+      originalSourceName: "Australian Heart Foundation",
+      originalSourceUrl: recipe.sourceUrl,
+    }));
+
   return {
-    recipes: liveRecipes.length > 0 ? liveRecipes : starterRecipes,
+    recipes: [...completeRecipes, ...catalogueRecipes].sort((left, right) => left.name.localeCompare(right.name)),
     pantryItems: pantryItems.map((item) => ({
       name: item.product.name,
       quantity: item.quantity,

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import styles from "./recipes-gallery.module.css";
+import { BhfRecipeModal } from "./BhfRecipeModal";
 
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
@@ -22,6 +23,7 @@ export function RecipesGallery({
 }: RecipesGalleryProps) {
   const router = useRouter();
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+  const [openExternalRecipe, setOpenExternalRecipe] = useState<ExternalRecipe | null>(null);
   const [recipeQuery, setRecipeQuery] = useState("");
   const [recipeSource, setRecipeSource] = useState("All sources");
   const [favouriteRecipeIds, setFavouriteRecipeIds] = useState<Set<string>>(
@@ -107,10 +109,13 @@ export function RecipesGallery({
   }
 
   useEffect(() => {
-    if (!openRecipe) return;
+    if (!openRecipe && !openExternalRecipe) return;
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpenRecipe(null);
+      if (event.key === "Escape") {
+        setOpenRecipe(null);
+        setOpenExternalRecipe(null);
+      }
     }
 
     document.addEventListener("keydown", closeOnEscape);
@@ -120,18 +125,76 @@ export function RecipesGallery({
       document.removeEventListener("keydown", closeOnEscape);
       document.body.style.overflow = "";
     };
-  }, [openRecipe]);
+  }, [openRecipe, openExternalRecipe]);
 
   return (
     <>
+      <section className={styles.savedSection}>
+        <div className={styles.sectionHeading}>
+          <div>
+            <p className="eyebrow">FULL RECIPE CARDS</p>
+            <h2>Food&apos;s complete recipes</h2>
+            <p className="subtle">
+              These recipe cards are public and include ingredients and cooking methods.
+            </p>
+          </div>
+          <span className="badge neutral">{recipes.length} complete</span>
+        </div>
+
+        <div className={styles.gallery}>
+          {recipes.length === 0 ? (
+            <div className={`card ${styles.empty}`}>
+              <strong>No complete recipe cards yet.</strong>
+              <p className="subtle">Published recipe cards will appear here for everyone.</p>
+            </div>
+          ) : (
+            recipes.map((recipe) => (
+              <article className={styles.card} key={recipe.id}>
+                {recipe.imageUrl ? (
+                  <div className={styles.cardImage}>
+                    <Image
+                      alt={`Finished ${recipe.name}`}
+                      fill
+                      sizes="(max-width: 760px) 126px, (max-width: 1180px) 32vw, 230px"
+                      src={recipe.imageUrl}
+                    />
+                  </div>
+                ) : (
+                  <div aria-hidden="true" className={styles.imageFallback}>◇</div>
+                )}
+
+                <div className={styles.cardContent}>
+                  <h2>{recipe.name}</h2>
+                  {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
+                  <div className={styles.meta}>
+                    {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
+                    <span>{recipe.servings} serving{recipe.servings === 1 ? "" : "s"}</span>
+                    {recipe.proteinGrams ? <span>{Math.round(recipe.proteinGrams)} g protein</span> : null}
+                  </div>
+                  <span className={styles.openLabel}>View recipe →</span>
+                </div>
+
+                <button
+                  aria-label={`Open recipe for ${recipe.name}`}
+                  className={styles.cardAction}
+                  onClick={() => setOpenRecipe(recipe)}
+                  type="button"
+                />
+              </article>
+            ))
+          )}
+        </div>
+      </section>
+
+
       {externalRecipes.length > 0 ? (
         <section className={styles.catalogueSection}>
           <div className={styles.sectionHeading}>
             <div>
               <p className="eyebrow">LOW-CHOLESTEROL COLLECTION</p>
-              <h2>Explore 150 heart-healthy recipes</h2>
+              <h2>Explore {externalRecipes.length} heart-healthy recipes</h2>
               <p className="subtle">
-                Search by ingredient or filter trusted publishers. Recipes open on their original website.
+                Search by ingredient or filter trusted publishers.
               </p>
             </div>
             <span className="badge neutral">{externalRecipes.length} recipes</span>
@@ -213,19 +276,32 @@ export function RecipesGallery({
                     {recipe.servings ? <span>{recipe.servings} servings</span> : null}
                     {recipe.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
                   </div>
-                  <span className={styles.openLabel}>View on {recipe.sourceName} ↗</span>
+                  <span className={styles.openLabel}>
+                    {recipe.sourceName === "British Heart Foundation"
+                      ? "View nutrition and details →"
+                      : `View on ${recipe.sourceName} ↗`}
+                  </span>
                   <p className={styles.attribution}>
                     Recipe by <a href={recipe.sourceHomeUrl}>{recipe.sourceName}</a> · {recipe.licence}
                   </p>
                 </div>
 
-                <a
-                  aria-label={`View ${recipe.name} on ${recipe.sourceName}`}
-                  className={styles.cardAction}
-                  href={recipe.sourceUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                />
+                {recipe.sourceName === "British Heart Foundation" ? (
+                  <button
+                    aria-label={`Open ${recipe.name}`}
+                    className={styles.cardAction}
+                    onClick={() => setOpenExternalRecipe(recipe)}
+                    type="button"
+                  />
+                ) : (
+                  <a
+                    aria-label={`View ${recipe.name} on ${recipe.sourceName}`}
+                    className={styles.cardAction}
+                    href={recipe.sourceUrl}
+                    rel="noopener noreferrer"
+                    target="_blank"
+                  />
+                )}
                 <button
                   aria-label={
                     favouriteRecipeIds.has(recipe.id)
@@ -271,62 +347,12 @@ export function RecipesGallery({
         </section>
       ) : null}
 
-      <section className={styles.savedSection}>
-        <div className={styles.sectionHeading}>
-          <div>
-            <p className="eyebrow">FULL RECIPE CARDS</p>
-            <h2>Food&apos;s complete recipes</h2>
-            <p className="subtle">
-              These recipe cards are public and include ingredients and cooking methods.
-            </p>
-          </div>
-          <span className="badge neutral">{recipes.length} complete</span>
-        </div>
-
-        <div className={styles.gallery}>
-          {recipes.length === 0 ? (
-            <div className={`card ${styles.empty}`}>
-              <strong>No complete recipe cards yet.</strong>
-              <p className="subtle">Published recipe cards will appear here for everyone.</p>
-            </div>
-          ) : (
-            recipes.map((recipe) => (
-              <article className={styles.card} key={recipe.id}>
-                {recipe.imageUrl ? (
-                  <div className={styles.cardImage}>
-                    <Image
-                      alt={`Finished ${recipe.name}`}
-                      fill
-                      sizes="(max-width: 760px) 126px, (max-width: 1180px) 32vw, 230px"
-                      src={recipe.imageUrl}
-                    />
-                  </div>
-                ) : (
-                  <div aria-hidden="true" className={styles.imageFallback}>◇</div>
-                )}
-
-                <div className={styles.cardContent}>
-                  <h2>{recipe.name}</h2>
-                  {recipe.description ? <p className={styles.description}>{recipe.description}</p> : null}
-                  <div className={styles.meta}>
-                    {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
-                    <span>{recipe.servings} serving{recipe.servings === 1 ? "" : "s"}</span>
-                    {recipe.proteinGrams ? <span>{Math.round(recipe.proteinGrams)} g protein</span> : null}
-                  </div>
-                  <span className={styles.openLabel}>View recipe →</span>
-                </div>
-
-                <button
-                  aria-label={`Open recipe for ${recipe.name}`}
-                  className={styles.cardAction}
-                  onClick={() => setOpenRecipe(recipe)}
-                  type="button"
-                />
-              </article>
-            ))
-          )}
-        </div>
-      </section>
+      {openExternalRecipe ? (
+        <BhfRecipeModal
+          onClose={() => setOpenExternalRecipe(null)}
+          recipe={openExternalRecipe}
+        />
+      ) : null}
 
       {openRecipe ? (
         <div className={styles.backdrop} onClick={() => setOpenRecipe(null)}>
@@ -370,41 +396,46 @@ export function RecipesGallery({
               <div className={styles.summary}>
                 {openRecipe.minutes ? <span><strong>{openRecipe.minutes}</strong> minutes</span> : null}
                 <span><strong>{openRecipe.servings}</strong> servings</span>
-                {openRecipe.proteinGrams ? (
-                  <span><strong>{Math.round(openRecipe.proteinGrams)} g</strong> protein</span>
-                ) : null}
+                {openRecipe.proteinGrams ? <span><strong>{Math.round(openRecipe.proteinGrams)}</strong> g protein</span> : null}
               </div>
 
-              <div className={styles.columns}>
-                <section>
-                  <h3>Ingredients</h3>
-                  {openRecipe.ingredients.length > 0 ? (
-                    <ul className={styles.ingredients}>
-                      {openRecipe.ingredients.map((ingredient) => (
-                        <li key={`${ingredient.name}-${ingredient.unit}`}>
-                          <span>{ingredient.name}</span>
-                          <strong>{ingredient.quantity} {ingredient.unit}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="subtle">No ingredients have been saved yet.</p>
-                  )}
-                </section>
+              <section className={styles.recipeSection}>
+                <h3>Ingredients</h3>
+                {openRecipe.ingredients.length > 0 ? (
+                  <ul className={styles.ingredients}>
+                    {openRecipe.ingredients.map((ingredient, index) => (
+                      <li key={`${ingredient.name}-${index}`}>
+                        <strong>{ingredient.quantity} {ingredient.unit}</strong>
+                        <span>{ingredient.name}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="subtle">No ingredients are available for this recipe yet.</p>
+                )}
+              </section>
 
-                <section>
-                  <h3>Method</h3>
-                  {openRecipe.instructions.length > 0 ? (
-                    <ol className={styles.method}>
-                      {openRecipe.instructions.map((instruction, index) => (
-                        <li key={`${index}-${instruction}`}>{instruction}</li>
-                      ))}
-                    </ol>
-                  ) : (
-                    <p className="subtle">No cooking method has been saved yet.</p>
-                  )}
-                </section>
-              </div>
+              <section className={styles.recipeSection}>
+                <h3>Method</h3>
+                {openRecipe.instructions.length > 0 ? (
+                  <ol className={styles.instructions}>
+                    {openRecipe.instructions.map((instruction, index) => (
+                      <li key={`${instruction}-${index}`}>{instruction}</li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="subtle">No cooking method is available for this recipe yet.</p>
+                )}
+              </section>
+
+              {openRecipe.originalSourceUrl ? (
+                <p className={styles.attribution}>
+                  Original source: {openRecipe.originalSourceName ? `${openRecipe.originalSourceName} · ` : ""}
+                  <a href={openRecipe.originalSourceUrl} rel="noopener noreferrer" target="_blank">
+                    View original recipe ↗
+                  </a>
+                </p>
+              ) : null}
             </div>
           </article>
         </div>

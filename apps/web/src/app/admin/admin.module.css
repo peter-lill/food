@@ -1,0 +1,315 @@
+.page {
+  display: grid;
+  gap: 24px;
+  padding-bottom: 32px;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 24px;
+  align-items: center;
+  padding: 32px;
+  border: 1px solid rgba(0, 143, 96, .18);
+  border-radius: 28px;
+  background:
+    radial-gradient(circle at 90% 0%, rgba(0, 191, 120, .18), transparent 34%),
+    linear-gradient(135deg, #0b513c 0%, #087152 58%, #078d5e 100%);
+  box-shadow: 0 24px 60px rgba(4, 78, 56, .16);
+  color: #fff;
+}
+
+.hero::after {
+  content: "";
+  position: absolute;
+  width: 260px;
+  height: 260px;
+  right: -80px;
+  bottom: -160px;
+  border-radius: 999px;
+  border: 38px solid rgba(255, 255, 255, .06);
+}
+
+.heroCopy {
+  position: relative;
+  z-index: 1;
+  max-width: 760px;
+}
+
+.heroCopy p { margin: 0; }
+
+.heroCopy h1 {
+  margin: 8px 0 10px;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: .98;
+  letter-spacing: -.045em;
+}
+
+.heroCopy .intro {
+  max-width: 680px;
+  color: rgba(255, 255, 255, .78);
+  font-size: 1.05rem;
+  line-height: 1.6;
+}
+
+.ownerBadge {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 4px;
+  min-width: 190px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 255, 255, .2);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .1);
+  backdrop-filter: blur(8px);
+}
+
+.ownerBadge span {
+  color: rgba(255, 255, 255, .72);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+
+.ownerBadge strong { font-size: 1.05rem; }
+
+.operationsSection { display: grid; gap: 14px; }
+
+.sectionHeading {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: end;
+}
+
+.sectionHeading h2 {
+  margin: 4px 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  letter-spacing: -.035em;
+}
+
+.sectionHeading p { margin: 0; }
+
+.metricGrid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.metricCard {
+  min-height: 142px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid rgba(8, 113, 82, .14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .9);
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 10px 26px rgba(11, 81, 60, .06);
+  transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+}
+
+.metricCard:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 143, 96, .34);
+  box-shadow: 0 16px 34px rgba(11, 81, 60, .1);
+}
+
+.metricCard span {
+  color: #50675e;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.metricCard strong {
+  color: #082f24;
+  font-size: clamp(1.8rem, 3vw, 2.55rem);
+  line-height: 1;
+  letter-spacing: -.04em;
+}
+
+.metricCard small { color: #6b7d75; line-height: 1.35; }
+
+.healingPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 28px;
+  align-items: center;
+  padding: 26px;
+  border: 1px solid rgba(212, 149, 24, .28);
+  border-radius: 22px;
+  background: linear-gradient(135deg, #fffaf0, #fffdf8);
+  box-shadow: 0 14px 34px rgba(114, 75, 12, .07);
+}
+
+.healingPanel h2 { margin: 5px 0 8px; font-size: 1.65rem; letter-spacing: -.03em; }
+.healingPanel p { max-width: 760px; margin: 0 0 7px; color: #5f665f; line-height: 1.55; }
+.healingPanel small { color: #8b6727; font-weight: 700; }
+
+.healingForm {
+  display: flex;
+  gap: 10px;
+  align-items: end;
+}
+
+.healingForm label { display: grid; gap: 6px; }
+.healingForm label span { font-size: .76rem; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #6e5a32; }
+.healingForm input {
+  width: 96px;
+  height: 46px;
+  padding: 0 12px;
+  border: 1px solid rgba(110, 90, 50, .24);
+  border-radius: 12px;
+  background: #fff;
+  font: inherit;
+}
+.healingForm button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 17px;
+  border: 0;
+  border-radius: 12px;
+  background: #8f6517;
+  color: #fff;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 22px rgba(143, 101, 23, .16);
+}
+.healingForm button:hover { background: #78520e; }
+
+.toolGrid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.toolCard {
+  grid-column: span 4;
+  position: relative;
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 24px;
+  border: 1px solid rgba(8, 113, 82, .15);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .92);
+  box-shadow: 0 12px 30px rgba(11, 81, 60, .08);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+
+.toolCard:hover {
+  transform: translateY(-3px);
+  border-color: rgba(0, 143, 96, .35);
+  box-shadow: 0 20px 42px rgba(11, 81, 60, .13);
+}
+
+.toolCardPrimary { grid-column: span 6; min-height: 270px; }
+.cardTop { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+
+.iconWrap {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #e9f9f1, #dff5ea);
+  color: #087152;
+  font-size: 1.55rem;
+  font-weight: 800;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #eef8f3;
+  color: #087152;
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.status::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #00a66f;
+  box-shadow: 0 0 0 4px rgba(0, 166, 111, .12);
+}
+
+.toolContent { flex: 1; }
+.toolContent h3 { margin: 0 0 10px; font-size: 1.45rem; letter-spacing: -.025em; }
+.toolContent p { margin: 0; color: var(--muted, #5f6f68); line-height: 1.55; }
+
+.toolLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 46px;
+  padding: 0 16px;
+  border-radius: 14px;
+  background: #078d5e;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 10px 22px rgba(7, 141, 94, .16);
+}
+
+.toolLink:hover { background: #067b53; }
+
+.footerBar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid rgba(8, 113, 82, .13);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, .78);
+}
+
+.footerBar p { margin: 0; color: var(--muted, #5f6f68); }
+.backLink { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #087152; text-decoration: none; }
+
+@media (max-width: 1260px) {
+  .metricGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 1100px) {
+  .toolCard, .toolCardPrimary { grid-column: span 6; }
+  .healingPanel { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .hero { grid-template-columns: 1fr; padding: 24px; }
+  .ownerBadge { min-width: 0; }
+  .metricGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .healingForm { align-items: stretch; flex-direction: column; }
+  .healingForm input { width: 100%; }
+  .healingForm button { justify-content: space-between; }
+  .toolCard, .toolCardPrimary { grid-column: 1 / -1; min-height: 0; }
+  .sectionHeading, .footerBar { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 480px) {
+  .metricGrid { grid-template-columns: 1fr; }
+}

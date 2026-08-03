@@ -17,9 +17,13 @@ const fieldByType: Record<HealthMetricType, keyof HealthSyncPayload> = {
   WEIGHT_KG: "weightKg",
 };
 
-export async function saveHealthSummary(payload: HealthSyncPayload) {
+function userSource(userId: string, source: string) {
+  return `user:${userId}:${source}`;
+}
+
+export async function saveHealthSummary(payload: HealthSyncPayload, userId: string) {
   const recordedAt = new Date(payload.refreshedAt);
-  const source = payload.source ?? "android-health-connect";
+  const source = userSource(userId, payload.source ?? "android-health-connect");
 
   const rows = Object.entries(fieldByType).flatMap(([type, field]) => {
     const value = payload[field];
@@ -45,8 +49,10 @@ export async function saveHealthSummary(payload: HealthSyncPayload) {
   return { recordedAt, count: rows.length };
 }
 
-export async function getLatestHealthSummary(): Promise<LatestHealthSummary | null> {
+export async function getLatestHealthSummary(userId: string): Promise<LatestHealthSummary | null> {
+  const sourcePrefix = `user:${userId}:`;
   const latest = await prisma.healthMetric.findFirst({
+    where: { source: { startsWith: sourcePrefix } },
     orderBy: { recordedAt: "desc" },
     select: { recordedAt: true, source: true, createdAt: true },
   });
@@ -62,6 +68,9 @@ export async function getLatestHealthSummary(): Promise<LatestHealthSummary | nu
 
   const values = new Map(rows.map((row) => [row.type, row.value]));
   const numberValue = (type: HealthMetricType) => values.get(type) ?? 0;
+  const displaySource = latest.source?.startsWith(sourcePrefix)
+    ? latest.source.slice(sourcePrefix.length)
+    : latest.source;
 
   return {
     date: latest.recordedAt.toISOString().slice(0, 10),
@@ -75,6 +84,6 @@ export async function getLatestHealthSummary(): Promise<LatestHealthSummary | nu
     weightKg: values.get("WEIGHT_KG") ?? null,
     refreshedAt: latest.recordedAt.toISOString(),
     syncedAt: latest.createdAt.toISOString(),
-    source: latest.source ?? "android-health-connect",
+    source: displaySource ?? "android-health-connect",
   };
 }

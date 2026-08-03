@@ -8,15 +8,19 @@ class SyncSettings(context: Context) {
         Context.MODE_PRIVATE,
     )
 
-    fun load(): Values = Values(
-        baseUrl = preferences.getString("base_url", "").orEmpty(),
-        token = preferences.getString("token", "").orEmpty(),
-    )
+    fun load(): Values {
+        val pairedWithDeviceToken = preferences.getBoolean("paired_with_device_token", false)
+        return Values(
+            baseUrl = preferences.getString("base_url", "").orEmpty(),
+            token = if (pairedWithDeviceToken) preferences.getString("token", "").orEmpty() else "",
+        )
+    }
 
     fun save(baseUrl: String, token: String) {
         preferences.edit()
             .putString("base_url", baseUrl.trim())
             .putString("token", token.trim())
+            .putBoolean("paired_with_device_token", true)
             .apply()
     }
 

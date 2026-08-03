@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" role="img" aria-labelledby="title">
+  <title id="title">Woolworths</title>
+  <defs>
+    <linearGradient id="wwLight" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a8d548"/>
+      <stop offset="1" stop-color="#78be20"/>
+    </linearGradient>
+    <linearGradient id="wwDark" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#39a844"/>
+      <stop offset="1" stop-color="#007f3f"/>
+    </linearGradient>
+  </defs>
+  <g transform="translate(4 4)">
+    <path d="M42 10c11-8 27-6 34 5-13-1-23 3-30 12-8-3-14-9-16-17 4 1 8 1 12 0z" fill="url(#wwLight)"/>
+    <path d="M17 25C31 8 58 12 71 29c7 9 9 20 5 31-5 14-18 23-34 23C22 83 6 69 6 49c0-9 4-18 11-24zm9 13c-5 5-7 11-6 18 1 9 9 16 18 17 9 1 17-3 22-10 4-6 5-14 1-21-5-10-14-16-25-15-4 1-7 4-10 11z" fill="url(#wwLight)"/>
+    <path d="M75 29c13-17 40-21 54-4 7 6 11 15 11 24 0 20-16 34-36 34-16 0-29-9-34-23-4-11-2-22 5-31zm35-2c-11-1-20 5-25 15-4 7-3 15 1 21 5 7 13 11 22 10 9-1 17-8 18-17 1-7-1-13-6-18-3-7-6-10-10-11z" fill="url(#wwLight)"/>
+    <path d="M61 20c17 0 30 13 30 31 0 14-7 25-19 31-11 6-25 5-35-2 13 1 23-5 28-15 5-9 4-19-2-27-5-7-12-11-20-12 5-4 11-6 18-6z" fill="url(#wwDark)"/>
+  </g>
+  <text x="160" y="88" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="31" font-weight="400" fill="#006b3f">Woolworths</text>
+</svg>

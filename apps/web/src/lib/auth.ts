@@ -13,6 +13,26 @@ export const auth = betterAuth({
   appName: "Food",
   baseURL: getBaseUrl(),
   secret: process.env.BETTER_AUTH_SECRET,
+  trustedOrigins: [
+    "https://food.coffeehq.coffee",
+    "http://food.coffeehq.coffee",
+    "http://localhost:3100",
+    "http://127.0.0.1:3100",
+  ],
+  advanced: {
+    trustedProxyHeaders: true,
+    ipAddress: {
+      // Synology is not forwarding a usable client address to the Food server.
+      // Disable IP tracking rather than assigning every user to one shared IP.
+      disableIpTracking: true,
+    },
+  },
+  // Better Auth's built-in limiter requires a trustworthy client IP. The Food
+  // deployment is private and the Synology proxy currently supplies none, so
+  // disable that limiter instead of using one shared per-path bucket.
+  rateLimit: {
+    enabled: false,
+  },
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),

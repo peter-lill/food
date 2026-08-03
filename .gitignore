@@ -41,3 +41,4 @@ Thumbs.db
 *.zip
 .food-hotfix-backups/
 .food-backups/
+apps/web/.data/

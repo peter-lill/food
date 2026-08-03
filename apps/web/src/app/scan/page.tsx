@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AddPantryForm } from "@/components/pantry/PantryManager";
 import { getProductCatalogue } from "@/lib/products/product-catalogue.repository";
+import { ScannerCloseButton } from "./ScannerCloseButton";
 import styles from "./scan.module.css";
 
 export const dynamic = "force-dynamic";
@@ -17,37 +18,38 @@ async function loadProducts() {
 export default async function ScanPage() {
   const { products, loadError } = await loadProducts();
 
-  return (
-    <>
-      <header className="pantry-page-heading">
-        <div>
-          <p className="eyebrow">QUICK ADD</p>
-          <h1 className="page-title">Scan a product</h1>
-          <p className="subtle">Scan a barcode, confirm the quantity and save the product directly to Pantry.</p>
+  if (loadError) {
+    return (
+      <div className="card pantry-error" role="alert">
+        <strong>Product lookup is unavailable.</strong>
+        <p>Check the PostgreSQL connection and refresh this page.</p>
+        <div className="form-actions">
+          <Link className="secondary-button" href="/products">Open Product Hub</Link>
+          <Link className="secondary-button" href="/pantry">Add manually</Link>
         </div>
-        <Link className="secondary-button" href="/pantry">View Pantry</Link>
-      </header>
+      </div>
+    );
+  }
 
-      {loadError ? (
-        <div className="card pantry-error" role="alert">
-          <strong>Product lookup is unavailable.</strong>
-          <p>Check the PostgreSQL connection and refresh this page.</p>
-        </div>
-      ) : (
-        <div className={styles.workspace}>
-          <datalist id="pantry-units">
-            <option value="item" />
-            <option value="pack" />
-            <option value="g" />
-            <option value="kg" />
-            <option value="mL" />
-            <option value="L" />
-            <option value="tub" />
-            <option value="fillet" />
-          </datalist>
-          <AddPantryForm autoOpenScanner fullPageScanner products={products} />
-        </div>
-      )}
-    </>
+  return (
+    <div className={styles.workspace}>
+      <ScannerCloseButton />
+      <datalist id="pantry-units">
+        <option value="item" />
+        <option value="pack" />
+        <option value="g" />
+        <option value="kg" />
+        <option value="mL" />
+        <option value="L" />
+        <option value="tub" />
+        <option value="fillet" />
+      </datalist>
+      <AddPantryForm autoOpenScanner fullPageScanner products={products} />
+      <nav aria-label="Scanner shortcuts" className={styles.shortcuts}>
+        <Link className="secondary-button" href="/products">Product Hub</Link>
+        <Link className="secondary-button" href="/pantry">Pantry</Link>
+        <Link className="secondary-button" href="/receipts">Scan receipt</Link>
+      </nav>
+    </div>
   );
 }

@@ -16,5 +16,74 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  food-grocery-mcp:
+    build:
+      context: .
+      dockerfile: services/grocery-mcp/Dockerfile
+    container_name: food-grocery-mcp
+    profiles: ["prices"]
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+      COLES_API_KEY: ${COLES_API_KEY:-}
+      COLES_STORE_ID: ${COLES_STORE_ID:-0584}
+      COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
+    ports:
+      - "8787:8787"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8787/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+
+  food-price-influx:
+    image: influxdb:2.7-alpine
+    container_name: food-price-influx
+    profiles: ["legacy-prices"]
+    restart: unless-stopped
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: food
+      DOCKER_INFLUXDB_INIT_PASSWORD: food-price-password
+      DOCKER_INFLUXDB_INIT_ORG: groceries
+      DOCKER_INFLUXDB_INIT_BUCKET: groceries
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: food-price-token
+    volumes:
+      - food_price_influx_data:/var/lib/influxdb2
+    healthcheck:
+      test: ["CMD", "influx", "ping", "--host", "http://localhost:8086"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  food-auscost-collector:
+    build:
+      context: .
+      dockerfile: services/auscost-collector/Dockerfile
+      args:
+        AUSCOST_REF: main
+    container_name: food-auscost-collector
+    profiles: ["legacy-prices"]
+    restart: unless-stopped
+    depends_on:
+      food-price-influx:
+        condition: service_healthy
+    environment:
+      INFLUXDB_URL: http://food-price-influx:8086
+      INFLUXDB_TOKEN: food-price-token
+      INFLUXDB_ORG: groceries
+      INFLUXDB_BUCKET: groceries
+      LOCAL_WOOLWORTHS_DB_PATH: /data/woolworths.db3
+      LOCAL_COLES_DB_PATH: /data/coles.db3
+      MAX_PRODUCT_AGE_MINUTES: "1440"
+      DEBUG_LOGGING: "false"
+    volumes:
+      - food_auscost_data:/data
+
 volumes:
   food_postgres_data:
+  food_price_influx_data:
+  food_auscost_data:

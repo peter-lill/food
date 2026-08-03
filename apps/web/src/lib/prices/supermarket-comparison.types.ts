@@ -1,4 +1,11 @@
-export const supermarketRetailers = ["Woolworths", "Coles", "ALDI"] as const;
+export const supermarketRetailers = [
+  "Woolworths",
+  "Coles",
+  "ALDI",
+  "IGA",
+  "Drakes",
+  "Costco",
+] as const;
 
 export type SupermarketRetailer = (typeof supermarketRetailers)[number];
 

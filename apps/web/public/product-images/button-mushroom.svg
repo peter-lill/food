@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title desc">
+  <title id="title">Button mushrooms</title>
+  <desc id="desc">A clean illustration of fresh button mushrooms on a pale background.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7f2e8"/>
+      <stop offset="1" stop-color="#e5eee4"/>
+    </linearGradient>
+    <linearGradient id="cap" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#d9d0c2"/>
+    </linearGradient>
+    <linearGradient id="stem" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fffdf8"/>
+      <stop offset="1" stop-color="#cfc4b5"/>
+    </linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#6a725f" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="640" height="480" rx="48" fill="url(#bg)"/>
+  <ellipse cx="320" cy="386" rx="220" ry="42" fill="#7f8a75" opacity=".16"/>
+  <g filter="url(#shadow)">
+    <g transform="translate(120 120) rotate(-10 105 125)">
+      <path d="M82 157c8-38 15-75 24-109h55c7 34 13 71 19 109-20 23-79 24-98 0Z" fill="url(#stem)"/>
+      <path d="M18 95C26 35 74 4 135 4s110 31 118 91c-22 18-66 28-118 28S40 113 18 95Z" fill="url(#cap)" stroke="#c8bdae" stroke-width="4"/>
+      <path d="M46 90c23 9 54 14 89 14s67-5 91-14" fill="none" stroke="#b9ae9f" stroke-width="8" stroke-linecap="round" opacity=".65"/>
+    </g>
+    <g transform="translate(300 80) rotate(8 105 125)">
+      <path d="M82 157c8-38 15-75 24-109h55c7 34 13 71 19 109-20 23-79 24-98 0Z" fill="url(#stem)"/>
+      <path d="M18 95C26 35 74 4 135 4s110 31 118 91c-22 18-66 28-118 28S40 113 18 95Z" fill="url(#cap)" stroke="#c8bdae" stroke-width="4"/>
+      <path d="M46 90c23 9 54 14 89 14s67-5 91-14" fill="none" stroke="#b9ae9f" stroke-width="8" stroke-linecap="round" opacity=".65"/>
+    </g>
+    <g transform="translate(235 205) scale(.82) rotate(-2 105 125)">
+      <path d="M82 157c8-38 15-75 24-109h55c7 34 13 71 19 109-20 23-79 24-98 0Z" fill="url(#stem)"/>
+      <path d="M18 95C26 35 74 4 135 4s110 31 118 91c-22 18-66 28-118 28S40 113 18 95Z" fill="url(#cap)" stroke="#c8bdae" stroke-width="4"/>
+      <path d="M46 90c23 9 54 14 89 14s67-5 91-14" fill="none" stroke="#b9ae9f" stroke-width="8" stroke-linecap="round" opacity=".65"/>
+    </g>
+  </g>
+</svg>

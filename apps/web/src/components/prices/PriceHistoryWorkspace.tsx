@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import type {
   PriceHistoryData,
   PriceHistoryObservation,
@@ -114,7 +115,7 @@ function ProductCard({ view }: { view: ProductView }) {
         <div>
           <p className="eyebrow">PRICE HISTORY</p>
           <h2>{view.product.name}</h2>
-          <p>{latest.retailer} · {date(latest.purchasedAt)}</p>
+          <p className={styles.retailerIdentity}><RetailerLogo compact retailer={latest.retailer} /> <span>· {date(latest.purchasedAt)}</span></p>
         </div>
         <TrendBadge changePercent={view.changePercent} />
       </div>
@@ -135,7 +136,7 @@ function ProductCard({ view }: { view: ProductView }) {
               {view.retailers.map((retailer, index) => (
                 <div className={styles.retailerRow} key={retailer.retailer}>
                   <div>
-                    <strong>{retailer.retailer}</strong>
+                    <strong className={styles.retailerIdentity}><RetailerLogo compact retailer={retailer.retailer} /></strong>
                     <span>{retailer.observationCount} {retailer.observationCount === 1 ? "purchase" : "purchases"} · latest {date(retailer.latestPurchasedAt)}</span>
                   </div>
                   <div>
@@ -154,7 +155,7 @@ function ProductCard({ view }: { view: ProductView }) {
               {history.map((observation) => (
                 <div className={styles.historyRow} key={observation.id}>
                   <div>
-                    <strong>{observation.retailer}</strong>
+                    <strong className={styles.retailerIdentity}><RetailerLogo compact retailer={observation.retailer} /></strong>
                     <span>{date(observation.purchasedAt)} · {observation.quantity ?? 1} {observation.unit ?? "item"}</span>
                   </div>
                   <div>

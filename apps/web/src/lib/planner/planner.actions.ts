@@ -3,6 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import {
+  canonicalGroceryIdentity,
+  canonicalGroceryName,
+  resolveCanonicalProduct,
+} from "@/lib/products/canonical-grocery.service";
+import { normaliseGroceryUnit } from "@/lib/products/food-item-intelligence";
 
 const maximumQuantity = 100_000;
 
@@ -15,13 +21,19 @@ type PlannedIngredient = {
 function parseIngredient(value: FormDataEntryValue): PlannedIngredient | null {
   try {
     const parsed = JSON.parse(String(value)) as Partial<PlannedIngredient>;
-    const name = String(parsed.name ?? "").trim();
-    const unit = String(parsed.unit ?? "").trim();
+    const rawName = String(parsed.name ?? "").trim();
+    const rawUnit = String(parsed.unit ?? "").trim();
     const quantity = Number(parsed.quantity);
+
+    if (rawName.length < 2 || rawName.length > 100) return null;
+    if (!rawUnit || rawUnit.length > 30) return null;
+    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maximumQuantity) return null;
+
+    const name = canonicalGroceryName(rawName);
+    const unit = normaliseGroceryUnit(rawUnit);
 
     if (name.length < 2 || name.length > 100) return null;
     if (!unit || unit.length > 30) return null;
-    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maximumQuantity) return null;
 
     return { name, quantity, unit };
   } catch {
@@ -42,7 +54,7 @@ export async function addPlannerIngredientsToShopping(formData: FormData) {
 
   const grouped = new Map<string, PlannedIngredient>();
   for (const ingredient of parsedIngredients) {
-    const key = `${ingredient.name.toLocaleLowerCase("en-AU")}|${ingredient.unit.toLocaleLowerCase("en-AU")}`;
+    const key = `${canonicalGroceryIdentity(ingredient.name)}|${normaliseGroceryUnit(ingredient.unit)}`;
     const existing = grouped.get(key);
     grouped.set(key, {
       ...ingredient,
@@ -59,32 +71,42 @@ export async function addPlannerIngredientsToShopping(formData: FormData) {
 
       if (!list) throw new Error("Shopping list not found");
 
+      const currentItems = await transaction.shoppingItem.findMany({
+        where: { shoppingListId: listId },
+      });
+
       for (const ingredient of grouped.values()) {
-        const existing = await transaction.shoppingItem.findFirst({
-          where: {
-            shoppingListId: listId,
-            name: { equals: ingredient.name, mode: "insensitive" },
-          },
-        });
+        const ingredientIdentity = canonicalGroceryIdentity(ingredient.name);
+        const ingredientUnit = normaliseGroceryUnit(ingredient.unit);
+        const canonicalProduct = await resolveCanonicalProduct(ingredient.name, transaction);
+        const existing = currentItems.find((item) => (
+          canonicalGroceryIdentity(item.name) === ingredientIdentity
+          && normaliseGroceryUnit(item.unit) === ingredientUnit
+        ));
 
         if (existing) {
-          await transaction.shoppingItem.update({
+          const updated = await transaction.shoppingItem.update({
             where: { id: existing.id },
             data: {
+              name: canonicalProduct.canonicalName ?? canonicalProduct.name,
+              productId: canonicalProduct.id,
               checked: false,
               quantity: Math.max(existing.quantity ?? 0, ingredient.quantity),
-              unit: existing.unit ?? ingredient.unit,
+              unit: ingredientUnit,
             },
           });
+          Object.assign(existing, updated);
         } else {
-          await transaction.shoppingItem.create({
+          const created = await transaction.shoppingItem.create({
             data: {
               shoppingListId: listId,
-              name: ingredient.name,
+              productId: canonicalProduct.id,
+              name: canonicalProduct.canonicalName ?? canonicalProduct.name,
               quantity: ingredient.quantity,
-              unit: ingredient.unit,
+              unit: ingredientUnit,
             },
           });
+          currentItems.push(created);
         }
       }
     });
@@ -95,5 +117,6 @@ export async function addPlannerIngredientsToShopping(formData: FormData) {
 
   revalidatePath("/shopping");
   revalidatePath("/planner");
+  revalidatePath("/products");
   redirect(`/shopping?list=${listId}`);
 }

@@ -5,6 +5,7 @@ import { InventoryLocation, ReceiptStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ProductResolver } from "@/lib/product-intelligence";
 import { pantryLocations } from "@/lib/pantry/pantry.types";
 import type { ReceiptActionState } from "./receipt.types";
 
@@ -183,7 +184,7 @@ export async function updateReceiptItem(
   const expiresAt = dateValue(expiresAtRaw);
   const fieldErrors: Record<string, string> = {};
 
-  if (!['food', 'non-food'].includes(classification)) {
+  if (!["food", "non-food"].includes(classification)) {
     fieldErrors.classification = "Choose Food or Non-food.";
   }
 
@@ -366,16 +367,22 @@ export async function finaliseReceiptImport(
 
       for (const item of foodItems) {
         const productName = item.normalisedName as string;
-        const existingProduct = await transaction.product.findFirst({
-          where: { name: { equals: productName, mode: "insensitive" } },
-        });
-        const product = existingProduct ?? await transaction.product.create({
-          data: { name: productName },
+        const resolution = await ProductResolver.resolve({
+          name: productName,
+          source: `receipt:${receipt.retailer ?? "unknown"}`,
+        }, transaction);
+        if (!resolution.product) {
+          throw new ReceiptImportError(`Unable to resolve ${item.rawDescription} to a product.`);
+        }
+
+        await transaction.receiptItem.update({
+          where: { id: item.id },
+          data: { productId: resolution.product.id },
         });
 
         await transaction.inventoryItem.create({
           data: {
-            productId: product.id,
+            productId: resolution.product.id,
             quantity: item.quantity as number,
             unit: item.unit as string,
             location: item.location as InventoryLocation,

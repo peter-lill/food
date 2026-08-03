@@ -32,9 +32,9 @@
 .shopping-item.checked .shopping-item-main { opacity:.55; text-decoration:line-through; }
 .shopping-check-form { display:grid; margin:0; }
 .shopping-check-form input { width:21px; height:21px; accent-color:var(--accent); cursor:pointer; }
-.shopping-item-main { display:grid; gap:3px; min-width:0; }
-.shopping-item-main strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.shopping-item-main span { color:var(--muted); font-size:12px; }
+.shopping-item-main { display:grid; gap:4px; min-width:0; }
+.shopping-item-main strong { display:block; min-width:0; overflow-wrap:anywhere; line-height:1.3; }
+.shopping-item-main span { display:block; color:var(--muted); font-size:11px; line-height:1.35; }
 .shopping-item-edit { position:relative; }
 .shopping-item-edit summary { list-style:none; color:var(--accent-dark); cursor:pointer; font-size:12px; font-weight:800; }
 .shopping-item-edit summary::-webkit-details-marker { display:none; }
@@ -50,4 +50,4 @@
 .shopping-pantry-suggestion span { color:var(--muted); font-size:11px; }
 .shopping-pantry-suggestion form { margin:0; }
 @media(max-width:900px){.shopping-layout{grid-template-columns:1fr}.shopping-sidebar-stack{position:static}.shopping-add-form{grid-template-columns:minmax(0,1fr) 110px auto}.shopping-pantry-list{grid-template-columns:1fr 1fr}}
-@media(max-width:650px){.shopping-section-heading,.shopping-list-title-row{display:grid}.shopping-list-actions{justify-content:flex-start}.shopping-add-form{grid-template-columns:1fr 1fr}.shopping-item-name-field{grid-column:1/-1}.shopping-add-form>.button{margin-top:0}.shopping-pantry-list{grid-template-columns:1fr}.shopping-item{grid-template-columns:auto minmax(0,1fr) auto}.shopping-item-edit{grid-column:2}.shopping-item>form:last-child{grid-column:3;grid-row:1}.shopping-rename-form,.shopping-edit-form{position:fixed;left:16px;right:16px;bottom:80px;width:auto;max-height:70vh;overflow:auto}.shopping-edit-form{grid-template-columns:1fr}.shopping-edit-form>.form-message,.shopping-edit-actions{grid-column:auto}}
+@media(max-width:650px){.shopping-section-heading,.shopping-list-title-row{display:grid}.shopping-list-actions{justify-content:flex-start}.shopping-add-form{grid-template-columns:1fr 1fr}.shopping-item-name-field{grid-column:1/-1}.shopping-add-form>.button{margin-top:0}.shopping-pantry-list{grid-template-columns:1fr}.shopping-item{grid-template-columns:auto minmax(0,1fr) auto;align-items:start}.shopping-check-form{padding-top:2px}.shopping-item-edit{grid-column:2}.shopping-item>form:last-child{grid-column:3;grid-row:1}.shopping-rename-form,.shopping-edit-form{position:fixed;left:16px;right:16px;bottom:80px;width:auto;max-height:70vh;overflow:auto}.shopping-edit-form{grid-template-columns:1fr}.shopping-edit-form>.form-message,.shopping-edit-actions{grid-column:auto}}
