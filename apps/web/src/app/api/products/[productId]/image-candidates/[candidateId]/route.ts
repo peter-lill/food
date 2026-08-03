@@ -31,7 +31,7 @@ export async function GET(request: Request, context: RouteContext) {
   const body = await readImageAsset(asset).catch(() => null);
   if (!body) return new NextResponse(null, { status: 404 });
 
-  return new NextResponse(body, {
+  return new NextResponse(new Uint8Array(body), {
     status: 200,
     headers: {
       "Content-Type": asset.mimeType,
