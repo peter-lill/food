@@ -30,6 +30,8 @@ const concepts: GroceryConcept[] = [
   { canonicalName: "Feta", aliases: ["feta", "feta cheese"], family: "Feta", preservePhrase: true },
   { canonicalName: "Mozzarella", aliases: ["mozzarella", "mozzarella cheese"], family: "Mozzarella", preservePhrase: true },
   { canonicalName: "Margarine", aliases: ["margarine", "simply spread"], family: "Margarine", preservePhrase: true },
+  { canonicalName: "Seed Mix", aliases: ["seed mix", "raw nut and seed mix", "nut and seed mix"], family: "Seed Mix", preservePhrase: true },
+  { canonicalName: "Celery", aliases: ["celery", "celery stick", "celery sticks", "sticks celery"], family: "Celery", preservePhrase: true },
   { canonicalName: "Pita Bread", aliases: ["pita bread", "pita breads", "pita pocket bread", "pita pocket breads"], family: "Bread", preservePhrase: true },
   { canonicalName: "Spinach", aliases: ["spinach", "spinach leaves"], family: "Spinach", preservePhrase: true },
   { canonicalName: "Peas", aliases: ["pea", "peas"], family: "Peas", preservePhrase: true },
