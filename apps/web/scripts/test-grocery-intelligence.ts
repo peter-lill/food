@@ -71,6 +71,25 @@ const cases: Array<{
     family: "Avocado",
     preparation: ["Stone Removed"],
   },
+  {
+    input: "Chicken Breast Horizontally",
+    canonical: "Chicken Breast",
+    preparation: ["Cut Direction Removed"],
+  },
+  {
+    input: "Carrot Halved Lengthways",
+    canonical: "Carrot",
+    preparation: ["Halved", "Cut Direction Removed"],
+  },
+  {
+    input: "Freshly Grated Parmesan",
+    canonical: "Parmesan",
+    preparation: ["Grated", "Preparation Modifier Removed"],
+  },
+  {
+    input: "Garlic Cloves",
+    canonical: "Garlic Clove",
+  },
 ];
 
 for (const testCase of cases) {
