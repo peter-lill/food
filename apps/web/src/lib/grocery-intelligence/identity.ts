@@ -1,7 +1,7 @@
 import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 import { findGroceryConcept } from "./ontology";
 
-export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.2";
+export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.3";
 
 export type GroceryIdentity = {
   source: string;
