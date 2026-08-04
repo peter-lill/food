@@ -1,7 +1,7 @@
 import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 import { findGroceryConcept } from "./ontology";
 
-export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.4";
+export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.5";
 
 export type GroceryIdentity = {
   source: string;
@@ -189,9 +189,8 @@ export function identifyGrocery(value: string): GroceryIdentity | null {
 
   const inferredWorkingFamily = inferredFamily(working);
   const matchedConcept = findGroceryConcept(working);
-  const concept = inferredWorkingFamily && matchedConcept?.family !== inferredWorkingFamily
-    ? null
-    : matchedConcept;
+  const hasFamilyConflict = Boolean(inferredWorkingFamily && matchedConcept?.family !== inferredWorkingFamily);
+  const concept = hasFamilyConflict ? null : matchedConcept;
   let canonicalName: string;
   let family: string | null = null;
   let variant: string | null = null;
@@ -203,8 +202,8 @@ export function identifyGrocery(value: string): GroceryIdentity | null {
   } else {
     const parsed = normaliseProductText(parseProductName(working).canonicalName);
     if (!parsed || parsed.length > 120 || /^[.#]/.test(parsed)) return null;
-    canonicalName = titleCase(parsed);
-    family = inferredFamily(parsed);
+    canonicalName = hasFamilyConflict ? titleCase(normaliseProductText(working)) : titleCase(parsed);
+    family = inferredWorkingFamily ?? inferredFamily(parsed);
     if (family) evidence.push("generic family inferred from product identity");
     for (const phrase of variantPhrases) {
       if (parsed.startsWith(`${phrase} `)) {

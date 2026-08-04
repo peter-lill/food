@@ -151,7 +151,8 @@ const cases: Array<{
   },
   {
     input: "Garlic Cloves",
-    canonical: "Garlic Clove",
+    canonical: "Garlic",
+    family: "Garlic",
   },
 ];
 

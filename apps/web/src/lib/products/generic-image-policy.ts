@@ -30,6 +30,7 @@ function normalise(value: string) {
 }
 
 export function genericImageIdentity(value: string) {
+  if (/^\s*or\b/i.test(value)) return null;
   const grocery = identifyGrocery(value);
   let identity = (grocery?.canonicalName ?? "").trim();
   identity = familyAliases.get(normalise(identity)) ?? identity;
