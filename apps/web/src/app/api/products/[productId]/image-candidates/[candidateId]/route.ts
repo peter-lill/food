@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   getCandidateImageAsset,
   importCandidateAsset,
@@ -10,6 +11,21 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type RouteContext = { params: Promise<{ productId: string; candidateId: string }> };
+
+async function unavailableCandidateResponse(request: Request, productId: string, candidateId: string) {
+  const selected = await prisma.$queryRaw<Array<{ selected: boolean }>>`
+    SELECT "selected"
+    FROM "ProductImageCandidate"
+    WHERE "id" = ${candidateId} AND "productId" = ${productId}
+    LIMIT 1
+  `;
+  if (selected[0]?.selected) {
+    const fallback = new URL(`/api/products/${encodeURIComponent(productId)}/image`, request.url);
+    fallback.searchParams.set("candidateFallback", candidateId);
+    return NextResponse.redirect(fallback, 307);
+  }
+  return new NextResponse(null, { status: 404 });
+}
 
 export async function GET(request: Request, context: RouteContext) {
   const session = await auth.api.getSession({ headers: request.headers });
@@ -26,10 +42,10 @@ export async function GET(request: Request, context: RouteContext) {
       return null;
     });
 
-  if (!asset) return new NextResponse(null, { status: 404 });
+  if (!asset) return unavailableCandidateResponse(request, productId, candidateId);
 
   const body = await readImageAsset(asset).catch(() => null);
-  if (!body) return new NextResponse(null, { status: 404 });
+  if (!body) return unavailableCandidateResponse(request, productId, candidateId);
 
   return new NextResponse(new Uint8Array(body), {
     status: 200,
