@@ -125,6 +125,8 @@ export async function GET(_request: Request, context: RouteContext) {
     where: { id: productId },
     select: {
       id: true,
+      name: true,
+      canonicalName: true,
       imageUrl: true,
       brand: true,
       barcode: true,
@@ -137,6 +139,33 @@ export async function GET(_request: Request, context: RouteContext) {
   });
   if (!product) return noImageResponse();
   const genericFamily = !product.brand && !product.barcode;
+
+  if (genericFamily) {
+    const familyName = product.canonicalName ?? product.name;
+    const familyProducts = await prisma.product.findMany({
+      where: {
+        id: { not: product.id },
+        lifecycle: { not: "ARCHIVED" },
+        brand: null,
+        barcode: null,
+        OR: [
+          { canonicalName: { equals: familyName, mode: "insensitive" } },
+          { name: { equals: familyName, mode: "insensitive" } },
+          ...(product.canonicalName
+            ? [{ canonicalName: { equals: product.canonicalName, mode: "insensitive" as const } }]
+            : []),
+        ],
+      },
+      orderBy: { updatedAt: "desc" },
+      take: 20,
+      select: { id: true },
+    });
+
+    for (const familyProduct of familyProducts) {
+      const familyAsset = await localAssetResponse(familyProduct.id);
+      if (familyAsset) return familyAsset;
+    }
+  }
 
   const imageOptions = [
     product.imageUrl,

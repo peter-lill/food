@@ -223,6 +223,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   });
 
   const grouped = new Map<string, ProductHubListItem>();
+  const groupedHasGenericImage = new Set<string>();
   const genericFamilies = genericFamilyNames(products);
 
   for (const product of products) {
@@ -258,6 +259,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         latestRetailer: latest?.retailer ?? null,
         latestObservedAt: latest?.observedAt ?? null,
       });
+      if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
       continue;
     }
 
@@ -266,11 +268,19 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount += retailers.size;
     if (isGeneric) {
-      current.id = product.id;
       current.name = familyName;
-      current.slug = product.slug;
       current.category = product.category;
-      current.imageUrl = familyImage ?? product.imageUrl;
+      const genericImage = familyImage ?? product.imageUrl;
+      if (genericImage) {
+        current.id = product.id;
+        current.slug = product.slug;
+        current.imageUrl = genericImage;
+        groupedHasGenericImage.add(familyKey);
+      } else if (!groupedHasGenericImage.has(familyKey)) {
+        current.id = product.id;
+        current.slug = product.slug;
+        current.imageUrl = null;
+      }
     }
     current.brand = null;
     current.barcode = null;
