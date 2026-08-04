@@ -40,10 +40,21 @@ const cases: Array<{
   {
     input: "Brown Rice",
     canonical: "Brown Rice",
+    family: "Rice",
   },
   {
     input: "Arborio Rice",
     canonical: "Arborio Rice",
+    family: "Rice",
+  },
+  {
+    input: "Basmati Rice",
+    canonical: "Basmati Rice",
+    family: "Rice",
+  },
+  {
+    input: "Jasmine Rice",
+    canonical: "Jasmine Rice",
     family: "Rice",
   },
   {
