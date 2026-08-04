@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getProductHubList } from "@/lib/products/product-hub.repository";
+import { productDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
 
@@ -122,6 +123,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     return true;
   });
 
+  const departmentGroups = [...products.reduce((groups, product) => {
+    const department = productDepartment(product.category, product.canonicalName ?? product.name);
+    const current = groups.get(department) ?? [];
+    current.push(product);
+    groups.set(department, current);
+    return groups;
+  }, new Map<string, typeof products>())]
+    .sort(([left], [right]) => left.localeCompare(right, "en-AU"));
+
   const retailerCount = new Set(allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : [])).size;
   const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
   const views: Array<{ value: ProductView; label: string }> = [
@@ -187,8 +197,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           })}
         </nav>
 
-        <div className={styles.grid} aria-label="Products">
-          {products.length ? products.map((product) => {
+        <div aria-label="Products by department" style={{ display: "grid", gap: "28px" }}>
+          {products.length ? departmentGroups.map(([department, departmentProducts]) => (
+            <section key={department} style={{ display: "grid", gap: "14px", scrollMarginTop: "18px" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", paddingBottom: "10px", borderBottom: "1px solid #e2e8e4" }}>
+                <div><p className="eyebrow">DEPARTMENT</p><h2>{department}</h2></div>
+                <span style={{ padding: "6px 10px", borderRadius: "999px", background: "#edf5ef", color: "#2e6b46", fontSize: ".72rem", fontWeight: 800, whiteSpace: "nowrap" }}>{departmentProducts.length} {departmentProducts.length === 1 ? "family" : "families"}</span>
+              </div>
+              <div className={styles.grid}>
+              {departmentProducts.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const { title, receiptName, category } = productDisplay(product);
             const latestPrice = money(product.latestPrice);
@@ -253,7 +270,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />
               </article>
             );
-          }) : (
+              })}
+              </div>
+            </section>
+          )) : (
             <div className={styles.empty}>
               <span aria-hidden="true">⌕</span><strong>No products found</strong><p>Try another search or filter.</p>
             </div>
