@@ -189,4 +189,5 @@ assert.equal(genericImageIdentity("Red Onion"), "Red Onion");
 assert.equal(genericImageIdentity("Green Apple"), "Green Apple");
 assert.equal(genericImageIdentity("Spaghetti"), "Spaghetti");
 assert.equal(genericImageIdentity("Leeks"), "Leek");
+assert.equal(genericImageIdentity("Korma Curry Paste"), "Korma Paste");
 console.log("Generic image identity safety checks passed.");
