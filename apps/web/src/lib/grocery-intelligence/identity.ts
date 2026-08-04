@@ -1,7 +1,7 @@
 import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 import { findGroceryConcept } from "./ontology";
 
-export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.3";
+export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.4";
 
 export type GroceryIdentity = {
   source: string;
@@ -187,7 +187,11 @@ export function identifyGrocery(value: string): GroceryIdentity | null {
   working = working.replace(/\b(?:core|seed|seeds|husk|husks|silk)\s+removed\b/g, " ").replace(/\s+/g, " ").trim();
   if (!working) return null;
 
-  const concept = findGroceryConcept(working);
+  const inferredWorkingFamily = inferredFamily(working);
+  const matchedConcept = findGroceryConcept(working);
+  const concept = inferredWorkingFamily && matchedConcept?.family !== inferredWorkingFamily
+    ? null
+    : matchedConcept;
   let canonicalName: string;
   let family: string | null = null;
   let variant: string | null = null;
