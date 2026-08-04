@@ -165,11 +165,11 @@ function normaliseFamily(value: string) {
 }
 
 function genericFamilyNames(products: Array<{ name: string; canonicalName: string | null; brand: string | null; barcode: string | null }>) {
-  return products
+  return [...new Set(products
     .filter((product) => !product.brand && !product.barcode)
-    .map((product) => genericImageIdentity(identityText(product)) ?? productFamilyName(identityText(product)))
+    .map((product) => productFamilyName(identityText(product)))
     .filter(Boolean)
-    .sort((left, right) => right.length - left.length);
+  )].sort((left, right) => right.length - left.length);
 }
 
 function resolvedFamilyName(
@@ -177,7 +177,7 @@ function resolvedFamilyName(
   genericFamilies: string[],
 ) {
   const ownFamily = productFamilyName(identityText(product));
-  if (!product.brand && !product.barcode) return genericImageIdentity(identityText(product)) ?? ownFamily;
+  if (!product.brand && !product.barcode) return ownFamily;
   const normalisedOwnFamily = normaliseFamily(ownFamily);
   return genericFamilies.find((family) => {
     const normalisedGeneric = normaliseFamily(family);
