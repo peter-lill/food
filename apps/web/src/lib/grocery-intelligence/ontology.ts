@@ -78,7 +78,7 @@ const aliases = concepts
 export function findGroceryConcept(value: string): GroceryConcept | null {
   const text = normalise(value);
   if (!text) return null;
-  const match = aliases.find(({ alias }) => text === alias);
+  const match = aliases.find(({ alias }) => text === alias || text.startsWith(`${alias} `) || text.endsWith(` ${alias}`) || text.includes(` ${alias} `));
   return match?.concept ?? null;
 }
 
