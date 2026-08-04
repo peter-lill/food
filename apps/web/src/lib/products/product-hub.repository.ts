@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
+import { genericImageIdentity } from "@/lib/products/generic-image-policy";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
@@ -166,7 +167,7 @@ function normaliseFamily(value: string) {
 function genericFamilyNames(products: Array<{ name: string; canonicalName: string | null; brand: string | null; barcode: string | null }>) {
   return products
     .filter((product) => !product.brand && !product.barcode)
-    .map((product) => productFamilyName(identityText(product)))
+    .map((product) => genericImageIdentity(identityText(product)) ?? productFamilyName(identityText(product)))
     .filter(Boolean)
     .sort((left, right) => right.length - left.length);
 }
@@ -176,7 +177,7 @@ function resolvedFamilyName(
   genericFamilies: string[],
 ) {
   const ownFamily = productFamilyName(identityText(product));
-  if (!product.brand && !product.barcode) return ownFamily;
+  if (!product.brand && !product.barcode) return genericImageIdentity(identityText(product)) ?? ownFamily;
   const normalisedOwnFamily = normaliseFamily(ownFamily);
   return genericFamilies.find((family) => {
     const normalisedGeneric = normaliseFamily(family);

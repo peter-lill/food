@@ -22,6 +22,7 @@ const familyAliases = new Map<string, string>([
   ["wholegrain sourdough bread", "Wholegrain Sourdough"],
   ["lemon zest rind", "Lemon Rind"],
   ["extra virgin olive oil", "Olive Oil"],
+  ["korma curry paste", "Korma Paste"],
 ]);
 
 function normalise(value: string) {
