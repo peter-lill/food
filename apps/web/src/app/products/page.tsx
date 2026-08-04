@@ -199,12 +199,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
         <div aria-label="Products by department" style={{ display: "grid", gap: "28px" }}>
           {products.length ? departmentGroups.map(([department, departmentProducts]) => (
-            <section key={department} style={{ display: "grid", gap: "14px", scrollMarginTop: "18px" }}>
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", paddingBottom: "10px", borderBottom: "1px solid #e2e8e4" }}>
+            <details key={department} style={{ padding: "16px 18px", border: "1px solid #e2e8e4", borderRadius: "18px", background: "#fff", scrollMarginTop: "18px" }}>
+              <summary style={{ cursor: "pointer", listStylePosition: "outside" }}>
+              <div style={{ display: "inline-flex", width: "calc(100% - 18px)", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", verticalAlign: "middle" }}>
                 <div><p className="eyebrow">DEPARTMENT</p><h2>{department}</h2></div>
                 <span style={{ padding: "6px 10px", borderRadius: "999px", background: "#edf5ef", color: "#2e6b46", fontSize: ".72rem", fontWeight: 800, whiteSpace: "nowrap" }}>{departmentProducts.length} {departmentProducts.length === 1 ? "family" : "families"}</span>
               </div>
-              <div className={styles.grid}>
+              </summary>
+              <div className={styles.grid} style={{ marginTop: "16px" }}>
               {departmentProducts.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const { title, receiptName, category } = productDisplay(product);
@@ -272,7 +274,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             );
               })}
               </div>
-            </section>
+            </details>
           )) : (
             <div className={styles.empty}>
               <span aria-hidden="true">⌕</span><strong>No products found</strong><p>Try another search or filter.</p>
