@@ -55,3 +55,27 @@ export function inferProductCategory(value: string) {
   }));
   return rule?.category ?? null;
 }
+
+const departmentAliases = new Map<string, string>([
+  ["fresh produce", "Fruit & vegetables"],
+  ["fruit and vegetables", "Fruit & vegetables"],
+  ["fruit vegetables", "Fruit & vegetables"],
+  ["fresh meat", "Meat & seafood"],
+  ["seafood", "Meat & seafood"],
+  ["meat and seafood", "Meat & seafood"],
+  ["meat seafood", "Meat & seafood"],
+  ["dairy and eggs", "Dairy & eggs"],
+  ["dairy eggs", "Dairy & eggs"],
+]);
+
+export function productDepartment(category: string | null | undefined, productName: string) {
+  const inferred = inferProductCategory(productName);
+  const source = category?.trim() || inferred || "Other";
+  const normalised = normaliseProductText(source);
+  const aliased = departmentAliases.get(normalised);
+  if (aliased) return aliased;
+  if (normalised === "chilled" && inferred) {
+    return departmentAliases.get(normaliseProductText(inferred)) ?? inferred.replace(/\band\b/gi, "&");
+  }
+  return source.replace(/\band\b/gi, "&");
+}
