@@ -1,6 +1,6 @@
 import type { Prisma, Product } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { inferProductCategory } from "./product-category";
+import { productDepartment } from "./product-category";
 import {
   normaliseProductText,
   parseProductName,
@@ -79,7 +79,7 @@ export async function resolveCanonicalProduct(
   const parsed = parseProductName(input.rawName);
   const barcode = cleanOptional(input.barcode);
   const brand = cleanOptional(input.brand);
-  const category = cleanOptional(input.category) ?? inferProductCategory(parsed.canonicalName);
+  const category = productDepartment(cleanOptional(input.category), parsed.canonicalName);
   const imageUrl = cleanOptional(input.imageUrl);
   const packSize = cleanOptional(input.packSize);
   const packUnit = cleanOptional(input.packUnit) ?? parsed.packUnit;
@@ -98,7 +98,7 @@ export async function resolveCanonicalProduct(
             slug: existing.slug ?? parsed.canonicalKey,
             barcode: existing.barcode ?? barcode,
             brand: existing.brand ?? brand,
-            category: existing.category ?? category,
+            category: productDepartment(existing.category ?? category, parsed.canonicalName),
             imageUrl: existing.imageUrl ?? imageUrl,
             packSize: existing.packSize ?? packSize,
             packQuantity: existing.packQuantity ?? packQuantity,

@@ -5,23 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
-
-const departments = [
-  "Fruit & vegetables",
-  "Bakery",
-  "Meat & seafood",
-  "Dairy & eggs",
-  "Frozen",
-  "Pantry",
-  "International",
-  "Confectionery",
-  "Drinks",
-  "Health & personal care",
-  "Household",
-  "Baby",
-  "Pet",
-  "Other",
-] as const;
+import { productDepartment, supermarketDepartments } from "./product-category";
 
 const servingUnits = ["g", "mL", "item", "slice", "piece", "tablet", "capsule"] as const;
 
@@ -45,12 +29,12 @@ function normaliseBarcode(value: string) {
   return value.replace(/\D/g, "");
 }
 
-function normaliseDepartment(value: string, productType: ProductType) {
+function normaliseDepartment(value: string, productType: ProductType, productName: string) {
   const normalised = value.toLocaleLowerCase("en-AU").trim();
   if (productType === ProductType.GENERIC_PRODUCE && ["fresh produce", "produce", "fruit and vegetables", "fruit & vegetables"].includes(normalised)) {
     return "Fruit & vegetables";
   }
-  return value;
+  return value ? productDepartment(value, productName) : "";
 }
 
 function parseAllergens(value: string) {
@@ -86,8 +70,8 @@ export async function updateProductDetails(productId: string, formData: FormData
 
   const productType = productTypeInput as ProductType;
   const departmentInput = text(formData, "department") || text(formData, "category");
-  const department = normaliseDepartment(departmentInput, productType);
-  if (department && !departments.includes(department as (typeof departments)[number])) {
+  const department = normaliseDepartment(departmentInput, productType, name);
+  if (department && !supermarketDepartments.includes(department as (typeof supermarketDepartments)[number])) {
     throw new Error("Choose a valid supermarket department.");
   }
 

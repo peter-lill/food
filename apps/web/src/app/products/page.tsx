@@ -14,6 +14,7 @@ const departmentArtwork: Record<string, string> = {
   "Fruit & vegetables": "fruit-vegetables.webp",
   Bakery: "bakery.webp",
   "Meat & seafood": "meat-seafood.webp",
+  Deli: "meat-seafood.webp",
   "Dairy & eggs": "dairy-eggs.webp",
   Frozen: "frozen.webp",
   Pantry: "pantry.webp",
