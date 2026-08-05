@@ -216,6 +216,7 @@ assert.equal(productDepartment("Salts", "Sea Salt"), "Pantry");
 assert.equal(productDepartment("International Foods", "Basmati Rice"), "Pantry");
 assert.equal(productDepartment("Chocolate biscuity bars", "KitKat Milo Block"), "Confectionery");
 assert.equal(productDepartment("Fresh produce", "KitKat Milo Block"), "Confectionery");
+assert.equal(productDepartment("Fresh produce", "Kitkat Aero Mint Chocolate Block"), "Confectionery");
 assert.equal(productDepartment("Cleaning & Household", "Dishwashing Tablets"), "Household");
 assert.equal(productDepartment("Other", "Basil"), "Fruit & vegetables");
 assert.equal(productDepartment("Other", "Broccolini"), "Fruit & vegetables");
