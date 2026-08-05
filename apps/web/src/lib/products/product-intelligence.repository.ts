@@ -1,5 +1,6 @@
 import type { Prisma, Product } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { backgroundJobTypes, enqueueBackgroundJob } from "@/lib/jobs/background-jobs";
 import { productDepartment } from "./product-category";
 import {
   normaliseProductText,
@@ -85,7 +86,7 @@ export async function resolveCanonicalProduct(
   const packUnit = cleanOptional(input.packUnit) ?? parsed.packUnit;
   const packQuantity = input.packQuantity ?? parsed.packQuantity;
 
-  return prisma.$transaction(async (tx) => {
+  const resolution = await prisma.$transaction(async (tx) => {
     const existing = await findCanonicalProduct(tx, parsed, barcode);
     const created = !existing;
 
@@ -139,4 +140,15 @@ export async function resolveCanonicalProduct(
 
     return { product, parsed, created };
   });
+
+  await enqueueBackgroundJob(
+    backgroundJobTypes.productRetailerEnrichment,
+    { productId: resolution.product.id, provider: "coles-woolworths" },
+    {
+      priority: 120,
+      deduplicationKey: `product-retailer-enrichment-${resolution.product.id}`,
+    },
+  );
+
+  return resolution;
 }

@@ -20,6 +20,7 @@
     "products:names:test": "tsx scripts/test-product-name-quality.ts",
     "products:nip:test": "tsx scripts/test-australian-nip-parser.ts",
     "products:generic-images": "tsx scripts/refresh-generic-product-images.ts",
+    "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",
     "products:backfill": "tsx scripts/backfill-product-intelligence.ts",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
+import { groceryConcepts } from "../src/lib/grocery-intelligence/ontology";
 import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
 import { productDepartment } from "../src/lib/products/product-category";
 
@@ -215,4 +216,21 @@ assert.equal(productDepartment("Salts", "Sea Salt"), "Pantry");
 assert.equal(productDepartment("International Foods", "Basmati Rice"), "Pantry");
 assert.equal(productDepartment("Chocolate biscuity bars", "KitKat Milo Block"), "Confectionery");
 assert.equal(productDepartment("Cleaning & Household", "Dishwashing Tablets"), "Household");
+assert.equal(productDepartment("Other", "Basil"), "Fruit & vegetables");
+assert.equal(productDepartment("Other", "Broccolini"), "Fruit & vegetables");
+assert.equal(productDepartment("Other", "Basil Pesto"), "Pantry");
+assert.equal(productDepartment("Other", "Black Beans"), "Pantry");
+assert.equal(productDepartment("Other", "Green Beans"), "Fruit & vegetables");
+assert.equal(productDepartment("Other", "Fresh Thyme"), "Fruit & vegetables");
+assert.equal(productDepartment("Other", "Eggs"), "Dairy & eggs");
+assert.equal(productDepartment("Fresh produce", "Eggs"), "Dairy & eggs");
+assert.equal(productDepartment("Other", "Coles Olive Oil Table Spread"), "Dairy & eggs");
+assert.equal(productDepartment("Alcoholic beverages", "Hard Rated Lemon"), "Drinks");
+for (const concept of groceryConcepts()) {
+  assert.notEqual(
+    productDepartment("Other", concept.family),
+    "Other",
+    `Known grocery family ${concept.family} must have a supermarket department`,
+  );
+}
 console.log("Product department checks passed.");

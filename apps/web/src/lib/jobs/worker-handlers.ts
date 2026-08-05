@@ -1,6 +1,7 @@
 import { backgroundJobTypes, type BackgroundJob } from "@/lib/jobs/background-jobs";
 import { importCandidateAsset } from "@/lib/images/image-asset.service";
 import { recoverProductImage } from "@/lib/products/image-recovery";
+import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
 
 export const workerJobTypes = {
   ...backgroundJobTypes,
@@ -65,6 +66,12 @@ export async function handleBackgroundJob(job: BackgroundJob) {
         status: result.status,
         imageUrl: result.imageUrl,
       };
+    }
+
+    case workerJobTypes.productRetailerEnrichment: {
+      const productId = requireString(payload, "productId");
+      const result = await enrichProductRetailers(productId);
+      return { productId, ...result };
     }
 
     default:
