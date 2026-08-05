@@ -2,28 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  useBarcodeScanner,
+  type BarcodeScanOutcome,
+} from "@/hooks/useBarcodeScanner";
+import {
   getCurrentLocation,
   type CurrentLocation,
 } from "@/lib/current-location";
+import { addScannedProductToPantry } from "@/lib/pantry/pantry.actions";
 import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 import styles from "./ProductBarcodePicker.module.css";
-
-type DetectedBarcode = {
-  rawValue: string;
-};
-
-type BarcodeDetectorInstance = {
-  detect(source: HTMLVideoElement): Promise<DetectedBarcode[]>;
-};
-
-type BarcodeDetectorConstructor = {
-  new (options?: { formats?: string[] }): BarcodeDetectorInstance;
-  getSupportedFormats?: () => Promise<string[]>;
-};
-
-type ScannerControls = {
-  stop(): void;
-};
 
 type BarcodeLookupResponse = {
   found: boolean;
@@ -31,8 +19,6 @@ type BarcodeLookupResponse = {
   product?: ProductCatalogueItem;
   error?: string;
 };
-
-type ScanTone = "neutral" | "success" | "error";
 
 type ProductBarcodePickerProps = {
   products: ProductCatalogueItem[];
@@ -42,13 +28,8 @@ type ProductBarcodePickerProps = {
   namePlaceholder?: string;
   autoOpenScanner?: boolean;
   fullPageScanner?: boolean;
+  autoSubmitOnScan?: boolean;
 };
-
-const preferredFormats = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128"];
-
-function getBarcodeDetector() {
-  return (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
-}
 
 function normaliseBarcode(value: string) {
   return value.trim();
@@ -102,19 +83,19 @@ export function ProductBarcodePicker({
   namePlaceholder = "e.g. Greek yoghurt",
   autoOpenScanner = false,
   fullPageScanner = false,
+  autoSubmitOnScan = false,
 }: ProductBarcodePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const lastBarcodeRef = useRef("");
   const currentLocationRef = useRef<CurrentLocation | null>(null);
   const productsRef = useRef(products);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
   const [productQuery, setProductQuery] = useState("");
   const [scannerOpen, setScannerOpen] = useState(autoOpenScanner);
-  const [scanTone, setScanTone] = useState<ScanTone>("neutral");
-  const [scanStatus, setScanStatus] = useState("Camera ready when you are.");
+  const [manualTone, setManualTone] = useState<"neutral" | "success" | "error">("neutral");
+  const [manualStatus, setManualStatus] = useState("Camera ready when you are.");
   const [locationPending, setLocationPending] = useState(false);
   const [usingCurrentLocation, setUsingCurrentLocation] = useState(false);
   const [locationStatus, setLocationStatus] = useState(
@@ -136,209 +117,98 @@ export function ProductBarcodePicker({
     productsRef.current = products;
   }, [products]);
 
+  async function handleDetectedBarcode(barcode: string): Promise<BarcodeScanOutcome> {
+    if (barcodeRef.current) barcodeRef.current.value = barcode;
+
+    const knownProduct = productByBarcode(productsRef.current, barcode);
+    if (nameRef.current) nameRef.current.value = knownProduct?.name ?? "";
+
+    try {
+      const lookup = await lookupProductByBarcode(barcode, {
+        currentLocation: currentLocationRef.current,
+        refresh: true,
+      });
+
+      if (lookup.found && lookup.product) {
+        const product = lookup.product;
+        productsRef.current = [
+          product,
+          ...productsRef.current.filter((item) => (
+            item.id !== product.id && item.barcode !== product.barcode
+          )),
+        ];
+        if (nameRef.current) nameRef.current.value = product.name;
+
+        if (autoSubmitOnScan) {
+          const saveResult = await addScannedProductToPantry(product.name, barcode);
+          if (saveResult.status !== "success") {
+            return {
+              tone: "error",
+              message: saveResult.message || `${product.name} could not be added to Pantry.`,
+            };
+          }
+
+          return {
+            tone: "success",
+            message: `${product.name} added to Pantry. Present the next barcode.`,
+          };
+        }
+
+        return {
+          tone: "success",
+          message: `${product.name}${product.brand ? ` by ${product.brand}` : ""} recognised. The camera remains live.`,
+        };
+      }
+
+      nameRef.current?.focus();
+      return {
+        tone: "neutral",
+        message: `Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`,
+      };
+    } catch (error) {
+      console.error("Unable to look up scanned product", error);
+      nameRef.current?.focus();
+      return {
+        tone: "error",
+        message: `${error instanceof Error ? error.message : "Product lookup failed."} Enter the product name manually and Food will remember it.`,
+      };
+    }
+  }
+
+  const scanner = useBarcodeScanner({
+    enabled: scannerOpen,
+    videoRef,
+    onDetected: handleDetectedBarcode,
+    duplicateWindowMs: 1_500,
+    successDurationMs: 1_000,
+  });
+  const scanTone = scannerOpen
+    ? scanner.phase === "success"
+      ? "success"
+      : scanner.phase === "error"
+        ? "error"
+        : "neutral"
+    : manualTone;
+  const scanStatus = scannerOpen ? scanner.status : manualStatus;
+
   useEffect(() => {
     const form = containerRef.current?.closest("form");
     if (!form) return;
 
     const handleReset = () => {
-      if (!scannerOpen) lastBarcodeRef.current = "";
-      setScanTone("neutral");
-      setScanStatus(scannerOpen
-        ? "Item added. Move it away from the camera, then present the next barcode."
-        : "Camera ready when you are.");
+      setManualTone("neutral");
+      setManualStatus("Camera ready when you are.");
     };
 
     form.addEventListener("reset", handleReset);
     return () => form.removeEventListener("reset", handleReset);
   }, [scannerOpen]);
 
-  useEffect(() => {
-    if (!scannerOpen) return;
-
-    const Detector = getBarcodeDetector();
-    const mediaDevices = navigator.mediaDevices;
-    if (!mediaDevices?.getUserMedia) {
-      const unavailableTimer = window.setTimeout(() => {
-        setScanTone("error");
-        setScanStatus("This browser cannot access the camera. Enter the barcode manually instead.");
-      }, 0);
-      return () => window.clearTimeout(unavailableTimer);
-    }
-
-    const activeMediaDevices = mediaDevices;
-    let cancelled = false;
-    let stream: MediaStream | null = null;
-    let videoElement: HTMLVideoElement | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let fallbackControls: ScannerControls | null = null;
-    let emptyPasses = 0;
-
-    async function processBarcode(rawBarcode: string) {
-      const barcode = normaliseBarcode(rawBarcode);
-      if (!barcode || barcode === lastBarcodeRef.current || cancelled) return;
-
-      lastBarcodeRef.current = barcode;
-      if (barcodeRef.current) barcodeRef.current.value = barcode;
-
-      const knownProduct = productByBarcode(productsRef.current, barcode);
-      if (nameRef.current) nameRef.current.value = knownProduct?.name ?? "";
-      setScanTone("neutral");
-      setScanStatus(knownProduct
-        ? `Checking the product catalogue for a newer description of ${knownProduct.name}…`
-        : `Looking up barcode ${barcode}…`);
-
-      try {
-        const lookup = await lookupProductByBarcode(barcode, {
-          currentLocation: currentLocationRef.current,
-          refresh: true,
-        });
-        if (cancelled) return;
-
-        if (lookup.found && lookup.product) {
-          const product = lookup.product;
-          productsRef.current = [
-            product,
-            ...productsRef.current.filter((item) => (
-              item.id !== product.id && item.barcode !== product.barcode
-            )),
-          ];
-          if (nameRef.current) nameRef.current.value = product.name;
-          setScanTone("success");
-          setScanStatus(lookup.source === "local"
-            ? `${product.name} recognised. No newer catalogue description was available.`
-            : `${product.name}${product.brand ? ` by ${product.brand}` : ""} found in the product catalogue and saved. The camera remains live.`);
-        } else {
-          setScanTone("neutral");
-          setScanStatus(`Barcode ${barcode} was not found. Enter the product name once and Food will remember it.`);
-          nameRef.current?.focus();
-        }
-      } catch (error) {
-        if (cancelled) return;
-        const message = error instanceof Error ? error.message : "Product lookup failed.";
-        console.error("Unable to look up scanned product", error);
-        setScanTone("error");
-        setScanStatus(`${message} Enter the product name manually and Food will remember it.`);
-        nameRef.current?.focus();
-      }
-
-      navigator.vibrate?.(70);
-    }
-
-    async function startNativeScanner(ActiveDetector: BarcodeDetectorConstructor) {
-      try {
-        const supportedFormats = ActiveDetector.getSupportedFormats
-          ? await ActiveDetector.getSupportedFormats()
-          : preferredFormats;
-        const formats = preferredFormats.filter((format) => supportedFormats.includes(format));
-        const detector = new ActiveDetector(formats.length > 0 ? { formats } : undefined);
-
-        stream = await activeMediaDevices.getUserMedia({
-          audio: false,
-          video: {
-            facingMode: { ideal: "environment" },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-          },
-        });
-
-        const activeVideo = videoRef.current;
-        if (cancelled || !activeVideo) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-
-        videoElement = activeVideo;
-        activeVideo.srcObject = stream;
-        await activeVideo.play();
-        setScanTone("neutral");
-        setScanStatus("Camera is live. Hold a barcode inside the frame.");
-
-        const scan = async () => {
-          if (cancelled) return;
-
-          try {
-            const results = activeVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
-              ? await detector.detect(activeVideo)
-              : [];
-            const barcode = normaliseBarcode(results[0]?.rawValue ?? "");
-
-            if (!barcode) {
-              emptyPasses += 1;
-              if (emptyPasses >= 6) lastBarcodeRef.current = "";
-            } else {
-              emptyPasses = 0;
-              await processBarcode(barcode);
-            }
-          } catch (error) {
-            console.error("Unable to detect barcode", error);
-          }
-
-          if (!cancelled) timer = setTimeout(scan, 240);
-        };
-
-        timer = setTimeout(scan, 240);
-      } catch (error) {
-        console.error("Unable to start barcode scanner", error);
-        setScanTone("error");
-        setScanStatus("Camera access failed. Check browser permission for food.coffeehq.coffee or enter the barcode manually.");
-      }
-    }
-
-    async function startFallbackScanner() {
-      try {
-        const { BrowserMultiFormatReader } = await import("@zxing/browser");
-        if (cancelled || !videoRef.current) return;
-
-        const reader = new BrowserMultiFormatReader();
-        fallbackControls = await reader.decodeFromConstraints(
-          {
-            audio: false,
-            video: {
-              facingMode: { ideal: "environment" },
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-            },
-          },
-          videoRef.current,
-          (result) => {
-            if (result) void processBarcode(result.getText());
-          },
-        );
-
-        if (cancelled) {
-          fallbackControls.stop();
-          return;
-        }
-
-        setScanTone("neutral");
-        setScanStatus("Camera is live. Hold a barcode inside the frame.");
-      } catch (error) {
-        console.error("Unable to start fallback barcode scanner", error);
-        setScanTone("error");
-        setScanStatus("Camera access failed. Check browser permission for food.coffeehq.coffee or enter the barcode manually.");
-      }
-    }
-
-    if (Detector) {
-      void startNativeScanner(Detector);
-    } else {
-      void startFallbackScanner();
-    }
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-      fallbackControls?.stop();
-      stream?.getTracks().forEach((track) => track.stop());
-      if (videoElement) videoElement.srcObject = null;
-    };
-  }, [scannerOpen]);
-
   function selectProduct(product: ProductCatalogueItem) {
     if (nameRef.current) nameRef.current.value = product.name;
     if (barcodeRef.current) barcodeRef.current.value = product.barcode ?? "";
-    setScanTone("success");
-    setScanStatus(`${product.name} selected${product.barcode ? " with its saved barcode" : ""}.`);
+    setManualTone("success");
+    setManualStatus(`${product.name} selected${product.barcode ? " with its saved barcode" : ""}.`);
     setCatalogueOpen(false);
   }
 
@@ -351,8 +221,8 @@ export function ProductBarcodePicker({
     const product = productByBarcode(productsRef.current, value);
     if (product && nameRef.current) {
       nameRef.current.value = product.name;
-      setScanTone("success");
-      setScanStatus(`${product.name} recognised from its saved barcode.`);
+      setManualTone("success");
+      setManualStatus(`${product.name} recognised from its saved barcode.`);
     }
   }
 
@@ -366,13 +236,10 @@ export function ProductBarcodePicker({
     setScannerOpen(true);
 
     if (!navigator.mediaDevices?.getUserMedia) {
-      setScanTone("error");
-      setScanStatus("This browser cannot access the camera. Enter the barcode manually instead.");
+      setManualTone("error");
+      setManualStatus("This browser cannot access the camera. Enter the barcode manually instead.");
       return;
     }
-
-    setScanTone("neutral");
-    setScanStatus("Starting the rear camera…");
   }
 
   async function toggleCurrentLocation() {
@@ -525,6 +392,12 @@ export function ProductBarcodePicker({
             <div className={styles.scanGuide} />
           </div>
           <p className={`${styles.scanStatus} ${styles[scanTone]}`} aria-live="polite">{scanStatus}</p>
+          {scanner.phase === "success" ? (
+            <div className={styles.successOverlay} role="status">
+              <span aria-hidden="true">✓</span>
+              <strong>{scanStatus}</strong>
+            </div>
+          ) : null}
           <p className={styles.cameraNote}>After adding an item, move it away from the camera and present the next barcode. The scanner will continue running.</p>
         </section>
       ) : null}

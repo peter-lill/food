@@ -84,7 +84,14 @@ export function AddPantryForm({ products, autoOpenScanner = false, fullPageScann
     <section className="card pantry-add-card">
       {!fullPageScanner ? <div><p className="eyebrow">ADD STOCK</p><h2 className="section-title">Add a pantry item</h2><p className="subtle pantry-copy">Scan a product or choose an existing grocery item. Equivalent products will appear together in Pantry.</p></div> : null}
       <form action={action} className="pantry-form" ref={formRef}>
-        <ProductBarcodePicker autoOpenScanner={autoOpenScanner} barcodeError={state.fieldErrors?.barcode} fullPageScanner={fullPageScanner} nameError={state.fieldErrors?.name} products={products} />
+        <ProductBarcodePicker
+          autoOpenScanner={autoOpenScanner}
+          autoSubmitOnScan={fullPageScanner}
+          barcodeError={state.fieldErrors?.barcode}
+          fullPageScanner={fullPageScanner}
+          nameError={state.fieldErrors?.name}
+          products={products}
+        />
         <PantryFields state={state} />
         <ActionMessage state={state} />
         <div className="form-actions"><SubmitButton pendingText="Adding…">Add to Pantry</SubmitButton></div>
