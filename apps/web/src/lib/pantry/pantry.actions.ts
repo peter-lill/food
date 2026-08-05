@@ -4,7 +4,7 @@ import { InventoryLocation, Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { PantryActionState } from "./pantry.types";
-import { pantryLocations } from "./pantry.types";
+import { initialPantryActionState, pantryLocations } from "./pantry.types";
 
 const maximumQuantity = 100_000;
 
@@ -176,6 +176,22 @@ export async function createPantryItem(
       message: "The pantry item could not be saved. Check the database connection and try again.",
     };
   }
+}
+
+export async function addScannedProductToPantry(
+  name: string,
+  barcode: string,
+): Promise<PantryActionState> {
+  const formData = new FormData();
+  formData.set("name", name);
+  formData.set("barcode", barcode);
+  formData.set("quantity", "1");
+  formData.set("unit", "item");
+  formData.set("location", "PANTRY");
+  formData.set("purchasedAt", "");
+  formData.set("expiresAt", "");
+
+  return createPantryItem(initialPantryActionState, formData);
 }
 
 export async function updatePantryItem(

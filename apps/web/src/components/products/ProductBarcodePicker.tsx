@@ -9,6 +9,7 @@ import {
   getCurrentLocation,
   type CurrentLocation,
 } from "@/lib/current-location";
+import { addScannedProductToPantry } from "@/lib/pantry/pantry.actions";
 import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 import styles from "./ProductBarcodePicker.module.css";
 
@@ -28,7 +29,6 @@ type ProductBarcodePickerProps = {
   autoOpenScanner?: boolean;
   fullPageScanner?: boolean;
   autoSubmitOnScan?: boolean;
-  submissionStatus?: "idle" | "success" | "error";
 };
 
 function normaliseBarcode(value: string) {
@@ -84,13 +84,11 @@ export function ProductBarcodePicker({
   autoOpenScanner = false,
   fullPageScanner = false,
   autoSubmitOnScan = false,
-  submissionStatus = "idle",
 }: ProductBarcodePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const barcodeRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const submissionPendingRef = useRef(false);
   const currentLocationRef = useRef<CurrentLocation | null>(null);
   const productsRef = useRef(products);
   const [catalogueOpen, setCatalogueOpen] = useState(false);
@@ -119,15 +117,7 @@ export function ProductBarcodePicker({
     productsRef.current = products;
   }, [products]);
 
-  useEffect(() => {
-    if (submissionStatus !== "idle") submissionPendingRef.current = false;
-  }, [submissionStatus]);
-
   async function handleDetectedBarcode(barcode: string): Promise<BarcodeScanOutcome> {
-    if (submissionPendingRef.current) {
-      return { tone: "neutral", message: "Finishing the previous pantry item…" };
-    }
-
     if (barcodeRef.current) barcodeRef.current.value = barcode;
 
     const knownProduct = productByBarcode(productsRef.current, barcode);
@@ -150,18 +140,23 @@ export function ProductBarcodePicker({
         if (nameRef.current) nameRef.current.value = product.name;
 
         if (autoSubmitOnScan) {
-          const form = containerRef.current?.closest("form");
-          if (form) {
-            submissionPendingRef.current = true;
-            form.requestSubmit();
+          const saveResult = await addScannedProductToPantry(product.name, barcode);
+          if (saveResult.status !== "success") {
+            return {
+              tone: "error",
+              message: saveResult.message || `${product.name} could not be added to Pantry.`,
+            };
           }
+
+          return {
+            tone: "success",
+            message: `${product.name} added to Pantry. Present the next barcode.`,
+          };
         }
 
         return {
           tone: "success",
-          message: autoSubmitOnScan
-            ? `${product.name} added. Present the next barcode.`
-            : `${product.name}${product.brand ? ` by ${product.brand}` : ""} recognised. The camera remains live.`,
+          message: `${product.name}${product.brand ? ` by ${product.brand}` : ""} recognised. The camera remains live.`,
         };
       }
 
@@ -201,7 +196,6 @@ export function ProductBarcodePicker({
     if (!form) return;
 
     const handleReset = () => {
-      submissionPendingRef.current = false;
       setManualTone("neutral");
       setManualStatus("Camera ready when you are.");
     };

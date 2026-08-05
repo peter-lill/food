@@ -91,7 +91,6 @@ export function AddPantryForm({ products, autoOpenScanner = false, fullPageScann
           fullPageScanner={fullPageScanner}
           nameError={state.fieldErrors?.name}
           products={products}
-          submissionStatus={state.status}
         />
         <PantryFields state={state} />
         <ActionMessage state={state} />
