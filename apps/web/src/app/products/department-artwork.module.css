@@ -1,6 +1,7 @@
 .departmentList {
   display: grid;
-  gap: 18px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
 }
 
 .department {
@@ -12,15 +13,20 @@
   scroll-margin-top: 18px;
 }
 
+.department[open] {
+  grid-column: 1 / -1;
+}
+
 .departmentSummary {
+  position: relative;
   display: grid;
-  grid-template-columns: 148px minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 18px;
-  min-height: 108px;
-  padding: 12px 18px 12px 12px;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  height: 100%;
+  padding: 12px;
   cursor: pointer;
   list-style: none;
+  box-sizing: border-box;
 }
 
 .departmentSummary::-webkit-details-marker {
@@ -29,17 +35,19 @@
 
 .departmentSummary::after {
   content: "+";
+  position: absolute;
+  top: 22px;
+  right: 22px;
   display: grid;
-  grid-column: 4;
-  grid-row: 1;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 999px;
-  background: #edf5ef;
+  background: rgba(255, 255, 255, 0.9);
   color: #2e6b46;
   font-size: 1.25rem;
   font-weight: 700;
+  box-shadow: 0 4px 14px rgba(28, 48, 38, 0.12);
   transition: transform 0.2s ease;
 }
 
@@ -49,8 +57,8 @@
 
 .departmentArtwork {
   display: block;
-  width: 148px;
-  height: 92px;
+  width: 100%;
+  aspect-ratio: 1;
   overflow: hidden;
   border-radius: 16px;
   background: #eef3ef;
@@ -60,22 +68,26 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .departmentHeading {
   display: grid;
+  align-content: start;
   gap: 6px;
   min-width: 0;
+  padding: 0 4px;
 }
 
 .departmentHeading strong {
   color: #17231c;
-  font-size: clamp(1.15rem, 2vw, 1.5rem);
-  line-height: 1.1;
+  font-size: clamp(1.1rem, 1.5vw, 1.35rem);
+  line-height: 1.15;
 }
 
 .departmentCount {
+  justify-self: start;
+  margin: 0 4px 4px;
   padding: 7px 11px;
   border-radius: 999px;
   background: #edf5ef;
@@ -85,36 +97,81 @@
   white-space: nowrap;
 }
 
+.department[open] .departmentSummary {
+  grid-template-columns: 112px minmax(0, 1fr) auto;
+  grid-template-rows: auto;
+  align-items: center;
+  gap: 18px;
+  height: auto;
+  padding: 12px 64px 12px 12px;
+}
+
+.department[open] .departmentArtwork {
+  width: 112px;
+}
+
+.department[open] .departmentCount {
+  justify-self: end;
+  margin: 0;
+}
+
 .departmentProducts {
   padding: 4px 18px 18px;
 }
 
+@media (max-width: 1100px) {
+  .departmentList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 760px) {
   .departmentList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 
   .departmentSummary {
-    grid-template-columns: 92px minmax(0, 1fr) auto;
-    gap: 12px;
-    min-height: 86px;
-    padding: 10px 12px 10px 10px;
+    gap: 9px;
+    padding: 9px;
   }
 
   .departmentSummary::after {
-    grid-column: 3;
-    width: 26px;
-    height: 26px;
+    top: 16px;
+    right: 16px;
+    width: 28px;
+    height: 28px;
     font-size: 1rem;
   }
 
   .departmentArtwork {
-    width: 92px;
-    height: 68px;
     border-radius: 13px;
   }
 
+  .departmentHeading {
+    padding: 0 2px;
+  }
+
+  .departmentHeading strong {
+    font-size: 1rem;
+  }
+
   .departmentCount {
+    margin: 0 2px 2px;
+    padding: 6px 9px;
+  }
+
+  .department[open] .departmentSummary {
+    grid-template-columns: 76px minmax(0, 1fr);
+    gap: 12px;
+    padding: 9px 52px 9px 9px;
+  }
+
+  .department[open] .departmentArtwork {
+    width: 76px;
+  }
+
+  .department[open] .departmentCount {
     display: none;
   }
 
