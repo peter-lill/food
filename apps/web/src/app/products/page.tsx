@@ -3,11 +3,33 @@ import { getProductHubList } from "@/lib/products/product-hub.repository";
 import { productDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
+import departmentStyles from "./department-artwork.module.css";
 
 export const dynamic = "force-dynamic";
 
 type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
 type ProductsPageProps = { searchParams: Promise<{ q?: string; view?: string }> };
+
+const departmentArtwork: Record<string, string> = {
+  "Fruit & vegetables": "fruit-vegetables.webp",
+  Bakery: "bakery.webp",
+  "Meat & seafood": "meat-seafood.webp",
+  "Dairy & eggs": "dairy-eggs.webp",
+  Frozen: "frozen.webp",
+  Pantry: "pantry.webp",
+  International: "international.webp",
+  Confectionery: "confectionery.webp",
+  Drinks: "drinks.webp",
+  "Health & personal care": "health-personal-care.webp",
+  Household: "household.webp",
+  Baby: "baby.webp",
+  Pet: "pet.webp",
+  Other: "other.webp",
+};
+
+function artworkForDepartment(department: string) {
+  return `/category-artwork/${departmentArtwork[department] ?? departmentArtwork.Other}`;
+}
 type CompletionProduct = {
   name: string;
   canonicalName: string | null;
@@ -197,16 +219,15 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           })}
         </nav>
 
-        <div aria-label="Products by department" style={{ display: "grid", gap: "28px" }}>
+        <div aria-label="Products by department" className={departmentStyles.departmentList}>
           {products.length ? departmentGroups.map(([department, departmentProducts]) => (
-            <details key={department} style={{ padding: "16px 18px", border: "1px solid #e2e8e4", borderRadius: "18px", background: "#fff", scrollMarginTop: "18px" }}>
-              <summary style={{ cursor: "pointer", listStylePosition: "outside" }}>
-              <div style={{ display: "inline-flex", width: "calc(100% - 18px)", alignItems: "flex-end", justifyContent: "space-between", gap: "16px", verticalAlign: "middle" }}>
-                <div><p className="eyebrow">DEPARTMENT</p><h2>{department}</h2></div>
-                <span style={{ padding: "6px 10px", borderRadius: "999px", background: "#edf5ef", color: "#2e6b46", fontSize: ".72rem", fontWeight: 800, whiteSpace: "nowrap" }}>{departmentProducts.length} {departmentProducts.length === 1 ? "family" : "families"}</span>
-              </div>
+            <details className={departmentStyles.department} key={department}>
+              <summary className={departmentStyles.departmentSummary}>
+                <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
+                <span className={departmentStyles.departmentHeading}><span className="eyebrow">DEPARTMENT</span><strong>{department}</strong></span>
+                <span className={departmentStyles.departmentCount}>{departmentProducts.length} {departmentProducts.length === 1 ? "family" : "families"}</span>
               </summary>
-              <div className={styles.grid} style={{ marginTop: "16px" }}>
+              <div className={departmentStyles.departmentProducts}><div className={styles.grid}>
               {departmentProducts.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const { title, receiptName, category } = productDisplay(product);
@@ -273,7 +294,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               </article>
             );
               })}
-              </div>
+              </div></div>
             </details>
           )) : (
             <div className={styles.empty}>
