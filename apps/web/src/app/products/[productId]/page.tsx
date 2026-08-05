@@ -5,6 +5,7 @@ import { ProductImagePanel } from "@/components/products/ProductImagePanel";
 import { ProductImageWithFallback } from "@/components/products/ProductImageWithFallback";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
+import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
 import { getProductHubDetail } from "@/lib/products/product-hub.repository";
 import styles from "../products.module.css";
@@ -14,11 +15,6 @@ export const dynamic = "force-dynamic";
 type ProductPageProps = { params: Promise<{ productId: string }>; searchParams: Promise<{ specific?: string }> };
 type ProductKnowledge = { overview: string; origin?: string; uses: string[]; storage: string[] };
 type NutritionRow = { label: string; per100: string; perServing: string | undefined; sub?: boolean };
-
-const departments = [
-  "Fruit & vegetables", "Bakery", "Meat & seafood", "Dairy & eggs", "Frozen", "Pantry",
-  "International", "Confectionery", "Drinks", "Health & personal care", "Household", "Baby", "Pet", "Other",
-] as const;
 
 const servingUnits = ["g", "mL", "item", "slice", "piece", "tablet", "capsule"] as const;
 
@@ -65,14 +61,6 @@ function cleanFamilyName(value: string | null, productName: string) {
   return cleaned;
 }
 
-function cleanDepartment(value: string | null, productName: string, familyName: string | null) {
-  if (!value) return null;
-  const cleaned = collapseRepeatedPhrase(value);
-  const key = normalise(cleaned);
-  if (!key || key === normalise(productName) || (familyName && key === normalise(familyName))) return null;
-  return cleaned;
-}
-
 function formatQuantity(value: number) {
   return new Intl.NumberFormat("en-AU", { maximumFractionDigits: 2 }).format(value);
 }
@@ -116,7 +104,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : null;
   const displayName = genericFamily ?? rawDisplayName;
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
-  const department = cleanDepartment(product.category, displayName, canonicalName);
+  const department = productDepartment(product.category, canonicalName ?? displayName);
   const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const description = product.description ?? knowledge?.overview ?? null;
@@ -227,7 +215,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               <label className="field"><span>Serving unit</span><select defaultValue={product.servingUnit ?? ""} name="servingUnit"><option value="">Choose a unit</option>{servingUnits.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</select></label>
               <label className="field"><span>Servings per package</span><input defaultValue={product.servingsPerPackage ?? ""} inputMode="decimal" min="0.01" name="servingsPerPackage" step="0.01" type="number" /></label>
               <label className="field"><span>Allergens</span><textarea defaultValue={product.allergens.map(displayAllergen).join(", ")} maxLength={500} name="allergens" placeholder="e.g. Milk, soy, wheat" rows={3} /></label>
-              <label className="field"><span>Department</span><select defaultValue={product.category ?? ""} name="department"><option value="">Choose a department</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+              <label className="field"><span>Department</span><select defaultValue={department} name="department"><option value="">Choose a department</option>{supermarketDepartments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
               <label className="field"><span>Barcode / GTIN</span><input defaultValue={product.barcode ?? ""} inputMode="numeric" maxLength={14} name="barcode" /></label>
               <label className="field"><span>Product type</span><select defaultValue={product.productType} name="productType"><option value="PACKAGED">Packaged product</option><option value="GENERIC_PRODUCE">Loose produce</option><option value="FRESH_MEAT">Fresh meat</option><option value="SEAFOOD">Seafood</option><option value="DAIRY">Dairy</option><option value="BAKERY">Bakery</option><option value="FROZEN">Frozen</option><option value="HOUSEHOLD">Household</option><option value="PERSONAL_CARE">Personal care</option><option value="BEVERAGE">Beverage</option><option value="OTHER">Other</option></select></label>
               <div className="form-actions"><button className="primary-button" type="submit">Save product details</button></div>

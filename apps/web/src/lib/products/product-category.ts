@@ -1,8 +1,67 @@
 import { normaliseProductText } from "./product-normalisation";
 
-const categoryRules: Array<{ category: string; terms: string[] }> = [
+export const supermarketDepartments = [
+  "Fruit & vegetables",
+  "Bakery",
+  "Meat & seafood",
+  "Deli",
+  "Dairy & eggs",
+  "Frozen",
+  "Pantry",
+  "Confectionery",
+  "Drinks",
+  "Health & personal care",
+  "Household",
+  "Baby",
+  "Pet",
+  "Other",
+] as const;
+
+export type SupermarketDepartment = (typeof supermarketDepartments)[number];
+
+const departmentAliases = new Map<string, SupermarketDepartment>([
+  ["fresh produce", "Fruit & vegetables"],
+  ["produce", "Fruit & vegetables"],
+  ["fruit and vegetables", "Fruit & vegetables"],
+  ["fruit vegetables", "Fruit & vegetables"],
+  ["fresh meat", "Meat & seafood"],
+  ["seafood", "Meat & seafood"],
+  ["meat and seafood", "Meat & seafood"],
+  ["meat seafood", "Meat & seafood"],
+  ["dairy eggs and fridge", "Dairy & eggs"],
+  ["dairy eggs fridge", "Dairy & eggs"],
+  ["dairy and eggs", "Dairy & eggs"],
+  ["dairy eggs", "Dairy & eggs"],
+  ["chilled", "Dairy & eggs"],
+  ["freezer", "Frozen"],
+  ["international", "Pantry"],
+  ["international foods", "Pantry"],
+  ["salt", "Pantry"],
+  ["salts", "Pantry"],
+  ["herbs and spices", "Pantry"],
+  ["snacks and confectionery", "Confectionery"],
+  ["snacks confectionery", "Confectionery"],
+  ["health and beauty", "Health & personal care"],
+  ["health beauty", "Health & personal care"],
+  ["cleaning and household", "Household"],
+  ["cleaning household", "Household"],
+  ["pets", "Pet"],
+]);
+
+for (const department of supermarketDepartments) {
+  departmentAliases.set(normaliseProductText(department), department);
+}
+
+const departmentRules: Array<{ department: SupermarketDepartment; terms: string[] }> = [
   {
-    category: "Fruit and Vegetables",
+    department: "Drinks",
+    terms: [
+      "cola", "cordial", "drink", "energy drink", "iced tea", "juice",
+      "lemonade", "mineral water", "soft drink", "sparkling water", "sports drink", "water",
+    ],
+  },
+  {
+    department: "Fruit & vegetables",
     terms: [
       "apple", "apricot", "asparagus", "avocado", "banana", "bean sprouts",
       "beetroot", "broccoli", "cabbage", "capsicum", "carrot", "cauliflower",
@@ -14,68 +73,78 @@ const categoryRules: Array<{ category: string; terms: string[] }> = [
     ],
   },
   {
-    category: "Meat and Seafood",
+    department: "Meat & seafood",
     terms: [
       "barramundi", "beef", "chicken", "fish", "lamb", "mince", "pork",
       "prawn", "salmon", "sardine", "steak", "trout", "tuna", "turkey",
     ],
   },
   {
-    category: "Dairy and Eggs",
+    department: "Deli",
+    terms: ["antipasto", "bacon", "charcuterie", "ham", "prosciutto", "salami", "sliced meat"],
+  },
+  {
+    department: "Dairy & eggs",
+    terms: ["butter", "cheese", "cream", "egg", "fresh milk", "margarine", "yoghurt", "yogurt"],
+  },
+  {
+    department: "Bakery",
+    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "tortilla", "wrap"],
+  },
+  {
+    department: "Frozen",
+    terms: ["frozen", "ice cream"],
+  },
+  {
+    department: "Confectionery",
+    terms: ["biscuit", "candy", "chocolate", "confectionery", "lollies", "lolly", "snack bar"],
+  },
+  {
+    department: "Baby",
+    terms: ["baby food", "baby formula", "nappies", "nappy"],
+  },
+  {
+    department: "Pet",
+    terms: ["cat food", "dog food", "pet food", "pet treat"],
+  },
+  {
+    department: "Health & personal care",
+    terms: ["deodorant", "shampoo", "soap", "toothbrush", "toothpaste", "vitamin"],
+  },
+  {
+    department: "Household",
+    terms: ["cleaner", "cleaning", "detergent", "dishwashing", "laundry", "paper towel", "toilet paper"],
+  },
+  {
+    department: "Pantry",
     terms: [
-      "butter", "cheese", "cream", "egg", "milk", "yoghurt", "yogurt",
+      "baking powder", "bean", "cereal", "chickpea", "coffee", "flour", "honey",
+      "lentil", "noodle", "oats", "oil", "pasta", "pepper", "rice", "salt",
+      "sauce", "spice", "stock", "sugar", "tea", "vinegar",
     ],
-  },
-  {
-    category: "Bakery",
-    terms: ["bagel", "bread", "bun", "flatbread", "pita", "roll", "tortilla", "wrap"],
-  },
-  {
-    category: "Pantry",
-    terms: [
-      "bean", "chickpea", "flour", "lentil", "noodle", "oil", "pasta",
-      "rice", "sauce", "spice", "stock", "sugar", "vinegar",
-    ],
-  },
-  {
-    category: "Frozen",
-    terms: ["frozen"],
-  },
-  {
-    category: "Drinks",
-    terms: ["coffee", "juice", "soft drink", "sparkling water", "tea", "water"],
   },
 ];
 
-export function inferProductCategory(value: string) {
+function departmentFromText(value: string) {
   const normalised = normaliseProductText(value);
-  const rule = categoryRules.find(({ terms }) => terms.some((term) => {
+  if (!normalised) return null;
+
+  const alias = departmentAliases.get(normalised);
+  if (alias) return alias;
+
+  const rule = departmentRules.find(({ terms }) => terms.some((term) => {
     const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+");
     return new RegExp(`\\b${escaped}\\b`, "i").test(normalised);
   }));
-  return rule?.category ?? null;
+  return rule?.department ?? null;
 }
 
-const departmentAliases = new Map<string, string>([
-  ["fresh produce", "Fruit & vegetables"],
-  ["fruit and vegetables", "Fruit & vegetables"],
-  ["fruit vegetables", "Fruit & vegetables"],
-  ["fresh meat", "Meat & seafood"],
-  ["seafood", "Meat & seafood"],
-  ["meat and seafood", "Meat & seafood"],
-  ["meat seafood", "Meat & seafood"],
-  ["dairy and eggs", "Dairy & eggs"],
-  ["dairy eggs", "Dairy & eggs"],
-]);
+export function inferProductCategory(value: string) {
+  return departmentFromText(value);
+}
 
-export function productDepartment(category: string | null | undefined, productName: string) {
-  const inferred = inferProductCategory(productName);
-  const source = category?.trim() || inferred || "Other";
-  const normalised = normaliseProductText(source);
-  const aliased = departmentAliases.get(normalised);
-  if (aliased) return aliased;
-  if (normalised === "chilled" && inferred) {
-    return departmentAliases.get(normaliseProductText(inferred)) ?? inferred.replace(/\band\b/gi, "&");
-  }
-  return source.replace(/\band\b/gi, "&");
+export function productDepartment(category: string | null | undefined, productName: string): SupermarketDepartment {
+  return departmentFromText(category ?? "")
+    ?? departmentFromText(productName)
+    ?? "Other";
 }
