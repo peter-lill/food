@@ -109,7 +109,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   },
   {
     department: "Confectionery",
-    terms: ["biscuit", "candy", "chocolate", "confectionery", "lollies", "lolly", "snack bar"],
+    terms: ["biscuit", "candy", "chocolate", "confectionery", "kit kat", "kitkat", "lollies", "lolly", "snack bar"],
   },
   {
     department: "Baby",
