@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export const backgroundJobTypes = {
   productImageEnrichment: "PRODUCT_IMAGE_ENRICHMENT",
+  productRetailerEnrichment: "PRODUCT_RETAILER_ENRICHMENT",
 } as const;
 
 export type BackgroundJobType = typeof backgroundJobTypes[keyof typeof backgroundJobTypes];

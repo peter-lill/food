@@ -39,6 +39,8 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["salt", "Pantry"],
   ["salts", "Pantry"],
   ["herbs and spices", "Pantry"],
+  ["alcoholic beverage", "Drinks"],
+  ["alcoholic beverages", "Drinks"],
   ["snacks and confectionery", "Confectionery"],
   ["snacks confectionery", "Confectionery"],
   ["health and beauty", "Health & personal care"],
@@ -54,22 +56,32 @@ for (const department of supermarketDepartments) {
 
 const departmentRules: Array<{ department: SupermarketDepartment; terms: string[] }> = [
   {
+    department: "Pantry",
+    terms: [
+      "basil pesto", "black bean", "black beans", "borlotti bean", "borlotti beans",
+      "butter bean", "butter beans", "canned bean", "canned beans", "cannellini bean",
+      "cannellini beans", "dried bean", "dried beans", "kidney bean", "kidney beans", "pesto",
+    ],
+  },
+  {
     department: "Drinks",
     terms: [
-      "cola", "cordial", "drink", "energy drink", "iced tea", "juice",
+      "cola", "cordial", "drink", "energy drink", "hard rated", "iced tea", "juice",
       "lemonade", "mineral water", "soft drink", "sparkling water", "sports drink", "water",
     ],
   },
   {
     department: "Fruit & vegetables",
     terms: [
-      "apple", "apricot", "asparagus", "avocado", "banana", "bean sprouts",
-      "beetroot", "broccoli", "cabbage", "capsicum", "carrot", "cauliflower",
-      "celery", "chilli", "coriander", "cucumber", "eggplant", "garlic",
-      "ginger", "grape", "green bean", "herb", "kiwifruit", "leek", "lemon",
-      "lettuce", "lime", "mandarin", "mango", "mushroom", "nectarine", "onion",
-      "orange", "parsley", "pea", "pear", "potato", "pumpkin", "spinach",
-      "spring onion", "strawberry", "sweet potato", "tomato", "zucchini",
+      "apple", "apricot", "asparagus", "avocado", "banana", "basil", "bean sprouts",
+      "beetroot", "broad bean", "broad beans", "broccoli", "broccolini", "cabbage", "capsicum",
+      "carrot", "cauliflower", "celery", "chilli", "chives", "coriander", "corn", "cucumber",
+      "dill", "edamame", "eggplant", "french bean", "french beans", "garlic", "ginger", "grape",
+      "green bean", "green beans", "herb", "kale", "kiwifruit", "leek", "lemon", "lettuce", "lime",
+      "mandarin", "mango", "mint", "mushroom", "nectarine", "onion", "orange",
+      "oregano", "parsley", "pea", "peas", "pear", "potato", "pumpkin", "radish", "rosemary",
+      "sage", "spinach", "spring onion", "strawberry", "sweet potato", "thyme",
+      "tomato", "watermelon", "zucchini",
     ],
   },
   {
@@ -85,11 +97,11 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   },
   {
     department: "Dairy & eggs",
-    terms: ["butter", "cheese", "cream", "egg", "fresh milk", "margarine", "yoghurt", "yogurt"],
+    terms: ["butter", "cheese", "cream", "egg", "eggs", "feta", "fresh milk", "margarine", "mozzarella", "table spread", "yoghurt", "yogurt"],
   },
   {
     department: "Bakery",
-    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "tortilla", "wrap"],
+    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "tortilla", "tortillas", "wrap"],
   },
   {
     department: "Frozen",
@@ -118,9 +130,10 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   {
     department: "Pantry",
     terms: [
-      "baking powder", "bean", "cereal", "chickpea", "coffee", "flour", "honey",
-      "lentil", "noodle", "oats", "oil", "pasta", "pepper", "rice", "salt",
-      "sauce", "spice", "stock", "sugar", "tea", "vinegar",
+      "baking powder", "bean", "beans", "cereal", "chickpea", "cinnamon", "coffee",
+      "flour", "honey", "lentil", "noodle", "nut", "nuts", "oats", "oil", "pasta",
+      "pepper", "pesto", "quinoa", "rice", "salt", "sauce", "seed", "seeds", "spice",
+      "stock", "sugar", "tea", "vinegar",
     ],
   },
 ];
@@ -144,7 +157,11 @@ export function inferProductCategory(value: string) {
 }
 
 export function productDepartment(category: string | null | undefined, productName: string): SupermarketDepartment {
-  return departmentFromText(category ?? "")
-    ?? departmentFromText(productName)
-    ?? "Other";
+  const nameDepartment = departmentFromText(productName);
+  if (nameDepartment && nameDepartment !== "Other") return nameDepartment;
+
+  const storedDepartment = departmentFromText(category ?? "");
+  if (storedDepartment && storedDepartment !== "Other") return storedDepartment;
+
+  return "Other";
 }
