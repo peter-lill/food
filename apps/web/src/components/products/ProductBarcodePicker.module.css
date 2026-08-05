@@ -301,6 +301,46 @@
 .fullPage .scanStatus.success { background: rgba(5, 111, 71, .9); color: #fff; }
 .fullPage .scanStatus.error { background: rgba(157, 45, 52, .92); color: #fff; }
 
+.successOverlay {
+  position: absolute;
+  z-index: 20;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 14px;
+  padding: 28px;
+  background: rgba(2, 74, 46, .78);
+  color: #fff;
+  text-align: center;
+  pointer-events: none;
+  backdrop-filter: blur(5px);
+  animation: successReveal 1s ease both;
+}
+
+.successOverlay span {
+  width: 76px;
+  height: 76px;
+  display: grid;
+  place-items: center;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.successOverlay strong {
+  max-width: 28rem;
+  font-size: clamp(18px, 4vw, 26px);
+  line-height: 1.25;
+}
+
+@keyframes successReveal {
+  0% { opacity: 0; }
+  14%, 82% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
 .fullPage .productRow {
   position: absolute;
   z-index: 7;
@@ -424,4 +464,5 @@
 
 @media (prefers-reduced-motion: reduce) {
   .fullPage .scanGuide::before { animation: none; }
+  .successOverlay { animation: none; }
 }

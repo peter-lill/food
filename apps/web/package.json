@@ -16,6 +16,7 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "grocery:intelligence:test": "tsx scripts/test-grocery-intelligence.ts",
+    "scanner:test": "tsx scripts/test-scanner-state.ts",
     "products:names:test": "tsx scripts/test-product-name-quality.ts",
     "products:nip:test": "tsx scripts/test-australian-nip-parser.ts",
     "products:generic-images": "tsx scripts/refresh-generic-product-images.ts",

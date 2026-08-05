@@ -139,6 +139,10 @@ export function AppShell({
     return <main className="content-shell android-embedded-content">{children}</main>;
   }
 
+  if (livePathname.startsWith("/scan")) {
+    return <main>{children}</main>;
+  }
+
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const hideMobileScanAction = pathname.startsWith("/scan") || pathname.startsWith("/receipts");
 
