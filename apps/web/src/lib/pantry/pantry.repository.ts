@@ -51,7 +51,10 @@ export async function getPantryItems(): Promise<PantryGroup[]> {
   const rows = await prisma.inventoryItem.findMany({
     include: {
       product: {
-        include: { foodKnowledge: true },
+        include: {
+          foodKnowledge: true,
+          storeProducts: { select: { imageUrl: true } },
+        },
       },
     },
     orderBy: [{ expiresAt: "asc" }, { createdAt: "desc" }],
@@ -86,7 +89,9 @@ export async function getPantryItems(): Promise<PantryGroup[]> {
       canonicalName: formatProductName(identity),
       identity,
       category: categoryFor(identity, row.product.foodKnowledge?.category ?? row.product.category),
-      imageUrl: row.product.imageUrl,
+      imageUrl: row.product.imageUrl || row.product.storeProducts.some((listing) => listing.imageUrl)
+        ? `/api/products/${encodeURIComponent(row.productId)}/image`
+        : null,
     }];
   });
 

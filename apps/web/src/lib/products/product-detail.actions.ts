@@ -31,6 +31,10 @@ function normaliseBarcode(value: string) {
 
 function normaliseDepartment(value: string, productType: ProductType, productName: string) {
   const normalised = value.toLocaleLowerCase("en-AU").trim();
+  const selectedDepartment = supermarketDepartments.find(
+    (department) => department.toLocaleLowerCase("en-AU") === normalised,
+  );
+  if (selectedDepartment) return selectedDepartment;
   if (productType === ProductType.GENERIC_PRODUCE && ["fresh produce", "produce", "fruit and vegetables", "fruit & vegetables"].includes(normalised)) {
     return "Fruit & vegetables";
   }
