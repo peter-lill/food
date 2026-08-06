@@ -2,27 +2,27 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
 
 const ownerNavigation = [
-  { label: "Today", href: "/", icon: "◉" },
-  { label: "Planner", href: "/planner", icon: "▦" },
-  { label: "Pantry", href: "/pantry", icon: "□" },
-  { label: "Products", href: "/products", icon: "◈" },
-  { label: "Scan", href: "/scan", icon: "⌗" },
-  { label: "Receipts", href: "/receipts", icon: "≡" },
-  { label: "Prices", href: "/prices", icon: "$" },
-  { label: "Shopping", href: "/shopping", icon: "✓" },
-  { label: "Recipes", href: "/recipes", icon: "◇" },
-  { label: "Health", href: "/health", icon: "♥" },
-  { label: "Account", href: "/account", icon: "●" },
+  { label: "Today", href: "/", icon: "◉", section: "Plan" },
+  { label: "Planner", href: "/planner", icon: "▦", section: "Plan" },
+  { label: "Shopping", href: "/shopping", icon: "✓", section: "Plan" },
+  { label: "Pantry", href: "/pantry", icon: "□", section: "Kitchen" },
+  { label: "Products", href: "/products", icon: "◈", section: "Kitchen" },
+  { label: "Scan", href: "/scan", icon: "⌗", section: "Kitchen" },
+  { label: "Receipts", href: "/receipts", icon: "≡", section: "Kitchen" },
+  { label: "Prices", href: "/prices", icon: "$", section: "Kitchen" },
+  { label: "Recipes", href: "/recipes", icon: "◇", section: "Library" },
+  { label: "Health", href: "/health", icon: "♥", section: "Library" },
+  { label: "Account", href: "/account", icon: "●", section: "Settings" },
 ] as const;
 
 const memberNavigation = [
-  { label: "Recipes", href: "/recipes", icon: "◇" },
-  { label: "Households", href: "/households", icon: "⌂" },
-  { label: "Account", href: "/account", icon: "●" },
+  { label: "Recipes", href: "/recipes", icon: "◇", section: "Library" },
+  { label: "Households", href: "/households", icon: "⌂", section: "Home" },
+  { label: "Account", href: "/account", icon: "●", section: "Settings" },
 ] as const;
 
 const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
@@ -59,6 +59,10 @@ function FoodMark() {
       width="46"
     />
   );
+}
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]?.toLocaleUpperCase()).join("") || "F";
 }
 
 export function AppShell({
@@ -151,15 +155,16 @@ export function AppShell({
       <aside className="sidebar" style={desktopSidebarStyle}>
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
           <span className="wordmark-mark"><FoodMark /></span>
-          <span><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
+          <span><small className="wordmark-eyebrow">YOUR KITCHEN</small><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
         </Link>
         <nav className="side-nav" aria-label="Primary navigation" style={desktopSideNavStyle}>
-          {navigation.map((item) => {
+          {navigation.map((item, index) => {
             const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            return <Link className={active ? "side-link active" : "side-link"} href={item.href} key={item.href}><span>{item.icon}</span>{item.label}</Link>;
+            const showSection = index === 0 || navigation[index - 1]?.section !== item.section;
+            return <Fragment key={item.href}>{showSection ? <span className="side-nav-label">{item.section}</span> : null}<Link aria-current={active ? "page" : undefined} className={active ? "side-link active" : "side-link"} href={item.href}><span className="side-link-icon">{item.icon}</span><span>{item.label}</span>{active ? <span className="side-link-indicator" aria-hidden="true" /> : null}</Link></Fragment>;
           })}
         </nav>
-        <div className="sidebar-note"><span className="status-dot" />{user ? `Signed in as ${user.name}` : "Recipes are open to everyone"}</div>
+        {user ? <Link className="sidebar-profile" href="/account"><span className="sidebar-avatar">{initials(user.name)}</span><span className="sidebar-profile-copy"><small>Signed in</small><strong>{user.name}</strong></span><span className="sidebar-profile-arrow" aria-hidden="true">→</span></Link> : <div className="sidebar-note"><span className="status-dot" />Recipes are open to everyone</div>}
       </aside>
       <div className="workspace">
         <main className="content-shell">{children}</main>
