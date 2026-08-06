@@ -56,6 +56,10 @@ for (const department of supermarketDepartments) {
 
 const departmentRules: Array<{ department: SupermarketDepartment; terms: string[] }> = [
   {
+    department: "Confectionery",
+    terms: ["chocolate", "kit kat", "kitkat"],
+  },
+  {
     department: "Pantry",
     terms: [
       "basil pesto", "black bean", "black beans", "borlotti bean", "borlotti beans",
@@ -109,7 +113,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   },
   {
     department: "Confectionery",
-    terms: ["biscuit", "candy", "chocolate", "confectionery", "kit kat", "kitkat", "lollies", "lolly", "snack bar"],
+    terms: ["biscuit", "candy", "confectionery", "lollies", "lolly", "snack bar"],
   },
   {
     department: "Baby",
