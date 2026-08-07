@@ -8,6 +8,7 @@ import type { ExternalRecipe, RecipeMealType } from "@/lib/recipes/external-reci
 import { getRecipeMealType, recipeMealTypes } from "@/lib/recipes/recipe-meal-types";
 import styles from "./recipes-gallery.module.css";
 import { BhfRecipeModal } from "./BhfRecipeModal";
+import { HwqRecipeModal } from "./HwqRecipeModal";
 
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
@@ -15,6 +16,13 @@ type RecipesGalleryProps = {
   initialFavouriteIds: string[];
   signedIn: boolean;
 };
+
+function opensInFood(recipe: ExternalRecipe) {
+  return (
+    recipe.sourceName === "British Heart Foundation" ||
+    recipe.sourceName === "Health and Wellbeing Queensland"
+  );
+}
 
 export function RecipesGallery({
   recipes,
@@ -306,16 +314,14 @@ export function RecipesGallery({
                     {recipe.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
                   </div>
                   <span className={styles.openLabel}>
-                    {recipe.sourceName === "British Heart Foundation"
-                      ? "View nutrition and details →"
-                      : `View on ${recipe.sourceName} ↗`}
+                    {opensInFood(recipe) ? "View recipe details →" : `View on ${recipe.sourceName} ↗`}
                   </span>
                   <p className={styles.attribution}>
                     Recipe by <a href={recipe.sourceHomeUrl}>{recipe.sourceName}</a> · {recipe.licence}
                   </p>
                 </div>
 
-                {recipe.sourceName === "British Heart Foundation" ? (
+                {opensInFood(recipe) ? (
                   <button
                     aria-label={`Open ${recipe.name}`}
                     className={styles.cardAction}
@@ -376,8 +382,15 @@ export function RecipesGallery({
         </section>
       ) : null}
 
-      {openExternalRecipe ? (
+      {openExternalRecipe?.sourceName === "British Heart Foundation" ? (
         <BhfRecipeModal
+          onClose={() => setOpenExternalRecipe(null)}
+          recipe={openExternalRecipe}
+        />
+      ) : null}
+
+      {openExternalRecipe?.sourceName === "Health and Wellbeing Queensland" ? (
+        <HwqRecipeModal
           onClose={() => setOpenExternalRecipe(null)}
           recipe={openExternalRecipe}
         />
