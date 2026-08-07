@@ -4,12 +4,8 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
-import {
-  getRecipeMealType,
-  recipeMealTypes,
-  type ExternalRecipe,
-  type RecipeMealType,
-} from "@/lib/recipes/external-recipes";
+import type { ExternalRecipe, RecipeMealType } from "@/lib/recipes/external-recipes";
+import { getRecipeMealType, recipeMealTypes } from "@/lib/recipes/recipe-meal-types";
 import styles from "./recipes-gallery.module.css";
 import { BhfRecipeModal } from "./BhfRecipeModal";
 
