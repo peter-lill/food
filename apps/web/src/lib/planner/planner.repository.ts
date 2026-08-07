@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
+import bhfCatalogue from "@/generated/bhf-recipes.json";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
+import { hwqSnackRecipes } from "@/lib/recipes/hwq-snacks";
+import { parseRecipeIngredientLine } from "@/lib/recipes/recipe-pantry";
+import { getRecipeProductCatalogue } from "@/lib/recipes/recipe-pantry.repository";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 import {
   sanitiseIngredientName,
@@ -7,6 +11,8 @@ import {
   sanitiseRecipeText,
 } from "@/lib/recipes/recipe-text-sanitizer";
 import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
+import { calculatePlannerAvailability } from "./planner-calculations";
+import { currentPlannerWeekStart, plannerDays } from "./planner-week";
 
 const recipeImages: Record<string, string | null> = {
   "Lemon herb chicken bowl": "/recipes/lemon-herb-chicken-bowl.webp",
@@ -95,8 +101,56 @@ const starterRecipes: PlannerRecipe[] = [
   },
 ];
 
-export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
-  const [recipes, pantryItems, shoppingLists] = await Promise.all([
+export const fullCatalogueRecipes: PlannerRecipe[] = [
+  ...hwqSnackRecipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    description: recipe.description,
+    minutes: null,
+    proteinGrams: recipe.nutrition.proteinGrams,
+    servings: recipe.servings,
+    imageUrl: null,
+    instructions: recipe.instructions,
+    ingredients: recipe.ingredients.map(parseRecipeIngredientLine),
+    source: "catalogue" as const,
+    originalSourceName: "Health and Wellbeing Queensland",
+    originalSourceUrl: "https://hw.qld.gov.au/healthy-living/healthy-recipes/",
+  })),
+  ...bhfCatalogue.recipes.map((recipe) => ({
+    id: recipe.id,
+    name: recipe.name,
+    description: recipe.description,
+    minutes: recipe.minutes,
+    proteinGrams: null,
+    servings: recipe.servings,
+    imageUrl: recipe.imageUrl,
+    instructions: recipe.instructions,
+    ingredients: recipe.ingredients.map(parseRecipeIngredientLine),
+    source: "catalogue" as const,
+    originalSourceName: "British Heart Foundation",
+    originalSourceUrl: recipe.sourceUrl,
+  })),
+];
+
+const staticPlannerRecipeIds = new Set([
+  ...starterRecipes.map((recipe) => recipe.id),
+  ...fullCatalogueRecipes.map((recipe) => recipe.id),
+  ...externalRecipesWithImages
+    .filter((recipe) => recipe.sourceName === "Heart Foundation")
+    .map((recipe) => `external-${recipe.id}`),
+]);
+
+export function isStaticPlannerRecipeId(recipeId: string) {
+  return staticPlannerRecipeIds.has(recipeId);
+}
+
+export async function getPlannerWorkspace(
+  userId?: string,
+  requestedWeekStart = currentPlannerWeekStart(),
+): Promise<PlannerWorkspaceData> {
+  const weekStart = new Date(requestedWeekStart);
+  weekStart.setUTCHours(0, 0, 0, 0);
+  const [recipes, pantryItems, shoppingLists, savedPlan, products] = await Promise.all([
     prisma.recipe.findMany({
       include: {
         ingredients: {
@@ -115,6 +169,13 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       include: { items: { select: { checked: true } } },
       orderBy: { updatedAt: "desc" },
     }),
+    userId
+      ? prisma.weeklyMealPlan.findUnique({
+        where: { userId_weekStart: { userId, weekStart } },
+        include: { entries: true },
+      })
+      : Promise.resolve(null),
+    getRecipeProductCatalogue(),
   ]);
 
   const importedNames = new Set(recipes.map((recipe) => recipe.name));
@@ -159,6 +220,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
   const completeRecipes = [
     ...starterRecipes.filter((recipe) => !importedNames.has(recipe.name)),
     ...liveRecipes,
+    ...(userId ? fullCatalogueRecipes.filter((recipe) => !importedNames.has(recipe.name)) : []),
   ];
   const catalogueRecipes: PlannerRecipe[] = externalRecipesWithImages
     .filter((recipe) => recipe.sourceName === "Heart Foundation" && !importedNames.has(recipe.name))
@@ -177,9 +239,25 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       originalSourceUrl: recipe.sourceUrl,
     }));
 
+  const allRecipes = [...completeRecipes, ...catalogueRecipes]
+    .sort((left, right) => left.name.localeCompare(right.name));
+  const availableRecipeIds = new Set(allRecipes.map((recipe) => recipe.id));
+  const plan = Object.fromEntries((savedPlan?.entries ?? [])
+    .filter((entry) => plannerDays[entry.day] && availableRecipeIds.has(entry.recipeKey))
+    .map((entry) => [plannerDays[entry.day].key, {
+      recipeId: entry.recipeKey,
+      servings: entry.servings,
+    }]));
+  const availability = calculatePlannerAvailability(
+    Object.entries(plan).map(([dayKey, selection]) => ({ dayKey, selection })),
+    allRecipes,
+    products,
+  );
+
   return {
-    recipes: [...completeRecipes, ...catalogueRecipes].sort((left, right) => left.name.localeCompare(right.name)),
+    recipes: allRecipes,
     pantryItems: pantryItems.map((item) => ({
+      productId: item.productId,
       name: item.product.name,
       quantity: item.quantity,
       unit: item.unit,
@@ -190,5 +268,9 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
       name: list.name,
       remainingCount: list.items.filter((item) => !item.checked).length,
     })),
+    weekStart: weekStart.toISOString(),
+    plan,
+    dayAvailability: availability.dayAvailability,
+    missingIngredients: availability.missingIngredients,
   };
 }

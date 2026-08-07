@@ -12,7 +12,7 @@ import {
 
 export type RecipeAvailabilityMap = Record<string, IngredientAvailability[]>;
 
-async function catalogueProducts(): Promise<RecipeProductIdentity[]> {
+export async function getRecipeProductCatalogue(): Promise<RecipeProductIdentity[]> {
   const products = await prisma.product.findMany({
     select: {
       id: true,
@@ -45,7 +45,7 @@ function plannerIngredients(recipe: PlannerRecipe): RecipeIngredientInput[] {
 }
 
 export async function getRecipeAvailability(recipes: PlannerRecipe[]): Promise<RecipeAvailabilityMap> {
-  const products = await catalogueProducts();
+  const products = await getRecipeProductCatalogue();
   const entries: Array<[string, RecipeIngredientInput[]]> = [
     ...recipes.map((recipe) => [recipe.id, plannerIngredients(recipe)] as [string, RecipeIngredientInput[]]),
     ...hwqSnackRecipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),

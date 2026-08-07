@@ -1,5 +1,7 @@
 import { PlannerClient } from "./PlannerClient";
+import { requireAuthSession } from "@/lib/auth-session";
 import { getPlannerWorkspace } from "@/lib/planner/planner.repository";
+import { currentPlannerWeekStart } from "@/lib/planner/planner-week";
 import type { PlannerWorkspaceData } from "@/lib/planner/planner.types";
 
 export const dynamic = "force-dynamic";
@@ -13,6 +15,10 @@ const emptyData: PlannerWorkspaceData = {
   recipes: [],
   pantryItems: [],
   shoppingLists: [],
+  weekStart: currentPlannerWeekStart().toISOString(),
+  plan: {},
+  dayAvailability: {},
+  missingIngredients: [],
 };
 
 export default async function PlannerPage({
@@ -21,7 +27,8 @@ export default async function PlannerPage({
   searchParams: Promise<{ shoppingError?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const result = await getPlannerWorkspace()
+  const session = await requireAuthSession();
+  const result = await getPlannerWorkspace(session.user.id)
     .then((data) => ({ data, loadError: false }))
     .catch((error) => {
       console.error("Unable to load Planner workspace", error);
