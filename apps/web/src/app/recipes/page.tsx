@@ -6,8 +6,6 @@ import {
   externalRecipes,
   type ExternalRecipe,
 } from "@/lib/recipes/external-recipes";
-import { importHeartFoundationRecipe } from "@/lib/recipes/import-heart-foundation-recipe";
-import { cacheExternalRecipeImage } from "@/lib/recipes/local-recipe-image";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 import { getRecipeAvailability } from "@/lib/recipes/recipe-pantry.repository";
 
@@ -17,25 +15,6 @@ export const metadata = {
   title: "Food Recipes",
   description: "Browse complete recipes, ingredients and cooking methods.",
 };
-
-async function materialiseAustralianHeartFoundationRecipes() {
-  const australianHeartFoundationRecipes = externalRecipes.filter(
-    (recipe) => recipe.sourceName === "Heart Foundation",
-  );
-
-  const batchSize = 4;
-  for (let index = 0; index < australianHeartFoundationRecipes.length; index += batchSize) {
-    const batch = australianHeartFoundationRecipes.slice(index, index + batchSize);
-    await Promise.allSettled(
-      batch.map(async (recipe) => {
-        await importHeartFoundationRecipe(recipe.id);
-        await cacheExternalRecipeImage(recipe.id).catch((error) => {
-          console.error(`Unable to cache image for ${recipe.id}`, error);
-        });
-      }),
-    );
-  }
-}
 
 function isAustralianHeartFoundationRecipe(recipe: {
   sourceKey?: string | null;
@@ -67,12 +46,6 @@ function prepareCatalogueRecipe(recipe: ExternalRecipe): ExternalRecipe {
 
 export default async function RecipesPage() {
   const session = await getAuthSession();
-
-  try {
-    await materialiseAustralianHeartFoundationRecipes();
-  } catch (error) {
-    console.error("Unable to materialise Australian Heart Foundation recipe catalogue", error);
-  }
 
   const { recipes: plannerRecipes, shoppingLists } = await getPlannerWorkspace();
   const databaseRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");

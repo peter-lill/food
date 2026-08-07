@@ -175,7 +175,7 @@ export async function getPlannerWorkspace(
         include: { entries: true },
       })
       : Promise.resolve(null),
-    getRecipeProductCatalogue(),
+    userId ? getRecipeProductCatalogue() : Promise.resolve([]),
   ]);
 
   const importedNames = new Set(recipes.map((recipe) => recipe.name));
