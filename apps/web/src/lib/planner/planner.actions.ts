@@ -2,114 +2,91 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { requireAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/prisma";
-import {
-  canonicalGroceryIdentity,
-  canonicalGroceryName,
-  resolveCanonicalProduct,
-} from "@/lib/products/canonical-grocery.service";
-import { normaliseGroceryUnit } from "@/lib/products/food-item-intelligence";
+import { addRecipeIngredientsToShoppingList } from "@/lib/recipes/recipe-shopping";
+import { getPlannerWorkspace, isStaticPlannerRecipeId } from "./planner.repository";
 
-const maximumQuantity = 100_000;
+const maximumServings = 100;
 
-type PlannedIngredient = {
-  name: string;
-  quantity: number;
-  unit: string;
-};
+function validWeekStart(value: string) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
 
-function parseIngredient(value: FormDataEntryValue): PlannedIngredient | null {
-  try {
-    const parsed = JSON.parse(String(value)) as Partial<PlannedIngredient>;
-    const rawName = String(parsed.name ?? "").trim();
-    const rawUnit = String(parsed.unit ?? "").trim();
-    const quantity = Number(parsed.quantity);
+async function knownRecipe(recipeId: string) {
+  if (isStaticPlannerRecipeId(recipeId)) return true;
+  return Boolean(await prisma.recipe.findUnique({ where: { id: recipeId }, select: { id: true } }));
+}
 
-    if (rawName.length < 2 || rawName.length > 100) return null;
-    if (!rawUnit || rawUnit.length > 30) return null;
-    if (!Number.isFinite(quantity) || quantity <= 0 || quantity > maximumQuantity) return null;
+export async function savePlannerDay(
+  weekStartValue: string,
+  day: number,
+  recipeId: string,
+  servings: number,
+) {
+  const session = await requireAuthSession();
+  const weekStart = validWeekStart(weekStartValue);
+  const cleanRecipeId = recipeId.trim();
 
-    const name = canonicalGroceryName(rawName);
-    const unit = normaliseGroceryUnit(rawUnit);
-
-    if (name.length < 2 || name.length > 100) return null;
-    if (!unit || unit.length > 30) return null;
-
-    return { name, quantity, unit };
-  } catch {
-    return null;
+  if (!weekStart || !Number.isInteger(day) || day < 0 || day > 6) {
+    return { ok: false as const, error: "That planner day is invalid." };
   }
+  if (cleanRecipeId && (!Number.isInteger(servings) || servings < 1 || servings > maximumServings)) {
+    return { ok: false as const, error: "Servings must be between 1 and 100." };
+  }
+  if (cleanRecipeId && !(await knownRecipe(cleanRecipeId))) {
+    return { ok: false as const, error: "That recipe is no longer available." };
+  }
+
+  const plan = await prisma.weeklyMealPlan.upsert({
+    where: { userId_weekStart: { userId: session.user.id, weekStart } },
+    update: {},
+    create: { userId: session.user.id, weekStart },
+    select: { id: true },
+  });
+
+  if (!cleanRecipeId) {
+    await prisma.weeklyMealPlanEntry.deleteMany({ where: { mealPlanId: plan.id, day } });
+  } else {
+    await prisma.weeklyMealPlanEntry.upsert({
+      where: { mealPlanId_day: { mealPlanId: plan.id, day } },
+      update: { recipeKey: cleanRecipeId, servings },
+      create: { mealPlanId: plan.id, day, recipeKey: cleanRecipeId, servings },
+    });
+  }
+
+  revalidatePath("/planner");
+  return { ok: true as const };
+}
+
+export async function clearPlannerWeek(weekStartValue: string) {
+  const session = await requireAuthSession();
+  const weekStart = validWeekStart(weekStartValue);
+  if (!weekStart) return { ok: false as const, error: "That planner week is invalid." };
+
+  await prisma.weeklyMealPlan.deleteMany({
+    where: { userId: session.user.id, weekStart },
+  });
+  revalidatePath("/planner");
+  return { ok: true as const };
 }
 
 export async function addPlannerIngredientsToShopping(formData: FormData) {
+  const session = await requireAuthSession();
   const listId = String(formData.get("shoppingListId") ?? "").trim();
-  const parsedIngredients = formData
-    .getAll("ingredient")
-    .map(parseIngredient)
-    .filter((ingredient): ingredient is PlannedIngredient => ingredient !== null);
+  const weekStart = validWeekStart(String(formData.get("weekStart") ?? ""));
+  if (!listId || !weekStart) redirect("/planner?shoppingError=1");
 
-  if (!listId || parsedIngredients.length === 0) {
-    redirect("/planner?shoppingError=1");
-  }
-
-  const grouped = new Map<string, PlannedIngredient>();
-  for (const ingredient of parsedIngredients) {
-    const key = `${canonicalGroceryIdentity(ingredient.name)}|${normaliseGroceryUnit(ingredient.unit)}`;
-    const existing = grouped.get(key);
-    grouped.set(key, {
-      ...ingredient,
-      quantity: (existing?.quantity ?? 0) + ingredient.quantity,
-    });
-  }
-
+  let ingredientCount = 0;
   try {
-    await prisma.$transaction(async (transaction) => {
-      const list = await transaction.shoppingList.findUnique({
-        where: { id: listId },
-        select: { id: true },
-      });
-
-      if (!list) throw new Error("Shopping list not found");
-
-      const currentItems = await transaction.shoppingItem.findMany({
-        where: { shoppingListId: listId },
-      });
-
-      for (const ingredient of grouped.values()) {
-        const ingredientIdentity = canonicalGroceryIdentity(ingredient.name);
-        const ingredientUnit = normaliseGroceryUnit(ingredient.unit);
-        const canonicalProduct = await resolveCanonicalProduct(ingredient.name, transaction);
-        const existing = currentItems.find((item) => (
-          canonicalGroceryIdentity(item.name) === ingredientIdentity
-          && normaliseGroceryUnit(item.unit) === ingredientUnit
-        ));
-
-        if (existing) {
-          const updated = await transaction.shoppingItem.update({
-            where: { id: existing.id },
-            data: {
-              name: canonicalProduct.canonicalName ?? canonicalProduct.name,
-              productId: canonicalProduct.id,
-              checked: false,
-              quantity: Math.max(existing.quantity ?? 0, ingredient.quantity),
-              unit: ingredientUnit,
-            },
-          });
-          Object.assign(existing, updated);
-        } else {
-          const created = await transaction.shoppingItem.create({
-            data: {
-              shoppingListId: listId,
-              productId: canonicalProduct.id,
-              name: canonicalProduct.canonicalName ?? canonicalProduct.name,
-              quantity: ingredient.quantity,
-              unit: ingredientUnit,
-            },
-          });
-          currentItems.push(created);
-        }
-      }
-    });
+    const workspace = await getPlannerWorkspace(session.user.id, weekStart);
+    ingredientCount = workspace.missingIngredients.length;
+    if (ingredientCount > 0) {
+      await addRecipeIngredientsToShoppingList(listId, workspace.missingIngredients);
+    }
   } catch (error) {
     console.error("Unable to add planned ingredients to Shopping", error);
     redirect("/planner?shoppingError=1");
@@ -118,5 +95,6 @@ export async function addPlannerIngredientsToShopping(formData: FormData) {
   revalidatePath("/shopping");
   revalidatePath("/planner");
   revalidatePath("/products");
+  if (ingredientCount === 0) redirect("/planner");
   redirect(`/shopping?list=${listId}`);
 }

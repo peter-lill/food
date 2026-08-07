@@ -37,7 +37,7 @@ const unitFactors: Record<string, { dimension: string; factor: number }> = {
   items: { dimension: "count", factor: 1 },
 };
 
-function identityKeys(value: string) {
+export function recipeIngredientIdentityKeys(value: string) {
   const parsed = parseProductName(value);
   return new Set([
     normaliseProductText(value),
@@ -50,7 +50,7 @@ function productKeys(product: RecipeProductIdentity) {
   return new Set(
     [product.name, product.canonicalName, ...product.aliases]
       .filter((value): value is string => Boolean(value))
-      .flatMap((value) => [...identityKeys(value)]),
+      .flatMap((value) => [...recipeIngredientIdentityKeys(value)]),
   );
 }
 
@@ -71,14 +71,14 @@ export function resolveRecipeIngredientProduct(
     if (canonical) return canonical;
   }
 
-  const keys = identityKeys(ingredient.name);
+  const keys = recipeIngredientIdentityKeys(ingredient.name);
   return products.find((product) => {
     const candidates = productKeys(product);
     return [...keys].some((key) => candidates.has(key));
   }) ?? null;
 }
 
-function comparableQuantity(quantity: number, unit: string | null) {
+export function comparableRecipeQuantity(quantity: number, unit: string | null) {
   if (!unit) return null;
   const conversion = unitFactors[normaliseProductText(unit)];
   return conversion ? { dimension: conversion.dimension, value: quantity * conversion.factor } : null;
@@ -100,11 +100,11 @@ export function getIngredientAvailability(
     return { ...ingredient, productId: product.id, status: "in-pantry" };
   }
 
-  const required = comparableQuantity(ingredient.quantity, ingredient.unit);
+  const required = comparableRecipeQuantity(ingredient.quantity, ingredient.unit);
   if (!required) return { ...ingredient, productId: product.id, status: "in-pantry" };
 
   const available = positiveInventory
-    .map((item) => comparableQuantity(item.quantity, item.unit))
+    .map((item) => comparableRecipeQuantity(item.quantity, item.unit))
     .filter((item): item is NonNullable<typeof item> => item?.dimension === required.dimension)
     .reduce((total, item) => total + item.value, 0);
 
@@ -124,8 +124,8 @@ export function areEquivalentShoppingIngredients(
   incoming: { name: string; productId: string | null },
 ) {
   if (existing.productId && incoming.productId) return existing.productId === incoming.productId;
-  const existingKeys = identityKeys(existing.name);
-  return [...identityKeys(incoming.name)].some((key) => existingKeys.has(key));
+  const existingKeys = recipeIngredientIdentityKeys(existing.name);
+  return [...recipeIngredientIdentityKeys(incoming.name)].some((key) => existingKeys.has(key));
 }
 
 export function mergeShoppingQuantity(

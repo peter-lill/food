@@ -364,6 +364,7 @@ model User {
   members           Member[]
   invitations       Invitation[]
   recipeFavourites  RecipeFavourite[]
+  weeklyMealPlans   WeeklyMealPlan[]
   preference        UserPreference?
 
   @@map("user")
@@ -480,4 +481,29 @@ model UserPreference {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WeeklyMealPlan {
+  id        String                @id @default(cuid())
+  userId    String
+  weekStart DateTime
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries   WeeklyMealPlanEntry[]
+
+  @@unique([userId, weekStart])
+  @@index([weekStart])
+}
+
+model WeeklyMealPlanEntry {
+  id         String         @id @default(cuid())
+  mealPlanId String
+  day        Int
+  recipeKey  String
+  servings   Int
+  mealPlan   WeeklyMealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
+
+  @@unique([mealPlanId, day])
+  @@index([recipeKey])
 }

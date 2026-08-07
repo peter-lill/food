@@ -99,12 +99,14 @@
 }
 
 .selectLabel,
+.servingsField,
 .shoppingForm label {
   display: grid;
   gap: 6px;
 }
 
 .selectLabel > span,
+.servingsField > span,
 .shoppingForm label > span {
   color: var(--muted);
   font-size: 12px;
@@ -112,6 +114,7 @@
 }
 
 .selectLabel select,
+.servingsField input,
 .shoppingForm select {
   width: 100%;
   min-height: 42px;
@@ -121,6 +124,13 @@
   background: var(--surface-soft);
   color: var(--ink);
   font: inherit;
+}
+
+.servingsField {
+  display: grid;
+  max-width: 110px;
+  gap: 6px;
+  margin-top: 10px;
 }
 
 .recipeDetail {
@@ -361,6 +371,15 @@
 
 .ingredientList span {
   min-width: 0;
+}
+
+.ingredientList small {
+  display: block;
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 
 .ingredientList strong {

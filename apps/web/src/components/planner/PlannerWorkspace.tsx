@@ -3,27 +3,21 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { addPlannerIngredientsToShopping } from "@/lib/planner/planner.actions";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  addPlannerIngredientsToShopping,
+  clearPlannerWeek,
+  savePlannerDay,
+} from "@/lib/planner/planner.actions";
 import type {
-  PlannerIngredient,
+  PlannerDaySelection,
   PlannerRecipe,
   PlannerWorkspaceData,
 } from "@/lib/planner/planner.types";
+import { plannerDays as days } from "@/lib/planner/planner-week";
 import styles from "./planner-workspace.module.css";
 
-const storageKey = "food-weekly-planner-v2";
-const days = [
-  { key: "monday", label: "Monday", short: "Mon" },
-  { key: "tuesday", label: "Tuesday", short: "Tue" },
-  { key: "wednesday", label: "Wednesday", short: "Wed" },
-  { key: "thursday", label: "Thursday", short: "Thu" },
-  { key: "friday", label: "Friday", short: "Fri" },
-  { key: "saturday", label: "Saturday", short: "Sat" },
-  { key: "sunday", label: "Sunday", short: "Sun" },
-] as const;
-
-type PlanSelection = Record<string, string>;
+type PlanSelection = Record<string, PlannerDaySelection>;
 
 type PlannerWorkspaceProps = {
   data: PlannerWorkspaceData;
@@ -31,67 +25,23 @@ type PlannerWorkspaceProps = {
   shoppingError?: boolean;
 };
 
-function normaliseName(value: string) {
-  return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
-}
-
-function readSavedPlan(): PlanSelection {
-  if (typeof window === "undefined") return {};
-  try {
-    const parsed = JSON.parse(localStorage.getItem(storageKey) ?? "{}") as unknown;
-    return parsed && typeof parsed === "object" ? (parsed as PlanSelection) : {};
-  } catch {
-    return {};
-  }
-}
-
-function recipeAvailability(recipe: PlannerRecipe, pantryNames: string[]) {
-  if (recipe.ingredients.length === 0) return null;
-  const available = recipe.ingredients.filter((ingredient) => {
-    const ingredientName = normaliseName(ingredient.name);
-    return pantryNames.some(
-      (pantryName) => pantryName.includes(ingredientName) || ingredientName.includes(pantryName),
-    );
-  }).length;
-  return Math.round((available / recipe.ingredients.length) * 100);
-}
-
-function aggregateIngredients(recipes: PlannerRecipe[]) {
-  const grouped = new Map<string, PlannerIngredient>();
-
-  for (const recipe of recipes) {
-    for (const ingredient of recipe.ingredients) {
-      const key = `${normaliseName(ingredient.name)}|${ingredient.unit.toLocaleLowerCase("en-AU")}`;
-      const current = grouped.get(key);
-      grouped.set(key, {
-        ...ingredient,
-        quantity: (current?.quantity ?? 0) + ingredient.quantity,
-      });
-    }
-  }
-
-  return [...grouped.values()].sort((left, right) => left.name.localeCompare(right.name));
+function formatIngredientAmount(quantity: number | null, unit: string | null) {
+  if (quantity === null) return unit ?? "As needed";
+  const rounded = Math.round(quantity * 100) / 100;
+  return `${rounded}${unit ? ` ${unit}` : ""}`;
 }
 
 export function PlannerWorkspace({ data, loadError = false, shoppingError = false }: PlannerWorkspaceProps) {
   const router = useRouter();
-  const [plan, setPlan] = useState<PlanSelection>(readSavedPlan);
-  const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
+  const [plan, setPlan] = useState<PlanSelection>(data.plan);
+  const [openRecipe, setOpenRecipe] = useState<{ recipe: PlannerRecipe; servings: number } | null>(null);
   const [importingDay, setImportingDay] = useState<string | null>(null);
   const [importError, setImportError] = useState("");
+  const [saving, startSaving] = useTransition();
   const recipeById = useMemo(
     () => new Map(data.recipes.map((recipe) => [recipe.id, recipe])),
     [data.recipes],
   );
-  const pantryNames = useMemo(
-    () => data.pantryItems.map((item) => normaliseName(item.name)),
-    [data.pantryItems],
-  );
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(plan));
-  }, [plan]);
-
   useEffect(() => {
     if (!openRecipe) return;
 
@@ -108,20 +58,27 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
   }, [openRecipe]);
 
   const plannedRecipes = useMemo(
-    () => days.map((day) => recipeById.get(plan[day.key])).filter((recipe): recipe is PlannerRecipe => Boolean(recipe)),
+    () => days.map((day) => recipeById.get(plan[day.key]?.recipeId)).filter((recipe): recipe is PlannerRecipe => Boolean(recipe)),
     [plan, recipeById],
   );
-  const ingredients = useMemo(() => aggregateIngredients(plannedRecipes), [plannedRecipes]);
-  const missingIngredients = useMemo(
-    () => ingredients.filter((ingredient) => {
-      const ingredientName = normaliseName(ingredient.name);
-      return !pantryNames.some(
-        (pantryName) => pantryName.includes(ingredientName) || ingredientName.includes(pantryName),
+  const missingIngredients = data.missingIngredients;
+
+  function persistSelection(dayKey: string, selection: PlannerDaySelection | null) {
+    const day = days.findIndex((candidate) => candidate.key === dayKey);
+    startSaving(async () => {
+      const result = await savePlannerDay(
+        data.weekStart,
+        day,
+        selection?.recipeId ?? "",
+        selection?.servings ?? 1,
       );
-    }),
-    [ingredients, pantryNames],
-  );
-  const databaseRecipeCount = data.recipes.filter((recipe) => recipe.source === "database").length;
+      if (!result.ok) {
+        setImportError(result.error);
+        setPlan(data.plan);
+      }
+      router.refresh();
+    });
+  }
 
   async function assignRecipe(dayKey: string, recipeId: string) {
     setImportError("");
@@ -132,16 +89,19 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
         delete next[dayKey];
         return next;
       });
+      persistSelection(dayKey, null);
       return;
     }
 
     if (!recipeId.startsWith("external-")) {
-      setPlan((current) => ({ ...current, [dayKey]: recipeId }));
+      const recipe = recipeById.get(recipeId);
+      const selection = { recipeId, servings: recipe?.servings ?? 1 };
+      setPlan((current) => ({ ...current, [dayKey]: selection }));
+      persistSelection(dayKey, selection);
       return;
     }
 
     const externalRecipeId = recipeId.slice("external-".length);
-    setPlan((current) => ({ ...current, [dayKey]: recipeId }));
     setImportingDay(dayKey);
 
     try {
@@ -153,13 +113,36 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
       const result = await response.json() as { recipeId?: string; error?: string };
       if (!response.ok || !result.recipeId) throw new Error(result.error ?? "Unable to import recipe.");
 
-      setPlan((current) => ({ ...current, [dayKey]: result.recipeId as string }));
-      router.refresh();
+      const importedRecipeId = result.recipeId as string;
+      const servings = recipeById.get(recipeId)?.servings ?? 1;
+      const selection = { recipeId: importedRecipeId, servings };
+      setPlan((current) => ({ ...current, [dayKey]: selection }));
+      persistSelection(dayKey, selection);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Unable to import this recipe.");
     } finally {
       setImportingDay(null);
     }
+  }
+
+  function changeServings(dayKey: string, servings: number) {
+    const current = plan[dayKey];
+    if (!current || !Number.isInteger(servings) || servings < 1 || servings > 100) return;
+    const selection = { ...current, servings };
+    setPlan((planValue) => ({ ...planValue, [dayKey]: selection }));
+    persistSelection(dayKey, selection);
+  }
+
+  function clearWeek() {
+    setPlan({});
+    startSaving(async () => {
+      const result = await clearPlannerWeek(data.weekStart);
+      if (!result.ok) {
+        setImportError(result.error);
+        setPlan(data.plan);
+      }
+      router.refresh();
+    });
   }
 
   if (loadError) {
@@ -202,12 +185,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
         <article className="card">
           <span className={styles.metricLabel}>Days planned</span>
           <strong className={styles.metric}>{plannedRecipes.length}/7</strong>
-          <span className="subtle">Saved on this device</span>
+          <span className="subtle">Saved to your account</span>
         </article>
         <article className="card">
-          <span className={styles.metricLabel}>Recipe source</span>
-          <strong className={styles.metric}>{databaseRecipeCount || data.recipes.length}</strong>
-          <span className="subtle">{databaseRecipeCount ? "Recipes in PostgreSQL" : "Starter recipes available"}</span>
+          <span className={styles.metricLabel}>Recipe library</span>
+          <strong className={styles.metric}>{data.recipes.length}</strong>
+          <span className="subtle">Full recipes available</span>
         </article>
         <article className="card">
           <span className={styles.metricLabel}>Missing ingredients</span>
@@ -224,14 +207,15 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               <h2>Choose a meal for each day</h2>
             </div>
             {plannedRecipes.length > 0 && (
-              <button className="secondary-button" type="button" onClick={() => setPlan({})}>Clear week</button>
+              <button className="secondary-button" disabled={saving} type="button" onClick={clearWeek}>Clear week</button>
             )}
           </div>
 
           <div className={styles.dayGrid}>
             {days.map((day) => {
-              const selected = recipeById.get(plan[day.key]);
-              const availability = selected ? recipeAvailability(selected, pantryNames) : null;
+              const selection = plan[day.key];
+              const selected = recipeById.get(selection?.recipeId);
+              const availability = data.dayAvailability[day.key];
               return (
                 <article className={styles.dayCard} key={day.key}>
                   <div className={styles.dayHeading}>
@@ -240,25 +224,38 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                   </div>
                   <label className={styles.selectLabel}>
                     <span>Meal</span>
-                    <select value={plan[day.key] ?? ""} disabled={importingDay === day.key} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
+                    <select value={selection?.recipeId ?? ""} disabled={importingDay === day.key || saving} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
                       <option value="">Choose a recipe</option>
                       {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
                     </select>
                   </label>
-                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected ? (
+                  {selected && selection ? (
+                    <label className={styles.servingsField}>
+                      <span>Servings</span>
+                      <input
+                        aria-label={`Servings for ${day.label}`}
+                        min="1"
+                        max="100"
+                        onChange={(event) => changeServings(day.key, Number(event.target.value))}
+                        type="number"
+                        value={selection.servings}
+                      />
+                    </label>
+                  ) : null}
+                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection ? (
                     <div className={styles.recipeDetail}>
                       <strong>{selected.name}</strong>
                       {selected.description && <p>{selected.description}</p>}
                       <div className={styles.recipeMeta}>
                         {selected.minutes && <span>{selected.minutes} min</span>}
                         {selected.proteinGrams && <span>{Math.round(selected.proteinGrams)} g protein</span>}
-                        {availability !== null && <span>{availability}% in Pantry</span>}
+                        {availability && <span>{availability.percent}% in Pantry</span>}
                       </div>
                       <span className={styles.openRecipeLabel}>View recipe →</span>
                       <button
                         aria-label={`Open recipe for ${selected.name}`}
                         className={styles.recipeCardAction}
-                        onClick={() => setOpenRecipe(selected)}
+                        onClick={() => setOpenRecipe({ recipe: selected, servings: selection.servings })}
                         type="button"
                       />
                     </div>
@@ -288,9 +285,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
             ) : (
               <div className={styles.ingredientList}>
                 {missingIngredients.map((ingredient) => (
-                  <div key={`${ingredient.name}-${ingredient.unit}`}>
-                    <span>{ingredient.name}</span>
-                    <strong>{ingredient.quantity} {ingredient.unit}</strong>
+                  <div key={`${ingredient.productId ?? ingredient.name}-${ingredient.unit}`}>
+                    <span>
+                      {ingredient.name}
+                      {ingredient.status === "partial" ? <small>Partially available</small> : <small>Missing</small>}
+                    </span>
+                    <strong>{formatIngredientAmount(ingredient.shoppingQuantity ?? ingredient.quantity, ingredient.unit)}</strong>
                   </div>
                 ))}
               </div>
@@ -305,6 +305,7 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               <Link className="primary-button full-width" href="/shopping">Create a Shopping list</Link>
             ) : (
               <form action={addPlannerIngredientsToShopping} className={styles.shoppingForm}>
+                <input type="hidden" name="weekStart" value={data.weekStart} />
                 <label>
                   <span>Shopping list</span>
                   <select name="shoppingListId" defaultValue={data.shoppingLists[0]?.id} required>
@@ -313,9 +314,6 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                     ))}
                   </select>
                 </label>
-                {missingIngredients.map((ingredient) => (
-                  <input type="hidden" name="ingredient" value={JSON.stringify(ingredient)} key={`${ingredient.name}-${ingredient.unit}`} />
-                ))}
                 <button className="primary-button full-width" type="submit" disabled={missingIngredients.length === 0}>
                   Add {missingIngredients.length || "no"} missing item{missingIngredients.length === 1 ? "" : "s"}
                 </button>
@@ -342,14 +340,14 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
             >
               ×
             </button>
-            {openRecipe.imageUrl ? (
+            {openRecipe.recipe.imageUrl ? (
               <div className={styles.recipeImage}>
                 <Image
-                  alt={`Finished ${openRecipe.name}`}
+                  alt={`Finished ${openRecipe.recipe.name}`}
                   fill
                   priority
                   sizes="(max-width: 760px) 100vw, 760px"
-                  src={openRecipe.imageUrl}
+                  src={openRecipe.recipe.imageUrl}
                 />
               </div>
             ) : (
@@ -358,31 +356,36 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
             <div className={styles.recipeContent}>
               <div>
                 <p className="eyebrow">RECIPE</p>
-                <h2 id="planner-recipe-title">{openRecipe.name}</h2>
-                {openRecipe.description ? <p className={styles.recipeDescription}>{openRecipe.description}</p> : null}
+                <h2 id="planner-recipe-title">{openRecipe.recipe.name}</h2>
+                {openRecipe.recipe.description ? <p className={styles.recipeDescription}>{openRecipe.recipe.description}</p> : null}
               </div>
               <div className={styles.recipeSummary}>
-                {openRecipe.minutes ? <span><strong>{openRecipe.minutes}</strong> minutes</span> : null}
-                <span><strong>{openRecipe.servings}</strong> servings</span>
-                {openRecipe.proteinGrams ? <span><strong>{Math.round(openRecipe.proteinGrams)} g</strong> protein</span> : null}
+                {openRecipe.recipe.minutes ? <span><strong>{openRecipe.recipe.minutes}</strong> minutes</span> : null}
+                <span><strong>{openRecipe.servings}</strong> planned servings</span>
+                {openRecipe.recipe.proteinGrams ? <span><strong>{Math.round(openRecipe.recipe.proteinGrams)} g</strong> protein</span> : null}
               </div>
               <div className={styles.recipeColumns}>
                 <section>
                   <h3>Ingredients</h3>
                   <ul className={styles.recipeIngredients}>
-                    {openRecipe.ingredients.map((ingredient) => (
+                    {openRecipe.recipe.ingredients.map((ingredient) => (
                       <li key={`${ingredient.name}-${ingredient.unit}`}>
                         <span>{ingredient.name}</span>
-                        <strong>{ingredient.quantity} {ingredient.unit}</strong>
+                        <strong>{formatIngredientAmount(
+                          ingredient.quantity === null
+                            ? null
+                            : ingredient.quantity * openRecipe.servings / Math.max(openRecipe.recipe.servings, 1),
+                          ingredient.unit,
+                        )}</strong>
                       </li>
                     ))}
                   </ul>
                 </section>
                 <section>
                   <h3>Method</h3>
-                  {openRecipe.instructions.length > 0 ? (
+                  {openRecipe.recipe.instructions.length > 0 ? (
                     <ol className={styles.recipeMethod}>
-                      {openRecipe.instructions.map((instruction, index) => (
+                      {openRecipe.recipe.instructions.map((instruction, index) => (
                         <li key={`${index}-${instruction}`}>{instruction}</li>
                       ))}
                     </ol>
