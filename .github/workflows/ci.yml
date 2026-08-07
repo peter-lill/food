@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    name: Test and build
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: postgresql://food:food@localhost:5432/food
+      BETTER_AUTH_URL: http://localhost:3100
+      BETTER_AUTH_SECRET: github-actions-ci-secret-at-least-32-characters-long
+      SMTP_HOST: mail.example.com
+      SMTP_PORT: "587"
+      SMTP_USER: no-reply@example.com
+      SMTP_PASSWORD: github-actions-placeholder
+      SMTP_FROM: Food <no-reply@example.com>
+      FOOD_OWNER_EMAILS: owner@example.com
+      FOOD_HEALTH_SYNC_TOKEN: github-actions-health-sync-placeholder-token
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run db:generate
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
