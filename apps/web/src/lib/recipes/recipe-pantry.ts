@@ -15,6 +15,13 @@ export type RecipeProductIdentity = {
   inventory: Array<{ quantity: number; unit: string }>;
 };
 
+export type RecipeProductQueryCandidates = {
+  productIds: string[];
+  names: string[];
+  normalisedAliases: string[];
+  slugs: string[];
+};
+
 export type IngredientAvailability = RecipeIngredientInput & {
   productId: string | null;
   status: "in-pantry" | "partial" | "missing";
@@ -44,6 +51,35 @@ export function recipeIngredientIdentityKeys(value: string) {
     normaliseProductText(parsed.canonicalName),
     parsed.canonicalKey,
   ].filter(Boolean));
+}
+
+export function recipeProductQueryCandidates(
+  ingredients: RecipeIngredientInput[],
+): RecipeProductQueryCandidates {
+  const productIds = new Set<string>();
+  const names = new Set<string>();
+  const normalisedAliases = new Set<string>();
+  const slugs = new Set<string>();
+
+  for (const ingredient of ingredients) {
+    if (ingredient.productId) productIds.add(ingredient.productId);
+
+    const parsed = parseProductName(ingredient.name);
+    for (const name of [ingredient.name.trim(), parsed.canonicalName]) {
+      if (name) names.add(name);
+    }
+    for (const key of recipeIngredientIdentityKeys(ingredient.name)) {
+      normalisedAliases.add(key);
+    }
+    if (parsed.canonicalKey) slugs.add(parsed.canonicalKey);
+  }
+
+  return {
+    productIds: [...productIds],
+    names: [...names],
+    normalisedAliases: [...normalisedAliases],
+    slugs: [...slugs],
+  };
 }
 
 function productKeys(product: RecipeProductIdentity) {
