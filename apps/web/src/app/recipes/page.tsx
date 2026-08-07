@@ -9,6 +9,7 @@ import {
 import { importHeartFoundationRecipe } from "@/lib/recipes/import-heart-foundation-recipe";
 import { cacheExternalRecipeImage } from "@/lib/recipes/local-recipe-image";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
+import { getRecipeAvailability } from "@/lib/recipes/recipe-pantry.repository";
 
 export const dynamic = "force-dynamic";
 
@@ -73,7 +74,7 @@ export default async function RecipesPage() {
     console.error("Unable to materialise Australian Heart Foundation recipe catalogue", error);
   }
 
-  const { recipes: plannerRecipes } = await getPlannerWorkspace();
+  const { recipes: plannerRecipes, shoppingLists } = await getPlannerWorkspace();
   const databaseRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
   const completeRecipes = databaseRecipes.filter(
     (recipe) => !isAustralianHeartFoundationRecipe(recipe),
@@ -88,6 +89,7 @@ export default async function RecipesPage() {
     ).values(),
   ];
   const totalRecipeCount = completeRecipes.length + catalogueRecipes.length;
+  const recipeAvailability = await getRecipeAvailability(completeRecipes);
 
   const favourites = session
     ? await prisma.recipeFavourite.findMany({
@@ -112,7 +114,9 @@ export default async function RecipesPage() {
       <RecipesGallery
         externalRecipes={catalogueRecipes}
         initialFavouriteIds={favourites.map((favourite) => favourite.externalRecipeId)}
+        recipeAvailability={recipeAvailability}
         recipes={completeRecipes}
+        shoppingLists={shoppingLists.map(({ id, name }) => ({ id, name }))}
         signedIn={Boolean(session)}
       />
     </div>

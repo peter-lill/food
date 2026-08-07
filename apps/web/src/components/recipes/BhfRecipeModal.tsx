@@ -2,11 +2,15 @@
 
 import bhfCatalogue from "@/generated/bhf-recipes.json";
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
+import type { IngredientAvailability } from "@/lib/recipes/recipe-pantry";
 import styles from "./recipes-gallery.module.css";
+import { RecipeIngredientAvailability } from "./RecipeIngredientAvailability";
 
 type BhfRecipeModalProps = {
   recipe: ExternalRecipe;
   onClose: () => void;
+  availability: IngredientAvailability[];
+  shoppingLists: Array<{ id: string; name: string }>;
 };
 
 type BhfCatalogueRecipe = (typeof bhfCatalogue.recipes)[number];
@@ -28,7 +32,7 @@ function decodeHtml(value: string) {
     .replace(/&rdquo;/gi, "”");
 }
 
-export function BhfRecipeModal({ recipe, onClose }: BhfRecipeModalProps) {
+export function BhfRecipeModal({ recipe, onClose, availability, shoppingLists }: BhfRecipeModalProps) {
   const fullRecipe = bhfCatalogue.recipes.find(
     (candidate) => candidate.id === recipe.id,
   ) as BhfCatalogueRecipe | undefined;
@@ -107,13 +111,11 @@ export function BhfRecipeModal({ recipe, onClose }: BhfRecipeModalProps) {
           <section className={styles.recipeSection}>
             <h3>Ingredients</h3>
             {ingredients.length ? (
-              <ul className={styles.ingredients}>
-                {ingredients.map((ingredient, index) => (
-                  <li key={`${ingredient}-${index}`}>
-                    <span>{decodeHtml(ingredient)}</span>
-                  </li>
-                ))}
-              </ul>
+              <RecipeIngredientAvailability
+                availability={availability}
+                ingredientLabels={ingredients.map(decodeHtml)}
+                shoppingLists={shoppingLists}
+              />
             ) : (
               <p className="subtle">Ingredients are not available for this recipe yet.</p>
             )}

@@ -12,7 +12,7 @@
     "worker:enqueue-images": "tsx scripts/enqueue-selected-product-images.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test",
+    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test && npm run recipes:pantry-shopping:test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -43,6 +43,7 @@
     "apke:ingredients:seed": "tsx scripts/seed-ingredient-dictionary.ts",
     "prices:import:auscost": "tsx scripts/import-auscost-prices.ts",
     "recipes:meal-types:test": "tsx scripts/test-recipe-meal-types.ts",
+    "recipes:pantry-shopping:test": "tsx scripts/test-recipe-pantry-shopping.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
   "dependencies": {

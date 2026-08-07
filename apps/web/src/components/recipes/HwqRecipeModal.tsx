@@ -2,14 +2,18 @@
 
 import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
 import { hwqSnackRecipes } from "@/lib/recipes/hwq-snacks";
+import type { IngredientAvailability } from "@/lib/recipes/recipe-pantry";
 import styles from "./recipes-gallery.module.css";
+import { RecipeIngredientAvailability } from "./RecipeIngredientAvailability";
 
 type HwqRecipeModalProps = {
   recipe: ExternalRecipe;
   onClose: () => void;
+  availability: IngredientAvailability[];
+  shoppingLists: Array<{ id: string; name: string }>;
 };
 
-export function HwqRecipeModal({ recipe, onClose }: HwqRecipeModalProps) {
+export function HwqRecipeModal({ recipe, onClose, availability, shoppingLists }: HwqRecipeModalProps) {
   const fullRecipe = hwqSnackRecipes.find((candidate) => candidate.id === recipe.id);
 
   if (!fullRecipe) return null;
@@ -68,13 +72,11 @@ export function HwqRecipeModal({ recipe, onClose }: HwqRecipeModalProps) {
 
           <section className={styles.recipeSection}>
             <h3>Ingredients</h3>
-            <ul className={styles.ingredients}>
-              {fullRecipe.ingredients.map((ingredient, index) => (
-                <li key={`${fullRecipe.id}-ingredient-${index}`}>
-                  <span>{ingredient}</span>
-                </li>
-              ))}
-            </ul>
+            <RecipeIngredientAvailability
+              availability={availability}
+              ingredientLabels={fullRecipe.ingredients}
+              shoppingLists={shoppingLists}
+            />
           </section>
 
           <section className={styles.recipeSection}>
