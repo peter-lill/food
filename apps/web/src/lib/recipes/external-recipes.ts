@@ -11,6 +11,17 @@ export type ExternalRecipeNutrition = {
   saltGrams: number | null;
 };
 
+export const recipeMealTypes = [
+  "Breakfast",
+  "Lunch & dinner",
+  "Snacks",
+  "Desserts",
+  "Sides & sauces",
+  "Drinks",
+] as const;
+
+export type RecipeMealType = (typeof recipeMealTypes)[number];
+
 export type ExternalRecipe = {
   id: string;
   name: string;
@@ -20,7 +31,8 @@ export type ExternalRecipe = {
     | "Heart Foundation"
     | "Australian Heart Foundation"
     | "British Heart Foundation"
-    | "Mayo Clinic";
+    | "Mayo Clinic"
+    | "Health and Wellbeing Queensland";
   sourceUrl: string;
   sourceHomeUrl: string;
   imageUrl: string | null;
@@ -31,6 +43,7 @@ export type ExternalRecipe = {
   nutrition?: ExternalRecipeNutrition | null;
   licence: string;
   tags: string[];
+  mealType?: RecipeMealType;
 };
 
 type RecipeSeed = readonly [
@@ -55,6 +68,18 @@ const sourceDetails = {
     licence: "Recipe link and title used with attribution to Mayo Clinic.",
   },
 } as const;
+
+export function getRecipeMealType(recipe: ExternalRecipe): RecipeMealType {
+  if (recipe.mealType) return recipe.mealType;
+
+  const tags = recipe.tags.map((tag) => tag.toLocaleLowerCase("en-AU"));
+  if (tags.includes("breakfast")) return "Breakfast";
+  if (tags.includes("snack") || tags.includes("snacks")) return "Snacks";
+  if (tags.includes("dessert") || tags.includes("desserts") || tags.includes("sweet")) return "Desserts";
+  if (tags.includes("drink") || tags.includes("drinks") || tags.includes("beverage")) return "Drinks";
+  if (tags.includes("side") || tags.includes("sauce") || tags.includes("dip")) return "Sides & sauces";
+  return "Lunch & dinner";
+}
 
 function makeRecipes(
   sourceName: keyof typeof sourceDetails,
@@ -212,9 +237,58 @@ const mayoRecipes = makeRecipes("Mayo Clinic", [
   ["mayo-brown-rice", "Brown Rice Pilaf", "https://www.mayoclinic.org/healthy-lifestyle/recipes/brown-rice-pilaf/rcp-20049731", ["Wholegrain", "Vegetarian"]],
 ]);
 
+const healthAndWellbeingQueenslandSnackSourceUrl = "https://hw.qld.gov.au/healthy-recipes";
+const healthAndWellbeingQueenslandSnackLicence =
+  "Recipe title and attribution from Health and Wellbeing Queensland's Healthy Snack Guide.";
+
+function hwqSnack(
+  id: string,
+  name: string,
+  style: "Savoury" | "Sweet",
+): ExternalRecipe {
+  return {
+    id,
+    name,
+    description: `A ${style.toLocaleLowerCase("en-AU")} snack from Health and Wellbeing Queensland's Healthy Snack Guide.`,
+    sourceName: "Health and Wellbeing Queensland",
+    sourceUrl: healthAndWellbeingQueenslandSnackSourceUrl,
+    sourceHomeUrl: healthAndWellbeingQueenslandSnackSourceUrl,
+    imageUrl: null,
+    minutes: null,
+    servings: null,
+    licence: healthAndWellbeingQueenslandSnackLicence,
+    tags: ["Snack", style],
+    mealType: "Snacks",
+  };
+}
+
+const healthAndWellbeingQueenslandSnacks: ExternalRecipe[] = [
+  hwqSnack("hwq-cottage-cheese-muffins", "Cottage Cheese Muffins", "Savoury"),
+  hwqSnack("hwq-roasted-pumpkin-hummus", "Roasted Pumpkin Hummus", "Savoury"),
+  hwqSnack("hwq-salmon-leek-frittata", "Salmon and Leek Frittata", "Savoury"),
+  hwqSnack("hwq-lentil-sweet-potato-patties", "Lentil and Sweet Potato Patties", "Savoury"),
+  hwqSnack("hwq-spiced-mixed-nuts", "Spiced Mixed Nuts", "Savoury"),
+  hwqSnack("hwq-avocado-salsa-pita-chips", "Avocado Salsa and Pita Chips", "Savoury"),
+  hwqSnack("hwq-chicken-veg-nuggets", "Chicken and Veg Nuggets", "Savoury"),
+  hwqSnack("hwq-mexi-bean-salad-cups", "Mexi-bean Salad Cups", "Savoury"),
+  hwqSnack("hwq-whipped-ricotta-roasted-tomatoes", "Whipped Ricotta and Roasted Tomatoes", "Savoury"),
+  hwqSnack("hwq-pizza-scrolls", "Pizza Scrolls", "Savoury"),
+  hwqSnack("hwq-corn-tomato-cheese-loaf", "Corn, Tomato and Cheese Loaf", "Savoury"),
+  hwqSnack("hwq-yoghurt-bark", "Yoghurt Bark", "Sweet"),
+  hwqSnack("hwq-banana-bread", "Banana Bread", "Sweet"),
+  hwqSnack("hwq-mini-apple-pies", "Mini Apple Pies", "Sweet"),
+  hwqSnack("hwq-banana-blueberry-pikelets", "Banana and Blueberry Pikelets", "Sweet"),
+  hwqSnack("hwq-carrot-cake-oat-bars", "Carrot Cake Oat Bars", "Sweet"),
+  hwqSnack("hwq-apple-cinnamon-bliss-balls", "Apple Cinnamon Bliss Balls", "Sweet"),
+  hwqSnack("hwq-pumpkin-scones", "Pumpkin Scones", "Sweet"),
+  hwqSnack("hwq-tropical-frozen-yoghurt-bites", "Tropical Frozen Yoghurt Bites", "Sweet"),
+  hwqSnack("hwq-strawberry-parfait", "Strawberry Parfait", "Sweet"),
+];
+
 export const externalRecipes: ExternalRecipe[] = [
   ...recipeTinRecipes,
   ...heartFoundationRecipes,
   ...britishHeartFoundationRecipes,
   ...mayoRecipes,
+  ...healthAndWellbeingQueenslandSnacks,
 ];

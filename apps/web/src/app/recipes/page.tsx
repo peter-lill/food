@@ -48,6 +48,10 @@ function isAustralianHeartFoundationRecipe(recipe: {
 }
 
 function prepareCatalogueRecipe(recipe: ExternalRecipe): ExternalRecipe {
+  if (recipe.sourceName === "Health and Wellbeing Queensland") {
+    return recipe;
+  }
+
   const preparedRecipe = withSourceImage(recipe);
 
   if (preparedRecipe.sourceName !== "Heart Foundation") {
@@ -98,7 +102,7 @@ export default async function RecipesPage() {
         <div>
           <p className="eyebrow">RECIPE LIBRARY</p>
           <h1 className="page-title">Recipes</h1>
-          <p className="subtle">Browse heart-conscious recipes, ingredients and cooking inspiration.</p>
+          <p className="subtle">Browse heart-conscious recipes and healthy ideas organised by meal.</p>
         </div>
         <span className="badge neutral">
           {totalRecipeCount} recipe{totalRecipeCount === 1 ? "" : "s"}

@@ -4,7 +4,8 @@ import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
-import type { ExternalRecipe } from "@/lib/recipes/external-recipes";
+import type { ExternalRecipe, RecipeMealType } from "@/lib/recipes/external-recipes";
+import { getRecipeMealType, recipeMealTypes } from "@/lib/recipes/recipe-meal-types";
 import styles from "./recipes-gallery.module.css";
 import { BhfRecipeModal } from "./BhfRecipeModal";
 
@@ -26,6 +27,7 @@ export function RecipesGallery({
   const [openExternalRecipe, setOpenExternalRecipe] = useState<ExternalRecipe | null>(null);
   const [recipeQuery, setRecipeQuery] = useState("");
   const [recipeSource, setRecipeSource] = useState("All sources");
+  const [recipeMealType, setRecipeMealType] = useState<"All meals" | RecipeMealType>("All meals");
   const [favouriteRecipeIds, setFavouriteRecipeIds] = useState<Set<string>>(
     () => new Set(initialFavouriteIds),
   );
@@ -43,19 +45,24 @@ export function RecipesGallery({
     const query = recipeQuery.trim().toLocaleLowerCase();
 
     return externalRecipes.filter((recipe) => {
+      const mealType = getRecipeMealType(recipe);
       const matchesSource =
         recipeSource === "All sources" || recipe.sourceName === recipeSource;
+      const matchesMealType =
+        recipeMealType === "All meals" || mealType === recipeMealType;
       const matchesFavourite =
         !showFavouritesOnly || favouriteRecipeIds.has(recipe.id);
       const searchableText = [
         recipe.name,
         recipe.description,
         recipe.sourceName,
+        mealType,
         ...recipe.tags,
       ].join(" ").toLocaleLowerCase();
 
       return (
         matchesSource &&
+        matchesMealType &&
         matchesFavourite &&
         (!query || searchableText.includes(query))
       );
@@ -63,6 +70,7 @@ export function RecipesGallery({
   }, [
     externalRecipes,
     favouriteRecipeIds,
+    recipeMealType,
     recipeQuery,
     recipeSource,
     showFavouritesOnly,
@@ -186,15 +194,14 @@ export function RecipesGallery({
         </div>
       </section>
 
-
       {externalRecipes.length > 0 ? (
         <section className={styles.catalogueSection}>
           <div className={styles.sectionHeading}>
             <div>
-              <p className="eyebrow">LOW-CHOLESTEROL COLLECTION</p>
-              <h2>Explore {externalRecipes.length} heart-healthy recipes</h2>
+              <p className="eyebrow">HEALTHY RECIPE COLLECTIONS</p>
+              <h2>Explore {externalRecipes.length} recipes by meal</h2>
               <p className="subtle">
-                Search by ingredient or filter trusted publishers.
+                Search by ingredient, choose a meal type or filter trusted publishers.
               </p>
             </div>
             <span className="badge neutral">{externalRecipes.length} recipes</span>
@@ -210,7 +217,28 @@ export function RecipesGallery({
                 value={recipeQuery}
               />
             </label>
-            <div aria-label="Filter recipes" className={styles.sourceFilters}>
+            <div aria-label="Filter recipes by meal" className={styles.sourceFilters}>
+              <button
+                aria-pressed={recipeMealType === "All meals"}
+                className={recipeMealType === "All meals" ? styles.sourceFilterActive : styles.sourceFilter}
+                onClick={() => setRecipeMealType("All meals")}
+                type="button"
+              >
+                All meals
+              </button>
+              {recipeMealTypes.map((mealType) => (
+                <button
+                  aria-pressed={recipeMealType === mealType}
+                  className={recipeMealType === mealType ? styles.sourceFilterActive : styles.sourceFilter}
+                  key={mealType}
+                  onClick={() => setRecipeMealType(mealType)}
+                  type="button"
+                >
+                  {mealType}
+                </button>
+              ))}
+            </div>
+            <div aria-label="Filter recipes by source" className={styles.sourceFilters}>
               {signedIn ? (
                 <button
                   aria-pressed={showFavouritesOnly}
@@ -272,6 +300,7 @@ export function RecipesGallery({
                   <h2>{recipe.name}</h2>
                   <p className={styles.description}>{recipe.description}</p>
                   <div className={styles.meta}>
+                    <span>{getRecipeMealType(recipe)}</span>
                     {recipe.minutes ? <span>{recipe.minutes} min</span> : null}
                     {recipe.servings ? <span>{recipe.servings} servings</span> : null}
                     {recipe.tags.slice(0, 2).map((tag) => <span key={tag}>{tag}</span>)}
@@ -339,7 +368,7 @@ export function RecipesGallery({
                 <p className="subtle">
                   {showFavouritesOnly
                     ? "Tap the heart on a recipe to save it here."
-                    : "Try another ingredient or choose all sources."}
+                    : "Try another ingredient, meal type or source."}
                 </p>
               </div>
             ) : null}
