@@ -3,6 +3,7 @@ import {
   areEquivalentShoppingIngredients,
   getIngredientAvailability,
   mergeShoppingQuantity,
+  recipeProductQueryCandidates,
   type RecipeProductIdentity,
 } from "../src/lib/recipes/recipe-pantry";
 
@@ -53,6 +54,16 @@ assert.equal(
   "missing",
   "a substring such as apple in pineapple must not count as a pantry match",
 );
+
+const queryCandidates = recipeProductQueryCandidates([
+  { name: "Apple", quantity: 1, unit: "each", productId: "apple" },
+  { name: "Cilantro", quantity: null, unit: null },
+]);
+assert.ok(queryCandidates.productIds.includes("apple"), "candidate lookup should retain canonical Ingredient.productId");
+assert.ok(queryCandidates.slugs.includes("apple"), "candidate lookup should include canonical product slugs");
+assert.ok(queryCandidates.normalisedAliases.includes("cilantro"), "candidate lookup should include exact ingredient aliases");
+assert.ok(queryCandidates.normalisedAliases.includes("coriander"), "candidate lookup should include alias canonical identities");
+assert.ok(!queryCandidates.normalisedAliases.includes("pineapple"), "candidate lookup must not expand to substring matches");
 
 const missing = [
   getIngredientAvailability({ name: "Apple", quantity: 2, unit: "each" }, products),

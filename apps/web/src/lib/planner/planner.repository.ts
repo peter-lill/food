@@ -150,7 +150,7 @@ export async function getPlannerWorkspace(
 ): Promise<PlannerWorkspaceData> {
   const weekStart = new Date(requestedWeekStart);
   weekStart.setUTCHours(0, 0, 0, 0);
-  const [recipes, pantryItems, shoppingLists, savedPlan, products] = await Promise.all([
+  const [recipes, pantryItems, shoppingLists, savedPlan] = await Promise.all([
     prisma.recipe.findMany({
       include: {
         ingredients: {
@@ -175,7 +175,6 @@ export async function getPlannerWorkspace(
         include: { entries: true },
       })
       : Promise.resolve(null),
-    userId ? getRecipeProductCatalogue() : Promise.resolve([]),
   ]);
 
   const importedNames = new Set(recipes.map((recipe) => recipe.name));
@@ -248,6 +247,12 @@ export async function getPlannerWorkspace(
       recipeId: entry.recipeKey,
       servings: entry.servings,
     }]));
+  const recipeById = new Map(allRecipes.map((recipe) => [recipe.id, recipe]));
+  const plannedIngredients = Object.values(plan).flatMap((selection) =>
+    recipeById.get(selection.recipeId)?.ingredients ?? []);
+  const products = userId
+    ? await getRecipeProductCatalogue(plannedIngredients)
+    : [];
   const availability = calculatePlannerAvailability(
     Object.entries(plan).map(([dayKey, selection]) => ({ dayKey, selection })),
     allRecipes,

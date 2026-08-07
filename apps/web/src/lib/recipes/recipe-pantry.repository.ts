@@ -5,6 +5,7 @@ import { hwqSnackRecipes } from "./hwq-snacks";
 import {
   getIngredientAvailability,
   parseRecipeIngredientLine,
+  recipeProductQueryCandidates,
   type IngredientAvailability,
   type RecipeIngredientInput,
   type RecipeProductIdentity,
@@ -12,13 +13,45 @@ import {
 
 export type RecipeAvailabilityMap = Record<string, IngredientAvailability[]>;
 
-export async function getRecipeProductCatalogue(): Promise<RecipeProductIdentity[]> {
+export async function getRecipeProductCatalogue(
+  ingredients: RecipeIngredientInput[],
+): Promise<RecipeProductIdentity[]> {
+  const candidates = recipeProductQueryCandidates(ingredients);
+  if (
+    candidates.productIds.length === 0 &&
+    candidates.names.length === 0 &&
+    candidates.normalisedAliases.length === 0 &&
+    candidates.slugs.length === 0
+  ) return [];
+
   const products = await prisma.product.findMany({
+    where: {
+      OR: [
+        ...(candidates.productIds.length > 0
+          ? [{ id: { in: candidates.productIds } }]
+          : []),
+        ...(candidates.slugs.length > 0
+          ? [{ slug: { in: candidates.slugs } }]
+          : []),
+        ...(candidates.names.length > 0
+          ? [
+            { name: { in: candidates.names, mode: "insensitive" as const } },
+            { canonicalName: { in: candidates.names, mode: "insensitive" as const } },
+          ]
+          : []),
+        ...(candidates.normalisedAliases.length > 0
+          ? [{ aliases: { some: { normalised: { in: candidates.normalisedAliases } } } }]
+          : []),
+      ],
+    },
     select: {
       id: true,
       name: true,
       canonicalName: true,
-      aliases: { select: { alias: true } },
+      aliases: {
+        where: { normalised: { in: candidates.normalisedAliases } },
+        select: { alias: true },
+      },
       inventoryItems: {
         where: { quantity: { gt: 0 } },
         select: { quantity: true, unit: true },
@@ -45,12 +78,12 @@ function plannerIngredients(recipe: PlannerRecipe): RecipeIngredientInput[] {
 }
 
 export async function getRecipeAvailability(recipes: PlannerRecipe[]): Promise<RecipeAvailabilityMap> {
-  const products = await getRecipeProductCatalogue();
   const entries: Array<[string, RecipeIngredientInput[]]> = [
     ...recipes.map((recipe) => [recipe.id, plannerIngredients(recipe)] as [string, RecipeIngredientInput[]]),
     ...hwqSnackRecipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),
     ...bhfCatalogue.recipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),
   ];
+  const products = await getRecipeProductCatalogue(entries.flatMap(([, ingredients]) => ingredients));
 
   return Object.fromEntries(entries.map(([id, ingredients]) => [
     id,
