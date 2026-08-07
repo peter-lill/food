@@ -150,6 +150,7 @@ export async function getPlannerWorkspace(): Promise<PlannerWorkspaceData> {
           name: sanitiseIngredientName(entry.ingredient.name),
           quantity: entry.quantity,
           unit: entry.unit,
+          productId: entry.ingredient.productId,
         }))
         .filter((entry) => entry.name.length > 0),
     };

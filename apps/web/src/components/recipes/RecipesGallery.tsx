@@ -5,16 +5,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import type { ExternalRecipe, RecipeMealType } from "@/lib/recipes/external-recipes";
+import type { RecipeAvailabilityMap } from "@/lib/recipes/recipe-pantry.repository";
 import { getRecipeMealType, recipeMealTypes } from "@/lib/recipes/recipe-meal-types";
 import styles from "./recipes-gallery.module.css";
 import { BhfRecipeModal } from "./BhfRecipeModal";
 import { HwqRecipeModal } from "./HwqRecipeModal";
+import { RecipeIngredientAvailability } from "./RecipeIngredientAvailability";
 
 type RecipesGalleryProps = {
   recipes: PlannerRecipe[];
   externalRecipes: ExternalRecipe[];
   initialFavouriteIds: string[];
   signedIn: boolean;
+  recipeAvailability: RecipeAvailabilityMap;
+  shoppingLists: Array<{ id: string; name: string }>;
 };
 
 function opensInFood(recipe: ExternalRecipe) {
@@ -29,6 +33,8 @@ export function RecipesGallery({
   externalRecipes,
   initialFavouriteIds,
   signedIn,
+  recipeAvailability,
+  shoppingLists,
 }: RecipesGalleryProps) {
   const router = useRouter();
   const [openRecipe, setOpenRecipe] = useState<PlannerRecipe | null>(null);
@@ -384,15 +390,19 @@ export function RecipesGallery({
 
       {openExternalRecipe?.sourceName === "British Heart Foundation" ? (
         <BhfRecipeModal
+          availability={recipeAvailability[openExternalRecipe.id] ?? []}
           onClose={() => setOpenExternalRecipe(null)}
           recipe={openExternalRecipe}
+          shoppingLists={shoppingLists}
         />
       ) : null}
 
       {openExternalRecipe?.sourceName === "Health and Wellbeing Queensland" ? (
         <HwqRecipeModal
+          availability={recipeAvailability[openExternalRecipe.id] ?? []}
           onClose={() => setOpenExternalRecipe(null)}
           recipe={openExternalRecipe}
+          shoppingLists={shoppingLists}
         />
       ) : null}
 
@@ -444,14 +454,11 @@ export function RecipesGallery({
               <section className={styles.recipeSection}>
                 <h3>Ingredients</h3>
                 {openRecipe.ingredients.length > 0 ? (
-                  <ul className={styles.ingredients}>
-                    {openRecipe.ingredients.map((ingredient, index) => (
-                      <li key={`${ingredient.name}-${index}`}>
-                        <strong>{ingredient.quantity} {ingredient.unit}</strong>
-                        <span>{ingredient.name}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <RecipeIngredientAvailability
+                    availability={recipeAvailability[openRecipe.id] ?? []}
+                    ingredientLabels={openRecipe.ingredients.map((ingredient) => `${ingredient.quantity} ${ingredient.unit} ${ingredient.name}`)}
+                    shoppingLists={shoppingLists}
+                  />
                 ) : (
                   <p className="subtle">No ingredients are available for this recipe yet.</p>
                 )}

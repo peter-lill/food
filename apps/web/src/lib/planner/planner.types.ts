@@ -2,6 +2,7 @@ export type PlannerIngredient = {
   name: string;
   quantity: number;
   unit: string;
+  productId?: string | null;
 };
 
 export type PlannerRecipe = {

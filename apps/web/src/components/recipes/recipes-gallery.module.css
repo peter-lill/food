@@ -264,6 +264,83 @@
   font-size: 13px;
 }
 
+.availability {
+  flex: none;
+  align-self: center;
+  padding: 5px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.in-pantry {
+  background: #e4f3e8;
+  color: #23623a;
+}
+
+.partial {
+  background: #fff2cf;
+  color: #76520a;
+}
+
+.missing {
+  background: #fbe7e9;
+  color: #8d2737;
+}
+
+.shoppingAction {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-soft);
+}
+
+.shoppingAction label {
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.shoppingAction select,
+.shoppingAction button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+}
+
+.shoppingAction button {
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  color: white;
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.shoppingAction p {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.allAvailable {
+  margin: 12px 0 0;
+  color: #23623a;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 .method {
   display: grid;
   gap: 15px;
