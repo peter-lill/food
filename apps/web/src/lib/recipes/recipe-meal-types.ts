@@ -1,17 +1,20 @@
-import type { ExternalRecipe, RecipeMealType } from "./external-recipes";
-
-export const recipeMealTypes: readonly RecipeMealType[] = [
+export const recipeMealTypes = [
   "Breakfast",
   "Lunch & dinner",
   "Snacks",
   "Desserts",
   "Sides & sauces",
   "Drinks",
-];
+] as const;
 
-export function getRecipeMealType(
-  recipe: Pick<ExternalRecipe, "mealType" | "tags">,
-): RecipeMealType {
+export type RecipeMealType = (typeof recipeMealTypes)[number];
+
+type RecipeMealClassificationInput = {
+  mealType?: RecipeMealType;
+  tags: readonly string[];
+};
+
+export function getRecipeMealType(recipe: RecipeMealClassificationInput): RecipeMealType {
   if (recipe.mealType) return recipe.mealType;
 
   const tags = recipe.tags.map((tag) => tag.toLocaleLowerCase("en-AU"));
