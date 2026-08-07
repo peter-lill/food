@@ -119,6 +119,11 @@ export async function cacheExternalRecipeImage(externalRecipeId: string) {
   const recipe = externalRecipes.find((item) => item.id === externalRecipeId);
   if (!recipe || recipe.sourceName !== "Heart Foundation") return null;
 
+  const cached = await readCachedRecipeImage(externalRecipeId);
+  if (cached) {
+    return `/api/recipes/local-image/${encodeURIComponent(externalRecipeId)}`;
+  }
+
   const sourceUrl = new URL(sourceAliases.get(recipe.sourceUrl) ?? recipe.sourceUrl);
   const pageResponse = await fetch(sourceUrl, {
     headers: {
@@ -127,6 +132,7 @@ export async function cacheExternalRecipeImage(externalRecipeId: string) {
       "Accept-Language": "en-AU,en;q=0.9",
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
   if (!pageResponse.ok) return null;
 
@@ -140,6 +146,7 @@ export async function cacheExternalRecipeImage(externalRecipeId: string) {
       Referer: sourceUrl.toString(),
     },
     cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
   });
   const contentType = imageResponse.headers.get("content-type") ?? "";
   if (!imageResponse.ok || !contentType.startsWith("image/")) return null;
