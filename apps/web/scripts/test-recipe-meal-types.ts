@@ -4,6 +4,7 @@ import {
   getRecipeMealType,
   recipeMealTypes,
 } from "../src/lib/recipes/external-recipes";
+import { hwqSnackRecipes } from "../src/lib/recipes/hwq-snacks";
 
 assert.deepEqual(recipeMealTypes, [
   "Breakfast",
@@ -22,6 +23,26 @@ assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Savoury")).lengt
 assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Sweet")).length, 9);
 assert(hwqSnacks.every((recipe) => getRecipeMealType(recipe) === "Snacks"));
 
+assert.equal(hwqSnackRecipes.length, 20);
+assert.equal(hwqSnackRecipes.filter((recipe) => recipe.style === "Savoury").length, 11);
+assert.equal(hwqSnackRecipes.filter((recipe) => recipe.style === "Sweet").length, 9);
+assert.deepEqual(
+  new Set(hwqSnackRecipes.map((recipe) => recipe.id)),
+  new Set(hwqSnacks.map((recipe) => recipe.id)),
+);
+assert(
+  hwqSnackRecipes.every(
+    (recipe) =>
+      recipe.servings > 0 &&
+      recipe.servingSizeGrams > 0 &&
+      recipe.ingredients.length > 0 &&
+      recipe.instructions.length > 0 &&
+      recipe.notes.length > 0 &&
+      recipe.nutrition.energyKj > 0 &&
+      recipe.nutrition.proteinGrams >= 0,
+  ),
+);
+
 const breakfast = externalRecipes.find((recipe) => recipe.id === "hf-overnight-oats");
 assert(breakfast);
 assert.equal(getRecipeMealType(breakfast), "Breakfast");
@@ -30,4 +51,4 @@ const mainMeal = externalRecipes.find((recipe) => recipe.id === "rte-lentil-soup
 assert(mainMeal);
 assert.equal(getRecipeMealType(mainMeal), "Lunch & dinner");
 
-console.log(`${hwqSnacks.length} Health and Wellbeing Queensland snacks classified successfully.`);
+console.log(`${hwqSnacks.length} Health and Wellbeing Queensland snacks classified with full recipe cards.`);
