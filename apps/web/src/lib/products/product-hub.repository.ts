@@ -28,6 +28,7 @@ export type ProductHubListItem = {
   retailerCount: number;
   latestPrice: number | null;
   latestRetailer: string | null;
+  latestPackSize: string | null;
   latestObservedAt: Date | null;
 };
 
@@ -136,10 +137,10 @@ function productFamilyName(value: string) {
   if (identity) return identity.family ?? identity.canonicalName;
 
   const cleaned = value
-    .replace(/^\s*(?:qty\s*)?\d+\s*[x×]\s*/i, "")
-    .replace(/^\s*[x×]\s*/i, "")
+    .replace(/^\s*(?:qty\s*)?\d+\s*[xÃ—]\s*/i, "")
+    .replace(/^\s*[xÃ—]\s*/i, "")
     .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
-    .replace(/^\s*\d+\s*[x×]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
+    .replace(/^\s*\d+\s*[xÃ—]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
     .replace(/\bcoles\b/gi, "")
     .replace(/\bslcd\b/gi, "sliced")
@@ -216,7 +217,12 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       priceObservations: {
         orderBy: { observedAt: "desc" },
         take: 1,
-        select: { price: true, retailer: true, observedAt: true },
+        select: {
+          price: true,
+          retailer: true,
+          observedAt: true,
+          storeProduct: { select: { packSize: true } },
+        },
       },
     },
     orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
@@ -258,6 +264,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         retailerCount: retailers.size,
         latestPrice: latest?.price ?? null,
         latestRetailer: latest?.retailer ?? null,
+        latestPackSize: latest?.storeProduct?.packSize ?? null,
         latestObservedAt: latest?.observedAt ?? null,
       });
       if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
@@ -289,6 +296,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     if (latest && (!current.latestObservedAt || latest.observedAt > current.latestObservedAt)) {
       current.latestPrice = latest.price;
       current.latestRetailer = latest.retailer;
+      current.latestPackSize = latest.storeProduct?.packSize ?? null;
       current.latestObservedAt = latest.observedAt;
     }
   }
@@ -442,3 +450,4 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
     variants: options.specific ? [] : variants,
   };
 }
+
