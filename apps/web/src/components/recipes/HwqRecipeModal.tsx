@@ -41,7 +41,7 @@ export function HwqRecipeModal({ recipe, onClose, availability, shoppingLists }:
         {recipe.imageUrl ? (
           <div
             aria-label={`Finished ${fullRecipe.name}`}
-            className={`${styles.hero} ${styles.remoteHero}`}
+            className={`${styles.hero} ${styles.photoHero}`}
             role="img"
             style={{ backgroundImage: `url("${recipe.imageUrl}")` }}
           />
