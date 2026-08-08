@@ -9,6 +9,7 @@ import {
   clearPlannerWeek,
   savePlannerDay,
 } from "@/lib/planner/planner.actions";
+import { plannerRecipeCardView } from "@/lib/planner/planner-card";
 import type {
   PlannerDaySelection,
   PlannerRecipe,
@@ -216,51 +217,78 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               const selection = plan[day.key];
               const selected = recipeById.get(selection?.recipeId);
               const availability = data.dayAvailability[day.key];
+              const recipeCard = selected ? plannerRecipeCardView(selected, availability) : null;
               return (
-                <article className={styles.dayCard} key={day.key}>
+                <article className={`${styles.dayCard}${selected ? ` ${styles.dayCardPlanned}` : ""}`} key={day.key}>
                   <div className={styles.dayHeading}>
                     <span>{day.short}</span>
                     <strong>{day.label}</strong>
                   </div>
                   <label className={styles.selectLabel}>
-                    <span>Meal</span>
-                    <select value={selection?.recipeId ?? ""} disabled={importingDay === day.key || saving} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
+                    <span>Recipe</span>
+                    <select aria-label={`Recipe for ${day.label}`} value={selection?.recipeId ?? ""} disabled={importingDay === day.key || saving} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
                       <option value="">Choose a recipe</option>
                       {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
                     </select>
                   </label>
-                  {selected && selection ? (
-                    <label className={styles.servingsField}>
-                      <span>Servings</span>
-                      <input
-                        aria-label={`Servings for ${day.label}`}
-                        min="1"
-                        max="100"
-                        onChange={(event) => changeServings(day.key, Number(event.target.value))}
-                        type="number"
-                        value={selection.servings}
-                      />
-                    </label>
-                  ) : null}
-                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection ? (
-                    <div className={styles.recipeDetail}>
-                      <strong>{selected.name}</strong>
-                      {selected.description && <p>{selected.description}</p>}
-                      <div className={styles.recipeMeta}>
-                        {selected.minutes && <span>{selected.minutes} min</span>}
-                        {selected.proteinGrams && <span>{Math.round(selected.proteinGrams)} g protein</span>}
-                        {availability && <span>{availability.percent}% in Pantry</span>}
+                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection && recipeCard ? (
+                    <>
+                      <div className={styles.recipeDetail}>
+                        {recipeCard.imageUrl ? (
+                          <div
+                            aria-label={`Finished ${selected.name}`}
+                            className={styles.plannedRecipeImage}
+                            role="img"
+                            style={{ backgroundImage: `url("${recipeCard.imageUrl}")` }}
+                          />
+                        ) : (
+                          <div aria-hidden="true" className={styles.plannedRecipeImageFallback}>◇</div>
+                        )}
+                        <div className={styles.plannedRecipeBody}>
+                          <span className={styles.recipeSource}>{recipeCard.sourceLabel}</span>
+                          <strong className={styles.plannedRecipeTitle}>{selected.name}</strong>
+                          {selected.description && <p>{selected.description}</p>}
+                          <div className={styles.recipeMeta}>
+                            {selected.minutes && <span>{selected.minutes} min</span>}
+                            <span>{recipeCard.ingredientLabel}</span>
+                            {recipeCard.pantryPercent !== null && <span>{recipeCard.pantryPercent}% in Pantry</span>}
+                          </div>
+                          <span className={styles.openRecipeLabel}>View full recipe →</span>
+                        </div>
+                        <button
+                          aria-label={`Open recipe for ${selected.name}`}
+                          className={styles.recipeCardAction}
+                          onClick={() => setOpenRecipe({ recipe: selected, servings: selection.servings })}
+                          type="button"
+                        />
                       </div>
-                      <span className={styles.openRecipeLabel}>View recipe →</span>
-                      <button
-                        aria-label={`Open recipe for ${selected.name}`}
-                        className={styles.recipeCardAction}
-                        onClick={() => setOpenRecipe({ recipe: selected, servings: selection.servings })}
-                        type="button"
-                      />
-                    </div>
+                      <div className={styles.plannedRecipeControls}>
+                        <label className={styles.servingsField}>
+                          <span>Servings</span>
+                          <input
+                            aria-label={`Servings for ${day.label}`}
+                            min="1"
+                            max="100"
+                            onChange={(event) => changeServings(day.key, Number(event.target.value))}
+                            type="number"
+                            value={selection.servings}
+                          />
+                        </label>
+                        <span className={styles.pantryStatus}>
+                          {recipeCard.pantryPercent !== null ? (
+                            <><strong>{recipeCard.pantryPercent}%</strong>matched in Pantry</>
+                          ) : (
+                            <><strong>—</strong>Pantry check pending</>
+                          )}
+                        </span>
+                      </div>
+                    </>
                   ) : (
-                    <p className={styles.emptyDay}>No meal selected.</p>
+                    <div className={styles.emptyRecipeCard}>
+                      <span aria-hidden="true">+</span>
+                      <strong>No meal selected</strong>
+                      <small>Choose from {data.recipes.length} complete recipe cards.</small>
+                    </div>
                   )}
                 </article>
               );

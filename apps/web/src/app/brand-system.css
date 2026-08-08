@@ -69,7 +69,8 @@ body {
   background: linear-gradient(135deg, #e4f3e8, #f8f3df);
   box-shadow: 0 8px 20px rgba(31, 85, 59, .08);
 }
-.side-link-icon { display: grid; place-items: center; width: 27px !important; height: 27px; border-radius: 9px; background: #f0f6f0; color: var(--food-green); font-size: 13px; }
+.side-link-icon { display: grid; place-items: center; flex: 0 0 auto; width: 29px !important; height: 29px; border-radius: 9px; background: #f0f6f0; color: var(--food-green); }
+.side-link-icon svg { width: 17px; height: 17px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .side-link.active .side-link-icon { background: #fff; color: #087d51; box-shadow: 0 4px 12px rgba(31, 85, 59, .09); }
 .side-link-indicator { position: absolute; right: 9px; width: 6px !important; height: 6px; border-radius: 50%; background: #0ba66a; box-shadow: 0 0 0 4px rgba(11, 166, 106, .1); }
 .sidebar-note { border: 1px solid var(--food-line); background: #fff; box-shadow: 0 8px 24px rgba(25, 67, 49, .055); }

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { hwqSnackRecipes } from "../src/lib/recipes/hwq-snacks";
 import bhfCatalogue from "../src/generated/bhf-recipes.json";
+import { plannerRecipeCardView } from "../src/lib/planner/planner-card";
 import { calculatePlannerAvailability } from "../src/lib/planner/planner-calculations";
 import { currentPlannerWeekStart } from "../src/lib/planner/planner-week";
 import type { PlannerRecipe } from "../src/lib/planner/planner.types";
@@ -76,6 +77,30 @@ const noSubstring = calculatePlannerAvailability(
   [{ id: "pineapple", name: "Pineapple", canonicalName: "Pineapple", aliases: [], inventory: [{ quantity: 2, unit: "each" }] }],
 );
 assert.equal(noSubstring.missingIngredients[0]?.status, "missing", "Planner must not match apple to pineapple");
+
+const selectedCard = plannerRecipeCardView(
+  {
+    ...appleRecipe,
+    imageUrl: "/recipes/apple.webp",
+    originalSourceName: "Test Kitchen",
+  },
+  { availableCount: 1, ingredientCount: 1, percent: 100 },
+);
+assert.deepEqual(
+  selectedCard,
+  {
+    imageUrl: "/recipes/apple.webp",
+    sourceLabel: "Test Kitchen",
+    ingredientLabel: "1 ingredient",
+    pantryPercent: 100,
+  },
+  "selected Planner meals should expose complete recipe-card presentation data",
+);
+assert.equal(
+  plannerRecipeCardView(appleRecipe).pantryPercent,
+  null,
+  "new selections should show a pending Pantry check instead of a false zero",
+);
 
 assert.equal(hwqSnackRecipes.length, 20, "all HWQ full recipe cards remain available to Planner");
 assert.ok(bhfCatalogue.recipes.length > 0 && bhfCatalogue.recipes.every((recipe) => recipe.ingredients.length), "all BHF catalogue cards remain plannable");
