@@ -173,6 +173,11 @@
   object-fit: cover;
 }
 
+.remoteHero {
+  background-position: center;
+  background-size: cover;
+}
+
 .heroFallback {
   display: grid;
   place-items: center;

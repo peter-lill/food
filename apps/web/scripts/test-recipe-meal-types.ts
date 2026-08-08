@@ -22,6 +22,8 @@ assert.equal(hwqSnacks.length, 20);
 assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Savoury")).length, 11);
 assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Sweet")).length, 9);
 assert(hwqSnacks.every((recipe) => getRecipeMealType(recipe) === "Snacks"));
+assert(hwqSnacks.every((recipe) => recipe.imageUrl?.startsWith("https://hw.qld.gov.au/wp-content/uploads/")));
+assert(hwqSnacks.every((recipe) => recipe.sourceUrl.startsWith("https://hw.qld.gov.au/healthy-recipes/")));
 
 assert.equal(hwqSnackRecipes.length, 20);
 assert.equal(hwqSnackRecipes.filter((recipe) => recipe.style === "Savoury").length, 11);
@@ -38,6 +40,8 @@ assert(
       recipe.ingredients.length > 0 &&
       recipe.instructions.length > 0 &&
       recipe.notes.length > 0 &&
+      recipe.imageUrl.length > 0 &&
+      recipe.sourceUrl.length > 0 &&
       recipe.nutrition.energyKj > 0 &&
       recipe.nutrition.proteinGrams >= 0,
   ),
