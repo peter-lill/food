@@ -17,7 +17,6 @@ export type RecipeProductIdentity = {
 
 export type RecipeProductQueryCandidates = {
   productIds: string[];
-  names: string[];
   normalisedAliases: string[];
   slugs: string[];
 };
@@ -57,7 +56,6 @@ export function recipeProductQueryCandidates(
   ingredients: RecipeIngredientInput[],
 ): RecipeProductQueryCandidates {
   const productIds = new Set<string>();
-  const names = new Set<string>();
   const normalisedAliases = new Set<string>();
   const slugs = new Set<string>();
 
@@ -65,9 +63,6 @@ export function recipeProductQueryCandidates(
     if (ingredient.productId) productIds.add(ingredient.productId);
 
     const parsed = parseProductName(ingredient.name);
-    for (const name of [ingredient.name.trim(), parsed.canonicalName]) {
-      if (name) names.add(name);
-    }
     for (const key of recipeIngredientIdentityKeys(ingredient.name)) {
       normalisedAliases.add(key);
     }
@@ -76,7 +71,6 @@ export function recipeProductQueryCandidates(
 
   return {
     productIds: [...productIds],
-    names: [...names],
     normalisedAliases: [...normalisedAliases],
     slugs: [...slugs],
   };

@@ -19,53 +19,80 @@ export async function getRecipeProductCatalogue(
   const candidates = recipeProductQueryCandidates(ingredients);
   if (
     candidates.productIds.length === 0 &&
-    candidates.names.length === 0 &&
     candidates.normalisedAliases.length === 0 &&
     candidates.slugs.length === 0
   ) return [];
 
-  const products = await prisma.product.findMany({
-    where: {
-      OR: [
-        ...(candidates.productIds.length > 0
-          ? [{ id: { in: candidates.productIds } }]
-          : []),
-        ...(candidates.slugs.length > 0
-          ? [{ slug: { in: candidates.slugs } }]
-          : []),
-        ...(candidates.names.length > 0
-          ? [
-            { name: { in: candidates.names, mode: "insensitive" as const } },
-            { canonicalName: { in: candidates.names, mode: "insensitive" as const } },
-          ]
-          : []),
-        ...(candidates.normalisedAliases.length > 0
-          ? [{ aliases: { some: { normalised: { in: candidates.normalisedAliases } } } }]
-          : []),
-      ],
-    },
-    select: {
-      id: true,
-      name: true,
-      canonicalName: true,
-      aliases: {
+  const [slugMatches, aliasMatches, stockedItems] = await Promise.all([
+    candidates.slugs.length > 0
+      ? prisma.product.findMany({
+        where: { slug: { in: candidates.slugs } },
+        select: { id: true },
+      })
+      : Promise.resolve([]),
+    candidates.normalisedAliases.length > 0
+      ? prisma.productAlias.findMany({
         where: { normalised: { in: candidates.normalisedAliases } },
-        select: { alias: true },
+        select: { productId: true },
+      })
+      : Promise.resolve([]),
+    prisma.inventoryItem.findMany({
+      where: { quantity: { gt: 0 } },
+      select: {
+        quantity: true,
+        unit: true,
+        product: {
+          select: {
+            id: true,
+            name: true,
+            canonicalName: true,
+            aliases: { select: { alias: true } },
+          },
+        },
       },
-      inventoryItems: {
-        where: { quantity: { gt: 0 } },
-        select: { quantity: true, unit: true },
-      },
-    },
-  });
+    }),
+  ]);
 
-  return products.map((product) => ({
-    id: product.id,
-    name: product.name,
-    canonicalName: product.canonicalName,
-    aliases: product.aliases.map((alias) => alias.alias),
-    inventory: product.inventoryItems,
-  }));
+  const matchedProductIds = new Set([
+    ...candidates.productIds,
+    ...slugMatches.map((product) => product.id),
+    ...aliasMatches.map((alias) => alias.productId),
+  ]);
+  const matchedProducts = matchedProductIds.size > 0
+    ? await prisma.product.findMany({
+      where: { id: { in: [...matchedProductIds] } },
+      select: {
+        id: true,
+        name: true,
+        canonicalName: true,
+        aliases: { select: { alias: true } },
+      },
+    })
+    : [];
+
+  const products = new Map<string, RecipeProductIdentity>();
+  for (const product of matchedProducts) {
+    products.set(product.id, {
+      id: product.id,
+      name: product.name,
+      canonicalName: product.canonicalName,
+      aliases: product.aliases.map((alias) => alias.alias),
+      inventory: [],
+    });
+  }
+  for (const item of stockedItems) {
+    const product = products.get(item.product.id) ?? {
+      id: item.product.id,
+      name: item.product.name,
+      canonicalName: item.product.canonicalName,
+      aliases: item.product.aliases.map((alias) => alias.alias),
+      inventory: [],
+    };
+    product.inventory.push({ quantity: item.quantity, unit: item.unit });
+    products.set(product.id, product);
+  }
+
+  return [...products.values()];
 }
 
 function plannerIngredients(recipe: PlannerRecipe): RecipeIngredientInput[] {
