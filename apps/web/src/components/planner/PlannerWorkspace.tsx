@@ -7,18 +7,24 @@ import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   addPlannerIngredientsToShopping,
   clearPlannerWeek,
-  savePlannerDay,
+  savePlannerMeal,
 } from "@/lib/planner/planner.actions";
 import { plannerRecipeCardView } from "@/lib/planner/planner-card";
+import {
+  plannerMealSlots,
+  withPlannerMealSelection,
+  type PlannerMealSlot,
+} from "@/lib/planner/planner-meals";
 import type {
-  PlannerDaySelection,
+  PlannerDayPlan,
+  PlannerMealSelection,
   PlannerRecipe,
   PlannerWorkspaceData,
 } from "@/lib/planner/planner.types";
 import { plannerDays as days } from "@/lib/planner/planner-week";
 import styles from "./planner-workspace.module.css";
 
-type PlanSelection = Record<string, PlannerDaySelection>;
+type PlanSelection = Record<string, PlannerDayPlan>;
 
 type PlannerWorkspaceProps = {
   data: PlannerWorkspaceData;
@@ -58,18 +64,35 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
     };
   }, [openRecipe]);
 
-  const plannedRecipes = useMemo(
-    () => days.map((day) => recipeById.get(plan[day.key]?.recipeId)).filter((recipe): recipe is PlannerRecipe => Boolean(recipe)),
-    [plan, recipeById],
+  const plannedRecipes = useMemo(() => days.flatMap((day) =>
+    plannerMealSlots
+      .map((slot) => {
+        const recipeId = plan[day.key]?.[slot.key]?.recipeId;
+        return recipeId ? recipeById.get(recipeId) : undefined;
+      })
+      .filter((recipe): recipe is PlannerRecipe => Boolean(recipe))),
+  [plan, recipeById]);
+  const plannedDayCount = useMemo(
+    () => days.filter((day) => Object.keys(plan[day.key] ?? {}).length > 0).length,
+    [plan],
   );
   const missingIngredients = data.missingIngredients;
 
-  function persistSelection(dayKey: string, selection: PlannerDaySelection | null) {
+  function mealStateKey(dayKey: string, slot: PlannerMealSlot) {
+    return `${dayKey}:${slot}`;
+  }
+
+  function persistSelection(
+    dayKey: string,
+    slot: PlannerMealSlot,
+    selection: PlannerMealSelection | null,
+  ) {
     const day = days.findIndex((candidate) => candidate.key === dayKey);
     startSaving(async () => {
-      const result = await savePlannerDay(
+      const result = await savePlannerMeal(
         data.weekStart,
         day,
+        slot,
         selection?.recipeId ?? "",
         selection?.servings ?? 1,
       );
@@ -81,29 +104,25 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
     });
   }
 
-  async function assignRecipe(dayKey: string, recipeId: string) {
+  async function assignRecipe(dayKey: string, slot: PlannerMealSlot, recipeId: string) {
     setImportError("");
 
     if (!recipeId) {
-      setPlan((current) => {
-        const next = { ...current };
-        delete next[dayKey];
-        return next;
-      });
-      persistSelection(dayKey, null);
+      setPlan((current) => withPlannerMealSelection(current, dayKey, slot, null));
+      persistSelection(dayKey, slot, null);
       return;
     }
 
     if (!recipeId.startsWith("external-")) {
       const recipe = recipeById.get(recipeId);
       const selection = { recipeId, servings: recipe?.servings ?? 1 };
-      setPlan((current) => ({ ...current, [dayKey]: selection }));
-      persistSelection(dayKey, selection);
+      setPlan((current) => withPlannerMealSelection(current, dayKey, slot, selection));
+      persistSelection(dayKey, slot, selection);
       return;
     }
 
     const externalRecipeId = recipeId.slice("external-".length);
-    setImportingDay(dayKey);
+    setImportingDay(mealStateKey(dayKey, slot));
 
     try {
       const response = await fetch("/api/recipes/import", {
@@ -117,8 +136,8 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
       const importedRecipeId = result.recipeId as string;
       const servings = recipeById.get(recipeId)?.servings ?? 1;
       const selection = { recipeId: importedRecipeId, servings };
-      setPlan((current) => ({ ...current, [dayKey]: selection }));
-      persistSelection(dayKey, selection);
+      setPlan((current) => withPlannerMealSelection(current, dayKey, slot, selection));
+      persistSelection(dayKey, slot, selection);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Unable to import this recipe.");
     } finally {
@@ -126,12 +145,12 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
     }
   }
 
-  function changeServings(dayKey: string, servings: number) {
-    const current = plan[dayKey];
+  function changeServings(dayKey: string, slot: PlannerMealSlot, servings: number) {
+    const current = plan[dayKey]?.[slot];
     if (!current || !Number.isInteger(servings) || servings < 1 || servings > 100) return;
     const selection = { ...current, servings };
-    setPlan((planValue) => ({ ...planValue, [dayKey]: selection }));
-    persistSelection(dayKey, selection);
+    setPlan((planValue) => withPlannerMealSelection(planValue, dayKey, slot, selection));
+    persistSelection(dayKey, slot, selection);
   }
 
   function clearWeek() {
@@ -184,9 +203,9 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
 
       <section className={styles.summaryGrid} aria-label="Planner summary">
         <article className="card">
-          <span className={styles.metricLabel}>Days planned</span>
-          <strong className={styles.metric}>{plannedRecipes.length}/7</strong>
-          <span className="subtle">Saved to your account</span>
+          <span className={styles.metricLabel}>Meals planned</span>
+          <strong className={styles.metric}>{plannedRecipes.length}/28</strong>
+          <span className="subtle">{plannedDayCount}/7 days covered</span>
         </article>
         <article className="card">
           <span className={styles.metricLabel}>Recipe library</span>
@@ -205,7 +224,7 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
           <div className={styles.sectionHeading}>
             <div>
               <p className="eyebrow">THIS WEEK</p>
-              <h2>Choose a meal for each day</h2>
+              <h2>Plan every meal of the day</h2>
             </div>
             {plannedRecipes.length > 0 && (
               <button className="secondary-button" disabled={saving} type="button" onClick={clearWeek}>Clear week</button>
@@ -214,82 +233,98 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
 
           <div className={styles.dayGrid}>
             {days.map((day) => {
-              const selection = plan[day.key];
-              const selected = recipeById.get(selection?.recipeId);
-              const availability = data.dayAvailability[day.key];
-              const recipeCard = selected ? plannerRecipeCardView(selected, availability) : null;
+              const dayPlan = plan[day.key] ?? {};
+              const dayMealCount = Object.keys(dayPlan).length;
               return (
-                <article className={`${styles.dayCard}${selected ? ` ${styles.dayCardPlanned}` : ""}`} key={day.key}>
+                <article className={`${styles.dayCard}${dayMealCount ? ` ${styles.dayCardPlanned}` : ""}`} key={day.key}>
                   <div className={styles.dayHeading}>
-                    <span>{day.short}</span>
-                    <strong>{day.label}</strong>
+                    <div><span>{day.short}</span><strong>{day.label}</strong></div>
+                    <small>{dayMealCount}/4 planned</small>
                   </div>
-                  <label className={styles.selectLabel}>
-                    <span>Recipe</span>
-                    <select aria-label={`Recipe for ${day.label}`} value={selection?.recipeId ?? ""} disabled={importingDay === day.key || saving} onChange={(event) => void assignRecipe(day.key, event.target.value)}>
-                      <option value="">Choose a recipe</option>
-                      {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
-                    </select>
-                  </label>
-                  {importingDay === day.key ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection && recipeCard ? (
-                    <>
-                      <div className={styles.recipeDetail}>
-                        {recipeCard.imageUrl ? (
-                          <div
-                            aria-label={`Finished ${selected.name}`}
-                            className={styles.plannedRecipeImage}
-                            role="img"
-                            style={{ backgroundImage: `url("${recipeCard.imageUrl}")` }}
-                          />
-                        ) : (
-                          <div aria-hidden="true" className={styles.plannedRecipeImageFallback}>◇</div>
-                        )}
-                        <div className={styles.plannedRecipeBody}>
-                          <span className={styles.recipeSource}>{recipeCard.sourceLabel}</span>
-                          <strong className={styles.plannedRecipeTitle}>{selected.name}</strong>
-                          {selected.description && <p>{selected.description}</p>}
-                          <div className={styles.recipeMeta}>
-                            {selected.minutes && <span>{selected.minutes} min</span>}
-                            <span>{recipeCard.ingredientLabel}</span>
-                            {recipeCard.pantryPercent !== null && <span>{recipeCard.pantryPercent}% in Pantry</span>}
-                          </div>
-                          <span className={styles.openRecipeLabel}>View full recipe →</span>
-                        </div>
-                        <button
-                          aria-label={`Open recipe for ${selected.name}`}
-                          className={styles.recipeCardAction}
-                          onClick={() => setOpenRecipe({ recipe: selected, servings: selection.servings })}
-                          type="button"
-                        />
-                      </div>
-                      <div className={styles.plannedRecipeControls}>
-                        <label className={styles.servingsField}>
-                          <span>Servings</span>
-                          <input
-                            aria-label={`Servings for ${day.label}`}
-                            min="1"
-                            max="100"
-                            onChange={(event) => changeServings(day.key, Number(event.target.value))}
-                            type="number"
-                            value={selection.servings}
-                          />
-                        </label>
-                        <span className={styles.pantryStatus}>
-                          {recipeCard.pantryPercent !== null ? (
-                            <><strong>{recipeCard.pantryPercent}%</strong>matched in Pantry</>
+                  <div className={styles.mealSlots}>
+                    {plannerMealSlots.map((slot) => {
+                      const selection = dayPlan[slot.key];
+                      const selected = selection ? recipeById.get(selection.recipeId) : undefined;
+                      const availability = data.dayAvailability[day.key]?.[slot.key];
+                      const recipeCard = selected ? plannerRecipeCardView(selected, availability) : null;
+                      const importing = importingDay === mealStateKey(day.key, slot.key);
+
+                      return (
+                        <section className={`${styles.mealSlot}${selected ? ` ${styles.mealSlotPlanned}` : ""}`} key={slot.key}>
+                          <label className={styles.selectLabel}>
+                            <span className={styles.mealSlotLabel}>{slot.label}{selected ? <small>Planned</small> : null}</span>
+                            <select
+                              aria-label={`${slot.label} recipe for ${day.label}`}
+                              value={selection?.recipeId ?? ""}
+                              disabled={importing || saving}
+                              onChange={(event) => void assignRecipe(day.key, slot.key, event.target.value)}
+                            >
+                              <option value="">Choose a recipe</option>
+                              {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
+                            </select>
+                          </label>
+                          {importing ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection && recipeCard ? (
+                            <>
+                              <div className={styles.recipeDetail}>
+                                {recipeCard.imageUrl ? (
+                                  <div
+                                    aria-label={`Finished ${selected.name}`}
+                                    className={styles.plannedRecipeImage}
+                                    role="img"
+                                    style={{ backgroundImage: `url("${recipeCard.imageUrl}")` }}
+                                  />
+                                ) : (
+                                  <div aria-hidden="true" className={styles.plannedRecipeImageFallback}>◇</div>
+                                )}
+                                <div className={styles.plannedRecipeBody}>
+                                  <span className={styles.recipeSource}>{recipeCard.sourceLabel}</span>
+                                  <strong className={styles.plannedRecipeTitle}>{selected.name}</strong>
+                                  {selected.description ? <p>{selected.description}</p> : null}
+                                  <div className={styles.recipeMeta}>
+                                    {selected.minutes && <span>{selected.minutes} min</span>}
+                                    <span>{recipeCard.ingredientLabel}</span>
+                                    {recipeCard.pantryPercent !== null && <span>{recipeCard.pantryPercent}% in Pantry</span>}
+                                  </div>
+                                  <span className={styles.openRecipeLabel}>View full recipe →</span>
+                                </div>
+                                <button
+                                  aria-label={`Open ${slot.label.toLowerCase()} recipe for ${selected.name}`}
+                                  className={styles.recipeCardAction}
+                                  onClick={() => setOpenRecipe({ recipe: selected, servings: selection.servings })}
+                                  type="button"
+                                />
+                              </div>
+                              <div className={styles.plannedRecipeControls}>
+                                <label className={styles.servingsField}>
+                                  <span>Servings</span>
+                                  <input
+                                    aria-label={`Servings for ${slot.label} on ${day.label}`}
+                                    min="1"
+                                    max="100"
+                                    onChange={(event) => changeServings(day.key, slot.key, Number(event.target.value))}
+                                    type="number"
+                                    value={selection.servings}
+                                  />
+                                </label>
+                                <span className={styles.pantryStatus}>
+                                  {recipeCard.pantryPercent !== null ? (
+                                    <><strong>{recipeCard.pantryPercent}%</strong>matched in Pantry</>
+                                  ) : (
+                                    <><strong>—</strong>Pantry check pending</>
+                                  )}
+                                </span>
+                              </div>
+                            </>
                           ) : (
-                            <><strong>—</strong>Pantry check pending</>
+                            <div className={styles.emptyRecipeSlot}>
+                              <span aria-hidden="true">+</span>
+                              <small>No {slot.label.toLowerCase()} planned</small>
+                            </div>
                           )}
-                        </span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className={styles.emptyRecipeCard}>
-                      <span aria-hidden="true">+</span>
-                      <strong>No meal selected</strong>
-                      <small>Choose from {data.recipes.length} complete recipe cards.</small>
-                    </div>
-                  )}
+                        </section>
+                      );
+                    })}
+                  </div>
                 </article>
               );
             })}
