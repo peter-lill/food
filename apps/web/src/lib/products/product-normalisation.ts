@@ -24,8 +24,8 @@ export type ParsedProductName = {
 };
 
 const fractionValues: Record<string, number> = {
-  "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3,
-  "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
+  "Â¼": 0.25, "Â½": 0.5, "Â¾": 0.75, "â…“": 1 / 3, "â…”": 2 / 3,
+  "â…›": 0.125, "â…œ": 0.375, "â…": 0.625, "â…ž": 0.875,
 };
 
 const spellingCorrections: Array<[RegExp, string]> = [
@@ -83,6 +83,11 @@ const preparationTerms = [
   "halved", "quartered", "melted", "softened", "cooked",
 ] as const;
 
+const recipePreparationSuffixes = [
+  /\btrimmed\s+of\s+woody\s+stalks?\b.*$/i,
+  /\bcut\s+into\s+(?:(?:\d+(?:\.\d+)?)\s*)?(?:cm|centimetres?)?\s*(?:pieces?|slices?|wedges?|cubes?)\b.*$/i,
+];
+
 const removableWords = new Set([
   "coarsely", "finely", "roughly", "thinly", "thickly", "chopped", "diced",
   "sliced", "grated", "shredded", "crushed", "drained", "rinsed", "trimmed",
@@ -116,9 +121,9 @@ export function normaliseProductText(value: string) {
   return cleanWhitespace(
     value
       .toLocaleLowerCase("en-AU")
-      .replace(/[’']/g, "")
+      .replace(/[â€™']/g, "")
       .replace(/&/g, " and ")
-      .replace(/[‐‑‒–—]/g, "-")
+      .replace(/[â€â€‘â€’â€“â€”]/g, "-")
       .replace(/[-_/]+/g, " ")
       .replace(/[^a-z0-9. ]+/g, " "),
   );
@@ -161,7 +166,7 @@ function replaceAliases(value: string) {
 }
 
 function extractQuantities(value: string) {
-  const prefix = value.match(/^\s*(?:x\s*)?(?:(\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b)?/i);
+  const prefix = value.match(/^\s*(?:x\s*)?(?:(\d+\s+\d+\/\d+|\d+\/\d+|[Â¼Â½Â¾â…“â…”â…›â…œâ…â…ž]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b)?/i);
   const quantity = parseNumber(prefix?.[1]);
   const packQuantity = prefix?.[2] ? Number(prefix[2]) : null;
   const packUnit = prefix?.[3]?.toLocaleLowerCase("en-AU") ?? null;
@@ -177,10 +182,17 @@ function extractQuantities(value: string) {
 function stripRecipePrefix(value: string) {
   return value
     .replace(/^\s*x\s+/i, "")
-    .replace(/^\s*(?:(\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b\s*)?/i, "")
+    .replace(/^\s*(?:(\d+\s+\d+\/\d+|\d+\/\d+|[Â¼Â½Â¾â…“â…”â…›â…œâ…â…ž]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b\s*)?/i, "")
     .replace(/^\s*(?:cups?|tablespoons?|tbsp|teaspoons?|tsp)\b\s*/i, "")
     .replace(/^\s*(?:cans?|tins?|jars?|packets?|packs?|bottles?|bunches?)\s+(?:of\s+)?/i, "")
     .trim();
+}
+
+function stripRecipePreparationSuffix(value: string) {
+  return cleanWhitespace(recipePreparationSuffixes.reduce(
+    (cleaned, pattern) => cleaned.replace(pattern, " "),
+    value,
+  )).replace(/\b(?:and|or|with|of)\s*$/i, "").trim();
 }
 
 function containsTerm(value: string, term: string) {
@@ -264,7 +276,7 @@ export function parseProductName(rawValue: string): ParsedProductName {
   const raw = cleanWhitespace(rawValue);
   const corrected = replaceAliases(raw);
   const quantities = extractQuantities(corrected);
-  const stripped = stripRecipePrefix(corrected);
+  const stripped = stripRecipePreparationSuffix(stripRecipePrefix(corrected));
   const attributes = detectAttributes(stripped);
   const variants = extractVariants(stripped);
   const coreName = canonicalCore(stripped, variants, attributes);
@@ -297,3 +309,4 @@ export function parseProductName(rawValue: string): ParsedProductName {
     attributes,
   };
 }
+

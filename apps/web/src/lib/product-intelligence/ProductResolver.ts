@@ -27,7 +27,7 @@ export type ProductResolution = {
 type ProductDatabase = Prisma.TransactionClient | typeof prisma;
 
 const genericProduceNames = new Set([
-  "Apple", "Avocado", "Banana", "Bean", "Beetroot", "Broccoli", "Button Mushroom",
+  "Apple", "Asparagus", "Avocado", "Banana", "Bean", "Beetroot", "Broccoli", "Button Mushroom",
   "Cabbage", "Capsicum", "Carrot", "Cauliflower", "Celery", "Cucumber", "Garlic",
   "Ginger", "Grape", "Lemon", "Lettuce", "Lime", "Mango", "Onion", "Orange",
   "Pear", "Potato", "Pumpkin", "Spinach", "Sweet Potato", "Tomato", "Watermelon", "Zucchini",
@@ -170,3 +170,4 @@ export class ProductResolver {
     };
   }
 }
+

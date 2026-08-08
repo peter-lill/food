@@ -3,6 +3,7 @@ import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 import { groceryConcepts } from "../src/lib/grocery-intelligence/ontology";
 import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
 import { productDepartment } from "../src/lib/products/product-category";
+import { parseProductName } from "../src/lib/products/product-normalisation";
 
 const cases: Array<{
   input: string;
@@ -15,6 +16,12 @@ const cases: Array<{
     input: "Large Zucchini",
     canonical: "Zucchini",
     size: "Large",
+  },
+  {
+    input: "140g asparagus trimmed of woody stalks and cut into 5cm pieces",
+    canonical: "Asparagus",
+    family: "Asparagus",
+    preparation: ["Trimmed", "Cut Into Pieces"],
   },
   {
     input: "Small Zucchini Cut Into 2cm Thick Slices",
@@ -184,6 +191,11 @@ for (const testCase of cases) {
 
 console.log(`Grocery Intelligence ${cases.length} regression checks passed.`);
 
+const asparagusIngredient = parseProductName("140g asparagus trimmed of woody stalks and cut into 5cm pieces");
+assert.equal(asparagusIngredient.canonicalName, "Asparagus");
+assert.equal(asparagusIngredient.canonicalKey, "asparagus");
+console.log("Recipe preparation suffix regression checks passed.");
+
 assert.equal(genericImageIdentity("Chicken Breast Horizontally"), "Chicken Breast");
 assert.equal(genericImageIdentity("Freshly Grated Parmesan"), "Parmesan");
 assert.equal(genericImageIdentity("Garlic Cloves"), "Garlic");
@@ -236,3 +248,4 @@ for (const concept of groceryConcepts()) {
   );
 }
 console.log("Product department checks passed.");
+

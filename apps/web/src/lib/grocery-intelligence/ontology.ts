@@ -58,6 +58,7 @@ const concepts: GroceryConcept[] = [
   { canonicalName: "Soft Wholemeal Sandwich Loaf", aliases: ["soft wholemeal sandwich loaf"], family: "Bread", preservePhrase: true },
   { canonicalName: "Zucchini", aliases: ["zucchini", "zucchinis", "courgette", "courgettes"], family: "Zucchini", preservePhrase: true },
   { canonicalName: "Apple", aliases: ["apple", "apples"], family: "Apple", preservePhrase: true },
+  { canonicalName: "Asparagus", aliases: ["asparagus"], family: "Asparagus", preservePhrase: true },
   { canonicalName: "Avocado", aliases: ["avocado", "avocados"], family: "Avocado", preservePhrase: true },
   { canonicalName: "Beetroot", aliases: ["beetroot", "beetroots", "beet"], family: "Beetroot", preservePhrase: true },
   { canonicalName: "Carrot", aliases: ["carrot", "carrots", "baby carrot", "baby carrots", "dutch carrot", "dutch carrots", "dutch carrot or baby carrot"], family: "Carrot", preservePhrase: true },
@@ -85,3 +86,4 @@ export function findGroceryConcept(value: string): GroceryConcept | null {
 export function groceryConcepts() {
   return concepts;
 }
+
