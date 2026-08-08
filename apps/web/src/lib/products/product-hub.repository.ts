@@ -30,6 +30,7 @@ export type ProductHubListItem = {
   latestRetailer: string | null;
   latestPackSize: string | null;
   latestObservedAt: Date | null;
+  priceNeedsSpecificVariant: boolean;
 };
 
 export type ProductHubDetail = {
@@ -230,6 +231,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   });
 
   const grouped = new Map<string, ProductHubListItem>();
+  const groupedProductIds = new Map<string, Set<string>>();
   const groupedHasGenericImage = new Set<string>();
   const genericFamilies = genericFamilyNames(products);
 
@@ -244,6 +246,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     const latest = product.priceObservations[0] ?? null;
     const familyName = resolvedFamilyName(product, genericFamilies);
     const familyKey = familyName.toLocaleLowerCase("en-AU");
+    const productIds = groupedProductIds.get(familyKey) ?? new Set<string>();
+    productIds.add(product.id);
+    groupedProductIds.set(familyKey, productIds);
     const current = grouped.get(familyKey);
     const familyImage = genericFamilyImage(familyName);
     const isGeneric = !product.brand && !product.barcode && product.storeProducts.length === 0;
@@ -266,6 +271,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         latestRetailer: latest?.retailer ?? null,
         latestPackSize: latest?.storeProduct?.packSize ?? null,
         latestObservedAt: latest?.observedAt ?? null,
+        priceNeedsSpecificVariant: false,
       });
       if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
       continue;
@@ -299,6 +305,10 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       current.latestPackSize = latest.storeProduct?.packSize ?? null;
       current.latestObservedAt = latest.observedAt;
     }
+  }
+
+  for (const [familyKey, item] of grouped) {
+    item.priceNeedsSpecificVariant = item.latestPrice !== null && (groupedProductIds.get(familyKey)?.size ?? 0) > 1;
   }
 
   return [...grouped.values()].sort((left, right) =>

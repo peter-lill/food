@@ -279,7 +279,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
                   {completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}
                   <div className={styles.priceRow}>
-                    <div><small>{product.latestPackSize ? `Latest price Â· ${product.latestPackSize}` : "Latest price"}</small><strong>{latestPrice ?? "Not priced"}</strong></div>
+                    <div>
+                      <small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestPackSize ? `Latest price Â· ${product.latestPackSize}` : "Latest price"}</small>
+                      <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
+                    </div>
                     <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
                   </div>
                   <div className={styles.meta}>
