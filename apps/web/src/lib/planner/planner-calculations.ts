@@ -1,5 +1,6 @@
 import {
   comparableRecipeQuantity,
+  createRecipeProductIndex,
   getIngredientAvailability,
   recipeIngredientIdentityKeys,
   type IngredientAvailability,
@@ -70,6 +71,7 @@ export function calculatePlannerAvailability(
   products: RecipeProductIdentity[],
 ) {
   const recipeById = new Map(recipes.map((recipe) => [recipe.id, recipe]));
+  const productIndex = createRecipeProductIndex(products);
   const scaledRequirements: IngredientAvailability[] = [];
   const dayAvailability: Record<string, PlannerDayAvailability> = {};
 
@@ -77,13 +79,10 @@ export function calculatePlannerAvailability(
     const recipe = recipeById.get(selection.recipeId);
     if (!recipe) continue;
     const scale = selection.servings / Math.max(recipe.servings, 1);
-    const dayIngredients = recipe.ingredients.map((ingredient) => {
-      const resolved = getIngredientAvailability(ingredient, products);
-      return getIngredientAvailability({
-        ...resolved,
-        quantity: resolved.quantity === null ? null : resolved.quantity * scale,
-      }, products);
-    });
+    const dayIngredients = recipe.ingredients.map((ingredient) => getIngredientAvailability({
+      ...ingredient,
+      quantity: ingredient.quantity === null ? null : ingredient.quantity * scale,
+    }, productIndex));
     const availableCount = dayIngredients.filter((ingredient) => ingredient.status === "in-pantry").length;
     dayAvailability[dayKey] = {
       availableCount,
@@ -94,7 +93,7 @@ export function calculatePlannerAvailability(
   }
 
   const weeklyRequirements = aggregatePlannerRequirements(scaledRequirements)
-    .map((ingredient) => getIngredientAvailability(ingredient, products));
+    .map((ingredient) => getIngredientAvailability(ingredient, productIndex));
 
   return {
     dayAvailability,

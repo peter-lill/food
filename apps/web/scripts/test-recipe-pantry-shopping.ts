@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   areEquivalentShoppingIngredients,
+  createRecipeProductIndex,
   getIngredientAvailability,
   mergeShoppingQuantity,
   recipeProductQueryCandidates,
@@ -30,27 +31,33 @@ const products: RecipeProductIdentity[] = [
     inventory: [{ quantity: 1, unit: "each" }],
   },
 ];
+const productIndex = createRecipeProductIndex(products);
+
+assert.equal(productIndex.byId.size, products.length, "the product index should contain each canonical product once");
 
 assert.equal(
-  getIngredientAvailability({ name: "Apple", quantity: 3, unit: "each", productId: "apple" }, products).status,
+  getIngredientAvailability({ name: "Apple", quantity: 3, unit: "each", productId: "apple" }, productIndex).status,
   "in-pantry",
   "canonical Ingredient.productId should match pantry stock",
 );
 
 assert.equal(
-  getIngredientAvailability({ name: "Banana", quantity: 2, unit: "each" }, products).status,
+  getIngredientAvailability({ name: "Banana", quantity: 2, unit: "each" }, productIndex).status,
   "missing",
   "an ingredient without a canonical product or stock should be missing",
 );
 
 assert.equal(
-  getIngredientAvailability({ name: "Cilantro", quantity: null, unit: null }, products).productId,
+  getIngredientAvailability({ name: "Cilantro", quantity: null, unit: null }, productIndex).productId,
   "coriander",
   "an exact product alias should resolve to its canonical product",
 );
 
 assert.equal(
-  getIngredientAvailability({ name: "Apple", quantity: 1, unit: "each" }, products.filter((product) => product.id === "pineapple")).status,
+  getIngredientAvailability(
+    { name: "Apple", quantity: 1, unit: "each" },
+    createRecipeProductIndex(products.filter((product) => product.id === "pineapple")),
+  ).status,
   "missing",
   "a substring such as apple in pineapple must not count as a pantry match",
 );
@@ -66,8 +73,8 @@ assert.ok(queryCandidates.normalisedAliases.includes("coriander"), "candidate lo
 assert.ok(!queryCandidates.normalisedAliases.includes("pineapple"), "candidate lookup must not expand to substring matches");
 
 const missing = [
-  getIngredientAvailability({ name: "Apple", quantity: 2, unit: "each" }, products),
-  getIngredientAvailability({ name: "Banana", quantity: 3, unit: "each" }, products),
+  getIngredientAvailability({ name: "Apple", quantity: 2, unit: "each" }, productIndex),
+  getIngredientAvailability({ name: "Banana", quantity: 3, unit: "each" }, productIndex),
 ].filter((ingredient) => ingredient.status !== "in-pantry");
 assert.deepEqual(missing.map((ingredient) => ingredient.name), ["Banana"], "only missing ingredients should be added to shopping");
 

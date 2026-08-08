@@ -3,6 +3,7 @@ import type { PlannerRecipe } from "@/lib/planner/planner.types";
 import bhfCatalogue from "@/generated/bhf-recipes.json";
 import { hwqSnackRecipes } from "./hwq-snacks";
 import {
+  createRecipeProductIndex,
   getIngredientAvailability,
   parseRecipeIngredientLine,
   recipeProductQueryCandidates,
@@ -111,9 +112,10 @@ export async function getRecipeAvailability(recipes: PlannerRecipe[]): Promise<R
     ...bhfCatalogue.recipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),
   ];
   const products = await getRecipeProductCatalogue(entries.flatMap(([, ingredients]) => ingredients));
+  const productIndex = createRecipeProductIndex(products);
 
   return Object.fromEntries(entries.map(([id, ingredients]) => [
     id,
-    ingredients.map((ingredient) => getIngredientAvailability(ingredient, products)),
+    ingredients.map((ingredient) => getIngredientAvailability(ingredient, productIndex)),
   ]));
 }

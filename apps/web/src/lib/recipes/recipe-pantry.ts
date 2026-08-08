@@ -15,6 +15,14 @@ export type RecipeProductIdentity = {
   inventory: Array<{ quantity: number; unit: string }>;
 };
 
+export type RecipeProductIndex = {
+  byId: Map<string, RecipeProductIdentity>;
+  byIdentityKey: Map<string, RecipeProductIdentity>;
+  productOrder: Map<string, number>;
+};
+
+export type RecipeProductLookup = RecipeProductIdentity[] | RecipeProductIndex;
+
 export type RecipeProductQueryCandidates = {
   productIds: string[];
   normalisedAliases: string[];
@@ -84,6 +92,29 @@ function productKeys(product: RecipeProductIdentity) {
   );
 }
 
+export function createRecipeProductIndex(
+  products: RecipeProductIdentity[],
+): RecipeProductIndex {
+  const byId = new Map<string, RecipeProductIdentity>();
+  const byIdentityKey = new Map<string, RecipeProductIdentity>();
+  const productOrder = new Map<string, number>();
+
+  products.forEach((product, index) => {
+    if (!byId.has(product.id)) byId.set(product.id, product);
+    if (!productOrder.has(product.id)) productOrder.set(product.id, index);
+
+    for (const key of productKeys(product)) {
+      if (!byIdentityKey.has(key)) byIdentityKey.set(key, product);
+    }
+  });
+
+  return { byId, byIdentityKey, productOrder };
+}
+
+function asRecipeProductIndex(products: RecipeProductLookup) {
+  return Array.isArray(products) ? createRecipeProductIndex(products) : products;
+}
+
 export function parseRecipeIngredientLine(line: string): RecipeIngredientInput {
   const main = line.split(",")[0]?.trim() ?? line.trim();
   const parsed = parseProductName(main);
@@ -94,18 +125,29 @@ export function parseRecipeIngredientLine(line: string): RecipeIngredientInput {
 
 export function resolveRecipeIngredientProduct(
   ingredient: RecipeIngredientInput,
-  products: RecipeProductIdentity[],
+  products: RecipeProductLookup,
 ) {
+  const productIndex = asRecipeProductIndex(products);
+
   if (ingredient.productId) {
-    const canonical = products.find((product) => product.id === ingredient.productId);
+    const canonical = productIndex.byId.get(ingredient.productId);
     if (canonical) return canonical;
   }
 
   const keys = recipeIngredientIdentityKeys(ingredient.name);
-  return products.find((product) => {
-    const candidates = productKeys(product);
-    return [...keys].some((key) => candidates.has(key));
-  }) ?? null;
+  let matchedProduct: RecipeProductIdentity | null = null;
+  let matchedOrder = Number.POSITIVE_INFINITY;
+  for (const key of keys) {
+    const candidate = productIndex.byIdentityKey.get(key);
+    if (!candidate) continue;
+    const candidateOrder = productIndex.productOrder.get(candidate.id) ?? Number.POSITIVE_INFINITY;
+    if (candidateOrder < matchedOrder) {
+      matchedProduct = candidate;
+      matchedOrder = candidateOrder;
+    }
+  }
+
+  return matchedProduct;
 }
 
 export function comparableRecipeQuantity(quantity: number, unit: string | null) {
@@ -116,7 +158,7 @@ export function comparableRecipeQuantity(quantity: number, unit: string | null) 
 
 export function getIngredientAvailability(
   ingredient: RecipeIngredientInput,
-  products: RecipeProductIdentity[],
+  products: RecipeProductLookup,
 ): IngredientAvailability {
   const product = resolveRecipeIngredientProduct(ingredient, products);
   if (!product) return { ...ingredient, productId: null, status: "missing" };
