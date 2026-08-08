@@ -20,11 +20,11 @@ body {
 
 @media (min-width: 901px) {
   .app-frame {
-    grid-template-columns: 258px minmax(0, 1fr) !important;
+    grid-template-columns: 342px minmax(0, 1fr) !important;
     transition: grid-template-columns .22s ease;
   }
   .app-frame.sidebar-collapsed { grid-template-columns: 82px minmax(0, 1fr) !important; }
-  .sidebar { padding: 17px 13px 13px !important; }
+  .sidebar { padding: 24px 18px 16px !important; }
   .workspace > .content-shell {
     width: 100% !important;
     max-width: 1580px !important;
@@ -40,7 +40,8 @@ body {
   height: 100dvh;
   max-height: 100dvh;
   background:
-    radial-gradient(circle at 18% 0, rgba(220, 241, 226, .72), transparent 15rem),
+    radial-gradient(circle at 10% 0, rgba(220, 241, 226, .82), transparent 17rem),
+    radial-gradient(circle at 100% 45%, rgba(248, 229, 185, .32), transparent 19rem),
     rgba(255, 255, 255, .96);
   border-right: 1px solid var(--food-line);
   box-shadow: 12px 0 38px rgba(24, 65, 48, .04);
@@ -52,9 +53,9 @@ body {
   align-items: center;
   flex: 0 0 auto;
   min-width: 0;
-  gap: 10px;
+  gap: 12px;
   margin: 0 2px;
-  padding: 6px 6px 16px !important;
+  padding: 5px 7px 20px !important;
   border-bottom: 1px solid var(--food-line);
   color: var(--food-ink);
 }
@@ -70,7 +71,7 @@ body {
 }
 .wordmark-mark svg { display: none !important; }
 .wordmark-copy { display: block; min-width: 0; transition: opacity .15s ease; }
-.wordmark strong { color: var(--food-ink); font-size: 21px !important; letter-spacing: -.04em; line-height: 1; }
+.wordmark strong { color: var(--food-ink); font-size: 24px !important; letter-spacing: -.05em; line-height: 1; }
 .wordmark small { color: #728078; font-weight: 700; }
 .wordmark .wordmark-eyebrow { margin-bottom: 4px; color: var(--food-green); font-size: 8px; font-weight: 900; letter-spacing: .16em; }
 .side-nav {
@@ -78,20 +79,20 @@ body {
   align-content: start;
   flex: 1 1 auto;
   min-height: 0;
-  gap: 10px !important;
+  gap: 13px !important;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 13px 1px 10px;
+  padding: 18px 2px 13px;
   scrollbar-width: none;
 }
 .side-nav::-webkit-scrollbar { display: none; }
 .side-nav-group, .side-nav-items { display: grid; }
-.side-nav-group { gap: 4px; }
-.side-nav-items { gap: 2px; }
+.side-nav-group { gap: 5px; }
+.side-nav-items { gap: 3px; }
 .side-nav-label {
-  margin: 0 10px 2px;
+  margin: 0 11px 3px;
   color: #87948c;
-  font-size: 8px;
+  font-size: 9px;
   font-weight: 900;
   letter-spacing: .17em;
   line-height: 1.4;
@@ -101,17 +102,17 @@ body {
   position: relative;
   display: flex;
   align-items: center;
-  min-height: 38px !important;
-  padding: 0 8px !important;
-  gap: 9px !important;
-  border-radius: 12px;
+  min-height: 44px !important;
+  padding: 0 11px !important;
+  gap: 11px !important;
+  border-radius: 14px;
   color: #5d6d65;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 780;
   border: 1px solid transparent;
   transition: background .18s ease, color .18s ease, box-shadow .18s ease, transform .18s ease;
 }
-.side-link:hover { color: var(--food-forest); background: #eef6ef; transform: translateX(2px); }
+.side-link:hover { color: var(--food-forest); background: rgba(255,255,255,.82); transform: translateX(2px); }
 .side-link.active {
   color: var(--food-forest);
   border-color: rgba(47, 125, 91, .15);
@@ -119,10 +120,14 @@ body {
   box-shadow: 0 7px 18px rgba(31, 85, 59, .075);
 }
 .side-link-label { width: auto !important; min-width: 0; text-align: left !important; white-space: nowrap; }
-.side-link-icon { display: grid; place-items: center; flex: 0 0 auto; width: 27px !important; height: 27px; border-radius: 8px; background: #f0f6f0; color: var(--food-green); }
+.side-link-icon { display: grid; place-items: center; flex: 0 0 auto; width: 30px !important; height: 30px; border-radius: 9px; background: #f0f6f0; color: var(--food-green); }
 .side-link-icon svg { width: 16px; height: 16px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .side-link.active .side-link-icon { background: #fff; color: #087d51; box-shadow: 0 4px 12px rgba(31, 85, 59, .09); }
 .side-link-indicator { position: absolute; right: 8px; width: 5px !important; height: 5px; border-radius: 50%; background: #0ba66a; box-shadow: 0 0 0 3px rgba(11, 166, 106, .1); }
+.sidebar-recipes { display: grid; flex: 0 0 auto; gap: 11px; margin: 8px 2px 12px; padding: 12px; border: 1px solid rgba(47, 125, 91, .16); border-radius: 20px; background: rgba(255,255,255,.76); box-shadow: 0 14px 30px rgba(25, 67, 49, .09); }
+.sidebar-recipe-images { display: grid; grid-template-columns: 1.35fr .8fr .8fr; gap: 5px; height: 92px; overflow: hidden; border-radius: 13px; }
+.sidebar-recipe-images img { width: 100%; height: 100%; object-fit: cover; }.sidebar-recipe-images img:first-child { grid-row: span 2; }.sidebar-recipe-images img:nth-child(2) { object-position: center 35%; }
+.sidebar-recipes-copy { display: grid; gap: 4px; }.sidebar-recipes-copy > span { color: var(--food-green); font-size: 9px; font-weight: 900; letter-spacing: .13em; }.sidebar-recipes-copy strong { color: var(--food-ink); font-size: 15px; line-height: 1.2; letter-spacing: -.025em; }.sidebar-recipes-copy a { color: var(--food-green); font-size: 12px; font-weight: 850; }
 .sidebar-footer { display: grid; flex: 0 0 auto; gap: 7px; padding-top: 10px; border-top: 1px solid var(--food-line); }
 .sidebar-note { display: flex; align-items: center; min-height: 44px; margin: 0; border: 1px solid var(--food-line); background: #fff; box-shadow: none; }
 .sidebar-profile { display: flex; align-items: center; gap: 9px; margin: 0; padding: 7px; border: 1px solid var(--food-line); border-radius: 14px; background: rgba(255, 255, 255, .8); box-shadow: 0 7px 22px rgba(25, 67, 49, .055); }
@@ -159,6 +164,7 @@ body {
   .sidebar-collapsed .sidebar-profile-arrow,
   .sidebar-collapsed .sidebar-collapse span,
   .sidebar-collapsed .sidebar-note > span:last-child { display: none; }
+  .sidebar-collapsed .sidebar-recipes { display: none; }
   .sidebar-collapsed .side-nav { padding-inline: 0; }
   .sidebar-collapsed .side-nav-group { gap: 7px; }
   .sidebar-collapsed .side-nav-label { height: 1px; margin: 1px 11px; overflow: hidden; background: var(--food-line); color: transparent; font-size: 0; }
