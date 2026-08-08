@@ -35,23 +35,33 @@ export type PlannerShoppingList = {
   remainingCount: number;
 };
 
-export type PlannerDaySelection = {
+export type PlannerMealSelection = {
   recipeId: string;
   servings: number;
 };
 
-export type PlannerDayAvailability = {
+export type PlannerDayPlan = Partial<Record<
+  import("./planner-meals").PlannerMealSlot,
+  PlannerMealSelection
+>>;
+
+export type PlannerRecipeAvailability = {
   availableCount: number;
   ingredientCount: number;
   percent: number;
 };
+
+export type PlannerDayAvailability = Partial<Record<
+  import("./planner-meals").PlannerMealSlot,
+  PlannerRecipeAvailability
+>>;
 
 export type PlannerWorkspaceData = {
   recipes: PlannerRecipe[];
   pantryItems: PlannerPantryItem[];
   shoppingLists: PlannerShoppingList[];
   weekStart: string;
-  plan: Record<string, PlannerDaySelection>;
+  plan: Record<string, PlannerDayPlan>;
   dayAvailability: Record<string, PlannerDayAvailability>;
   missingIngredients: import("@/lib/recipes/recipe-pantry").IngredientAvailability[];
 };

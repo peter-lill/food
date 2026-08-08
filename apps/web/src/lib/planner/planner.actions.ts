@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/prisma";
 import { addRecipeIngredientsToShoppingList } from "@/lib/recipes/recipe-shopping";
+import { isPlannerMealSlot } from "./planner-meals";
 import { getPlannerWorkspace, isStaticPlannerRecipeId } from "./planner.repository";
 
 const maximumServings = 100;
@@ -21,9 +22,10 @@ async function knownRecipe(recipeId: string) {
   return Boolean(await prisma.recipe.findUnique({ where: { id: recipeId }, select: { id: true } }));
 }
 
-export async function savePlannerDay(
+export async function savePlannerMeal(
   weekStartValue: string,
   day: number,
+  slotValue: string,
   recipeId: string,
   servings: number,
 ) {
@@ -31,9 +33,10 @@ export async function savePlannerDay(
   const weekStart = validWeekStart(weekStartValue);
   const cleanRecipeId = recipeId.trim();
 
-  if (!weekStart || !Number.isInteger(day) || day < 0 || day > 6) {
+  if (!weekStart || !Number.isInteger(day) || day < 0 || day > 6 || !isPlannerMealSlot(slotValue)) {
     return { ok: false as const, error: "That planner day is invalid." };
   }
+  const slot = slotValue;
   if (cleanRecipeId && (!Number.isInteger(servings) || servings < 1 || servings > maximumServings)) {
     return { ok: false as const, error: "Servings must be between 1 and 100." };
   }
@@ -49,12 +52,12 @@ export async function savePlannerDay(
   });
 
   if (!cleanRecipeId) {
-    await prisma.weeklyMealPlanEntry.deleteMany({ where: { mealPlanId: plan.id, day } });
+    await prisma.weeklyMealPlanEntry.deleteMany({ where: { mealPlanId: plan.id, day, slot } });
   } else {
     await prisma.weeklyMealPlanEntry.upsert({
-      where: { mealPlanId_day: { mealPlanId: plan.id, day } },
+      where: { mealPlanId_day_slot: { mealPlanId: plan.id, day, slot } },
       update: { recipeKey: cleanRecipeId, servings },
-      create: { mealPlanId: plan.id, day, recipeKey: cleanRecipeId, servings },
+      create: { mealPlanId: plan.id, day, slot, recipeKey: cleanRecipeId, servings },
     });
   }
 

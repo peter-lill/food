@@ -500,10 +500,12 @@ model WeeklyMealPlanEntry {
   id         String         @id @default(cuid())
   mealPlanId String
   day        Int
+  slot       String         @default("dinner")
   recipeKey  String
   servings   Int
   mealPlan   WeeklyMealPlan @relation(fields: [mealPlanId], references: [id], onDelete: Cascade)
 
-  @@unique([mealPlanId, day])
+  @@unique([mealPlanId, day, slot])
+  @@index([mealPlanId, day])
   @@index([recipeKey])
 }

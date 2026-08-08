@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { hwqSnackRecipes } from "../src/lib/recipes/hwq-snacks";
 import bhfCatalogue from "../src/generated/bhf-recipes.json";
 import { plannerRecipeCardView } from "../src/lib/planner/planner-card";
 import { calculatePlannerAvailability } from "../src/lib/planner/planner-calculations";
+import { plannerMealSlots, withPlannerMealSelection } from "../src/lib/planner/planner-meals";
 import { currentPlannerWeekStart } from "../src/lib/planner/planner-week";
 import type { PlannerRecipe } from "../src/lib/planner/planner.types";
 import type { RecipeProductIdentity } from "../src/lib/recipes/recipe-pantry";
@@ -46,7 +48,7 @@ const products: RecipeProductIdentity[] = [
 ];
 
 const scaled = calculatePlannerAvailability(
-  [{ dayKey: "monday", selection: { recipeId: appleRecipe.id, servings: 4 } }],
+  [{ dayKey: "monday", slot: "dinner", selection: { recipeId: appleRecipe.id, servings: 4 } }],
   [appleRecipe],
   products,
 );
@@ -54,7 +56,7 @@ assert.equal(scaled.missingIngredients[0]?.status, "partial", "serving scaling s
 assert.equal(scaled.missingIngredients[0]?.shoppingQuantity, 1, "shopping should receive only the scaled missing quantity");
 
 const aliasMatched = calculatePlannerAvailability(
-  [{ dayKey: "monday", selection: { recipeId: "alias-apple", servings: 1 } }],
+  [{ dayKey: "monday", slot: "breakfast", selection: { recipeId: "alias-apple", servings: 1 } }],
   [{ ...appleRecipe, id: "alias-apple", servings: 1, ingredients: [{ name: "Gala apple", quantity: 1, unit: "each" }] }],
   products,
 );
@@ -62,17 +64,19 @@ assert.equal(aliasMatched.missingIngredients.length, 0, "a product alias should 
 
 const aggregated = calculatePlannerAvailability(
   [
-    { dayKey: "monday", selection: { recipeId: flourRecipe.id, servings: 1 } },
-    { dayKey: "tuesday", selection: { recipeId: flourRecipe.id, servings: 1 } },
+    { dayKey: "monday", slot: "lunch", selection: { recipeId: flourRecipe.id, servings: 1 } },
+    { dayKey: "monday", slot: "dinner", selection: { recipeId: flourRecipe.id, servings: 1 } },
   ],
   [flourRecipe],
   products,
 );
 assert.equal(aggregated.missingIngredients.length, 1, "equivalent weekly ingredients should aggregate to one shopping requirement");
 assert.equal(aggregated.missingIngredients[0]?.shoppingQuantity, 250, "pantry stock should be subtracted once across the week");
+assert.equal(aggregated.dayAvailability.monday?.lunch?.ingredientCount, 1, "Lunch should retain independent Pantry availability");
+assert.equal(aggregated.dayAvailability.monday?.dinner?.ingredientCount, 1, "Dinner should retain independent Pantry availability");
 
 const noSubstring = calculatePlannerAvailability(
-  [{ dayKey: "monday", selection: { recipeId: appleRecipe.id, servings: 2 } }],
+  [{ dayKey: "monday", slot: "snacks", selection: { recipeId: appleRecipe.id, servings: 2 } }],
   [appleRecipe],
   [{ id: "pineapple", name: "Pineapple", canonicalName: "Pineapple", aliases: [], inventory: [{ quantity: 2, unit: "each" }] }],
 );
@@ -101,6 +105,24 @@ assert.equal(
   null,
   "new selections should show a pending Pantry check instead of a false zero",
 );
+
+assert.deepEqual(
+  plannerMealSlots.map((slot) => slot.label),
+  ["Breakfast", "Lunch", "Dinner", "Snacks"],
+  "Planner should expose the four fixed daily meal slots",
+);
+let multiMealPlan = withPlannerMealSelection({}, "monday", "breakfast", { recipeId: appleRecipe.id, servings: 2 });
+multiMealPlan = withPlannerMealSelection(multiMealPlan, "monday", "dinner", { recipeId: flourRecipe.id, servings: 1 });
+assert.equal(Object.keys(multiMealPlan.monday ?? {}).length, 2, "adding Dinner must not replace Breakfast");
+multiMealPlan = withPlannerMealSelection(multiMealPlan, "monday", "breakfast", null);
+assert.equal(multiMealPlan.monday?.dinner?.recipeId, flourRecipe.id, "clearing Breakfast must preserve Dinner");
+
+const fixedSlotMigration = readFileSync(
+  new URL("../prisma/migrations/20260808160000_fixed_planner_meal_slots/migration.sql", import.meta.url),
+  "utf8",
+);
+assert.match(fixedSlotMigration, /DEFAULT 'dinner'/, "existing one-per-day meals should migrate into Dinner");
+assert.match(fixedSlotMigration, /mealPlanId_day_slot/, "meal slots should be independently unique within each day");
 
 assert.equal(hwqSnackRecipes.length, 20, "all HWQ full recipe cards remain available to Planner");
 assert.ok(bhfCatalogue.recipes.length > 0 && bhfCatalogue.recipes.every((recipe) => recipe.ingredients.length), "all BHF catalogue cards remain plannable");
