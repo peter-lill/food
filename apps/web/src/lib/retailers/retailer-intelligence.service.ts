@@ -3,6 +3,7 @@ import {
   searchColesAndWoolworthsCatalogue,
   type RetailerCatalogueCandidate,
 } from "@/lib/prices/coles-woolworths-provider";
+import { retailerListingIdentity } from "@/lib/retailers/retailer-listing-identity";
 
 const refreshWindowMs = 6 * 60 * 60 * 1000;
 
@@ -92,38 +93,46 @@ async function recentlyRefreshed(productId: string) {
 }
 
 async function persistCandidate(product: ProductIdentity, candidate: RetailerCatalogueCandidate) {
-  if (!candidate.externalId) return null;
+  const identity = retailerListingIdentity(candidate);
+  const listingData = {
+    productId: product.id,
+    retailer: candidate.retailer,
+    externalId: candidate.externalId,
+    retailerProductName: candidate.productName,
+    brand: product.brand,
+    packSize: candidate.packSize,
+    productUrl: candidate.sourceUrl,
+    imageUrl: candidate.imageUrl,
+    active: true,
+    lastSeenAt: new Date(),
+  };
 
-  const listing = await prisma.storeProduct.upsert({
-    where: {
-      retailer_externalId: {
-        retailer: candidate.retailer,
-        externalId: candidate.externalId,
+  const listing = identity.kind === "external-id"
+    ? await prisma.storeProduct.upsert({
+      where: {
+        retailer_externalId: {
+          retailer: candidate.retailer,
+          externalId: identity.externalId,
+        },
       },
-    },
-    create: {
-      productId: product.id,
-      retailer: candidate.retailer,
-      externalId: candidate.externalId,
-      retailerProductName: candidate.productName,
-      brand: product.brand,
-      packSize: candidate.packSize,
-      productUrl: candidate.sourceUrl,
-      imageUrl: candidate.imageUrl,
-      active: true,
-      lastSeenAt: new Date(),
-    },
-    update: {
-      productId: product.id,
-      retailerProductName: candidate.productName,
-      brand: product.brand,
-      packSize: candidate.packSize,
-      productUrl: candidate.sourceUrl,
-      imageUrl: candidate.imageUrl,
-      active: true,
-      lastSeenAt: new Date(),
-    },
-  });
+      create: listingData,
+      update: listingData,
+    })
+    : await (async () => {
+      const existing = await prisma.storeProduct.findFirst({
+        where: {
+          productId: product.id,
+          retailer: identity.retailer,
+          externalId: null,
+          retailerProductName: identity.retailerProductName,
+          packSize: identity.packSize,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      return existing
+        ? prisma.storeProduct.update({ where: { id: existing.id }, data: listingData })
+        : prisma.storeProduct.create({ data: listingData });
+    })();
 
   if (candidate.price !== null && Number.isFinite(candidate.price) && candidate.price > 0) {
     const latest = await prisma.priceObservation.findFirst({
@@ -198,3 +207,4 @@ export async function enrichProductRetailers(productId: string, options?: { forc
 
   return { refreshed: true, matches: accepted.length };
 }
+
