@@ -2,55 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Fragment, useEffect, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import { authClient } from "@/lib/auth-client";
-import { NavigationIcon, type NavigationIconName } from "@/components/navigation/NavigationIcon";
-
-type NavigationItem = {
-  label: string;
-  href: string;
-  icon: NavigationIconName;
-  section: string;
-};
-
-const ownerNavigation = [
-  { label: "Today", href: "/", icon: "home", section: "Plan" },
-  { label: "Planner", href: "/planner", icon: "planner", section: "Plan" },
-  { label: "Shopping", href: "/shopping", icon: "shopping", section: "Plan" },
-  { label: "Pantry", href: "/pantry", icon: "pantry", section: "Kitchen" },
-  { label: "Products", href: "/products", icon: "products", section: "Kitchen" },
-  { label: "Scan", href: "/scan", icon: "scan", section: "Kitchen" },
-  { label: "Receipts", href: "/receipts", icon: "receipts", section: "Kitchen" },
-  { label: "Prices", href: "/prices", icon: "prices", section: "Kitchen" },
-  { label: "Recipes", href: "/recipes", icon: "recipes", section: "Library" },
-  { label: "Health", href: "/health", icon: "health", section: "Library" },
-  { label: "Account", href: "/account", icon: "account", section: "Settings" },
-] satisfies readonly NavigationItem[];
-
-const memberNavigation = [
-  { label: "Recipes", href: "/recipes", icon: "recipes", section: "Library" },
-  { label: "Households", href: "/households", icon: "households", section: "Home" },
-  { label: "Account", href: "/account", icon: "account", section: "Settings" },
-] satisfies readonly NavigationItem[];
-
-const mobilePrimaryLabels = new Set(["Today", "Planner", "Pantry", "Shopping"]);
-
-const desktopSidebarStyle: CSSProperties = {
-  position: "sticky",
-  top: 0,
-  height: "100dvh",
-  maxHeight: "100dvh",
-  overflow: "hidden",
-};
-
-const desktopSideNavStyle: CSSProperties = {
-  flex: "1 1 auto",
-  minHeight: 0,
-  overflowY: "auto",
-  overscrollBehavior: "contain",
-  paddingRight: 2,
-  scrollbarGutter: "stable",
-};
+import { NavigationIcon } from "@/components/navigation/NavigationIcon";
+import {
+  desktopNavigationFor,
+  groupNavigation,
+  memberNavigation,
+  mobilePrimaryLabels,
+  ownerNavigation,
+} from "@/lib/navigation/navigation";
 
 type InitialUser = {
   name: string;
@@ -91,6 +52,7 @@ export function AppShell({
   const [pathname, setPathname] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [healthPaired, setHealthPaired] = useState(initialHealthPaired);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const user = !hydrated || isPending
     ? initialUser
@@ -100,9 +62,8 @@ export function AppShell({
     ? ownerNavigation
     : ownerNavigation.filter((item) => item.label !== "Health");
   const navigation = owner ? ownerItems : user ? memberNavigation : memberNavigation.slice(0, 1);
-  const desktopNavigation = user
-    ? navigation.filter((item) => item.label !== "Account")
-    : navigation;
+  const desktopNavigation = desktopNavigationFor(navigation, Boolean(user));
+  const desktopSections = groupNavigation(desktopNavigation);
   const mobilePrimaryNavigation = owner ? navigation.filter((item) => mobilePrimaryLabels.has(item.label)) : navigation;
   const mobileMoreNavigation = owner ? navigation.filter((item) => !mobilePrimaryLabels.has(item.label) && item.label !== "Scan") : [];
   const mobileItemCount = mobilePrimaryNavigation.length + (mobileMoreNavigation.length > 0 ? 1 : 0);
@@ -162,20 +123,52 @@ export function AppShell({
   const hideMobileScanAction = pathname.startsWith("/scan") || pathname.startsWith("/receipts");
 
   return (
-    <div className="app-frame">
-      <aside className="sidebar" style={desktopSidebarStyle}>
-        <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home">
+    <div className={`app-frame${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
+      <aside aria-label="Food navigation panel" className="sidebar">
+        <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home" title={sidebarCollapsed ? "Food home" : undefined}>
           <span className="wordmark-mark"><FoodMark /></span>
-          <span><small className="wordmark-eyebrow">YOUR KITCHEN</small><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
+          <span className="wordmark-copy"><small className="wordmark-eyebrow">YOUR KITCHEN</small><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
         </Link>
-        <nav className="side-nav" aria-label="Primary navigation" style={desktopSideNavStyle}>
-          {desktopNavigation.map((item, index) => {
-            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            const showSection = index === 0 || desktopNavigation[index - 1]?.section !== item.section;
-            return <Fragment key={item.href}>{showSection ? <span className="side-nav-label">{item.section}</span> : null}<Link aria-current={active ? "page" : undefined} className={active ? "side-link active" : "side-link"} href={item.href}><span className="side-link-icon"><NavigationIcon name={item.icon} /></span><span>{item.label}</span>{active ? <span className="side-link-indicator" aria-hidden="true" /> : null}</Link></Fragment>;
-          })}
+        <nav className="side-nav" aria-label="Primary navigation">
+          {desktopSections.map((group) => (
+            <div className="side-nav-group" key={group.section}>
+              <span className="side-nav-label">{group.section}</span>
+              <div className="side-nav-items">
+                {group.items.map((item) => {
+                  const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      aria-current={active ? "page" : undefined}
+                      aria-label={sidebarCollapsed ? item.label : undefined}
+                      className={active ? "side-link active" : "side-link"}
+                      href={item.href}
+                      key={item.href}
+                      title={sidebarCollapsed ? item.label : undefined}
+                    >
+                      <span className="side-link-icon"><NavigationIcon name={item.icon} /></span>
+                      <span className="side-link-label">{item.label}</span>
+                      {active ? <span className="side-link-indicator" aria-hidden="true" /> : null}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </nav>
-        {user ? <Link className="sidebar-profile" href="/account"><span className="sidebar-avatar">{initials(user.name)}</span><span className="sidebar-profile-copy"><small>Signed in</small><strong>{user.name}</strong></span><span className="sidebar-profile-arrow" aria-hidden="true">→</span></Link> : <div className="sidebar-note"><span className="status-dot" />Recipes are open to everyone</div>}
+        <div className="sidebar-footer">
+          {user ? <Link aria-label={`Account for ${user.name}`} className="sidebar-profile" href="/account" title={sidebarCollapsed ? user.name : undefined}><span className="sidebar-avatar">{initials(user.name)}</span><span className="sidebar-profile-copy"><small>Signed in</small><strong>{user.name}</strong></span><span className="sidebar-profile-arrow" aria-hidden="true">→</span></Link> : <div className="sidebar-note"><span className="status-dot" /><span>Recipes are open to everyone</span></div>}
+          <button
+            aria-label={sidebarCollapsed ? "Expand navigation panel" : "Collapse navigation panel"}
+            aria-pressed={sidebarCollapsed}
+            className="sidebar-collapse"
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            title={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+            type="button"
+          >
+            <svg aria-hidden="true" fill="none" viewBox="0 0 24 24"><path d="m14 7-5 5 5 5" /></svg>
+            <span>{sidebarCollapsed ? "Expand panel" : "Collapse panel"}</span>
+          </button>
+        </div>
       </aside>
       <div className="workspace">
         <main className="content-shell">{children}</main>

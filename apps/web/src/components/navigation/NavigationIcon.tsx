@@ -1,16 +1,4 @@
-export type NavigationIconName =
-  | "account"
-  | "health"
-  | "home"
-  | "households"
-  | "pantry"
-  | "planner"
-  | "prices"
-  | "products"
-  | "receipts"
-  | "recipes"
-  | "scan"
-  | "shopping";
+import type { NavigationIconName } from "@/lib/navigation/navigation";
 
 export function NavigationIcon({ name }: { name: NavigationIconName }) {
   return (
