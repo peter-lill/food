@@ -267,12 +267,14 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                             <>
                               <div className={styles.recipeDetail}>
                                 {recipeCard.imageUrl ? (
-                                  <div
-                                    aria-label={`Finished ${selected.name}`}
-                                    className={styles.plannedRecipeImage}
-                                    role="img"
-                                    style={{ backgroundImage: `url("${recipeCard.imageUrl}")` }}
-                                  />
+                                  <div className={styles.plannedRecipeImage}>
+                                    <Image
+                                      alt={`Finished ${selected.name}`}
+                                      fill
+                                      sizes="(max-width: 680px) 42vw, (max-width: 1200px) 34vw, 220px"
+                                      src={recipeCard.imageUrl}
+                                    />
+                                  </div>
                                 ) : (
                                   <div aria-hidden="true" className={styles.plannedRecipeImageFallback}>◇</div>
                                 )}

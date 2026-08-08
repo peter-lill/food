@@ -155,6 +155,18 @@ export function AppShell({
             </div>
           ))}
         </nav>
+        <section className="sidebar-recipes" aria-label="Recipe inspiration">
+          <div className="sidebar-recipe-images" aria-hidden="true">
+            <img alt="" src="/recipes/lemon-herb-chicken-bowl.webp" />
+            <img alt="" src="/recipes/salmon-rice-greens.webp" />
+            <img alt="" src="/recipes/lean-beef-burrito-bowl.webp" />
+          </div>
+          <div className="sidebar-recipes-copy">
+            <span>MAKE IT YOURS</span>
+            <strong>Something good for dinner</strong>
+            <Link href="/recipes">Explore recipes <span aria-hidden="true">→</span></Link>
+          </div>
+        </section>
         <div className="sidebar-footer">
           {user ? <Link aria-label={`Account for ${user.name}`} className="sidebar-profile" href="/account" title={sidebarCollapsed ? user.name : undefined}><span className="sidebar-avatar">{initials(user.name)}</span><span className="sidebar-profile-copy"><small>Signed in</small><strong>{user.name}</strong></span><span className="sidebar-profile-arrow" aria-hidden="true">→</span></Link> : <div className="sidebar-note"><span className="status-dot" /><span>Recipes are open to everyone</span></div>}
           <button
