@@ -5,6 +5,24 @@ button.mobile-link {
   cursor: pointer;
 }
 
+.mobile-link > span,
+.mobile-more-link > span,
+.mobile-scan-action > span {
+  display: grid;
+  place-items: center;
+}
+
+.mobile-link svg,
+.mobile-more-link svg,
+.mobile-scan-action svg {
+  width: 21px;
+  height: 21px;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
 .mobile-more-backdrop {
   display: none;
 }
