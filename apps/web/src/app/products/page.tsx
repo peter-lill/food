@@ -184,17 +184,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.mobileHero}>
         <div className={styles.mobileHeroHeading}>
-          <span className={styles.mobileHeroMark} aria-hidden="true">â—ˆ</span>
+          <span className={styles.mobileHeroMark} aria-hidden="true">*</span>
           <div><p className="eyebrow">PRODUCT LIBRARY</p><h1>Your products</h1></div>
         </div>
         <ProductActions />
       </section>
 
       <section className={styles.summaryGrid} aria-label="Product catalogue summary">
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>â–¡</span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}>P</span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}>$</span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>â—‡</span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>âŒ‚</span><div><strong>{retailerCount}</strong><small>retailers tracked</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}>R</span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}>S</span><div><strong>{retailerCount}</strong><small>retailers tracked</small></div></article>
       </section>
 
       <section className={styles.cataloguePanel}>
@@ -206,7 +206,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           </div>
           <form className={styles.search}>
             {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
-            <div className={styles.searchField}><span aria-hidden="true">âŒ•</span><input aria-label="Search products" defaultValue={q} name="q" placeholder="Search name, brand or barcode" type="search" /></div>
+            <div className={styles.searchField}><span aria-hidden="true">?</span><input aria-label="Search products" defaultValue={q} name="q" placeholder="Search name, brand or barcode" type="search" /></div>
             <button className={styles.searchButton} type="submit">Search</button>
           </form>
         </div>
@@ -236,7 +236,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const completeness = completionScore(product);
             const observed = observedLabel(product.latestObservedAt);
             const generic = isGenericFood(product);
-            const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" Â· ") || "Brand not added";
+            const detailLine = generic ? null : [product.brand, product.barcode ? `Barcode ${product.barcode}` : null].filter(Boolean).join(" / ") || "Brand not added";
             const productImage = product.imageUrl
               ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
               : null;
@@ -263,7 +263,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                         boxSizing: "border-box",
                       }}
                     />
-                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>â—ˆ</span><small>{generic ? "Fresh produce" : "Image pending"}</small></div>}
+                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>+</span><small>{generic ? "Fresh produce" : "Image pending"}</small></div>}
                   <div className={styles.badges}>
                     {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
                     {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
@@ -292,7 +292,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     {!generic && !product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
                     {!generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
                   </div>
-                  <span className={styles.openLabel}>View product <span aria-hidden="true">â†’</span></span>
+                  <span className={styles.openLabel}>View product <span aria-hidden="true">-&gt;</span></span>
                 </div>
                 <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />
               </article>
