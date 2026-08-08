@@ -1,8 +1,8 @@
-import type { PlannerDayAvailability, PlannerRecipe } from "./planner.types";
+import type { PlannerRecipe, PlannerRecipeAvailability } from "./planner.types";
 
 export function plannerRecipeCardView(
   recipe: PlannerRecipe,
-  availability?: PlannerDayAvailability,
+  availability?: PlannerRecipeAvailability,
 ) {
   const ingredientCount = recipe.ingredients.length;
   let sourceLabel = "Food recipe";

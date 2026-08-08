@@ -10,11 +10,16 @@ import {
 import { normaliseProductText } from "@/lib/products/product-normalisation";
 import type {
   PlannerDayAvailability,
-  PlannerDaySelection,
+  PlannerMealSelection,
   PlannerRecipe,
 } from "./planner.types";
+import type { PlannerMealSlot } from "./planner-meals";
 
-type SelectedDay = { dayKey: string; selection: PlannerDaySelection };
+type SelectedMeal = {
+  dayKey: string;
+  slot: PlannerMealSlot;
+  selection: PlannerMealSelection;
+};
 
 function requirementKey(ingredient: IngredientAvailability) {
   const comparable = ingredient.quantity === null
@@ -66,7 +71,7 @@ export function aggregatePlannerRequirements(ingredients: IngredientAvailability
 }
 
 export function calculatePlannerAvailability(
-  selectedDays: SelectedDay[],
+  selectedMeals: SelectedMeal[],
   recipes: PlannerRecipe[],
   products: RecipeProductIdentity[],
 ) {
@@ -75,7 +80,7 @@ export function calculatePlannerAvailability(
   const scaledRequirements: IngredientAvailability[] = [];
   const dayAvailability: Record<string, PlannerDayAvailability> = {};
 
-  for (const { dayKey, selection } of selectedDays) {
+  for (const { dayKey, slot, selection } of selectedMeals) {
     const recipe = recipeById.get(selection.recipeId);
     if (!recipe) continue;
     const scale = selection.servings / Math.max(recipe.servings, 1);
@@ -84,11 +89,13 @@ export function calculatePlannerAvailability(
       quantity: ingredient.quantity === null ? null : ingredient.quantity * scale,
     }, productIndex));
     const availableCount = dayIngredients.filter((ingredient) => ingredient.status === "in-pantry").length;
-    dayAvailability[dayKey] = {
+    const day = dayAvailability[dayKey] ?? {};
+    day[slot] = {
       availableCount,
       ingredientCount: dayIngredients.length,
       percent: dayIngredients.length ? Math.round((availableCount / dayIngredients.length) * 100) : 0,
     };
+    dayAvailability[dayKey] = day;
     scaledRequirements.push(...dayIngredients);
   }
 

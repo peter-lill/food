@@ -10,8 +10,9 @@ import {
   sanitiseInstruction,
   sanitiseRecipeText,
 } from "@/lib/recipes/recipe-text-sanitizer";
-import type { PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
+import type { PlannerDayPlan, PlannerRecipe, PlannerWorkspaceData } from "./planner.types";
 import { calculatePlannerAvailability } from "./planner-calculations";
+import { isPlannerMealSlot, plannerMealSlots } from "./planner-meals";
 import { currentPlannerWeekStart, plannerDays } from "./planner-week";
 
 const recipeImages: Record<string, string | null> = {
@@ -241,20 +242,27 @@ export async function getPlannerWorkspace(
   const allRecipes = [...completeRecipes, ...catalogueRecipes]
     .sort((left, right) => left.name.localeCompare(right.name));
   const availableRecipeIds = new Set(allRecipes.map((recipe) => recipe.id));
-  const plan = Object.fromEntries((savedPlan?.entries ?? [])
-    .filter((entry) => plannerDays[entry.day] && availableRecipeIds.has(entry.recipeKey))
-    .map((entry) => [plannerDays[entry.day].key, {
-      recipeId: entry.recipeKey,
-      servings: entry.servings,
-    }]));
+  const plan: Record<string, PlannerDayPlan> = {};
+  for (const entry of savedPlan?.entries ?? []) {
+    const day = plannerDays[entry.day];
+    if (!day || !availableRecipeIds.has(entry.recipeKey)) continue;
+    const slot = isPlannerMealSlot(entry.slot) ? entry.slot : "dinner";
+    const dayPlan = plan[day.key] ?? {};
+    dayPlan[slot] = { recipeId: entry.recipeKey, servings: entry.servings };
+    plan[day.key] = dayPlan;
+  }
   const recipeById = new Map(allRecipes.map((recipe) => [recipe.id, recipe]));
-  const plannedIngredients = Object.values(plan).flatMap((selection) =>
+  const selectedMeals = plannerDays.flatMap((day) => plannerMealSlots.flatMap((slot) => {
+    const selection = plan[day.key]?.[slot.key];
+    return selection ? [{ dayKey: day.key, slot: slot.key, selection }] : [];
+  }));
+  const plannedIngredients = selectedMeals.flatMap(({ selection }) =>
     recipeById.get(selection.recipeId)?.ingredients ?? []);
   const products = userId
     ? await getRecipeProductCatalogue(plannedIngredients)
     : [];
   const availability = calculatePlannerAvailability(
-    Object.entries(plan).map(([dayKey, selection]) => ({ dayKey, selection })),
+    selectedMeals,
     allRecipes,
     products,
   );

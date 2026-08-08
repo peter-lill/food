@@ -13,4 +13,4 @@ Persisted shopping lists, item grouping, mobile check-off, completed-item cleanu
 Health Connect aggregation and secure sync for hydration, steps, calories, exercise, sleep and weight.
 
 ## 0.5 Recipes and meal planning
-Full in-app recipe cards, meal taxonomy and the Health and Wellbeing Queensland Healthy Snack Guide are implemented. Recipe ingredients use canonical product identity for Pantry availability and duplicate-safe Shopping handoff. Weekly plans, per-day servings and whole-week ingredient requirements are persisted per account. Recipe discovery and broader meal-plan navigation remain future work.
+Full in-app recipe cards, meal taxonomy and the Health and Wellbeing Queensland Healthy Snack Guide are implemented. Recipe ingredients use canonical product identity for Pantry availability and duplicate-safe Shopping handoff. Weekly plans persist fixed Breakfast, Lunch, Dinner and Snacks slots with per-meal servings and whole-week ingredient requirements per account. Recipe discovery and broader meal-plan navigation remain future work.
