@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
 import {
   externalRecipes,
   getRecipeMealType,
@@ -22,10 +23,13 @@ assert.equal(hwqSnacks.length, 20);
 assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Savoury")).length, 11);
 assert.equal(hwqSnacks.filter((recipe) => recipe.tags.includes("Sweet")).length, 9);
 assert(hwqSnacks.every((recipe) => getRecipeMealType(recipe) === "Snacks"));
+assert(hwqSnacks.every((recipe) => recipe.imageUrl?.startsWith("/recipes/hwq/") && recipe.imageUrl.endsWith(".webp")));
+assert(hwqSnacks.every((recipe) => recipe.sourceUrl.startsWith("https://hw.qld.gov.au/healthy-recipes/")));
 
 assert.equal(hwqSnackRecipes.length, 20);
 assert.equal(hwqSnackRecipes.filter((recipe) => recipe.style === "Savoury").length, 11);
 assert.equal(hwqSnackRecipes.filter((recipe) => recipe.style === "Sweet").length, 9);
+assert(hwqSnackRecipes.every((recipe) => existsSync(`public${recipe.imageUrl}`)));
 assert.deepEqual(
   new Set(hwqSnackRecipes.map((recipe) => recipe.id)),
   new Set(hwqSnacks.map((recipe) => recipe.id)),
@@ -38,6 +42,8 @@ assert(
       recipe.ingredients.length > 0 &&
       recipe.instructions.length > 0 &&
       recipe.notes.length > 0 &&
+      recipe.imageUrl.length > 0 &&
+      recipe.sourceUrl.length > 0 &&
       recipe.nutrition.energyKj > 0 &&
       recipe.nutrition.proteinGrams >= 0,
   ),

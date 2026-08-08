@@ -38,7 +38,16 @@ export function HwqRecipeModal({ recipe, onClose, availability, shoppingLists }:
           ×
         </button>
 
-        <div aria-hidden="true" className={styles.heroFallback}>◇</div>
+        {recipe.imageUrl ? (
+          <div
+            aria-label={`Finished ${fullRecipe.name}`}
+            className={`${styles.hero} ${styles.photoHero}`}
+            role="img"
+            style={{ backgroundImage: `url("${recipe.imageUrl}")` }}
+          />
+        ) : (
+          <div aria-hidden="true" className={styles.heroFallback}>◇</div>
+        )}
 
         <div className={styles.modalContent}>
           <div>
