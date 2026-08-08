@@ -216,18 +216,8 @@
 }
 
 .plannedRecipeImage {
-  position: relative;
-  overflow: hidden;
-}
-
-.plannedRecipeImage img {
-  object-fit: cover;
-  transition: transform .25s ease;
-}
-
-.recipeDetail:has(.recipeCardAction:hover) .plannedRecipeImage img,
-.recipeDetail:has(.recipeCardAction:focus-visible) .plannedRecipeImage img {
-  transform: scale(1.035);
+  background-position: center;
+  background-size: cover;
 }
 
 .plannedRecipeImageFallback {
