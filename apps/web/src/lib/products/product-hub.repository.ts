@@ -30,6 +30,7 @@ export type ProductHubListItem = {
   latestRetailer: string | null;
   latestPackSize: string | null;
   latestObservedAt: Date | null;
+  latestIsSpecial: boolean;
   priceNeedsSpecificVariant: boolean;
 };
 
@@ -222,6 +223,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
           price: true,
           retailer: true,
           observedAt: true,
+          isSpecial: true,
           storeProduct: { select: { packSize: true } },
         },
       },
@@ -271,6 +273,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         latestRetailer: latest?.retailer ?? null,
         latestPackSize: latest?.storeProduct?.packSize ?? null,
         latestObservedAt: latest?.observedAt ?? null,
+        latestIsSpecial: latest?.isSpecial ?? false,
         priceNeedsSpecificVariant: false,
       });
       if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
@@ -304,6 +307,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       current.latestRetailer = latest.retailer;
       current.latestPackSize = latest.storeProduct?.packSize ?? null;
       current.latestObservedAt = latest.observedAt;
+      current.latestIsSpecial = latest.isSpecial;
     }
   }
 
