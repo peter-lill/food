@@ -6,6 +6,12 @@ import {
 import { retailerListingIdentity } from "@/lib/retailers/retailer-listing-identity";
 
 const refreshWindowMs = 6 * 60 * 60 * 1000;
+const requiredRetailers = ["Coles", "Woolworths"] as const;
+
+export function retailersNeedRefresh(retailers: Iterable<string>) {
+  const refreshed = new Set(retailers);
+  return requiredRetailers.some((retailer) => !refreshed.has(retailer));
+}
 
 type ProductIdentity = {
   id: string;
@@ -85,11 +91,11 @@ function searchQuery(product: ProductIdentity) {
 
 async function recentlyRefreshed(productId: string) {
   const cutoff = new Date(Date.now() - refreshWindowMs);
-  const listing = await prisma.storeProduct.findFirst({
+  const listings = await prisma.storeProduct.findMany({
     where: { productId, lastSeenAt: { gte: cutoff } },
-    select: { id: true },
+    select: { retailer: true },
   });
-  return Boolean(listing);
+  return !retailersNeedRefresh(listings.map((listing) => listing.retailer));
 }
 
 async function persistCandidate(product: ProductIdentity, candidate: RetailerCatalogueCandidate) {
