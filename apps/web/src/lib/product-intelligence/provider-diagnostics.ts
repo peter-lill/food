@@ -1,10 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-
-const browserHeaders = {
-  "Accept-Language": "en-AU,en;q=0.9",
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
-};
+import { colesProductLabelSource } from "@/lib/product-intelligence/coles-label-page";
+import { fetchRetailerPage } from "@/lib/product-intelligence/retailer-page-fetch";
 
 export type ProviderDiagnostic = {
   retailer: string;
@@ -66,13 +63,8 @@ async function diagnoseProvider(retailer: string, sourceUrl: string): Promise<Pr
   const timeout = setTimeout(() => controller.abort(), 15_000);
 
   try {
-    const response = await fetch(sourceUrl, {
-      cache: "no-store",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml" },
-    });
-    const html = await response.text();
+    const { response, html } = await fetchRetailerPage(sourceUrl, controller.signal);
+    const markerSource = retailer === "Coles" ? (colesProductLabelSource(html) ?? html) : html;
     return {
       retailer,
       sourceUrl,
@@ -81,12 +73,12 @@ async function diagnoseProvider(retailer: string, sourceUrl: string): Promise<Pr
       responseBytes: Buffer.byteLength(html, "utf8"),
       durationMs: Date.now() - started,
       markers: {
-        nutrition: marker(html, /nutrition\s+information/i),
-        servingSize: marker(html, /serving\s+size/i),
-        servingsPerPackage: marker(html, /servings?\s+per\s+(?:pack|package)/i),
-        ingredients: marker(html, /ingredients?/i),
-        contains: marker(html, /(?:^|[>\s])contains\s*[:<]/im),
-        mayContain: marker(html, /may\s+contain/i),
+        nutrition: marker(markerSource, /nutrition\s+information/i),
+        servingSize: marker(markerSource, /serving\s+size/i),
+        servingsPerPackage: marker(markerSource, /servings?\s+per\s+(?:pack|package)/i),
+        ingredients: marker(markerSource, /ingredients?/i),
+        contains: marker(markerSource, /(?:^|[>\s])contains\s*[:<]/im),
+        mayContain: marker(markerSource, /may\s+contain/i),
         structuredData: marker(html, /application\/ld\+json|__NEXT_DATA__|apollo|productDetails|nutritionInformation/i),
       },
       error: response.ok ? null : `HTTP ${response.status}`,

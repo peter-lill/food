@@ -1,7 +1,16 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { bestProductImage, latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
+
+const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
+
+assert.doesNotMatch(
+  productPageSource,
+  /Â|Ã|â€|â†/,
+  "the product page must not contain mojibake artefacts",
+);
 
 assert.equal(
   bestProductImage(null, [], true),

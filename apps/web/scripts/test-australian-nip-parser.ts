@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { parseAustralianNip, plausibleIngredients } from "../src/lib/product-intelligence/australian-nip-parser";
+import { colesProductLabelSource } from "../src/lib/product-intelligence/coles-label-page";
 
 const fixtures = [
   {
@@ -52,6 +53,33 @@ const fixtures = [
     },
   },
 ];
+
+const colesNextData = `<script id="__NEXT_DATA__" type="application/json">${JSON.stringify({
+  props: { pageProps: { product: {
+    additionalInfo: [
+      { title: "Ingredients", description: "Ingredients Sugar, Milk Solids, Cocoa Butter, Wheat Flour, Emulsifier (Soy Lecithin)." },
+      { title: "Allergen", description: "Contains Gluten, Milk, Soy, Wheat<br/>May Contain Hazelnut" },
+    ],
+    nutrition: {
+      servingsPerPackage: "9.00",
+      servingSize: "17.2g",
+      breakdown: [
+        { title: "Per Serving", nutrients: [{ nutrient: "Energy", value: "380 kJ" }, { nutrient: "Protein", value: "1.1 g" }] },
+        { title: "Per 100g/ml", nutrients: [{ nutrient: "Energy", value: "2220 kJ" }, { nutrient: "Protein", value: "6.5 g" }] },
+      ],
+    },
+  } } },
+})}</script>`;
+const colesLabelSource = colesProductLabelSource(colesNextData);
+assert(colesLabelSource);
+const colesLabel = parseAustralianNip(colesLabelSource);
+assert(colesLabel);
+assert.equal(colesLabel.servingsPerPackage, 9);
+assert.equal(colesLabel.servingQuantity, 17.2);
+assert.equal(colesLabel.nutrients.energy.per100, 2220);
+assert.match(colesLabel.ingredientsText ?? "", /Sugar, Milk Solids/);
+assert.deepEqual(colesLabel.contains, ["Gluten", "Milk", "Soy", "Wheat"]);
+assert.deepEqual(colesLabel.mayContain, ["Hazelnut"]);
 
 for (const fixture of fixtures) {
   const result = parseAustralianNip(fixture.source);

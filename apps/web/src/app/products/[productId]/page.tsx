@@ -201,10 +201,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <p className="subtle">Choose a specific product for its retailer, price, image and package details.</p>
             <ul className={styles.list}>
               {product.variants.map((variant) => (
-                <li className={styles.listItem} key={variant.id}>
+                <li className={`${styles.listItem} ${styles.variantListItem}`} key={variant.id}>
                   <div className={styles.listingIdentity}>
                     <div className={styles.listingImage}><ProductImageWithFallback alt={variant.name} imageVersion={variant.imageUrl} productId={variant.id} /></div>
-                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Generic variety"}</small></div>
+                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" · ") || "Generic variety"}</small></div>
                   </div>
                   <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
                 </li>

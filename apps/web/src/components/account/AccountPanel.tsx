@@ -92,8 +92,14 @@ export function AccountPanel({
           <Link className={styles.primaryLink} href="/households">Manage households</Link>
         </section>
 
-        <HealthConnectDevices />
-        <HealthConnectPairing />
+        <details className={styles.collapsibleCard}>
+          <summary><strong>Linked devices</strong><small>Review or disconnect Health Connect phones</small></summary>
+          <div className={styles.collapsibleContent}><HealthConnectDevices /></div>
+        </details>
+        <details className={styles.collapsibleCard}>
+          <summary><strong>Link phone</strong><small>Connect a new Android Health Connect device</small></summary>
+          <div className={styles.collapsibleContent}><HealthConnectPairing /></div>
+        </details>
 
         <LocationPreferences
           initialLocked={lockToHomeLocation}

@@ -267,6 +267,15 @@
   color: var(--text-soft);
 }
 
+.variantListItem {
+  align-items: flex-start;
+}
+
+.variantListItem > :last-child {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
 .listingIdentity {
   display: flex;
   align-items: center;
