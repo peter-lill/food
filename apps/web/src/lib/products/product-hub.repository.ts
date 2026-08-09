@@ -104,11 +104,15 @@ export type ProductHubDetail = {
   }>;
 };
 
-function bestProductImage(
+export function bestProductImage(
   productImageUrl: string | null,
   storeProducts: Array<{ imageUrl: string | null }>,
+  hasStoredAsset = false,
 ) {
-  return productImageUrl ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl ?? null;
+  return productImageUrl
+    ?? (hasStoredAsset ? "stored://product-image" : null)
+    ?? storeProducts.find((listing) => listing.imageUrl)?.imageUrl
+    ?? null;
 }
 
 function genericFamilyImage(familyName: string) {
@@ -264,6 +268,16 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
     take: 500,
   });
+  const storedImageProducts = new Set((await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT DISTINCT p."id"
+    FROM "Product" p
+    LEFT JOIN "ProductImageCandidate" c
+      ON c."productId" = p."id"
+      AND c."selected" = true
+      AND c."rejected" = false
+      AND c."assetId" IS NOT NULL
+    WHERE p."primaryImageAssetId" IS NOT NULL OR c."id" IS NOT NULL
+  `).map((row) => row.id));
 
   const grouped = new Map<string, ProductHubListItem>();
   const groupedProductIds = new Map<string, Set<string>>();
@@ -298,7 +312,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         category: product.category,
-        imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts),
+        imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
         barcode: product.barcode,
         aliasCount: product.aliases.length,
         recipeCount: recipeIds.size,
@@ -311,7 +325,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         latestIsSpecial: bestRetailerPrice?.isSpecial ?? false,
         priceNeedsSpecificVariant: false,
       });
-      if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
+      if (isGeneric && Boolean(familyImage ?? product.imageUrl ?? (storedImageProducts.has(product.id) ? "stored" : null))) {
+        groupedHasGenericImage.add(familyKey);
+      }
       continue;
     }
 
@@ -322,7 +338,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;
-      const genericImage = familyImage ?? product.imageUrl;
+      const genericImage = familyImage
+        ?? product.imageUrl
+        ?? (storedImageProducts.has(product.id) ? "stored://product-image" : null);
       if (genericImage) {
         current.id = product.id;
         current.slug = product.slug;

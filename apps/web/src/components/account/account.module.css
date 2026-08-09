@@ -1,6 +1,6 @@
 .accountPage {
   display: grid;
-  gap: 22px;
+  gap: 16px;
 }
 
 .profileHero {
@@ -8,7 +8,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  padding: 30px;
+  padding: 22px 24px;
   border: 1px solid #cbdccf;
   border-radius: 28px;
   background: linear-gradient(135deg, #f8fbf6 0%, #e4efe5 58%, #f8eee1 100%);
@@ -34,8 +34,8 @@
 
 .profileAvatar {
   display: grid;
-  width: 76px;
-  height: 76px;
+  width: 64px;
+  height: 64px;
   flex: 0 0 auto;
   place-items: center;
   border: 5px solid rgba(255, 255, 255, .8);
@@ -43,7 +43,7 @@
   background: var(--accent-dark);
   color: white;
   box-shadow: 0 12px 28px rgba(40, 81, 61, .2);
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 900;
 }
 
@@ -61,7 +61,7 @@
 
 .accountSummary article {
   gap: 12px;
-  padding: 16px;
+  padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 17px;
   background: rgba(255, 255, 255, .78);
@@ -96,7 +96,7 @@
 .accountGrid,
 .householdLayout {
   display: grid;
-  gap: 18px;
+  gap: 14px;
 }
 
 .accountGrid {
@@ -144,6 +144,8 @@
 }
 
 .retailerPanel {
+  display: grid;
+  align-content: start;
   padding: 18px;
   border: 1px solid var(--line);
   border-radius: 18px;
@@ -162,6 +164,12 @@
 .storeRow > div {
   display: grid;
   gap: 3px;
+}
+
+.retailerHeading > div > strong {
+  display: flex;
+  height: 48px;
+  align-items: center;
 }
 
 .retailerHeading small,
@@ -240,7 +248,7 @@
 .accountCard,
 .invitationCard,
 .emptyHousehold {
-  padding: 26px;
+  padding: 20px;
   border: 1px solid var(--line);
   border-radius: 22px;
   background: var(--surface);

@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 
-import { latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
+import { heroProductDescription } from "../src/lib/products/product-description";
+
+assert.equal(
+  bestProductImage(null, [], true),
+  "stored://product-image",
+  "a stored primary asset must keep a catalogue image visible when the legacy image URL is missing",
+);
+assert.equal(
+  heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),
+  "Origin: MADE IN AUSTRALIA.",
+  "raw ingredient statements must not appear in the product hero description",
+);
 
 const observedAt = new Date("2026-08-09T00:00:00.000Z");
 const prices = latestPricesByRetailer([
