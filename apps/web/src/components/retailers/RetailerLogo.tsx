@@ -25,10 +25,11 @@ const logoSources: Record<string, RetailerLogoDefinition> = {
     compactMaxWidth: 112,
   },
   woolworths: {
-    src: "https://images.seeklogo.com/logo-png/32/1/woolworths-logo-png_seeklogo-320916.png",
+    // This tightly framed 225 × 54 wordmark avoids scaling whitespace from a padded image.
+    src: "https://www.edigitalagency.com.au/wp-content/uploads/new-Woolworths-logo-png-horizontal.png",
     alt: "Woolworths",
-    width: 2000,
-    height: 474,
+    width: 225,
+    height: 54,
     compactMaxHeight: 24,
     compactMaxWidth: 110,
     maxHeight: 36,
