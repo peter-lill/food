@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
 import { toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
+import { identityScore } from "../src/lib/retailers/retailer-intelligence.service";
 
 const candidate = toRetailerCatalogueCandidate({
   retailer: "Coles",
@@ -23,5 +25,33 @@ assert.equal(candidate.packSize, "160g");
 assert.equal(candidate.isSpecial, true);
 assert.equal(candidate.externalId, "12345");
 assert.equal(candidate.sourceUrl, "https://www.coles.com.au/product/kit-kat-milk-chocolate-block-160g-12345");
+
+const kitKatScore = identityScore(
+  {
+    id: "kitkat-aero-mint",
+    name: "Kitkat Aero Mint Chocolate Block",
+    canonicalName: "Kitkat Aero Mint Chocolate Block",
+    brand: "Nestlé",
+    barcode: "9300605158696",
+    packSize: "155g",
+    imageUrl: null,
+  },
+  {
+    retailer: "Coles",
+    productName: "Kit Kat Aero Mint Chocolate Block 155g",
+    price: 3.75,
+    packSize: "155g",
+    imageUrl: null,
+    sourceUrl: "https://www.coles.com.au/product/kit-kat-aero-mint-block-chocolate-155g-1314693",
+    externalId: "1314693",
+    barcode: null,
+    isSpecial: true,
+  },
+);
+assert.ok(kitKatScore >= 900, "spacing differences in KitKat must not reject the exact Coles pack");
+
+const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
+assert.match(bridgeSource, /"code", "productId", "productCode"/);
+assert.match(bridgeSource, /nested_text\(source, \("brand", "brandName", "manufacturer"\)\)/);
 
 console.log("Retailer bridge metadata regressions passed.");

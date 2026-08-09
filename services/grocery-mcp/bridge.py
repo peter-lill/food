@@ -73,6 +73,39 @@ def first_identifier(item: dict, keys: tuple[str, ...]) -> str | None:
     return None
 
 
+def nested_value(item: object, keys: tuple[str, ...]) -> object | None:
+    """Find a named field in retailer payloads that move metadata into nested objects."""
+    wanted = {key.casefold() for key in keys}
+    if isinstance(item, dict):
+        for key, value in item.items():
+            if key.casefold() in wanted and value is not None:
+                return value
+        for value in item.values():
+            found = nested_value(value, keys)
+            if found is not None:
+                return found
+    elif isinstance(item, list):
+        for value in item:
+            found = nested_value(value, keys)
+            if found is not None:
+                return found
+    return None
+
+
+def nested_text(item: object, keys: tuple[str, ...]) -> str | None:
+    value = nested_value(item, keys)
+    if isinstance(value, dict):
+        return first_text(value, ("name", "displayName", "label", "value"))
+    return clean_text(value)
+
+
+def nested_identifier(item: object, keys: tuple[str, ...]) -> str | None:
+    value = nested_value(item, keys)
+    if isinstance(value, dict):
+        return first_identifier(value, ("id", "code", "value"))
+    return clean_identifier(value)
+
+
 def coles_products(result: dict) -> list[dict]:
     response_data = result.get("response_data")
     if not isinstance(response_data, dict):
@@ -96,11 +129,11 @@ def coles_products(result: dict) -> list[dict]:
         if not name or price is None:
             continue
 
-        brand = first_text(source, ("brand", "brandName", "manufacturer"))
+        brand = nested_text(source, ("brand", "brandName", "manufacturer"))
         if brand and brand.casefold() not in name.casefold():
             name = f"{brand} {name}"
 
-        pack_size = first_text(source, ("packageSize", "package_size", "size", "quantity"))
+        pack_size = nested_text(source, ("packageSize", "package_size", "packSize", "size", "quantity"))
         if pack_size and pack_size.casefold() not in name.casefold():
             name = f"{name} {pack_size}"
 
@@ -119,9 +152,12 @@ def coles_products(result: dict) -> list[dict]:
             "promotion": promotion,
             "unit": pack_size,
             "store": "coles",
-            "barcode": first_identifier(source, ("barcode", "gtin", "ean", "upc")),
-            "imageUrl": first_text(source, ("imageUrl", "image", "imageURL", "thumbnailUrl")),
-            "productId": first_identifier(source, ("id", "productId", "sku", "productCode")),
+            "barcode": nested_identifier(source, ("barcode", "gtin", "ean", "upc")),
+            "imageUrl": nested_text(source, ("imageUrl", "imageURL", "thumbnailUrl")),
+            "productId": nested_identifier(
+                source,
+                ("id", "code", "productId", "productCode", "sku", "stockCode"),
+            ),
             "raw": source,
         })
     return products

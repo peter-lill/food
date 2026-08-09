@@ -46,6 +46,21 @@ small .retailer-inline-logo {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 6px;
   line-height: 0;
   vertical-align: middle;
+}
+
+.retailer-logo-name {
+  color: #00582d;
+  font-size: .92rem;
+  font-weight: 750;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badge .retailer-logo-name,
+.eyebrow .retailer-logo-name,
+small .retailer-logo-name {
+  font-size: .78rem;
 }

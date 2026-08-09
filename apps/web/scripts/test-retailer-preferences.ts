@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   enabledRetailers,
   missingStoreRetailers,
@@ -44,5 +45,17 @@ assert.deepEqual(
 assert.equal(retailerNameMatches("Coles", "Coles Supermarkets"), true);
 assert.equal(retailerNameMatches("Woolworths", "Woolworths Springwood"), true);
 assert.equal(retailerNameMatches("Coles", "Woolworths"), false);
+
+const retailerLogoSource = readFileSync(
+  new URL("../src/components/retailers/RetailerLogo.tsx", import.meta.url),
+  "utf8",
+);
+assert.match(retailerLogoSource, /src: "\/retailer-logos\/coles\.png"/);
+assert.match(retailerLogoSource, /src: "\/retailer-logos\/woolworths\.svg"/);
+assert.doesNotMatch(
+  retailerLogoSource,
+  /edigitalagency\.com\.au/,
+  "Woolworths branding must not depend on a mutable third-party image",
+);
 
 console.log("Retailer preference regression tests passed.");

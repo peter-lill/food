@@ -36,6 +36,10 @@ function tokens(value: string | null | undefined) {
   return normalise(value).split(" ").filter((token) => token.length > 1);
 }
 
+function compact(value: string | null | undefined) {
+  return normalise(value).replace(/[^a-z0-9]+/g, "");
+}
+
 function normaliseBarcode(value: string | null | undefined) {
   const digits = (value ?? "").replace(/\D/g, "");
   return digits || null;
@@ -53,7 +57,7 @@ function normalisePackSize(value: string | null | undefined) {
   return `${amount}${unit.replace(/s$/, "")}`;
 }
 
-function identityScore(product: ProductIdentity, candidate: RetailerCatalogueCandidate) {
+export function identityScore(product: ProductIdentity, candidate: RetailerCatalogueCandidate) {
   const productBarcode = normaliseBarcode(product.barcode);
   const candidateBarcode = normaliseBarcode(candidate.barcode);
   if (productBarcode && candidateBarcode && productBarcode === candidateBarcode) return 20_000;
@@ -68,7 +72,7 @@ function identityScore(product: ProductIdentity, candidate: RetailerCatalogueCan
 
   let score = overlap * 1_000;
   if (candidateName === normalise(product.name)) score += 1_200;
-  if (candidateName.includes(normalise(product.name))) score += 700;
+  if (compact(candidateName).includes(compact(product.name))) score += 700;
 
   const brand = normalise(product.brand);
   if (brand) score += candidateName.includes(brand) ? 600 : -700;
