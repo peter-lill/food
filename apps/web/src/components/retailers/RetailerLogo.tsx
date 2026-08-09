@@ -113,8 +113,8 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
   const maxHeight = compact ? (logo.compactMaxHeight ?? 24) : (logo.maxHeight ?? 38);
   const maxWidth = compact ? (logo.compactMaxWidth ?? 92) : (logo.maxWidth ?? 132);
   const ratio = logo.width / logo.height;
-  const height = Math.min(maxHeight, Math.round(maxWidth / ratio));
-  const width = Math.min(maxWidth, Math.round(height * ratio));
+  const height = Math.min(maxHeight, maxWidth / ratio);
+  const width = Math.min(maxWidth, height * ratio);
 
   return (
     <span
@@ -130,7 +130,6 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         height,
         justifyContent: "center",
         maxWidth: "100%",
-        overflow: "hidden",
         width,
       }}
     >
@@ -141,7 +140,15 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         loading="lazy"
         referrerPolicy="no-referrer"
         src={logo.src}
-        style={{ background: "transparent", display: "block", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
+        style={{
+          background: "transparent",
+          display: "block",
+          height: "100%",
+          maxHeight: "100%",
+          maxWidth: "100%",
+          objectFit: "contain",
+          width: "100%",
+        }}
         width={width}
       />
     </span>

@@ -1,6 +1,27 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 
-import { latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
+import { heroProductDescription } from "../src/lib/products/product-description";
+
+const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
+
+assert.doesNotMatch(
+  productPageSource,
+  /Â|Ã|â€|â†/,
+  "the product page must not contain mojibake artefacts",
+);
+
+assert.equal(
+  bestProductImage(null, [], true),
+  "stored://product-image",
+  "a stored primary asset must keep a catalogue image visible when the legacy image URL is missing",
+);
+assert.equal(
+  heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),
+  "Origin: MADE IN AUSTRALIA.",
+  "raw ingredient statements must not appear in the product hero description",
+);
 
 const observedAt = new Date("2026-08-09T00:00:00.000Z");
 const prices = latestPricesByRetailer([

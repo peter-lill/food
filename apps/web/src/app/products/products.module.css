@@ -267,6 +267,15 @@
   color: var(--text-soft);
 }
 
+.variantListItem {
+  align-items: flex-start;
+}
+
+.variantListItem > :last-child {
+  flex: 0 0 auto;
+  text-align: right;
+}
+
 .listingIdentity {
   display: flex;
   align-items: center;
@@ -564,4 +573,4 @@
   }
 }
 
-.priceComparisonPanel{grid-column:span 1}.priceComparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.retailerPriceOption,.bestRetailerPrice{display:grid;gap:7px;padding:16px;border:1px solid var(--border);border-radius:18px;background:var(--surface-muted)}.bestRetailerPrice{border-color:color-mix(in srgb,var(--accent) 42%,var(--border));background:#edf8f0}.retailerPriceOption [data-retailer-logo],.bestRetailerPrice [data-retailer-logo]{display:inline-flex;align-items:center;max-width:150px;max-height:32px}.retailerPriceOption [data-retailer-logo] img,.bestRetailerPrice [data-retailer-logo] img{max-width:150px!important;max-height:32px!important;width:auto!important;height:auto!important}.retailerPriceOption strong,.bestRetailerPrice strong{font-size:1.35rem}.retailerPriceOption small,.bestRetailerPrice small{color:var(--text-soft)}.bestRetailerPrice>span{width:max-content;padding:5px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800}@media (max-width:760px){.priceComparison{grid-template-columns:1fr}}
+.priceComparisonPanel{grid-column:span 1}.priceComparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.retailerPriceOption,.bestRetailerPrice{display:grid;gap:7px;padding:16px;border:1px solid var(--border);border-radius:18px;background:var(--surface-muted)}.bestRetailerPrice{border-color:color-mix(in srgb,var(--accent) 42%,var(--border));background:#edf8f0}.retailerPriceOption [data-retailer-logo],.bestRetailerPrice [data-retailer-logo]{display:inline-flex;align-items:center;max-width:150px;max-height:32px}.retailerPriceOption [data-retailer-logo] img,.bestRetailerPrice [data-retailer-logo] img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}.retailerPriceOption strong,.bestRetailerPrice strong{font-size:1.35rem}.retailerPriceOption small,.bestRetailerPrice small{color:var(--text-soft)}.bestRetailerPrice>span{width:max-content;padding:5px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800}@media (max-width:760px){.priceComparison{grid-template-columns:1fr}}

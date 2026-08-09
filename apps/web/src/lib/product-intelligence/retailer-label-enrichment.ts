@@ -1,11 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseAustralianNip } from "@/lib/product-intelligence/australian-nip-parser";
-
-const browserHeaders = {
-  "Accept-Language": "en-AU,en;q=0.9",
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
-};
+import { colesProductLabelSource } from "@/lib/product-intelligence/coles-label-page";
+import { fetchRetailerPage } from "@/lib/product-intelligence/retailer-page-fetch";
 
 export type RetailerLabel = {
   retailer: string;
@@ -38,7 +35,7 @@ export type RetailerLabel = {
 };
 
 function parseLabel(source: string, retailer: string, sourceUrl: string): RetailerLabel | null {
-  const parsed = parseAustralianNip(source);
+  const parsed = parseAustralianNip(retailer === "Coles" ? (colesProductLabelSource(source) ?? source) : source);
   if (!parsed) return null;
   const n = parsed.nutrients;
   return {
@@ -77,14 +74,9 @@ async function fetchLabel(url: string, retailer: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml,application/json;q=0.9" },
-    });
+    const { response, html } = await fetchRetailerPage(url, controller.signal);
     if (!response.ok) return null;
-    return parseLabel(await response.text(), retailer, url);
+    return parseLabel(html, retailer, url);
   } catch {
     return null;
   } finally {

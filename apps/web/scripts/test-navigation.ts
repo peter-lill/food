@@ -47,4 +47,8 @@ const shellStyles = readFileSync(new URL("../src/app/brand-system.css", import.m
 assert.match(shellStyles, /\.side-nav\s*{[\s\S]*?overflow-y:\s*auto/);
 assert.match(shellStyles, /scrollbar-width:\s*thin/, "long navigation groups must visibly advertise that they can scroll");
 
+const accountPanelSource = readFileSync(new URL("../src/components/account/AccountPanel.tsx", import.meta.url), "utf8");
+assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Linked devices<\/strong>/);
+assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Link phone<\/strong>/);
+
 console.log("Navigation hierarchy regression checks passed.");

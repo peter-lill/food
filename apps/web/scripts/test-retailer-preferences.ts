@@ -56,6 +56,20 @@ assert.match(retailerLogoSource, /src: "\/retailer-logos\/coles\.svg"/);
 assert.match(retailerLogoSource, /src: "\/retailer-logos\/woolworths\.png"/);
 assert.doesNotMatch(retailerLogoSource, /displayName/, "brand marks must not be combined with a separately rendered wordmark");
 assert.match(retailerLogoSource, /background: "transparent"/);
+assert.doesNotMatch(retailerLogoSource, /overflow: "hidden"/, "retailer logo frames must never crop brand marks");
+assert.match(retailerLogoSource, /height: "100%"/);
+assert.match(retailerLogoSource, /width: "100%"/);
+
+const productStylesSource = readFileSync(new URL("../src/app/products/products.module.css", import.meta.url), "utf8");
+const productHubStylesSource = readFileSync(
+  new URL("../src/app/products/products-hub.module.css", import.meta.url),
+  "utf8",
+);
+for (const stylesSource of [productStylesSource, productHubStylesSource]) {
+  assert.match(stylesSource, /\[data-retailer-logo\] img\{[^}]*width:100%!important/);
+  assert.match(stylesSource, /\[data-retailer-logo\] img\{[^}]*height:100%!important/);
+  assert.match(stylesSource, /\[data-retailer-logo\] img\{[^}]*object-fit:contain!important/);
+}
 
 const colesLogo = readFileSync(new URL("../public/retailer-logos/coles.svg", import.meta.url), "utf8");
 assert.doesNotMatch(colesLogo, /<rect\b/i, "the local Coles wordmark must not include a background rectangle");
@@ -84,5 +98,13 @@ const accountStylesSource = readFileSync(
 );
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*252px/);
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
+assert.match(accountStylesSource, /\.retailerHeading\s*>\s*div\s*>\s*strong\s*{[\s\S]*?height:\s*48px/);
+
+const healthConnectStylesSource = readFileSync(
+  new URL("../src/components/account/health-connect-pairing.module.css", import.meta.url),
+  "utf8",
+);
+assert.match(healthConnectStylesSource, /^\.card\{min-width:0/);
+assert.match(healthConnectStylesSource, /@media\(max-width:1100px\)\{\.card\{grid-column:1\/-1\}\}/);
 
 console.log("Retailer preference regression tests passed.");

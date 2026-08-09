@@ -4,6 +4,7 @@ import { Ean13Barcode } from "@/components/products/Ean13Barcode";
 import { ProductImagePanel } from "@/components/products/ProductImagePanel";
 import { ProductImageWithFallback } from "@/components/products/ProductImageWithFallback";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
+import { heroProductDescription } from "@/lib/products/product-description";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
@@ -108,7 +109,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const department = productDepartment(product.category, canonicalName ?? displayName);
   const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
   const knowledge = knowledgeFor(canonicalName ?? displayName);
-  const description = product.description ?? knowledge?.overview ?? null;
+  const description = heroProductDescription(product.description) ?? knowledge?.overview ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
   for (const observation of product.priceObservations) {
     if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
@@ -200,10 +201,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <p className="subtle">Choose a specific product for its retailer, price, image and package details.</p>
             <ul className={styles.list}>
               {product.variants.map((variant) => (
-                <li className={styles.listItem} key={variant.id}>
+                <li className={`${styles.listItem} ${styles.variantListItem}`} key={variant.id}>
                   <div className={styles.listingIdentity}>
                     <div className={styles.listingImage}><ProductImageWithFallback alt={variant.name} imageVersion={variant.imageUrl} productId={variant.id} /></div>
-                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" Â· ") || "Generic variety"}</small></div>
+                    <div><Link href={`/products/${encodeURIComponent(variant.slug ?? variant.id)}?specific=1`}><strong>{variant.name}</strong></Link><small>{[variant.brand, variant.packSize].filter(Boolean).join(" · ") || "Generic variety"}</small></div>
                   </div>
                   <div><strong>{variant.latestPrice === null ? "Not priced" : money(variant.latestPrice)}</strong><small>{variant.latestRetailer ?? (variant.barcode ? `Barcode ${variant.barcode}` : "No retailer linked")}</small></div>
                 </li>

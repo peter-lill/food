@@ -109,44 +109,46 @@ function ReceiptLine({ receiptId, item, editable }: { receiptId: string; item: R
             <FieldError state={state} field="price" />
           </label>
 
-          <label className="field field-wide">
-            <span>Pantry product name</span>
-            <input
-              aria-invalid={Boolean(state.fieldErrors?.normalisedName)}
-              defaultValue={item.normalisedName ?? item.rawDescription}
-              disabled={!foodFieldsEnabled}
-              maxLength={100}
-              name="normalisedName"
-              required={foodFieldsEnabled}
-            />
-            <FieldError state={state} field="normalisedName" />
-          </label>
+          {classification === "food" ? <>
+            <label className="field field-wide">
+              <span>Pantry product name</span>
+              <input
+                aria-invalid={Boolean(state.fieldErrors?.normalisedName)}
+                defaultValue={item.normalisedName ?? item.rawDescription}
+                disabled={!foodFieldsEnabled}
+                maxLength={100}
+                name="normalisedName"
+                required={foodFieldsEnabled}
+              />
+              <FieldError state={state} field="normalisedName" />
+            </label>
 
-          <label className="field">
-            <span>Quantity</span>
-            <input aria-invalid={Boolean(state.fieldErrors?.quantity)} defaultValue={item.quantity ?? 1} disabled={!foodFieldsEnabled} min="0.01" name="quantity" required={foodFieldsEnabled} step="0.01" type="number" />
-            <FieldError state={state} field="quantity" />
-          </label>
+            <label className="field">
+              <span>Quantity</span>
+              <input aria-invalid={Boolean(state.fieldErrors?.quantity)} defaultValue={item.quantity ?? 1} disabled={!foodFieldsEnabled} min="0.01" name="quantity" required={foodFieldsEnabled} step="0.01" type="number" />
+              <FieldError state={state} field="quantity" />
+            </label>
 
-          <label className="field">
-            <span>Unit</span>
-            <input aria-invalid={Boolean(state.fieldErrors?.unit)} defaultValue={item.unit ?? "item"} disabled={!foodFieldsEnabled} list="receipt-units" maxLength={30} name="unit" required={foodFieldsEnabled} />
-            <FieldError state={state} field="unit" />
-          </label>
+            <label className="field">
+              <span>Unit</span>
+              <input aria-invalid={Boolean(state.fieldErrors?.unit)} defaultValue={item.unit ?? "item"} disabled={!foodFieldsEnabled} list="receipt-units" maxLength={30} name="unit" required={foodFieldsEnabled} />
+              <FieldError state={state} field="unit" />
+            </label>
 
-          <label className="field">
-            <span>Store in</span>
-            <select aria-invalid={Boolean(state.fieldErrors?.location)} defaultValue={item.location ?? "PANTRY"} disabled={!foodFieldsEnabled} name="location" required={foodFieldsEnabled}>
-              {pantryLocations.map((location) => <option key={location} value={location}>{locationLabels[location]}</option>)}
-            </select>
-            <FieldError state={state} field="location" />
-          </label>
+            <label className="field">
+              <span>Store in</span>
+              <select aria-invalid={Boolean(state.fieldErrors?.location)} defaultValue={item.location ?? "PANTRY"} disabled={!foodFieldsEnabled} name="location" required={foodFieldsEnabled}>
+                {pantryLocations.map((location) => <option key={location} value={location}>{locationLabels[location]}</option>)}
+              </select>
+              <FieldError state={state} field="location" />
+            </label>
 
-          <label className="field">
-            <span>Expiry date</span>
-            <input aria-invalid={Boolean(state.fieldErrors?.expiresAt)} defaultValue={item.expiresAt ?? ""} disabled={!foodFieldsEnabled} name="expiresAt" type="date" />
-            <FieldError state={state} field="expiresAt" />
-          </label>
+            <label className="field">
+              <span>Expiry date <small>(optional)</small></span>
+              <input aria-invalid={Boolean(state.fieldErrors?.expiresAt)} defaultValue={item.expiresAt ?? ""} disabled={!foodFieldsEnabled} name="expiresAt" type="date" />
+              <FieldError state={state} field="expiresAt" />
+            </label>
+          </> : null}
         </div>
 
         {editable ? (
