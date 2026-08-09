@@ -282,6 +282,9 @@ body {
 }
 
 @media (max-width: 900px) {
+  /* The branded desktop rail is defined after the base responsive rules,
+     so it must explicitly opt out on mobile. */
+  .sidebar { display: none !important; }
   .workspace > .content-shell { padding-inline: 16px !important; }
   .food-home-hero { min-height: auto; padding: 27px; border-radius: 25px; }
   .food-home-hero h1 { font-size: 46px; }
