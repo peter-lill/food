@@ -21,7 +21,7 @@
     "scanner:test": "tsx scripts/test-scanner-state.ts",
     "products:names:test": "tsx scripts/test-product-name-quality.ts",
     "products:nip:test": "tsx scripts/test-australian-nip-parser.ts",
-    "products:pipeline:test": "npm run grocery:intelligence:test && npm run products:names:test && npm run products:nip:test && npm run scanner:test && tsx scripts/test-retailer-listing-identity.ts && tsx scripts/test-retailer-price-bridge.ts && tsx scripts/test-retailer-refresh-coverage.ts && npm run typecheck",
+    "products:pipeline:test": "npm run grocery:intelligence:test && npm run products:names:test && npm run products:nip:test && npm run scanner:test && tsx scripts/test-retailer-listing-identity.ts && tsx scripts/test-retailer-price-bridge.ts && tsx scripts/test-retailer-refresh-coverage.ts && tsx scripts/test-product-retailer-prices.ts && npm run typecheck",
     "products:generic-images": "tsx scripts/refresh-generic-product-images.ts",
     "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
