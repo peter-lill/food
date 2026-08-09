@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { backgroundJobTypes, enqueueBackgroundJob } from "../src/lib/jobs/background-jobs";
+import { retailersNeedRefresh } from "../src/lib/retailers/retailer-intelligence.service";
 
 const apply = process.argv.includes("--apply");
 const staleDaysArgument = process.argv.find((argument) => argument.startsWith("--stale-days="));
@@ -9,18 +10,26 @@ const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
 
 async function main() {
   const products = await prisma.product.findMany({
-    where: {
-      lifecycle: { not: "ARCHIVED" },
-      priceObservations: { none: { observedAt: { gte: cutoff } } },
+    where: { lifecycle: { not: "ARCHIVED" } },
+    select: {
+      id: true,
+      canonicalName: true,
+      name: true,
+      storeProducts: {
+        where: { lastSeenAt: { gte: cutoff } },
+        select: { retailer: true },
+      },
     },
-    select: { id: true, canonicalName: true, name: true },
     orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
   });
+  const productsToRefresh = products.filter((product) => (
+    retailersNeedRefresh(product.storeProducts.map((listing) => listing.retailer))
+  ));
 
-  console.log(`${apply ? "Queueing" : "Would queue"} ${products.length} product price refresh job(s).`);
+  console.log(`${apply ? "Queueing" : "Would queue"} ${productsToRefresh.length} product price refresh job(s).`);
 
   if (apply) {
-    for (const product of products) {
+    for (const product of productsToRefresh) {
       await enqueueBackgroundJob(
         backgroundJobTypes.productRetailerEnrichment,
         { productId: product.id, provider: "coles-woolworths" },
