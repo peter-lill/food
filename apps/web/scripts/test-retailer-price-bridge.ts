@@ -53,5 +53,9 @@ assert.ok(kitKatScore >= 900, "spacing differences in KitKat must not reject the
 const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
 assert.match(bridgeSource, /nested_text\(source, \("brand", "brandName", "manufacturer"\)\)/);
+assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths XML namespaces remain supported");
+assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
+assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
+assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
 
 console.log("Retailer bridge metadata regressions passed.");

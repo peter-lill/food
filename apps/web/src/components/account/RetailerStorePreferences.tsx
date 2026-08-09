@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { RetailerLogo } from "@/components/retailers/RetailerLogo";
+import { getCurrentLocation } from "@/lib/current-location";
 import styles from "./account.module.css";
 
 type RetailerName = "Coles" | "Woolworths";
@@ -34,7 +36,6 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
   const [enabled, setEnabled] = useState(new Set(initialEnabled));
   const [savedStores, setSavedStores] = useState(initialStores);
   const [results, setResults] = useState<Partial<Record<RetailerName, Store[]>>>({});
-  const [colesQuery, setColesQuery] = useState(homePostcode);
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -56,10 +57,21 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
     }
   }
 
-  async function findStores(retailer: RetailerName) {
-    setPending(`find-${retailer}`); setError(""); setMessage("");
+  async function findStores(retailer: RetailerName, source: "home" | "current") {
+    const pendingKey = `find-${source}-${retailer}`;
+    setPending(pendingKey); setError(""); setMessage("");
     const params = new URLSearchParams({ retailer });
-    if (retailer === "Coles" && colesQuery.trim()) params.set("query", colesQuery.trim());
+    if (source === "current") {
+      try {
+        const location = await getCurrentLocation();
+        params.set("latitude", String(location.latitude));
+        params.set("longitude", String(location.longitude));
+      } catch (locationError) {
+        setPending("");
+        setError(locationError instanceof Error ? locationError.message : "Unable to use your current location.");
+        return;
+      }
+    }
     const response = await fetch(`/api/account/preferences/stores?${params}`);
     const body = await response.json().catch(() => ({})) as { stores?: Store[]; error?: string };
     setPending("");
@@ -93,16 +105,17 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
       <h2>Choose where you shop</h2>
       <p className="subtle">Only enabled retailers appear in price comparisons. Select the stores you actually use; the nearest store is only a suggestion.</p>
 
-      {!homePostcode ? <p className={styles.setupNotice}>Add and save a four-digit home postcode above before finding nearby stores.</p> : null}
+      {!homePostcode ? <p className={styles.setupNotice}>Add and save a four-digit home postcode above, or explicitly use your current location.</p> : null}
       <div className={styles.retailerList}>
         {retailers.map((retailer) => {
           const isEnabled = enabled.has(retailer);
           const preferred = savedStores.filter((store) => store.retailer === retailer);
           const nearby = results[retailer] ?? [];
+          const hasSearched = results[retailer] !== undefined;
           return (
             <article className={styles.retailerPanel} key={retailer}>
               <div className={styles.retailerHeading}>
-                <div><strong>{retailer}</strong><small>{isEnabled ? "Included in your prices" : "Hidden from your prices"}</small></div>
+                <div><strong><RetailerLogo retailer={retailer} /></strong><small>{isEnabled ? "Included in your prices" : "Hidden from your prices"}</small></div>
                 <label className={styles.switchLabel}>
                   <input checked={isEnabled} onChange={(event) => void toggleRetailer(retailer, event.target.checked)} type="checkbox" />
                   <span>{isEnabled ? "Enabled" : "Disabled"}</span>
@@ -116,30 +129,25 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                       {preferred.map((store) => <StoreRow action="remove" key={store.storeId} onAction={() => void removeStore(store)} pending={pending.includes(store.storeId)} store={store} />)}
                     </div>
                   ) : <p className={styles.storePrompt}>No preferred {retailer} store selected. Prices may not reflect your local store.</p>}
-                  {retailer === "Coles" ? (
-                    <form className={styles.storeSearch} onSubmit={(event) => { event.preventDefault(); void findStores(retailer); }}>
-                      <label htmlFor="coles-store-query">Suburb, postcode or store number</label>
-                      <div>
-                        <input id="coles-store-query" onChange={(event) => setColesQuery(event.target.value)} placeholder="e.g. Springwood or 4472" value={colesQuery} />
-                        <button className={styles.secondaryButton} disabled={!homePostcode || !colesQuery.trim() || pending === `find-${retailer}`} type="submit">
-                          {pending === `find-${retailer}` ? "Finding stores..." : "Find Coles stores"}
-                        </button>
-                      </div>
-                    </form>
-                  ) : (
-                    <button className={styles.secondaryButton} disabled={!homePostcode || pending === `find-${retailer}`} onClick={() => void findStores(retailer)} type="button">
-                      {pending === `find-${retailer}` ? "Finding stores..." : `Find ${retailer} stores near ${homePostcode || "home"}`}
+                  <div className={styles.storeFinderActions}>
+                    <button className={styles.secondaryButton} disabled={!homePostcode || pending.startsWith("find-")} onClick={() => void findStores(retailer, "home")} type="button">
+                      {pending === `find-home-${retailer}` ? "Finding stores..." : `Find near ${homePostcode || "home"}`}
                     </button>
-                  )}
+                    <button className={styles.secondaryButton} disabled={pending.startsWith("find-")} onClick={() => void findStores(retailer, "current")} type="button">
+                      {pending === `find-current-${retailer}` ? "Finding location..." : "Use current location"}
+                    </button>
+                  </div>
                   {nearby.length ? (
                     <div className={styles.storeResults}>
                       <small>Nearby suggestions - choose any store you prefer</small>
-                      {nearby.map((store) => {
-                        const saved = preferred.some((item) => item.storeId === store.storeId);
-                        return <StoreRow action={saved ? "saved" : "add"} key={store.storeId} onAction={() => void saveStore(store)} pending={pending.includes(store.storeId)} store={store} />;
-                      })}
+                      <div className={styles.storeResultsList}>
+                        {nearby.map((store) => {
+                          const saved = preferred.some((item) => item.storeId === store.storeId);
+                          return <StoreRow action={saved ? "saved" : "add"} key={store.storeId} onAction={() => void saveStore(store)} pending={pending.includes(store.storeId)} store={store} />;
+                        })}
+                      </div>
                     </div>
-                  ) : null}
+                  ) : hasSearched ? <p className={styles.storePrompt}>No nearby {retailer} stores were found for that location.</p> : null}
                 </>
               ) : null}
             </article>

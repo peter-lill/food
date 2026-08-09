@@ -12,7 +12,6 @@ import styles from "./account.module.css";
 type AccountPanelProps = {
   name: string;
   email: string;
-  homeLocation: string;
   homePostcode: string;
   lockToHomeLocation: boolean;
   isOwner: boolean;
@@ -23,7 +22,6 @@ type AccountPanelProps = {
 export function AccountPanel({
   name,
   email,
-  homeLocation,
   homePostcode,
   lockToHomeLocation,
   isOwner,
@@ -98,7 +96,6 @@ export function AccountPanel({
         <HealthConnectPairing />
 
         <LocationPreferences
-          initialLocation={homeLocation}
           initialLocked={lockToHomeLocation}
           initialPostcode={homePostcode}
         />

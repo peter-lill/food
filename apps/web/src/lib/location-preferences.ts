@@ -85,7 +85,7 @@ export function formatHomeLocation(
   const location = cleanLocation(preference?.homeLocation);
   const postcode = preference?.homePostcode?.replace(/\s+/g, " ").trim() ?? "";
 
-  if (!location) return "";
+  if (!location) return postcode;
   if (!postcode || location.toLocaleLowerCase().includes(postcode.toLocaleLowerCase())) {
     return location;
   }
