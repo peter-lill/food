@@ -7,6 +7,7 @@ import {
   preferredStoreIds,
   retailerNameMatches,
 } from "../src/lib/retailers/retailer-preferences";
+import { formatHomeLocation } from "../src/lib/location-preferences";
 
 assert.deepEqual(enabledRetailers([]), ["Coles", "Woolworths"], "current retailers remain enabled for existing users");
 assert.deepEqual(
@@ -45,6 +46,7 @@ assert.deepEqual(
 assert.equal(retailerNameMatches("Coles", "Coles Supermarkets"), true);
 assert.equal(retailerNameMatches("Woolworths", "Woolworths Springwood"), true);
 assert.equal(retailerNameMatches("Coles", "Woolworths"), false);
+assert.equal(formatHomeLocation({ homeLocation: null, homePostcode: "4114" }), "4114");
 
 const retailerLogoSource = readFileSync(
   new URL("../src/components/retailers/RetailerLogo.tsx", import.meta.url),
@@ -57,5 +59,20 @@ assert.doesNotMatch(
   /edigitalagency\.com\.au/,
   "Woolworths branding must not depend on a mutable third-party image",
 );
+
+const storePreferencesSource = readFileSync(
+  new URL("../src/components/account/RetailerStorePreferences.tsx", import.meta.url),
+  "utf8",
+);
+assert.match(storePreferencesSource, /RetailerLogo retailer={retailer}/);
+assert.match(storePreferencesSource, /getCurrentLocation\(\)/);
+assert.doesNotMatch(storePreferencesSource, /coles-store-query/);
+
+const accountStylesSource = readFileSync(
+  new URL("../src/components/account/account.module.css", import.meta.url),
+  "utf8",
+);
+assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*252px/);
+assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
 
 console.log("Retailer preference regression tests passed.");

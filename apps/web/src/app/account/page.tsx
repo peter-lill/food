@@ -25,7 +25,6 @@ export default async function AccountPage() {
   return (
     <AccountPanel
       email={session.user.email}
-      homeLocation={preference?.homeLocation ?? ""}
       homePostcode={preference?.homePostcode ?? ""}
       isOwner={isOwnerEmail(session.user.email)}
       lockToHomeLocation={preference?.lockToHomeLocation ?? false}

@@ -230,15 +230,22 @@ WOOLWORTHS_STORE_LOCATOR_URL = (
 )
 
 
-def woolworths_stores(postcode: str, limit: int) -> list[dict]:
+def woolworths_stores(
+    postcode: str,
+    limit: int,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> list[dict]:
     """Return nearby Woolworths stores in the official locator's distance order."""
-    if not postcode.isdigit() or len(postcode) != 4:
+    if latitude is None and (not postcode.isdigit() or len(postcode) != 4):
         raise ValueError("postcode must be a four-digit Australian postcode")
 
-    url = (
-        f"{WOOLWORTHS_STORE_LOCATOR_URL}/proximity/SUPERMARKETS/"
-        f"postcode/{quote(postcode)}/range/50/max/{limit}"
+    location_path = (
+        f"latitude/{latitude}/longitude/{longitude}"
+        if latitude is not None and longitude is not None
+        else f"postcode/{quote(postcode)}"
     )
+    url = f"{WOOLWORTHS_STORE_LOCATOR_URL}/proximity/SUPERMARKETS/{location_path}/range/50/max/{limit}"
     request = Request(
         url,
         headers={
@@ -250,13 +257,13 @@ def woolworths_stores(postcode: str, limit: int) -> list[dict]:
         root = ET.fromstring(response.read())
 
     stores: list[dict] = []
-    for rank in root.findall(".//storeRank"):
-        detail = rank.find("storeDetail")
+    for rank in root.findall(".//{*}storeRank"):
+        detail = rank.find("{*}storeDetail")
         if detail is None:
             continue
 
-        store_id = clean_text(detail.findtext("no"))
-        name = clean_text(detail.findtext("name"))
+        store_id = clean_text(detail.findtext("{*}no"))
+        name = clean_text(detail.findtext("{*}name"))
         if not store_id or not name:
             continue
 
@@ -266,23 +273,133 @@ def woolworths_stores(postcode: str, limit: int) -> list[dict]:
             "name": name,
             "address": ", ".join(
                 part for part in (
-                    clean_text(detail.findtext("addressLine1")),
-                    clean_text(detail.findtext("addressLine2")),
-                    clean_text(detail.findtext("suburb")),
-                    clean_text(detail.findtext("state")),
-                    clean_text(detail.findtext("postcode")),
+                    clean_text(detail.findtext("{*}addressLine1")),
+                    clean_text(detail.findtext("{*}addressLine2")),
+                    clean_text(detail.findtext("{*}suburb")),
+                    clean_text(detail.findtext("{*}state")),
+                    clean_text(detail.findtext("{*}postcode")),
                 ) if part
             ),
-            "postcode": clean_text(detail.findtext("postcode")),
-            "latitude": clean_coordinate(detail.findtext("latitude")),
-            "longitude": clean_coordinate(detail.findtext("longtitude")),
-            "distanceKm": clean_price(rank.findtext("distance")),
+            "postcode": clean_text(detail.findtext("{*}postcode")),
+            "latitude": clean_coordinate(detail.findtext("{*}latitude")),
+            "longitude": clean_coordinate(detail.findtext("{*}longtitude")),
+            "distanceKm": clean_price(rank.findtext("{*}distance")),
         })
     return stores
 
 
 COLES_STORE_LOCATOR_URL = "https://locator.coles.com.au/services/storelocator.asmx"
 COLES_SOAP_NAMESPACE = "http://locator.coles.com.au/services/"
+COLES_STORE_GRAPHQL_URL = "https://www.coles.com.au/api/graphql"
+
+
+def coles_store_graphql(query: str, variables: dict, operation_name: str) -> dict:
+    api_key = os.getenv("COLES_STORE_LOCATOR_API_KEY") or os.getenv("COLES_API_KEY")
+    if not api_key:
+        raise RuntimeError("Coles store locator API key is not configured")
+
+    request = Request(
+        COLES_STORE_GRAPHQL_URL,
+        data=json.dumps({
+            "query": query,
+            "variables": variables,
+            "operationName": operation_name,
+        }).encode("utf-8"),
+        headers={
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "Food price location resolver/1.0",
+            "dsch-channel": "coles.online.1site.desktop",
+            "ocp-apim-subscription-key": api_key,
+        },
+    )
+    with urlopen(request, timeout=10) as response:
+        payload = json.loads(response.read())
+    if payload.get("errors"):
+        raise RuntimeError(payload["errors"][0].get("message") or "Coles store locator query failed")
+    return payload.get("data") or {}
+
+
+def coles_graphql_stores(
+    postcode: str,
+    limit: int,
+    latitude: float | None,
+    longitude: float | None,
+) -> list[dict]:
+    if latitude is None or longitude is None:
+        locality_data = coles_store_graphql(
+            """query GetStoreLocationSuggestions($term: String!, $count: Int) {
+              localitySearch(term: $term, count: $count) {
+                results { postcode state suburb latitude longitude }
+              }
+            }""",
+            {"term": postcode, "count": 10},
+            "GetStoreLocationSuggestions",
+        )
+        localities = ((locality_data.get("localitySearch") or {}).get("results") or [])
+        locality = next((item for item in localities if str(item.get("postcode")) == postcode), None)
+        if not locality:
+            return []
+        latitude = clean_coordinate(locality.get("latitude"))
+        longitude = clean_coordinate(locality.get("longitude"))
+        if latitude is None or longitude is None:
+            return []
+
+    store_data = coles_store_graphql(
+        """query FindStores($latitude: Float!, $longitude: Float!, $brandIds: [BrandId!], $count: Float!, $distance: Float) {
+          stores(latitude: $latitude, longitude: $longitude, brandIds: $brandIds, count: $count, distance: $distance, isTrading: true) {
+            results {
+              distance
+              store {
+                id name
+                address { state suburb addressLine postcode }
+                position { latitude longitude }
+                brand { id }
+              }
+            }
+          }
+        }""",
+        {
+            "latitude": latitude,
+            "longitude": longitude,
+            "brandIds": ["COL"],
+            "count": float(limit),
+            "distance": 50000.0,
+        },
+        "FindStores",
+    )
+
+    stores: list[dict] = []
+    for result in ((store_data.get("stores") or {}).get("results") or []):
+        store = result.get("store") or {}
+        if store.get("brand", {}).get("id") != "COL":
+            continue
+        store_id = clean_identifier(store.get("id"))
+        name = clean_text(store.get("name"))
+        if store_id and ":" in store_id:
+            store_id = store_id.split(":", 1)[1]
+        if not store_id or not name:
+            continue
+        address = store.get("address") or {}
+        position = store.get("position") or {}
+        stores.append({
+            "retailer": "Coles",
+            "storeId": store_id,
+            "name": name,
+            "address": ", ".join(
+                part for part in (
+                    clean_text(address.get("addressLine")),
+                    clean_text(address.get("suburb")),
+                    clean_text(address.get("state")),
+                    clean_text(address.get("postcode")),
+                ) if part
+            ),
+            "postcode": clean_text(address.get("postcode")),
+            "latitude": clean_coordinate(position.get("latitude")),
+            "longitude": clean_coordinate(position.get("longitude")),
+            "distanceKm": clean_price(result.get("distance")),
+        })
+    return stores
 
 
 def coles_locator_request(action: str, body: str) -> ET.Element:
@@ -303,29 +420,38 @@ def coles_locator_request(action: str, body: str) -> ET.Element:
         return ET.fromstring(response.read())
 
 
-def coles_stores(postcode: str, limit: int) -> list[dict]:
+def coles_stores(
+    postcode: str,
+    limit: int,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> list[dict]:
     """Resolve nearby Coles supermarkets from the official public store locator."""
-    if not postcode.isdigit() or len(postcode) != 4:
+    if latitude is None and (not postcode.isdigit() or len(postcode) != 4):
         raise ValueError("postcode must be a four-digit Australian postcode")
 
-    locality_root = coles_locator_request(
-        "GetLocalitySuggestions",
-        f'<GetLocalitySuggestions xmlns="{COLES_SOAP_NAMESPACE}"><term>{postcode}</term></GetLocalitySuggestions>',
-    )
-    locality = next(
-        (
-            item for item in locality_root.findall(".//{*}Locality")
-            if clean_text(item.findtext("{*}Postcode")) == postcode
-        ),
-        None,
-    )
-    if locality is None:
-        return []
+    if os.getenv("COLES_STORE_LOCATOR_API_KEY") or os.getenv("COLES_API_KEY"):
+        return coles_graphql_stores(postcode, limit, latitude, longitude)
 
-    latitude = clean_text(locality.findtext("{*}Latitude"))
-    longitude = clean_text(locality.findtext("{*}Longitude"))
-    if not latitude or not longitude:
-        return []
+    if latitude is None or longitude is None:
+        locality_root = coles_locator_request(
+            "GetLocalitySuggestions",
+            f'<GetLocalitySuggestions xmlns="{COLES_SOAP_NAMESPACE}"><term>{postcode}</term></GetLocalitySuggestions>',
+        )
+        locality = next(
+            (
+                item for item in locality_root.findall(".//{*}Locality")
+                if clean_text(item.findtext("{*}Postcode")) == postcode
+            ),
+            None,
+        )
+        if locality is None:
+            return []
+
+        latitude = clean_coordinate(locality.findtext("{*}Latitude"))
+        longitude = clean_coordinate(locality.findtext("{*}Longitude"))
+        if latitude is None or longitude is None:
+            return []
 
     stores_root = coles_locator_request(
         "GetLocationByMaxDistance",
@@ -389,7 +515,21 @@ class Handler(BaseHTTPRequestHandler):
                 return
             try:
                 limit = max(1, min(10, int((params.get("limit") or ["3"])[0])))
-                stores = coles_stores(postcode, limit) if retailer == "coles" else woolworths_stores(postcode, limit)
+                latitude_text = (params.get("latitude") or [""])[0].strip()
+                longitude_text = (params.get("longitude") or [""])[0].strip()
+                if bool(latitude_text) != bool(longitude_text):
+                    raise ValueError("latitude and longitude must be provided together")
+                latitude = float(latitude_text) if latitude_text else None
+                longitude = float(longitude_text) if longitude_text else None
+                if latitude is not None and not -90 <= latitude <= 90:
+                    raise ValueError("latitude is outside the valid range")
+                if longitude is not None and not -180 <= longitude <= 180:
+                    raise ValueError("longitude is outside the valid range")
+                stores = (
+                    coles_stores(postcode, limit, latitude, longitude)
+                    if retailer == "coles"
+                    else woolworths_stores(postcode, limit, latitude, longitude)
+                )
             except ValueError as error:
                 self.send_json(400, {"status": "error", "error": str(error)})
                 return

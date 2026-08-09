@@ -5,13 +5,11 @@ import { useRouter } from "next/navigation";
 import styles from "./account.module.css";
 
 type LocationPreferencesProps = {
-  initialLocation: string;
   initialPostcode: string;
   initialLocked: boolean;
 };
 
 export function LocationPreferences({
-  initialLocation,
   initialPostcode,
   initialLocked,
 }: LocationPreferencesProps) {
@@ -31,7 +29,6 @@ export function LocationPreferences({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        homeLocation: String(formData.get("homeLocation") ?? ""),
         homePostcode: String(formData.get("homePostcode") ?? ""),
         lockToHomeLocation: formData.get("lockToHomeLocation") === "on",
       }),
@@ -53,31 +50,21 @@ export function LocationPreferences({
       <p className="eyebrow">HOME LOCATION</p>
       <h2>Set your shopping area</h2>
       <p className="subtle">
-        This is your fallback shopping area. You can still use your device&apos;s
-        current location when you are away from home.
+        Your saved postcode is used automatically. You can explicitly use your
+        device&apos;s current location when you are away from home.
       </p>
 
       <form className={styles.locationForm} onSubmit={saveLocation}>
         <label>
-          <span>Suburb, city or region</span>
-          <input
-            defaultValue={initialLocation}
-            maxLength={120}
-            minLength={2}
-            name="homeLocation"
-            placeholder="Springwood, Queensland, Australia"
-            required
-          />
-        </label>
-        <label>
-          <span>Postcode</span>
+          <span>Home postcode</span>
           <input
             autoComplete="postal-code"
             defaultValue={initialPostcode}
-            inputMode="text"
-            maxLength={12}
+            inputMode="numeric"
+            maxLength={4}
             name="homePostcode"
             placeholder="4127"
+            required
           />
         </label>
         <label className={styles.lockLocation}>
