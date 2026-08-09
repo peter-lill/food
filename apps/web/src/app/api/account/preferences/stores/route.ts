@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { searchColesStoreDirectory } from "@/lib/retailers/coles-store-directory";
 import { isSupportedRetailer } from "@/lib/retailers/retailer-preferences";
 
 type StoreCandidate = {
@@ -38,6 +39,14 @@ export async function GET(request: NextRequest) {
   const postcode = (request.nextUrl.searchParams.get("postcode") || preference?.homePostcode || "").trim();
   if (!/^\d{4}$/.test(postcode)) {
     return NextResponse.json({ error: "Add a four-digit home postcode before finding stores." }, { status: 400 });
+  }
+
+  if (retailer === "Coles") {
+    const query = request.nextUrl.searchParams.get("query")?.trim() || postcode;
+    const stores = searchColesStoreDirectory(query, 10);
+    if (stores.length > 0) {
+      return NextResponse.json({ stores, postcode, source: "local-coles-directory" });
+    }
   }
 
   const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();

@@ -12,7 +12,7 @@
     "worker:enqueue-images": "tsx scripts/enqueue-selected-product-images.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test && npm run recipes:pantry-shopping:test && npm run planner:canonical:test && npm run navigation:test && tsx scripts/test-retailer-preferences.ts",
+    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test && npm run recipes:pantry-shopping:test && npm run planner:canonical:test && npm run navigation:test && tsx scripts/test-retailer-preferences.ts && npm run retailers:stores:test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -46,6 +46,8 @@
     "recipes:pantry-shopping:test": "tsx scripts/test-recipe-pantry-shopping.ts",
     "planner:canonical:test": "tsx scripts/test-planner-canonical.ts",
     "navigation:test": "tsx scripts/test-navigation.ts",
+    "retailers:stores:test": "tsx scripts/test-coles-store-directory.ts",
+    "retailers:coles:stores:import": "tsx scripts/import-coles-store-directory.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
   },
   "dependencies": {
