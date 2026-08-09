@@ -1,8 +1,10 @@
 import json
 import os
 import sys
+import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, quote, urlparse
+from urllib.request import Request, urlopen
 
 sys.path.insert(0, "/opt/grocery-mcp/upstream")
 
@@ -177,6 +179,60 @@ def search_woolworths(query: str, limit: int) -> list[dict]:
     return normalise_products("Woolworths", result.get("products", []), limit)
 
 
+WOOLWORTHS_STORE_LOCATOR_URL = (
+    "https://contact.woolworths.com.au/storelocator/service"
+)
+
+
+def woolworths_stores(postcode: str, limit: int) -> list[dict]:
+    """Return nearby Woolworths stores in the official locator's distance order."""
+    if not postcode.isdigit() or len(postcode) != 4:
+        raise ValueError("postcode must be a four-digit Australian postcode")
+
+    url = (
+        f"{WOOLWORTHS_STORE_LOCATOR_URL}/proximity/SUPERMARKETS/"
+        f"postcode/{quote(postcode)}/range/50/max/{limit}"
+    )
+    request = Request(
+        url,
+        headers={
+            "Accept": "application/xml, text/xml;q=0.9, */*;q=0.1",
+            "User-Agent": "Food price location resolver/1.0",
+        },
+    )
+    with urlopen(request, timeout=10) as response:
+        root = ET.fromstring(response.read())
+
+    stores: list[dict] = []
+    for rank in root.findall(".//storeRank"):
+        detail = rank.find("storeDetail")
+        if detail is None:
+            continue
+
+        store_id = clean_text(detail.findtext("no"))
+        name = clean_text(detail.findtext("name"))
+        if not store_id or not name:
+            continue
+
+        stores.append({
+            "retailer": "Woolworths",
+            "storeId": store_id,
+            "name": name,
+            "address": ", ".join(
+                part for part in (
+                    clean_text(detail.findtext("addressLine1")),
+                    clean_text(detail.findtext("addressLine2")),
+                    clean_text(detail.findtext("suburb")),
+                    clean_text(detail.findtext("state")),
+                    clean_text(detail.findtext("postcode")),
+                ) if part
+            ),
+            "postcode": clean_text(detail.findtext("postcode")),
+            "distanceKm": clean_price(rank.findtext("distance")),
+        })
+    return stores
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "FoodGroceryBridge/1.2"
 
@@ -191,14 +247,32 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"status": "ok", "version": "1.2"})
+            self.send_json(200, {"status": "ok", "version": "1.3"})
+            return
+
+        params = parse_qs(parsed.query)
+        if parsed.path == "/stores":
+            retailer = (params.get("retailer") or [""])[0].strip().lower()
+            postcode = (params.get("postcode") or [""])[0].strip()
+            if retailer != "woolworths":
+                self.send_json(400, {"status": "error", "error": "Only Woolworths store lookup is supported."})
+                return
+            try:
+                limit = max(1, min(10, int((params.get("limit") or ["3"])[0])))
+                stores = woolworths_stores(postcode, limit)
+            except ValueError as error:
+                self.send_json(400, {"status": "error", "error": str(error)})
+                return
+            except Exception as error:  # noqa: BLE001
+                self.send_json(502, {"status": "error", "error": f"Woolworths store lookup failed: {error}"})
+                return
+            self.send_json(200, {"status": "success", "postcode": postcode, "stores": stores})
             return
 
         if parsed.path != "/search":
             self.send_json(404, {"status": "error", "error": "Not found"})
             return
 
-        params = parse_qs(parsed.query)
         query = (params.get("q") or [""])[0].strip()
         retailer = (params.get("retailer") or ["all"])[0].strip().lower()
         store_id = (params.get("storeId") or [None])[0]
