@@ -290,18 +290,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                       ) : null}
                     </div>
                     <div>
-                      <small>{product.retailerPrices.length > 1 ? "Price comparison" : observed ? `Seen ${observed}` : "Retailer"}</small>
-                      {product.retailerPrices.length && !product.priceNeedsSpecificVariant ? (
-                        <span className={styles.retailerPriceList}>
-                          {product.retailerPrices.map((retailerPrice) => (
-                            <span className={styles.retailerPrice} key={retailerPrice.retailer}>
-                              <RetailerLogo compact retailer={retailerPrice.retailer} />
-                              <strong>{money(retailerPrice.price)}</strong>
-                              {retailerPrice.isSpecial ? <span aria-label={`${retailerPrice.retailer} special`} className={styles.retailerSpecialIcon}>%</span> : null}
-                            </span>
-                          ))}
-                        </span>
-                      ) : <strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong>}
+                      <small>{observed ? `Checked ${observed}` : "Retailer"}</small>
+                      <strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong>
                     </div>
                   </div>
                   <div className={styles.meta}>

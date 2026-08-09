@@ -4,6 +4,7 @@ import { Ean13Barcode } from "@/components/products/Ean13Barcode";
 import { ProductImagePanel } from "@/components/products/ProductImagePanel";
 import { ProductImageWithFallback } from "@/components/products/ProductImageWithFallback";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
+import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
@@ -108,11 +109,13 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
   const knowledge = knowledgeFor(canonicalName ?? displayName);
   const description = product.description ?? knowledge?.overview ?? null;
-  const latestPrice = product.priceObservations[0] ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
   for (const observation of product.priceObservations) {
     if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
   }
+  const currentRetailerPrices = [...latestPriceByRetailer.values()]
+    .sort((left, right) => left.price - right.price);
+  const bestPrice = currentRetailerPrices[0] ?? null;
   const pantryQuantity = pantryQuantityLabel(product.inventory);
   const retailerCount = new Set([
     ...product.storeProducts.map((listing) => listing.retailer),
@@ -153,7 +156,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
               <div className={styles.identityMeta}>
                 {product.packSize ? <span>{product.packSize}</span> : null}
                 {product.barcode ? <span>Barcode {product.barcode}</span> : barcodeRequired ? <span>Barcode not known</span> : null}
-                {latestPrice?.isSpecial ? <span>On special at {latestPrice.retailer}</span> : null}
+                {bestPrice?.isSpecial ? <span>On special at {bestPrice.retailer}</span> : null}
                 {product.recipes.length ? <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span> : null}
                 {retailerCount ? <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span> : null}
               </div>
@@ -163,7 +166,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         {!isGenericProduct ? <aside className={styles.panel}>
           <p className="eyebrow">YOUR PRODUCT</p>
           <div className={styles.metricGrid}>
-            <div className={styles.metric}><small>{latestPrice?.isSpecial ? "Special price" : "Latest price"}</small><strong>{latestPrice ? money(latestPrice.price) : "—"}</strong><small>{latestPrice ? `${latestPrice.isSpecial ? "On special" : "Regular price"} · ${latestPrice.retailer} · ${date(latestPrice.observedAt)}` : "No observation"}</small></div>
+            <div className={styles.metric}><small>{bestPrice?.isSpecial ? "Special price" : "Latest price"}</small><strong>{bestPrice ? money(bestPrice.price) : "—"}</strong><small>{bestPrice ? `${bestPrice.isSpecial ? "On special" : "Regular price"} · ${bestPrice.retailer} · ${date(bestPrice.observedAt)}` : "No observation"}</small></div>
             <div className={styles.metric}><small>Pantry quantity</small><strong>{pantryQuantity}</strong><small>{product.inventory.length ? `${product.inventory.length} stock record${product.inventory.length === 1 ? "" : "s"}` : "Not stocked"}</small></div>
             <div className={styles.metric}><small>Known names</small><strong>{product.aliases.length + (canonicalName ? 1 : 0)}</strong><small>Aliases and family</small></div>
             <div className={styles.metric}><small>Price records</small><strong>{product.priceObservations.length}</strong><small>Latest 100 retained</small></div>
@@ -173,6 +176,22 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
 
       <section className={styles.sections}>
         <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} showLabelDetails={!isGenericProduct} />
+
+        {currentRetailerPrices.length ? <article className={`${styles.panel} ${styles.priceComparisonPanel}`}>
+          <p className="eyebrow">PRICE COMPARISON</p>
+          <h2>Current retailer prices</h2>
+          <p className="subtle">The lowest current price is shown first. Prices are compared only for the same matched product and pack size.</p>
+          <div className={styles.priceComparison}>
+            {currentRetailerPrices.map((price, index) => (
+              <div className={index === 0 ? styles.bestRetailerPrice : styles.retailerPriceOption} key={price.retailer}>
+                <div><RetailerLogo retailer={price.retailer} /></div>
+                <strong>{money(price.price)}</strong>
+                <small>{price.isSpecial ? "On special" : "Current price"} · {date(price.observedAt)}</small>
+                {index === 0 ? <span>Best price</span> : null}
+              </div>
+            ))}
+          </div>
+        </article> : null}
 
         {product.variants.length ? (
           <article className={styles.panel}>
