@@ -366,6 +366,7 @@ model User {
   recipeFavourites  RecipeFavourite[]
   weeklyMealPlans   WeeklyMealPlan[]
   preference        UserPreference?
+  preferredStores    PreferredRetailerStore[]
 
   @@map("user")
 }
@@ -481,6 +482,26 @@ model UserPreference {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
   user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+model PreferredRetailerStore {
+  id          String   @id @default(cuid())
+  userId      String
+  retailer    String
+  storeId     String
+  name        String
+  address     String?
+  postcode    String?
+  latitude    Float?
+  longitude   Float?
+  isPreferred Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, retailer, storeId])
+  @@index([userId, retailer, isPreferred])
 }
 
 model WeeklyMealPlan {
