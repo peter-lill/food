@@ -282,6 +282,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <div>
                       <small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestPackSize ? `Latest price Â· ${product.latestPackSize}` : "Latest price"}</small>
                       <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
+                      {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? (
+                        <span className={styles.specialBadge}>
+                          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>
+                          On special
+                        </span>
+                      ) : null}
                     </div>
                     <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
                   </div>
