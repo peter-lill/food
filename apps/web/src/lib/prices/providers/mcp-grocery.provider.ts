@@ -28,6 +28,12 @@ function money(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
 }
 
+function bridgeErrors(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+}
+
 export class McpGroceryProvider implements GroceryProvider {
   readonly id = "coles-woolworths-mcp";
 
@@ -57,6 +63,14 @@ export class McpGroceryProvider implements GroceryProvider {
         throw new Error(text(payload.error) ?? `Grocery MCP bridge returned HTTP ${response.status}.`);
       }
 
+      const errors = bridgeErrors(payload.errors);
+      if (errors.length) {
+        console.warn("Grocery MCP bridge returned retailer errors", {
+          query,
+          errors,
+        });
+      }
+
       return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
         const retailer = text(item.retailer);
         const name = text(item.name);
@@ -78,3 +92,4 @@ export class McpGroceryProvider implements GroceryProvider {
     }
   }
 }
+
