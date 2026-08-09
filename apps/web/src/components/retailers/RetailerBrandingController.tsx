@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 
 const retailerLogos = {
-  Woolworths: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Woolworths_Limited_Logo.svg",
-  Coles: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Coles_logo.svg",
+  Woolworths: "/retailer-logos/woolworths.png",
+  Coles: "/retailer-logos/coles.svg",
   ALDI: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aldi_S%C3%BCd_2017_logo.svg",
   IGA: "https://commons.wikimedia.org/wiki/Special:Redirect/file/IGA_logo.svg",
   Drakes: "https://dtgxwmigmg3gc.cloudfront.net/images/5a615f7252ba0b73b201addb",

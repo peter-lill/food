@@ -52,8 +52,18 @@ const retailerLogoSource = readFileSync(
   new URL("../src/components/retailers/RetailerLogo.tsx", import.meta.url),
   "utf8",
 );
-assert.match(retailerLogoSource, /src: "\/retailer-logos\/coles\.png"/);
-assert.match(retailerLogoSource, /src: "\/retailer-logos\/woolworths\.svg"/);
+assert.match(retailerLogoSource, /src: "\/retailer-logos\/coles\.svg"/);
+assert.match(retailerLogoSource, /src: "\/retailer-logos\/woolworths\.png"/);
+assert.doesNotMatch(retailerLogoSource, /displayName/, "brand marks must not be combined with a separately rendered wordmark");
+assert.match(retailerLogoSource, /background: "transparent"/);
+
+const colesLogo = readFileSync(new URL("../public/retailer-logos/coles.svg", import.meta.url), "utf8");
+assert.doesNotMatch(colesLogo, /<rect\b/i, "the local Coles wordmark must not include a background rectangle");
+const woolworthsLogo = readFileSync(new URL("../public/retailer-logos/woolworths.png", import.meta.url));
+assert.ok(
+  woolworthsLogo.includes(Buffer.from("tRNS")),
+  "the official local Woolworths Wapple must retain its PNG transparency channel",
+);
 assert.doesNotMatch(
   retailerLogoSource,
   /edigitalagency\.com\.au/,

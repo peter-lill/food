@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
-import { identityScore } from "../src/lib/retailers/retailer-intelligence.service";
+import { identityScore, retailerSearchQuery } from "../src/lib/retailers/retailer-intelligence.service";
 
 const candidate = toRetailerCatalogueCandidate({
   retailer: "Coles",
@@ -49,6 +49,24 @@ const kitKatScore = identityScore(
   },
 );
 assert.ok(kitKatScore >= 900, "spacing differences in KitKat must not reject the exact Coles pack");
+
+const kitKatProduct = {
+  name: "Kitkat Aero Mint Chocolate Block",
+  canonicalName: "Kitkat Aero Mint Chocolate Block",
+  brand: "Nestlé",
+  barcode: "9300605158696",
+  packSize: "155g",
+};
+assert.equal(
+  retailerSearchQuery(kitKatProduct, "Woolworths"),
+  "9300605158696",
+  "Woolworths can resolve exact products efficiently by barcode",
+);
+assert.equal(
+  retailerSearchQuery(kitKatProduct, "Coles"),
+  "Nestlé Kitkat Aero Mint Chocolate Block 155g",
+  "Coles must use the descriptive product and pack query because its catalogue search does not resolve GTINs reliably",
+);
 
 const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
