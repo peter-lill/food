@@ -15,6 +15,9 @@ type BridgeResponse = {
     barcode?: unknown;
     imageUrl?: unknown;
     productId?: unknown;
+    wasPrice?: unknown;
+    isSpecial?: unknown;
+    promotion?: unknown;
   }>;
   errors?: unknown;
   error?: unknown;
@@ -22,6 +25,10 @@ type BridgeResponse = {
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function boolean(value: unknown) {
+  return value === true;
 }
 
 function money(value: unknown) {
@@ -84,6 +91,9 @@ export class McpGroceryProvider implements GroceryProvider {
           barcode: text(item.barcode),
           imageUrl: text(item.imageUrl),
           productId: text(item.productId),
+          wasPrice: money(item.wasPrice),
+          isSpecial: boolean(item.isSpecial),
+          promotion: text(item.promotion),
           source: this.id,
         }];
       });
