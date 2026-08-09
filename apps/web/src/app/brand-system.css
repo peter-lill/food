@@ -85,9 +85,12 @@ body {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 22px 3px 16px;
-  scrollbar-width: none;
+  scrollbar-color: rgba(47, 125, 91, .34) transparent;
+  scrollbar-width: thin;
 }
-.side-nav::-webkit-scrollbar { display: none; }
+.side-nav::-webkit-scrollbar { width: 6px; }
+.side-nav::-webkit-scrollbar-track { background: transparent; }
+.side-nav::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(47, 125, 91, .34); }
 .side-nav-group, .side-nav-items { display: grid; }
 .side-nav-group { gap: 5px; }
 .side-nav-items { gap: 3px; }

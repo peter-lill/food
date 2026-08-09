@@ -87,10 +87,23 @@ export function identityScore(product: ProductIdentity, candidate: RetailerCatal
   return score;
 }
 
-function searchQuery(product: ProductIdentity) {
-  return product.barcode?.trim()
-    || [product.brand, product.name, product.packSize].filter(Boolean).join(" ")
+export function retailerSearchQuery(
+  product: Pick<ProductIdentity, "name" | "canonicalName" | "brand" | "barcode" | "packSize">,
+  retailer: (typeof requiredRetailers)[number],
+) {
+  if (retailer === "Woolworths" && product.barcode?.trim()) return product.barcode.trim();
+  return [product.brand, product.canonicalName ?? product.name, product.packSize]
+    .filter(Boolean)
+    .join(" ")
     || product.name;
+}
+
+async function searchRetailerCandidates(product: ProductIdentity) {
+  const searches = requiredRetailers.map((retailer) => searchColesAndWoolworthsCatalogue(
+    retailerSearchQuery(product, retailer),
+    { retailers: [retailer] },
+  ));
+  return (await Promise.all(searches)).flat();
 }
 
 async function recentlyRefreshed(productId: string) {
@@ -192,7 +205,7 @@ export async function enrichProductRetailers(productId: string, options?: { forc
     return { refreshed: false, matches: 0, matchesByRetailer: { coles: 0, woolworths: 0 } };
   }
 
-  const candidates = await searchColesAndWoolworthsCatalogue(searchQuery(product));
+  const candidates = await searchRetailerCandidates(product);
   const accepted = (["Coles", "Woolworths"] as const).flatMap((retailer) => {
     const ranked = candidates
       .filter((candidate) => candidate.retailer === retailer)

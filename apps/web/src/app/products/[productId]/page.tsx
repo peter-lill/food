@@ -184,7 +184,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           <div className={styles.priceComparison}>
             {currentRetailerPrices.map((price, index) => (
               <div className={index === 0 ? styles.bestRetailerPrice : styles.retailerPriceOption} key={price.retailer}>
-                <div><RetailerLogo retailer={price.retailer} /></div>
+                <div><RetailerLogo compact retailer={price.retailer} /></div>
                 <strong>{money(price.price)}</strong>
                 <small>{price.isSpecial ? "On special" : "Current price"} · {date(price.observedAt)}</small>
                 {index === 0 ? <span>Best price</span> : null}

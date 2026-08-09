@@ -7,7 +7,6 @@ type RetailerLogoProps = {
 type RetailerLogoDefinition = {
   src: string;
   alt: string;
-  displayName?: string;
   width: number;
   height: number;
   compactMaxHeight?: number;
@@ -18,24 +17,22 @@ type RetailerLogoDefinition = {
 
 const logoSources: Record<string, RetailerLogoDefinition> = {
   coles: {
-    src: "/retailer-logos/coles.png",
+    src: "/retailer-logos/coles.svg",
     alt: "Coles",
-    width: 292,
-    height: 88,
+    width: 103,
+    height: 32,
     compactMaxHeight: 30,
     compactMaxWidth: 112,
   },
   woolworths: {
-    // The official local Wapple mark stays legible beside the retailer name at compact sizes.
-    src: "/retailer-logos/woolworths.svg",
-    alt: "Woolworths",
-    displayName: "Woolworths",
-    width: 220,
-    height: 200,
+    src: "/retailer-logos/woolworths.png",
+    alt: "Woolworths Wapple",
+    width: 108,
+    height: 96,
     compactMaxHeight: 28,
     compactMaxWidth: 32,
-    maxHeight: 40,
-    maxWidth: 44,
+    maxHeight: 48,
+    maxWidth: 54,
   },
   aldi: {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aldi_S%C3%BCd_2017_logo.svg",
@@ -120,7 +117,23 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
   const width = Math.min(maxWidth, Math.round(height * ratio));
 
   return (
-    <span aria-label={logo.alt} className={className} data-retailer-logo={sourceKey} role="img">
+    <span
+      aria-label={logo.alt}
+      className={className}
+      data-retailer-logo={sourceKey}
+      role="img"
+      style={{
+        alignItems: "center",
+        background: "transparent",
+        display: "inline-flex",
+        flex: "0 0 auto",
+        height,
+        justifyContent: "center",
+        maxWidth: "100%",
+        overflow: "hidden",
+        width,
+      }}
+    >
       <img
         alt=""
         decoding="async"
@@ -128,10 +141,9 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         loading="lazy"
         referrerPolicy="no-referrer"
         src={logo.src}
-        style={{ background: "transparent", display: "block", objectFit: "contain" }}
+        style={{ background: "transparent", display: "block", maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }}
         width={width}
       />
-      {logo.displayName ? <span className="retailer-logo-name">{logo.displayName}</span> : null}
     </span>
   );
 }

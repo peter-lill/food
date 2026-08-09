@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   desktopNavigationFor,
   groupNavigation,
@@ -41,5 +42,9 @@ assert.equal(
   ownerNavigation.length,
   "desktop navigation destinations must remain unique",
 );
+
+const shellStyles = readFileSync(new URL("../src/app/brand-system.css", import.meta.url), "utf8");
+assert.match(shellStyles, /\.side-nav\s*{[\s\S]*?overflow-y:\s*auto/);
+assert.match(shellStyles, /scrollbar-width:\s*thin/, "long navigation groups must visibly advertise that they can scroll");
 
 console.log("Navigation hierarchy regression checks passed.");
