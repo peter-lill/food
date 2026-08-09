@@ -280,7 +280,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                   {completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}
                   <div className={styles.priceRow}>
                     <div>
-                      <small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestPackSize ? `Latest price Â· ${product.latestPackSize}` : "Latest price"}</small>
+                      <small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `Best price · ${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ? `Best price · ${product.latestRetailer}` : "Best price"}</small>
                       <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
                       {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? (
                         <span className={styles.specialBadge}>
@@ -289,7 +289,20 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                         </span>
                       ) : null}
                     </div>
-                    <div><small>{observed ? `Seen ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
+                    <div>
+                      <small>{product.retailerPrices.length > 1 ? "Price comparison" : observed ? `Seen ${observed}` : "Retailer"}</small>
+                      {product.retailerPrices.length && !product.priceNeedsSpecificVariant ? (
+                        <span className={styles.retailerPriceList}>
+                          {product.retailerPrices.map((retailerPrice) => (
+                            <span className={styles.retailerPrice} key={retailerPrice.retailer}>
+                              <RetailerLogo compact retailer={retailerPrice.retailer} />
+                              <strong>{money(retailerPrice.price)}</strong>
+                              {retailerPrice.isSpecial ? <span aria-label={`${retailerPrice.retailer} special`} className={styles.retailerSpecialIcon}>%</span> : null}
+                            </span>
+                          ))}
+                        </span>
+                      ) : <strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong>}
+                    </div>
                   </div>
                   <div className={styles.meta}>
                     {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
