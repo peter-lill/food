@@ -177,8 +177,10 @@ export async function enrichProductRetailers(productId: string, options?: { forc
       imageUrl: true,
     },
   });
-  if (!product) return { refreshed: false, matches: 0 };
-  if (!options?.force && await recentlyRefreshed(product.id)) return { refreshed: false, matches: 0 };
+  if (!product) return { refreshed: false, matches: 0, matchesByRetailer: { coles: 0, woolworths: 0 } };
+  if (!options?.force && await recentlyRefreshed(product.id)) {
+    return { refreshed: false, matches: 0, matchesByRetailer: { coles: 0, woolworths: 0 } };
+  }
 
   const candidates = await searchColesAndWoolworthsCatalogue(searchQuery(product));
   const accepted = (["Coles", "Woolworths"] as const).flatMap((retailer) => {
@@ -205,6 +207,13 @@ export async function enrichProductRetailers(productId: string, options?: { forc
     });
   }
 
-  return { refreshed: true, matches: accepted.length };
+  return {
+    refreshed: true,
+    matches: accepted.length,
+    matchesByRetailer: {
+      coles: accepted.filter((candidate) => candidate.retailer === "Coles").length,
+      woolworths: accepted.filter((candidate) => candidate.retailer === "Woolworths").length,
+    },
+  };
 }
 
