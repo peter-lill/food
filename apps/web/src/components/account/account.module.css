@@ -191,6 +191,32 @@
   margin: 14px 0;
 }
 
+.storeSearch {
+  display: grid;
+  gap: 6px;
+}
+
+.storeSearch label {
+  color: var(--muted);
+  font-size: .84rem;
+}
+
+.storeSearch > div {
+  display: flex;
+  gap: 8px;
+}
+
+.storeSearch input {
+  min-width: 0;
+  min-height: 44px;
+  flex: 1 1 220px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .9);
+  color: var(--ink);
+}
+
 .storeRow {
   padding: 11px;
   border: 1px solid var(--line);

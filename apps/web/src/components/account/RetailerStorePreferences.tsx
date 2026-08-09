@@ -34,6 +34,7 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
   const [enabled, setEnabled] = useState(new Set(initialEnabled));
   const [savedStores, setSavedStores] = useState(initialStores);
   const [results, setResults] = useState<Partial<Record<RetailerName, Store[]>>>({});
+  const [colesQuery, setColesQuery] = useState(homePostcode);
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -57,7 +58,9 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
 
   async function findStores(retailer: RetailerName) {
     setPending(`find-${retailer}`); setError(""); setMessage("");
-    const response = await fetch(`/api/account/preferences/stores?retailer=${encodeURIComponent(retailer)}`);
+    const params = new URLSearchParams({ retailer });
+    if (retailer === "Coles" && colesQuery.trim()) params.set("query", colesQuery.trim());
+    const response = await fetch(`/api/account/preferences/stores?${params}`);
     const body = await response.json().catch(() => ({})) as { stores?: Store[]; error?: string };
     setPending("");
     if (!response.ok) { setError(body.error ?? `Unable to find ${retailer} stores.`); return; }
@@ -113,9 +116,21 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                       {preferred.map((store) => <StoreRow action="remove" key={store.storeId} onAction={() => void removeStore(store)} pending={pending.includes(store.storeId)} store={store} />)}
                     </div>
                   ) : <p className={styles.storePrompt}>No preferred {retailer} store selected. Prices may not reflect your local store.</p>}
-                  <button className={styles.secondaryButton} disabled={!homePostcode || pending === `find-${retailer}`} onClick={() => void findStores(retailer)} type="button">
-                    {pending === `find-${retailer}` ? "Finding stores..." : `Find ${retailer} stores near ${homePostcode || "home"}`}
-                  </button>
+                  {retailer === "Coles" ? (
+                    <form className={styles.storeSearch} onSubmit={(event) => { event.preventDefault(); void findStores(retailer); }}>
+                      <label htmlFor="coles-store-query">Suburb, postcode or store number</label>
+                      <div>
+                        <input id="coles-store-query" onChange={(event) => setColesQuery(event.target.value)} placeholder="e.g. Springwood or 4472" value={colesQuery} />
+                        <button className={styles.secondaryButton} disabled={!homePostcode || !colesQuery.trim() || pending === `find-${retailer}`} type="submit">
+                          {pending === `find-${retailer}` ? "Finding stores..." : "Find Coles stores"}
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <button className={styles.secondaryButton} disabled={!homePostcode || pending === `find-${retailer}`} onClick={() => void findStores(retailer)} type="button">
+                      {pending === `find-${retailer}` ? "Finding stores..." : `Find ${retailer} stores near ${homePostcode || "home"}`}
+                    </button>
+                  )}
                   {nearby.length ? (
                     <div className={styles.storeResults}>
                       <small>Nearby suggestions - choose any store you prefer</small>
