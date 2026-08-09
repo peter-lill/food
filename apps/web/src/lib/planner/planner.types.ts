@@ -15,6 +15,7 @@ export type PlannerRecipe = {
   imageUrl: string | null;
   instructions: string[];
   ingredients: PlannerIngredient[];
+  mealType: import("@/lib/recipes/recipe-meal-types").RecipeMealType;
   source: "database" | "starter" | "external" | "catalogue";
   sourceKey?: string | null;
   originalSourceName?: string | null;

@@ -5,6 +5,7 @@ import { hwqSnackRecipes } from "@/lib/recipes/hwq-snacks";
 import { parseRecipeIngredientLine } from "@/lib/recipes/recipe-pantry";
 import { getRecipeProductCatalogue } from "@/lib/recipes/recipe-pantry.repository";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
+import { getRecipeMealType } from "@/lib/recipes/recipe-meal-types";
 import {
   sanitiseIngredientName,
   sanitiseInstruction,
@@ -38,6 +39,7 @@ const starterRecipes: PlannerRecipe[] = [
     proteinGrams: 58,
     servings: 4,
     imageUrl: recipeImages["Lemon herb chicken bowl"],
+    mealType: "Lunch & dinner",
     source: "starter",
     instructions: [
       "Cook the brown rice according to the packet directions, then keep warm.",
@@ -61,6 +63,7 @@ const starterRecipes: PlannerRecipe[] = [
     proteinGrams: 49,
     servings: 2,
     imageUrl: recipeImages["Salmon, rice and greens"],
+    mealType: "Lunch & dinner",
     source: "starter",
     instructions: [
       "Cook or reheat the brown rice and divide it between two plates.",
@@ -84,6 +87,7 @@ const starterRecipes: PlannerRecipe[] = [
     proteinGrams: 54,
     servings: 4,
     imageUrl: recipeImages["Lean beef burrito bowl"],
+    mealType: "Lunch & dinner",
     source: "starter",
     instructions: [
       "Cook the brown rice according to the packet directions.",
@@ -111,6 +115,7 @@ export const fullCatalogueRecipes: PlannerRecipe[] = [
     proteinGrams: recipe.nutrition.proteinGrams,
     servings: recipe.servings,
     imageUrl: recipe.imageUrl,
+    mealType: getRecipeMealType(recipe),
     instructions: recipe.instructions,
     ingredients: recipe.ingredients.map(parseRecipeIngredientLine),
     source: "catalogue" as const,
@@ -125,6 +130,7 @@ export const fullCatalogueRecipes: PlannerRecipe[] = [
     proteinGrams: null,
     servings: recipe.servings,
     imageUrl: recipe.imageUrl,
+    mealType: getRecipeMealType(recipe),
     instructions: recipe.instructions,
     ingredients: recipe.ingredients.map(parseRecipeIngredientLine),
     source: "catalogue" as const,
@@ -196,6 +202,7 @@ export async function getPlannerWorkspace(
         (externalRecipe?.sourceName === "Heart Foundation"
           ? `/api/recipes/local-image/${externalRecipe.id}`
           : externalRecipe?.imageUrl ?? null),
+      mealType: getRecipeMealType(externalRecipe ?? { tags: [] }),
       instructions: recipe.instructions
         ? recipe.instructions
           .split(/\r?\n/)
@@ -232,6 +239,7 @@ export async function getPlannerWorkspace(
       proteinGrams: null,
       servings: recipe.servings ?? 1,
       imageUrl: recipe.imageUrl,
+      mealType: getRecipeMealType(recipe),
       instructions: [],
       ingredients: [],
       source: "external",

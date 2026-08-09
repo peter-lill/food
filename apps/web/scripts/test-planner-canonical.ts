@@ -4,7 +4,7 @@ import { hwqSnackRecipes } from "../src/lib/recipes/hwq-snacks";
 import bhfCatalogue from "../src/generated/bhf-recipes.json";
 import { plannerRecipeCardView } from "../src/lib/planner/planner-card";
 import { calculatePlannerAvailability } from "../src/lib/planner/planner-calculations";
-import { plannerMealSlots, withPlannerMealSelection } from "../src/lib/planner/planner-meals";
+import { plannerMealSlots, plannerRecipesForSlot, withPlannerMealSelection } from "../src/lib/planner/planner-meals";
 import { currentPlannerWeekStart } from "../src/lib/planner/planner-week";
 import type { PlannerRecipe } from "../src/lib/planner/planner.types";
 import type { RecipeProductIdentity } from "../src/lib/recipes/recipe-pantry";
@@ -19,6 +19,7 @@ const appleRecipe: PlannerRecipe = {
   imageUrl: null,
   instructions: [],
   ingredients: [{ name: "Apple", quantity: 2, unit: "each", productId: "apple" }],
+  mealType: "Breakfast",
   source: "starter",
 };
 
@@ -111,6 +112,24 @@ assert.deepEqual(
   ["Breakfast", "Lunch", "Dinner", "Snacks"],
   "Planner should expose the four fixed daily meal slots",
 );
+const mainMealRecipe: PlannerRecipe = { ...appleRecipe, id: "main-meal", name: "Main meal", mealType: "Lunch & dinner" };
+const snackRecipe: PlannerRecipe = { ...appleRecipe, id: "snack", name: "Snack", mealType: "Snacks" };
+const plannerRecipes = [appleRecipe, mainMealRecipe, snackRecipe];
+assert.deepEqual(plannerRecipesForSlot(plannerRecipes, "breakfast").map((recipe) => recipe.id), [appleRecipe.id]);
+assert.deepEqual(plannerRecipesForSlot(plannerRecipes, "lunch").map((recipe) => recipe.id), [mainMealRecipe.id]);
+assert.deepEqual(plannerRecipesForSlot(plannerRecipes, "dinner").map((recipe) => recipe.id), [mainMealRecipe.id]);
+assert.deepEqual(plannerRecipesForSlot(plannerRecipes, "snacks").map((recipe) => recipe.id), [snackRecipe.id]);
+assert.deepEqual(
+  plannerRecipesForSlot(plannerRecipes, "breakfast", mainMealRecipe.id).map((recipe) => recipe.id),
+  [appleRecipe.id, mainMealRecipe.id],
+  "an older saved selection must remain visible while choosing a relevant replacement",
+);
+
+const plannerWorkspaceSource = readFileSync(
+  new URL("../src/components/planner/PlannerWorkspace.tsx", import.meta.url),
+  "utf8",
+);
+assert.doesNotMatch(plannerWorkspaceSource, /day\.short/, "Planner day cards should show Monday, not both Mon and Monday");
 let multiMealPlan = withPlannerMealSelection({}, "monday", "breakfast", { recipeId: appleRecipe.id, servings: 2 });
 multiMealPlan = withPlannerMealSelection(multiMealPlan, "monday", "dinner", { recipeId: flourRecipe.id, servings: 1 });
 assert.equal(Object.keys(multiMealPlan.monday ?? {}).length, 2, "adding Dinner must not replace Breakfast");
