@@ -1,4 +1,5 @@
 import { searchGroceryProviders } from "./providers/registry";
+import type { GroceryProviderResult } from "./providers/types";
 import type { SupermarketRetailer } from "./supermarket-comparison.types";
 
 export type RetailerCatalogueCandidate = {
@@ -347,6 +348,26 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
   };
 }
 
+export function toRetailerCatalogueCandidate(result: GroceryProviderResult): RetailerCatalogueCandidate | null {
+  if (
+    (result.retailer !== "Coles" && result.retailer !== "Woolworths")
+    || !result.name.trim()
+  ) return null;
+
+  const externalId = clean(result.productId) || null;
+  return {
+    retailer: result.retailer,
+    productName: result.name.trim(),
+    price: result.price,
+    packSize: detectPackSize(result.name, result.unit),
+    isSpecial: result.isSpecial,
+    sourceUrl: retailerProductUrl(result.retailer, result.name.trim(), externalId),
+    externalId,
+    barcode: clean(result.barcode) || null,
+    imageUrl: clean(result.imageUrl) || null,
+  };
+}
+
 export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
@@ -358,23 +379,8 @@ export async function searchColesAndWoolworthsCatalogue(query: string): Promise<
   }
 
   const candidates = results.flatMap((result): RetailerCatalogueCandidate[] => {
-    if (
-      (result.retailer !== "Coles" && result.retailer !== "Woolworths")
-      || !result.name.trim()
-    ) return [];
-
-    const externalId = clean(result.productId) || null;
-    return [{
-      retailer: result.retailer,
-      productName: result.name.trim(),
-      price: result.price,
-      packSize: detectPackSize(result.name, result.unit),
-      isSpecial: false,
-      sourceUrl: retailerProductUrl(result.retailer, result.name.trim(), externalId),
-      externalId,
-      barcode: clean(result.barcode) || null,
-      imageUrl: clean(result.imageUrl) || null,
-    }];
+    const candidate = toRetailerCatalogueCandidate(result);
+    return candidate ? [candidate] : [];
   });
 
   return Promise.all(candidates.map(hydrateCatalogueImage));
