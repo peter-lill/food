@@ -7,6 +7,7 @@ type RetailerLogoProps = {
 type RetailerLogoDefinition = {
   src: string;
   alt: string;
+  displayName?: string;
   width: number;
   height: number;
   compactMaxHeight?: number;
@@ -17,23 +18,24 @@ type RetailerLogoDefinition = {
 
 const logoSources: Record<string, RetailerLogoDefinition> = {
   coles: {
-    src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Coles_logo.svg",
+    src: "/retailer-logos/coles.png",
     alt: "Coles",
-    width: 1000,
-    height: 312,
+    width: 292,
+    height: 88,
     compactMaxHeight: 30,
     compactMaxWidth: 112,
   },
   woolworths: {
-    // This tightly framed 225 × 54 wordmark avoids scaling whitespace from a padded image.
-    src: "https://www.edigitalagency.com.au/wp-content/uploads/new-Woolworths-logo-png-horizontal.png",
+    // The official local Wapple mark stays legible beside the retailer name at compact sizes.
+    src: "/retailer-logos/woolworths.svg",
     alt: "Woolworths",
-    width: 225,
-    height: 54,
-    compactMaxHeight: 24,
-    compactMaxWidth: 110,
-    maxHeight: 36,
-    maxWidth: 168,
+    displayName: "Woolworths",
+    width: 220,
+    height: 200,
+    compactMaxHeight: 28,
+    compactMaxWidth: 32,
+    maxHeight: 40,
+    maxWidth: 44,
   },
   aldi: {
     src: "https://commons.wikimedia.org/wiki/Special:Redirect/file/Aldi_S%C3%BCd_2017_logo.svg",
@@ -129,6 +131,7 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         style={{ background: "transparent", display: "block", objectFit: "contain" }}
         width={width}
       />
+      {logo.displayName ? <span className="retailer-logo-name">{logo.displayName}</span> : null}
     </span>
   );
 }
