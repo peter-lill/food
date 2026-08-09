@@ -9,6 +9,9 @@ export type GroceryProviderResult = {
   barcode: string | null;
   imageUrl: string | null;
   productId: string | null;
+  wasPrice: number | null;
+  isSpecial: boolean;
+  promotion: string | null;
   source: string;
 };
 
