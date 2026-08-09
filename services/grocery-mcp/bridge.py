@@ -233,6 +233,88 @@ def woolworths_stores(postcode: str, limit: int) -> list[dict]:
     return stores
 
 
+COLES_STORE_LOCATOR_URL = "https://locator.coles.com.au/services/storelocator.asmx"
+COLES_SOAP_NAMESPACE = "http://locator.coles.com.au/services/"
+
+
+def coles_locator_request(action: str, body: str) -> ET.Element:
+    payload = f"""<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>{body}</soap:Body>
+</soap:Envelope>""".encode("utf-8")
+    request = Request(
+        COLES_STORE_LOCATOR_URL,
+        data=payload,
+        headers={
+            "Content-Type": "text/xml; charset=utf-8",
+            "SOAPAction": f'"{COLES_SOAP_NAMESPACE}{action}"',
+            "User-Agent": "Food price location resolver/1.0",
+        },
+    )
+    with urlopen(request, timeout=10) as response:
+        return ET.fromstring(response.read())
+
+
+def coles_stores(postcode: str, limit: int) -> list[dict]:
+    """Resolve nearby Coles supermarkets from the official public store locator."""
+    if not postcode.isdigit() or len(postcode) != 4:
+        raise ValueError("postcode must be a four-digit Australian postcode")
+
+    locality_root = coles_locator_request(
+        "GetLocalitySuggestions",
+        f'<GetLocalitySuggestions xmlns="{COLES_SOAP_NAMESPACE}"><term>{postcode}</term></GetLocalitySuggestions>',
+    )
+    locality = next(
+        (
+            item for item in locality_root.findall(".//{*}Locality")
+            if clean_text(item.findtext("{*}Postcode")) == postcode
+        ),
+        None,
+    )
+    if locality is None:
+        return []
+
+    latitude = clean_text(locality.findtext("{*}Latitude"))
+    longitude = clean_text(locality.findtext("{*}Longitude"))
+    if not latitude or not longitude:
+        return []
+
+    stores_root = coles_locator_request(
+        "GetLocationByMaxDistance",
+        (
+            f'<GetLocationByMaxDistance xmlns="{COLES_SOAP_NAMESPACE}">'
+            f"<latitude>{latitude}</latitude><longitude>{longitude}</longitude>"
+            "<brandIDs><string>2</string></brandIDs></GetLocationByMaxDistance>"
+        ),
+    )
+    stores: list[dict] = []
+    for location in stores_root.findall(".//{*}Location"):
+        store_id = clean_text(location.findtext("{*}StoreID"))
+        name = clean_text(location.findtext("{*}StoreName"))
+        if not store_id or not name:
+            continue
+        stores.append({
+            "retailer": "Coles",
+            "storeId": store_id,
+            "name": name,
+            "address": ", ".join(
+                part for part in (
+                    clean_text(location.findtext("{*}Address")),
+                    clean_text(location.findtext("{*}Suburb")),
+                    clean_text(location.findtext("{*}State")),
+                    clean_text(location.findtext("{*}Postcode")),
+                ) if part
+            ),
+            "postcode": clean_text(location.findtext("{*}Postcode")),
+            "latitude": clean_price(location.findtext("{*}Latitude")),
+            "longitude": clean_price(location.findtext("{*}Longitude")),
+            "distanceKm": clean_price(location.findtext("{*}Distance")),
+        })
+        if len(stores) >= limit:
+            break
+    return stores
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "FoodGroceryBridge/1.2"
 
@@ -254,17 +336,17 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
-            if retailer != "woolworths":
-                self.send_json(400, {"status": "error", "error": "Only Woolworths store lookup is supported."})
+            if retailer not in ("coles", "woolworths"):
+                self.send_json(400, {"status": "error", "error": "Supported retailers are Coles and Woolworths."})
                 return
             try:
                 limit = max(1, min(10, int((params.get("limit") or ["3"])[0])))
-                stores = woolworths_stores(postcode, limit)
+                stores = coles_stores(postcode, limit) if retailer == "coles" else woolworths_stores(postcode, limit)
             except ValueError as error:
                 self.send_json(400, {"status": "error", "error": str(error)})
                 return
             except Exception as error:  # noqa: BLE001
-                self.send_json(502, {"status": "error", "error": f"Woolworths store lookup failed: {error}"})
+                self.send_json(502, {"status": "error", "error": f"{retailer.title()} store lookup failed: {error}"})
                 return
             self.send_json(200, {"status": "success", "postcode": postcode, "stores": stores})
             return
