@@ -244,6 +244,11 @@ async function lookupBestExternalProduct(barcode: string, location: ResolvedSear
     .sort((left, right) => candidateScore(right) - candidateScore(left))[0] ?? null;
 }
 
+function needsBarcodeEnrichment(product: { name: string; packSize: string | null }) {
+  if (!product.packSize?.trim()) return true;
+  return !/\b\d+(?:\.\d+)?\s*(?:mg|g|kg|ml|l|pack|pk|capsules?|tablets?)\b/i.test(product.name);
+}
+
 function currentLocationFromUrl(url: URL): CurrentSearchLocation | null {
   if (url.searchParams.get("useCurrentLocation") !== "1") return null;
   const latitude = Number(url.searchParams.get("latitude"));
@@ -269,7 +274,7 @@ export async function GET(request: Request, context: RouteContext) {
     where: { barcode },
     select: { id: true, name: true, canonicalName: true, brand: true, barcode: true, imageUrl: true, packSize: true },
   });
-  if (existing && !refresh) return productResponse(existing, "local");
+  if (existing && !refresh && !needsBarcodeEnrichment(existing)) return productResponse(existing, "local");
   if (!supportedExternalBarcode.test(barcode)) {
     return existing ? productResponse(existing, "local") : NextResponse.json({ found: false, source: "local" });
   }
