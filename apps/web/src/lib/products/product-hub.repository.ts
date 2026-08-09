@@ -31,6 +31,13 @@ export type ProductHubListItem = {
   latestPackSize: string | null;
   latestObservedAt: Date | null;
   latestIsSpecial: boolean;
+  retailerPrices: Array<{
+    retailer: string;
+    price: number;
+    isSpecial: boolean;
+    packSize: string | null;
+    observedAt: Date;
+  }>;
   priceNeedsSpecificVariant: boolean;
 };
 
@@ -188,6 +195,39 @@ function resolvedFamilyName(
   }) ?? ownFamily;
 }
 
+export function latestPricesByRetailer(observations: Array<{
+  retailer: string;
+  price: number;
+  isSpecial: boolean;
+  observedAt: Date;
+  storeProduct: { packSize: string | null } | null;
+}>) {
+  const latest = new Map<string, {
+    retailer: string;
+    price: number;
+    isSpecial: boolean;
+    packSize: string | null;
+    observedAt: Date;
+  }>();
+
+  for (const observation of observations) {
+    if (!latest.has(observation.retailer)) {
+      latest.set(observation.retailer, {
+        retailer: observation.retailer,
+        price: observation.price,
+        isSpecial: observation.isSpecial,
+        packSize: observation.storeProduct?.packSize ?? null,
+        observedAt: observation.observedAt,
+      });
+    }
+  }
+
+  return [...latest.values()].sort((left, right) => {
+    const order = ["Coles", "Woolworths"];
+    return (order.indexOf(left.retailer) + 1 || 99) - (order.indexOf(right.retailer) + 1 || 99);
+  });
+}
+
 export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({
@@ -218,7 +258,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       storeProducts: { select: { retailer: true, imageUrl: true } },
       priceObservations: {
         orderBy: { observedAt: "desc" },
-        take: 1,
+        take: 12,
         select: {
           price: true,
           retailer: true,
@@ -246,6 +286,8 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
+    const retailerPrices = latestPricesByRetailer(product.priceObservations);
+    const bestRetailerPrice = [...retailerPrices].sort((left, right) => left.price - right.price)[0] ?? null;
     const familyName = resolvedFamilyName(product, genericFamilies);
     const familyKey = familyName.toLocaleLowerCase("en-AU");
     const productIds = groupedProductIds.get(familyKey) ?? new Set<string>();
@@ -269,11 +311,12 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         recipeCount: recipeIds.size,
         pantryQuantity: product.inventoryItems.reduce((total, item) => total + item.quantity, 0),
         retailerCount: retailers.size,
-        latestPrice: latest?.price ?? null,
-        latestRetailer: latest?.retailer ?? null,
-        latestPackSize: latest?.storeProduct?.packSize ?? null,
+        latestPrice: bestRetailerPrice?.price ?? null,
+        latestRetailer: bestRetailerPrice?.retailer ?? null,
+        latestPackSize: bestRetailerPrice?.packSize ?? null,
         latestObservedAt: latest?.observedAt ?? null,
-        latestIsSpecial: latest?.isSpecial ?? false,
+        latestIsSpecial: bestRetailerPrice?.isSpecial ?? false,
+        retailerPrices,
         priceNeedsSpecificVariant: false,
       });
       if (isGeneric && Boolean(familyImage ?? product.imageUrl)) groupedHasGenericImage.add(familyKey);
@@ -303,11 +346,12 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.barcode = null;
 
     if (latest && (!current.latestObservedAt || latest.observedAt > current.latestObservedAt)) {
-      current.latestPrice = latest.price;
-      current.latestRetailer = latest.retailer;
-      current.latestPackSize = latest.storeProduct?.packSize ?? null;
+      current.latestPrice = bestRetailerPrice?.price ?? null;
+      current.latestRetailer = bestRetailerPrice?.retailer ?? null;
+      current.latestPackSize = bestRetailerPrice?.packSize ?? null;
       current.latestObservedAt = latest.observedAt;
-      current.latestIsSpecial = latest.isSpecial;
+      current.latestIsSpecial = bestRetailerPrice?.isSpecial ?? false;
+      current.retailerPrices = retailerPrices;
     }
   }
 
