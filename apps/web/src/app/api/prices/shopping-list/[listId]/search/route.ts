@@ -17,6 +17,7 @@ import type {
   LiveGroceryPriceMatch,
   LiveGroceryPriceSearchResponse,
 } from "@/lib/prices/live-grocery-price.types";
+import { enabledRetailers as resolveEnabledRetailers, preferredStoreIds } from "@/lib/retailers/retailer-preferences";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -25,7 +26,6 @@ const cacheWindowMs = 6 * 60 * 60 * 1000;
 const requestTimeoutMs = 5_500;
 const searchConcurrency = 4;
 const serpCircuitBreakerMs = 12 * 60 * 60 * 1000;
-const primaryRetailers = new Set<SupermarketRetailer>(["Coles", "Woolworths"]);
 
 type CandidateSource = "food" | "open-prices" | "retailer-api" | "serpapi";
 type Candidate = {
@@ -203,7 +203,7 @@ function matchScore(entry: SearchableItem, query: string, candidate: Candidate, 
   return { score: 400 + ratio * 100 + (packMatches ? 30 : -80), exact: false, reason: "Comparable substitute; check brand and pack size." };
 }
 
-async function storedCandidates(searchItem: SearchableItem, query: string): Promise<Candidate[]> {
+async function storedCandidates(searchItem: SearchableItem, query: string, enabled: readonly string[]): Promise<Candidate[]> {
   const cutoff = new Date(Date.now() - cacheWindowMs);
   const where = searchItem.productId
     ? {
@@ -218,7 +218,10 @@ async function storedCandidates(searchItem: SearchableItem, query: string): Prom
         productName: { contains: query, mode: "insensitive" as const },
       };
 
-  const prices = await prisma.supermarketPrice.findMany({ where, orderBy: { checkedAt: "desc" }, take: 100 });
+  const prices = await prisma.supermarketPrice.findMany({
+    where: { AND: [where, { retailer: { in: [...enabled] } }] },
+    orderBy: { checkedAt: "desc" }, take: 100,
+  });
   return prices.flatMap((price): Candidate[] => {
     const sourceRetailer = retailer(price.retailer);
     if (!sourceRetailer || price.price <= 0) return [];
@@ -277,8 +280,11 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
   }
 }
 
-async function retailerApiCandidates(queries: string[]): Promise<Candidate[]> {
-  const batches = await Promise.all(queries.map((query) => searchColesAndWoolworths(query).catch(() => [])));
+async function retailerApiCandidates(
+  queries: string[],
+  options: { retailers: Array<"Coles" | "Woolworths">; storeIds: Partial<Record<"Coles" | "Woolworths", string>> },
+): Promise<Candidate[]> {
+  const batches = await Promise.all(queries.map((query) => searchColesAndWoolworths(query, options).catch(() => [])));
   const seen = new Set<string>();
   return batches.flat().flatMap((result): Candidate[] => {
     if (!Number.isFinite(result.price) || result.price <= 0) return [];
@@ -374,8 +380,15 @@ async function serpCandidates(query: string): Promise<Candidate[]> {
   }
 }
 
-function buildMatches(entry: SearchableItem, query: string, candidates: Candidate[], allowSubstitutes: boolean) {
+function buildMatches(
+  entry: SearchableItem,
+  query: string,
+  candidates: Candidate[],
+  allowSubstitutes: boolean,
+  allowedRetailers: ReadonlySet<SupermarketRetailer> = new Set(supermarketRetailers),
+) {
   const scored = candidates
+    .filter((candidate) => allowedRetailers.has(candidate.retailer))
     .map((candidate) => {
       const assessment = matchScore(entry, query, candidate, allowSubstitutes);
       if (!assessment) return null;
@@ -440,6 +453,14 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   const resolvedLocation = await resolveUserSearchLocation(session.user.id, requestedLocation);
   const allowSubstitutes = body.allowSubstitutes !== false;
 
+  const [retailerPreferences, preferredStores] = await Promise.all([
+    prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
+    prisma.preferredRetailerStore.findMany({ where: { userId: session.user.id, isPreferred: true }, orderBy: { updatedAt: "desc" } }),
+  ]);
+  const enabledPrimaryRetailers = resolveEnabledRetailers(retailerPreferences);
+  const activePrimaryRetailers = new Set<SupermarketRetailer>(enabledPrimaryRetailers);
+  const storeIds = preferredStoreIds(preferredStores);
+
   const list = await prisma.shoppingList.findUnique({
     where: { id: listId },
     include: {
@@ -470,24 +491,24 @@ export async function POST(request: Request, context: { params: Promise<{ listId
 
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
     const query = titleCase(entry.item.name);
-    let candidates = await storedCandidates(entry, query);
-    let matches = buildMatches(entry, query, candidates, allowSubstitutes);
-    const cachedPrimaryRetailers = new Set(matches.filter((match) => primaryRetailers.has(match.retailer)).map((match) => match.retailer));
+    let candidates = await storedCandidates(entry, query, enabledPrimaryRetailers);
+    let matches = buildMatches(entry, query, candidates, allowSubstitutes, activePrimaryRetailers);
+    const cachedPrimaryRetailers = new Set(matches.filter((match) => activePrimaryRetailers.has(match.retailer)).map((match) => match.retailer));
 
-    if (cachedPrimaryRetailers.size < primaryRetailers.size) {
+    if (cachedPrimaryRetailers.size < activePrimaryRetailers.size) {
       const queries = searchQueries(entry);
       const [openPrices, retailerPrices] = await Promise.all([
         entry.barcode ? openPricesCandidates(entry.barcode, query) : Promise.resolve([]),
-        retailerApiCandidates(queries),
+        retailerApiCandidates(queries, { retailers: enabledPrimaryRetailers, storeIds }),
       ]);
       candidates = [...candidates, ...openPrices, ...retailerPrices];
       await cacheRetailerCandidates(entry.productId, retailerPrices);
-      matches = buildMatches(entry, query, candidates, allowSubstitutes);
+      matches = buildMatches(entry, query, candidates, allowSubstitutes, activePrimaryRetailers);
     }
 
     if (!matches.length) {
       candidates = [...candidates, ...await serpCandidates(searchQueries(entry)[1] ?? query)];
-      matches = buildMatches(entry, query, candidates, allowSubstitutes);
+      matches = buildMatches(entry, query, candidates, allowSubstitutes, activePrimaryRetailers);
     }
 
     for (const candidate of candidates) sources.add(candidate.source);
@@ -497,7 +518,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     return { item: entry.item, query, matches, best: matches[0] ?? null, error: null };
   });
 
-  const retailerTotals = supermarketRetailers.map((name) => {
+  const retailerTotals = supermarketRetailers.filter((name) => activePrimaryRetailers.has(name)).map((name) => {
     const matches = items.map((item) => item.matches.find((match) => match.retailer === name)).filter((match): match is LiveGroceryPriceMatch => Boolean(match));
     return {
       retailer: name,

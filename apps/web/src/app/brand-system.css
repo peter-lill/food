@@ -182,6 +182,22 @@ body {
 
 .card { border-color: var(--food-line) !important; box-shadow: var(--food-shadow); }
 .primary-button { background: var(--food-forest); color: #fff; border-color: var(--food-forest); }
+
+.notice-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 20px;
+  padding: 20px 22px;
+  border: 1px solid #e5caa8;
+  border-radius: 20px;
+  background: linear-gradient(135deg, #fff9ee, #f3f8ef);
+}
+
+@media (max-width: 720px) {
+  .notice-panel { align-items: stretch; flex-direction: column; }
+}
 .secondary-button { border-color: var(--food-line); }
 
 .food-home { display: grid; gap: 20px; }

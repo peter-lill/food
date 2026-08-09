@@ -368,10 +368,15 @@ export function toRetailerCatalogueCandidate(result: GroceryProviderResult): Ret
   };
 }
 
-export async function searchColesAndWoolworthsCatalogue(query: string): Promise<RetailerCatalogueCandidate[]> {
+export async function searchColesAndWoolworthsCatalogue(
+  query: string,
+  options: { retailers?: Array<"Coles" | "Woolworths">; storeIds?: Partial<Record<"Coles" | "Woolworths", string>> } = {},
+): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
     storeId: process.env.COLES_STORE_ID?.trim() || null,
+    retailers: options.retailers,
+    storeIds: options.storeIds,
   });
 
   if (errors.length) {
@@ -386,8 +391,11 @@ export async function searchColesAndWoolworthsCatalogue(query: string): Promise<
   return Promise.all(candidates.map(hydrateCatalogueImage));
 }
 
-export async function searchColesAndWoolworths(query: string): Promise<RetailerPriceCandidate[]> {
-  const results = await searchColesAndWoolworthsCatalogue(query);
+export async function searchColesAndWoolworths(
+  query: string,
+  options: { retailers?: Array<"Coles" | "Woolworths">; storeIds?: Partial<Record<"Coles" | "Woolworths", string>> } = {},
+): Promise<RetailerPriceCandidate[]> {
+  const results = await searchColesAndWoolworthsCatalogue(query, options);
 
   return results.flatMap((result): RetailerPriceCandidate[] => {
     const hasUsablePrice = result.price !== null && Number.isFinite(result.price) && result.price > 0;

@@ -39,6 +39,16 @@ def clean_price(value: object) -> float | None:
     return round(price, 2) if price > 0 else None
 
 
+def clean_coordinate(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    try:
+        coordinate = float(value)
+    except (TypeError, ValueError):
+        return None
+    return coordinate if -180 <= coordinate <= 180 else None
+
+
 def clean_identifier(value: object) -> str | None:
     if isinstance(value, bool):
         return None
@@ -228,6 +238,8 @@ def woolworths_stores(postcode: str, limit: int) -> list[dict]:
                 ) if part
             ),
             "postcode": clean_text(detail.findtext("postcode")),
+            "latitude": clean_coordinate(detail.findtext("latitude")),
+            "longitude": clean_coordinate(detail.findtext("longtitude")),
             "distanceKm": clean_price(rank.findtext("distance")),
         })
     return stores
@@ -306,8 +318,8 @@ def coles_stores(postcode: str, limit: int) -> list[dict]:
                 ) if part
             ),
             "postcode": clean_text(location.findtext("{*}Postcode")),
-            "latitude": clean_price(location.findtext("{*}Latitude")),
-            "longitude": clean_price(location.findtext("{*}Longitude")),
+            "latitude": clean_coordinate(location.findtext("{*}Latitude")),
+            "longitude": clean_coordinate(location.findtext("{*}Longitude")),
             "distanceKm": clean_price(location.findtext("{*}Distance")),
         })
         if len(stores) >= limit:

@@ -16,7 +16,9 @@ function normaliseName(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-export async function getSupermarketComparisonData(): Promise<SupermarketComparisonData> {
+export async function getSupermarketComparisonData(
+  enabledRetailers: readonly SupermarketRetailer[] = supermarketRetailers,
+): Promise<SupermarketComparisonData> {
   // Prices must consume the same canonical Shopping records as the Shopping
   // screen. Reapply consolidation before reading the lists so a page refresh is
   // authoritative across Shopping and Prices.
@@ -24,7 +26,7 @@ export async function getSupermarketComparisonData(): Promise<SupermarketCompari
 
   const [priceRows, shoppingLists] = await Promise.all([
     prisma.supermarketPrice.findMany({
-      where: { retailer: { in: [...supermarketRetailers] } },
+      where: { retailer: { in: [...enabledRetailers] } },
       orderBy: { checkedAt: "desc" },
       take: 1000,
     }),

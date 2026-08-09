@@ -6,6 +6,7 @@ import type {
   ProductPriceHistory,
   RetailerPriceSummary,
 } from "./price-history.types";
+import { isSupportedRetailer, retailerNameMatches } from "@/lib/retailers/retailer-preferences";
 
 function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
@@ -102,7 +103,7 @@ function buildProductHistory(key: string, observations: PriceHistoryObservation[
   };
 }
 
-export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
+export async function getReceiptPriceHistory(enabledRetailers?: readonly string[]): Promise<PriceHistoryData> {
   const receiptItems = await prisma.receiptItem.findMany({
     where: {
       isFood: true,
@@ -137,6 +138,7 @@ export async function getReceiptPriceHistory(): Promise<PriceHistoryData> {
     if (!productName) continue;
 
     const retailer = item.receiptImport.retailer?.trim() || "Unknown retailer";
+    if (enabledRetailers && !enabledRetailers.some((enabled) => isSupportedRetailer(enabled) && retailerNameMatches(enabled, retailer))) continue;
     const purchasedAt = (item.receiptImport.purchasedAt ?? item.receiptImport.createdAt).toISOString();
     const comparison = comparablePrice(item.price, item.quantity, item.unit);
     const observation: PriceHistoryObservation = {

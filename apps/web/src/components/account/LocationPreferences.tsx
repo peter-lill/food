@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import styles from "./account.module.css";
 
 type LocationPreferencesProps = {
@@ -14,6 +15,7 @@ export function LocationPreferences({
   initialPostcode,
   initialLocked,
 }: LocationPreferencesProps) {
+  const router = useRouter();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -43,6 +45,7 @@ export function LocationPreferences({
     }
 
     setMessage("Home location saved.");
+    router.refresh();
   }
 
   return (

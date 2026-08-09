@@ -122,6 +122,105 @@
   grid-column: 1 / -1;
 }
 
+.retailerCard {
+  grid-column: 1 / -1;
+}
+
+.setupNotice,
+.storePrompt {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #e5caa8;
+  border-radius: 12px;
+  background: #fff8ed;
+  color: #6e4b24;
+}
+
+.retailerList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.retailerPanel {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: var(--surface-soft);
+}
+
+.retailerHeading,
+.storeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.retailerHeading > div,
+.storeRow > div {
+  display: grid;
+  gap: 3px;
+}
+
+.retailerHeading small,
+.storeRow small,
+.storeResults > small {
+  color: var(--muted);
+}
+
+.switchLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.switchLabel input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent-dark);
+}
+
+.savedStores,
+.storeResults {
+  display: grid;
+  gap: 9px;
+  margin: 14px 0;
+}
+
+.storeRow {
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.storeRow a,
+.storeRow button,
+.preferredBadge {
+  flex: 0 0 auto;
+  color: var(--accent-dark);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.storeRow button {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+  cursor: pointer;
+}
+
+.preferredBadge {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: var(--accent-pale);
+}
+
 .accountCard,
 .invitationCard,
 .emptyHousehold {
@@ -419,8 +518,14 @@
   }
 
   .accountSummary,
-  .accountGrid {
+  .accountGrid,
+  .retailerList {
     grid-template-columns: 1fr;
+  }
+
+  .storeRow {
+    align-items: flex-start;
+    flex-wrap: wrap;
   }
 
   .inlineForm,

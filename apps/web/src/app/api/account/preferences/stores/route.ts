@@ -1,0 +1,96 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { isSupportedRetailer } from "@/lib/retailers/retailer-preferences";
+
+type StoreCandidate = {
+  retailer?: unknown;
+  storeId?: unknown;
+  name?: unknown;
+  address?: unknown;
+  postcode?: unknown;
+  latitude?: unknown;
+  longitude?: unknown;
+  distanceKm?: unknown;
+};
+
+function cleanText(value: unknown, max = 200) {
+  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, max) : "";
+}
+
+function coordinate(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+export async function GET(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return NextResponse.json({ error: "Sign in to find stores." }, { status: 401 });
+
+  const retailer = request.nextUrl.searchParams.get("retailer") ?? "";
+  if (!isSupportedRetailer(retailer)) {
+    return NextResponse.json({ error: "Choose Coles or Woolworths." }, { status: 400 });
+  }
+
+  const preference = await prisma.userPreference.findUnique({
+    where: { userId: session.user.id },
+    select: { homePostcode: true },
+  });
+  const postcode = (request.nextUrl.searchParams.get("postcode") || preference?.homePostcode || "").trim();
+  if (!/^\d{4}$/.test(postcode)) {
+    return NextResponse.json({ error: "Add a four-digit home postcode before finding stores." }, { status: 400 });
+  }
+
+  const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
+  if (!baseUrl) return NextResponse.json({ error: "The retailer store service is not configured." }, { status: 503 });
+  const url = new URL("/stores", baseUrl);
+  url.searchParams.set("retailer", retailer.toLowerCase());
+  url.searchParams.set("postcode", postcode);
+  url.searchParams.set("limit", "10");
+
+  try {
+    const response = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(12_000) });
+    const payload = await response.json().catch(() => ({})) as { stores?: StoreCandidate[]; error?: string };
+    if (!response.ok) throw new Error(payload.error || `Store service returned HTTP ${response.status}.`);
+    return NextResponse.json({ stores: payload.stores ?? [], postcode });
+  } catch (error) {
+    console.error("Unable to find retailer stores", error);
+    return NextResponse.json({ error: "Unable to find nearby stores right now." }, { status: 502 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return NextResponse.json({ error: "Sign in to save stores." }, { status: 401 });
+  const body = await request.json().catch(() => null) as StoreCandidate | null;
+  const retailer = cleanText(body?.retailer, 40);
+  const storeId = cleanText(body?.storeId, 100);
+  const name = cleanText(body?.name, 160);
+  if (!isSupportedRetailer(retailer) || !storeId || !name) {
+    return NextResponse.json({ error: "Choose a valid retailer store." }, { status: 400 });
+  }
+
+  const store = await prisma.preferredRetailerStore.upsert({
+    where: { userId_retailer_storeId: { userId: session.user.id, retailer, storeId } },
+    create: {
+      userId: session.user.id, retailer, storeId, name,
+      address: cleanText(body?.address) || null,
+      postcode: cleanText(body?.postcode, 12) || null,
+      latitude: coordinate(body?.latitude), longitude: coordinate(body?.longitude), isPreferred: true,
+    },
+    update: {
+      name, address: cleanText(body?.address) || null, postcode: cleanText(body?.postcode, 12) || null,
+      latitude: coordinate(body?.latitude), longitude: coordinate(body?.longitude), isPreferred: true,
+    },
+  });
+  return NextResponse.json({ store });
+}
+
+export async function DELETE(request: NextRequest) {
+  const session = await auth.api.getSession({ headers: request.headers });
+  if (!session) return NextResponse.json({ error: "Sign in to remove stores." }, { status: 401 });
+  const retailer = request.nextUrl.searchParams.get("retailer") ?? "";
+  const storeId = request.nextUrl.searchParams.get("storeId") ?? "";
+  if (!isSupportedRetailer(retailer) || !storeId) return NextResponse.json({ error: "Invalid store." }, { status: 400 });
+  await prisma.preferredRetailerStore.deleteMany({ where: { userId: session.user.id, retailer, storeId } });
+  return NextResponse.json({ removed: true });
+}

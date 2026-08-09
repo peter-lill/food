@@ -18,6 +18,8 @@ export type GroceryProviderResult = {
 export type GroceryProviderSearchOptions = {
   limit?: number;
   storeId?: string | null;
+  retailers?: Array<"Coles" | "Woolworths">;
+  storeIds?: Partial<Record<"Coles" | "Woolworths", string>>;
 };
 
 export interface GroceryProvider {
