@@ -118,9 +118,9 @@ function completionScore(product: CompletionProduct) {
 function ProductActions() {
   return (
     <div className={styles.heroActions}>
-      <Link className={styles.primaryAction} href="/scan"><span aria-hidden="true">â–¦</span>Scan barcode</Link>
-      <Link className={styles.secondaryAction} href="/receipts"><span aria-hidden="true">âŒ</span>Import receipt</Link>
-      <Link className={styles.secondaryAction} href="/admin/product-intelligence"><span aria-hidden="true">âš™</span>Catalogue Manager</Link>
+      <Link className={styles.primaryAction} href="/scan">Scan barcode</Link>
+      <Link className={styles.secondaryAction} href="/receipts">Import receipt</Link>
+      <Link className={styles.secondaryAction} href="/admin/product-intelligence">Catalogue Manager</Link>
     </div>
   );
 }
@@ -170,7 +170,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <section className={styles.desktopHero}>
         <div className={styles.heroCopy}>
           <div className={styles.heroHeading}>
-            <span className={styles.heroMark} aria-hidden="true">â—ˆ</span>
+            <span className={styles.heroMark} aria-hidden="true">P</span>
             <div><p className="eyebrow">PRODUCT LIBRARY</p><h1 className="page-title">Your products</h1></div>
           </div>
           <ProductActions />
@@ -202,7 +202,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <div className={styles.toolbarTitle}>
             <p className="eyebrow">CATALOGUE</p>
             <h2>{products.length} {products.length === 1 ? "product" : "products"}</h2>
-            {q ? <p>Results for â€œ{q}â€</p> : <p>Browse, clean up and open product records.</p>}
+            {q ? <p>Results for &quot;{q}&quot;</p> : <p>Browse, clean up and open product records.</p>}
           </div>
           <form className={styles.search}>
             {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
