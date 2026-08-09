@@ -12,7 +12,7 @@
     "worker:enqueue-images": "tsx scripts/enqueue-selected-product-images.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test && npm run recipes:pantry-shopping:test && npm run planner:canonical:test && npm run navigation:test",
+    "test": "npm run products:pipeline:test && npm run recipes:meal-types:test && npm run recipes:pantry-shopping:test && npm run planner:canonical:test && npm run navigation:test && tsx scripts/test-retailer-preferences.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

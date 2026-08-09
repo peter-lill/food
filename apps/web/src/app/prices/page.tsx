@@ -6,6 +6,9 @@ import { getReceiptPriceHistory } from "@/lib/prices/price-history.repository";
 import type { PriceHistoryData } from "@/lib/prices/price-history.types";
 import { getSupermarketComparisonData } from "@/lib/prices/supermarket-comparison.repository";
 import type { SupermarketComparisonData } from "@/lib/prices/supermarket-comparison.types";
+import { requireAuthSession } from "@/lib/auth-session";
+import { prisma } from "@/lib/prisma";
+import { enabledRetailers, retailerSetupStatus } from "@/lib/retailers/retailer-preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -25,10 +28,10 @@ const emptyComparisonData: SupermarketComparisonData = {
   latestCheckedAt: null,
 };
 
-async function loadPricesPageData() {
+async function loadPricesPageData(retailers: readonly ("Coles" | "Woolworths")[]) {
   const [historyResult, comparisonResult] = await Promise.allSettled([
-    getReceiptPriceHistory(),
-    getSupermarketComparisonData(),
+    getReceiptPriceHistory(retailers),
+    getSupermarketComparisonData(retailers),
   ]);
 
   if (historyResult.status === "rejected") {
@@ -48,7 +51,15 @@ async function loadPricesPageData() {
 }
 
 export default async function PricesPage() {
-  const { historyData, historyError, comparisonData, comparisonError } = await loadPricesPageData();
+  const session = await requireAuthSession();
+  const [preference, savedPreferences, stores] = await Promise.all([
+    prisma.userPreference.findUnique({ where: { userId: session.user.id }, select: { homePostcode: true } }),
+    prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
+    prisma.preferredRetailerStore.findMany({ where: { userId: session.user.id, isPreferred: true }, select: { retailer: true, isPreferred: true } }),
+  ]);
+  const retailers = enabledRetailers(savedPreferences);
+  const setup = retailerSetupStatus({ homePostcode: preference?.homePostcode, enabled: retailers, stores });
+  const { historyData, historyError, comparisonData, comparisonError } = await loadPricesPageData(retailers);
 
   return (
     <>
@@ -63,6 +74,21 @@ export default async function PricesPage() {
           <Link className="secondary-button" href="/receipts">Import receipt</Link>
         </div>
       </header>
+
+      {!setup.ready ? (
+        <section className="notice-panel" role="status">
+          <div>
+            <p className="eyebrow">FINISH PRICE SETUP</p>
+            <h2 className="section-title">Choose your local retailers</h2>
+            <p className="subtle">
+              {setup.needsLocation ? "Add your home postcode. " : ""}
+              {setup.needsRetailers ? "Enable at least one retailer. " : ""}
+              {setup.missingStores.length ? `Choose preferred stores for ${setup.missingStores.join(" and ")}.` : ""}
+            </p>
+          </div>
+          <Link className="primary-button" href="/account">Open profile setup</Link>
+        </section>
+      ) : null}
 
       <PriceComparisonGuide />
       <SupermarketComparisonWorkspace data={comparisonData} loadError={comparisonError} />

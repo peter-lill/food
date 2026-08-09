@@ -52,54 +52,57 @@ export class McpGroceryProvider implements GroceryProvider {
     const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
     if (!baseUrl) return [];
 
-    const url = new URL("/search", baseUrl);
-    url.searchParams.set("q", query);
-    url.searchParams.set("limit", String(Math.max(1, Math.min(25, options.limit ?? 10))));
-    if (options.storeId) url.searchParams.set("storeId", options.storeId);
+    const requestedRetailers: Array<"Coles" | "Woolworths" | null> = options.retailers ?? [null];
+    const searches = requestedRetailers.map(async (retailer) => {
+      const url = new URL("/search", baseUrl);
+      url.searchParams.set("q", query);
+      url.searchParams.set("limit", String(Math.max(1, Math.min(25, options.limit ?? 10))));
+      if (retailer) url.searchParams.set("retailer", retailer.toLowerCase());
+      const storeId = retailer ? options.storeIds?.[retailer] : options.storeId;
+      if (storeId) url.searchParams.set("storeId", storeId);
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 12_000);
-    try {
-      const response = await fetch(url, {
-        cache: "no-store",
-        signal: controller.signal,
-        headers: { Accept: "application/json" },
-      });
-      const payload = await response.json().catch(() => ({})) as BridgeResponse;
-      if (!response.ok || payload.status !== "success") {
-        throw new Error(text(payload.error) ?? `Grocery MCP bridge returned HTTP ${response.status}.`);
-      }
-
-      const errors = bridgeErrors(payload.errors);
-      if (errors.length) {
-        console.warn("Grocery MCP bridge returned retailer errors", {
-          query,
-          errors,
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12_000);
+      try {
+        const response = await fetch(url, {
+          cache: "no-store",
+          signal: controller.signal,
+          headers: { Accept: "application/json" },
         });
-      }
+        const payload = await response.json().catch(() => ({})) as BridgeResponse;
+        if (!response.ok || payload.status !== "success") {
+          throw new Error(text(payload.error) ?? `Grocery MCP bridge returned HTTP ${response.status}.`);
+        }
 
-      return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
-        const retailer = text(item.retailer);
-        const name = text(item.name);
-        if ((retailer !== "Coles" && retailer !== "Woolworths") || !name) return [];
-        return [{
-          retailer,
-          name,
-          price: money(item.price),
-          unit: text(item.unit),
-          store: text(item.store),
-          barcode: text(item.barcode),
-          imageUrl: text(item.imageUrl),
-          productId: text(item.productId),
-          wasPrice: money(item.wasPrice),
-          isSpecial: boolean(item.isSpecial),
-          promotion: text(item.promotion),
-          source: this.id,
-        }];
-      });
-    } finally {
-      clearTimeout(timer);
-    }
+        const errors = bridgeErrors(payload.errors);
+        if (errors.length) {
+          console.warn("Grocery MCP bridge returned retailer errors", { query, errors });
+        }
+
+        return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
+          const resultRetailer = text(item.retailer);
+          const name = text(item.name);
+          if ((resultRetailer !== "Coles" && resultRetailer !== "Woolworths") || !name) return [];
+          return [{
+            retailer: resultRetailer,
+            name,
+            price: money(item.price),
+            unit: text(item.unit),
+            store: text(item.store),
+            barcode: text(item.barcode),
+            imageUrl: text(item.imageUrl),
+            productId: text(item.productId),
+            wasPrice: money(item.wasPrice),
+            isSpecial: boolean(item.isSpecial),
+            promotion: text(item.promotion),
+            source: this.id,
+          }];
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+    });
+    return (await Promise.all(searches)).flat();
   }
 }
 
