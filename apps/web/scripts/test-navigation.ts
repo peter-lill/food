@@ -44,6 +44,10 @@ assert.match(scanPageSource, /href="\/scan\?target=pantry"/);
 assert.match(scanPageSource, /href="\/scan\?target=receipt"/);
 assert.match(scanPageSource, /href="\/scan\?target=shopping"/);
 assert.match(scanPageSource, /<ReceiptCamera \/>/, "receipt mode should use the clean camera workspace");
+assert.match(scanPageSource, /<ScannerCloseButton href=\{closeHref\} \/>/, "scanner close should use a destination outside the scanner");
+const scannerCloseSource = readFileSync(new URL("../src/app/scan/ScannerCloseButton.tsx", import.meta.url), "utf8");
+assert.match(scannerCloseSource, /router\.replace\(href\)/, "scanner close should exit in one press instead of walking mode history");
+assert.doesNotMatch(scannerCloseSource, /router\.back\(\)/, "scanner close must not return to the previous scanner mode");
 
 const scannerStyles = readFileSync(new URL("../src/app/scan/scan.module.css", import.meta.url), "utf8");
 assert.match(scannerStyles, /\.scannerHeader\s*{[^}]*position:\s*fixed/);
