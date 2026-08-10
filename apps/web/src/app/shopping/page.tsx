@@ -25,20 +25,20 @@ export default async function ShoppingPage({
 
   if (!workspace) {
     return (
-      <>
+      <div className="shopping-page">
         <h1 className="page-title">Shopping</h1>
         <div className="card pantry-error" role="alert">
           <strong>Shopping data is unavailable.</strong>
           <p>Check the PostgreSQL connection and refresh this page.</p>
         </div>
-      </>
+      </div>
     );
   }
 
   const selectedList = workspace.lists.find((list) => list.id === requestedListId) ?? workspace.lists[0] ?? null;
 
   return (
-    <>
+    <div className="shopping-page">
       <header className="pantry-page-heading">
         <div>
           <h1 className="page-title">Shopping</h1>
@@ -53,6 +53,6 @@ export default async function ShoppingPage({
         products={workspace.products}
         selectedList={selectedList}
       />
-    </>
+    </div>
   );
 }

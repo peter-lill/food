@@ -1,3 +1,4 @@
+.shopping-page { width:100%; max-width:1240px; margin-inline:auto; }
 .shopping-layout { display:grid; grid-template-columns:minmax(260px,3fr) minmax(0,8fr); gap:18px; align-items:start; }
 .shopping-sidebar-stack,.shopping-main-stack,.shopping-groups { display:grid; gap:16px; }
 .shopping-sidebar-stack { position:sticky; top:94px; }

@@ -47,6 +47,13 @@ const shellStyles = readFileSync(new URL("../src/app/brand-system.css", import.m
 assert.match(shellStyles, /\.side-nav\s*{[\s\S]*?overflow-y:\s*auto/);
 assert.match(shellStyles, /scrollbar-width:\s*thin/, "long navigation groups must visibly advertise that they can scroll");
 
+const shoppingStyles = readFileSync(new URL("../src/app/shopping.css", import.meta.url), "utf8");
+assert.match(
+  shoppingStyles,
+  /\.shopping-page\s*{[^}]*width:\s*100%;[^}]*max-width:\s*1240px;[^}]*margin-inline:\s*auto;/,
+  "the desktop Shopping panel should retain its readable 1240px presentation on wide screens",
+);
+
 const accountPanelSource = readFileSync(new URL("../src/components/account/AccountPanel.tsx", import.meta.url), "utf8");
 assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Linked devices<\/strong>/);
 assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Link phone<\/strong>/);
