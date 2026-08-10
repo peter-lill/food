@@ -170,7 +170,7 @@ assert.deepEqual(
     { name: "Garlic", quantity: 1, unit: "each" },
     { name: "Beetroot", quantity: 200, unit: "g" },
     { name: "Vegetable Stock", quantity: 500, unit: "ml" },
-    { name: "Pecan or Hazelnut", quantity: 20, unit: "g" },
+    { name: "Pecan", quantity: 20, unit: "g" },
     { name: "Reduced fat Soft Cheese", quantity: 60, unit: "g" },
     { name: "Dill", quantity: 1, unit: "tbsp" },
     { name: "Rocket", quantity: 50, unit: "g" },

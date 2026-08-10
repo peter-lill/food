@@ -147,9 +147,13 @@ export function parseRecipeIngredientLine(line: string): RecipeIngredientInput {
     return { name: "", quantity: null, unit: null };
   }
   const cleanedSource = cleanRecipeIngredientSource(source);
-  const main = (cleanedSource.split(",")[0]?.trim() ?? cleanedSource)
+  const alternative = cleanedSource.match(/^(?:\d+(?:\.\d+)?\s*(?:kg|g|mg|ml|l)|\d+(?:\.\d+)?|[¼½¾])\s+or\s+(.+)$/i)?.[1] ?? cleanedSource;
+  const main = (alternative
+    .replace(/^(?:(?:\d+\s+)?\d+\/\d+|[¼½¾])\s*(?:fl\s*)?(?:oz|lb)\s+/i, "")
+    .split(",")[0]?.trim() ?? alternative)
     .replace(/\s+(?:made from|mixed with|tossed with|plus)\b.*$/i, "")
     .replace(/\s+cut into\b.*$/i, "")
+    .replace(/\s+or\s+.*$/i, "")
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?cloves?\s+of\s+/i, (match) => match.replace(/cloves?\s+of\s+/i, ""))
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, (match) => match.replace(/(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, ""))
     .trim();

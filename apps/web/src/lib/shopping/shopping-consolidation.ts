@@ -10,6 +10,7 @@ import {
 } from "@/lib/products/food-item-intelligence";
 import { formatProductName } from "@/lib/products/product-formatter";
 import { normaliseProductText } from "@/lib/products/product-normalisation";
+import { parseRecipeIngredientLine } from "@/lib/recipes/recipe-pantry";
 import { optimiseShoppingFulfilment } from "./shopping-optimisation";
 
 type ShoppingRecord = {
@@ -52,6 +53,28 @@ function splitCompoundName(item: ShoppingRecord) {
     return ["Mint Leaves", "Lemon"];
   }
   return null;
+}
+
+async function cleanRecipeShoppingNoise(items: ShoppingRecord[]) {
+  let changed = false;
+
+  for (const item of items) {
+    const parsedName = parseRecipeIngredientLine(item.name).name;
+    if (!parsedName) {
+      await prisma.shoppingItem.delete({ where: { id: item.id } });
+      changed = true;
+      continue;
+    }
+
+    if (!/\bor\b/i.test(item.name) || normaliseProductText(parsedName) === normaliseProductText(item.name)) continue;
+    await prisma.shoppingItem.update({
+      where: { id: item.id },
+      data: { name: parsedName, productId: null },
+    });
+    changed = true;
+  }
+
+  return changed;
 }
 
 async function splitKnownCompoundItems(items: ShoppingRecord[]) {
@@ -193,7 +216,9 @@ async function normaliseSingleItems(items: ShoppingRecord[]) {
 
 export async function consolidateShoppingItems() {
   for (let pass = 0; pass < 5; pass += 1) {
-    const beforeSplit = await readShoppingItems();
+    const beforeCleanup = await readShoppingItems();
+    const cleanupChanged = await cleanRecipeShoppingNoise(beforeCleanup);
+    const beforeSplit = cleanupChanged ? await readShoppingItems() : beforeCleanup;
     const splitChanged = await splitKnownCompoundItems(beforeSplit);
     const afterSplit = splitChanged ? await readShoppingItems() : beforeSplit;
     const optimisationChanged = await applyShoppingOptimisation(afterSplit);
@@ -202,6 +227,6 @@ export async function consolidateShoppingItems() {
     const afterMerge = mergeChanged ? await readShoppingItems() : afterOptimisation;
     const normaliseChanged = await normaliseSingleItems(afterMerge);
 
-    if (!splitChanged && !optimisationChanged && !mergeChanged && !normaliseChanged) break;
+    if (!cleanupChanged && !splitChanged && !optimisationChanged && !mergeChanged && !normaliseChanged) break;
   }
 }

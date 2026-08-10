@@ -5,6 +5,7 @@ import {
   getIngredientAvailability,
   legacyRecipeShoppingIngredientMatches,
   mergeShoppingQuantity,
+  parseRecipeIngredientLine,
   recipeProductQueryCandidates,
   type RecipeProductIdentity,
 } from "../src/lib/recipes/recipe-pantry";
@@ -72,6 +73,17 @@ assert.ok(queryCandidates.slugs.includes("apple"), "candidate lookup should incl
 assert.ok(queryCandidates.normalisedAliases.includes("cilantro"), "candidate lookup should include exact ingredient aliases");
 assert.ok(queryCandidates.normalisedAliases.includes("coriander"), "candidate lookup should include alias canonical identities");
 assert.ok(!queryCandidates.normalisedAliases.includes("pineapple"), "candidate lookup must not expand to substring matches");
+
+assert.deepEqual(
+  parseRecipeIngredientLine("20 g pecan or hazelnut"),
+  { name: "Pecan", quantity: 20, unit: "g" },
+  "ingredient alternatives should select one searchable grocery name instead of searching the full choice text",
+);
+assert.deepEqual(
+  parseRecipeIngredientLine("To Serve"),
+  { name: "", quantity: null, unit: null },
+  "recipe section headings must not become shopping items",
+);
 
 const missing = [
   getIngredientAvailability({ name: "Apple", quantity: 2, unit: "each" }, productIndex),
