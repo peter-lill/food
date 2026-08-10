@@ -49,7 +49,7 @@ export default async function ScanPage({
   }
 
   const headings = target === "receipt"
-    ? { title: "Scan a receipt", help: "Fit the entire receipt inside the frame" }
+    ? { title: "Scan a receipt", help: "Fill the guide with the receipt — the full camera view is saved" }
     : target === "shopping"
       ? { title: "Add to Shopping", help: shoppingList ? `Adding products to ${shoppingList.name}` : "Create a Shopping list before scanning" }
       : { title: "Add to Pantry", help: "Point the camera at a product barcode" };
