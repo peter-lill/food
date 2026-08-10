@@ -24,6 +24,7 @@
     "products:pipeline:test": "npm run grocery:intelligence:test && npm run products:names:test && npm run products:nip:test && npm run scanner:test && tsx scripts/test-retailer-listing-identity.ts && tsx scripts/test-retailer-price-bridge.ts && tsx scripts/test-retailer-refresh-coverage.ts && tsx scripts/test-product-retailer-prices.ts && npm run typecheck",
     "products:generic-images": "tsx scripts/refresh-generic-product-images.ts",
     "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
+    "products:retailer-authority": "tsx scripts/enqueue-product-retailer-enrichment.ts --all",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",
     "products:backfill": "tsx scripts/backfill-product-intelligence.ts",

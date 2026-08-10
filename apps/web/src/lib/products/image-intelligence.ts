@@ -15,6 +15,15 @@ type StoredCandidate = {
   rejected: boolean;
 };
 
+export function imageCandidateSourcePriority(source: string) {
+  const key = source.toLocaleLowerCase("en-AU");
+  if (key.includes("coles") || key.includes("woolworths") || key === "retailer") return 5;
+  if (key.includes("manufacturer") || key.includes("brand site")) return 4;
+  if (key.includes("open-food-facts") || key.includes("open food facts")) return 3;
+  if (key.includes("wikipedia") || key.includes("wikimedia") || key.includes("catalogue")) return 2;
+  return 1;
+}
+
 const gtinPattern = /^\d{7,14}$/;
 const ignoredProduceWords = new Set([
   "a", "an", "and", "approx", "approximately", "bag", "bunch", "coles", "each", "fresh",
@@ -127,7 +136,7 @@ function produceSearchQueries(name: string, canonicalName: string | null, aliase
   };
 }
 
-function produceMatchScore(productTerms: string[], candidateName: string, source: string) {
+export function produceMatchScore(productTerms: string[], candidateName: string, source: string) {
   const candidateTerms = new Set(normaliseWords(candidateName));
   if (!productTerms.length || !candidateTerms.size) return 0;
 
@@ -154,7 +163,7 @@ function parsePackIdentity(value: string) {
   };
 }
 
-function packagedMatchScore(productIdentity: string, candidateName: string, source: string) {
+export function packagedMatchScore(productIdentity: string, candidateName: string, source: string) {
   const productTerms = normalisePackagedWords(productIdentity);
   const candidateTerms = new Set(normalisePackagedWords(candidateName));
   if (!productTerms.length || !candidateTerms.size) return 0;
@@ -214,7 +223,7 @@ async function barcodeRetailerCandidates(barcode: string): Promise<ImageCandidat
       url,
       source: candidate.retailer.toLocaleLowerCase("en-AU"),
       sourceLabel: `${candidate.retailer} · ${candidate.productName}`,
-      score: 100,
+      score: 110,
     }];
   });
 }
@@ -370,9 +379,9 @@ export async function findBestProductImage(productId: string) {
     ]).slice(0, 8);
 
     discovered = [
-      await openFoodFactsCandidate(barcode),
       ...(await barcodeRetailerCandidates(barcode)),
       ...(await packagedRetailerCandidates(packagedQueries, packagedIdentity)),
+      await openFoodFactsCandidate(barcode),
     ].filter((candidate): candidate is ImageCandidate => candidate !== null);
   } else if (product.productType === "GENERIC_PRODUCE") {
     const search = produceSearchQueries(
@@ -394,7 +403,10 @@ export async function findBestProductImage(productId: string) {
   const rejectedUrls = new Set(stored.filter((candidate) => candidate.rejected).map((candidate) => candidate.url));
   const best = discovered
     .filter((candidate) => !rejectedUrls.has(candidate.url))
-    .sort((left, right) => right.score - left.score)[0] ?? null;
+    .sort((left, right) => (
+      imageCandidateSourcePriority(right.source) - imageCandidateSourcePriority(left.source)
+      || right.score - left.score
+    ))[0] ?? null;
 
   if (!best) {
     await prisma.product.update({ where: { id: product.id }, data: { imageUrl: null, lifecycle: "REVIEW_REQUIRED" } });

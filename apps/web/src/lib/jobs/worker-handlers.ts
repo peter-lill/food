@@ -70,7 +70,7 @@ export async function handleBackgroundJob(job: BackgroundJob) {
 
     case workerJobTypes.productRetailerEnrichment: {
       const productId = requireString(payload, "productId");
-      const result = await enrichProductRetailers(productId);
+      const result = await enrichProductRetailers(productId, { force: payload.force === true });
       return { productId, ...result };
     }
 
