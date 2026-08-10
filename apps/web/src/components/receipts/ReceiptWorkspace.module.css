@@ -96,6 +96,8 @@
 
 .captureButton,
 .secondaryCaptureButton {
+  display: grid;
+  place-items: center;
   min-height: 46px;
   padding: 0 17px;
   border: 0;
@@ -103,6 +105,7 @@
   font: inherit;
   font-size: .86rem;
   font-weight: 850;
+  text-decoration: none;
   cursor: pointer;
   transition: transform .16s ease, box-shadow .16s ease;
 }
@@ -124,6 +127,7 @@
 }
 
 .captureButton:disabled,
+.captureButton[aria-disabled="true"],
 .secondaryCaptureButton:disabled {
   cursor: wait;
   opacity: .68;

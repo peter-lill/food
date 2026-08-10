@@ -48,7 +48,11 @@ assert.match(scanPageSource, /<ReceiptCamera \/>/, "receipt mode should use the 
 const scannerStyles = readFileSync(new URL("../src/app/scan/scan.module.css", import.meta.url), "utf8");
 assert.match(scannerStyles, /\.scannerHeader\s*{[^}]*position:\s*fixed/);
 assert.match(scannerStyles, /\.modeSelector\s*{[^}]*grid-template-columns:\s*repeat\(3/);
-assert.match(scannerStyles, /\.receiptCamera\s*{[^}]*grid-template-rows:/, "receipt controls should occupy fixed non-overlapping rows");
+assert.match(scannerStyles, /\.receiptCamera\s*{[^}]*inset:\s*0;/, "receipt capture should use the full viewport behind its overlays");
+assert.match(scannerStyles, /\.receiptFrame\s*{[^}]*width:\s*min\(calc\(100vw - 36px\), 520px\)/, "the receipt guide should make practical use of the phone screen");
+assert.match(scannerStyles, /\.shutterButton\s*{[^}]*position:\s*fixed/, "the receipt shutter should overlay the full-screen camera");
+const receiptWorkspaceSource = readFileSync(new URL("../src/components/receipts/ReceiptWorkspace.tsx", import.meta.url), "utf8");
+assert.match(receiptWorkspaceSource, /href=\{ocrBusy \? "#" : "\/scan\?target=receipt"\}/, "receipt capture should open the full-screen scanner instead of the browser's small file camera");
 assert.equal(
   memberNavigation.some((item) => item.label === "Account"),
   true,

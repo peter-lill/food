@@ -125,7 +125,6 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
 
 export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = false }: { receipts: ReceiptSummary[]; loadError: boolean; loadStagedCapture?: boolean }) {
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const savedPhotoInputRef = useRef<HTMLInputElement>(null);
   const stagedCaptureStartedRef = useRef(false);
   const [lastFile, setLastFile] = useState<File | null>(null);
@@ -219,7 +218,6 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
     if (!file) return;
     if (!file.type.startsWith("image/")) { setOcrError("Choose a JPG, PNG, HEIC, WebP or other receipt image."); return; }
     await processReceipt(file);
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (savedPhotoInputRef.current) savedPhotoInputRef.current.value = "";
   }
 
@@ -248,11 +246,10 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
           {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><strong>Scan a receipt</strong><p>Take a clear photo now or choose one already saved on your device.</p></div>}
           {ocrBusy ? <div className={styles.processing} role="status"><strong>{ocrStatus}</strong><progress max="100" value={ocrProgress}>{ocrProgress}%</progress></div> : null}
           <div className={styles.captureActions}>
-            <button className={styles.captureButton} disabled={ocrBusy} onClick={() => cameraInputRef.current?.click()} type="button">{imageUrl ? "Retake photo" : "Take photo"}</button>
+            <Link aria-disabled={ocrBusy} className={styles.captureButton} href={ocrBusy ? "#" : "/scan?target=receipt"} onClick={(event) => { if (ocrBusy) event.preventDefault(); }}>{imageUrl ? "Retake photo" : "Open full-screen camera"}</Link>
             <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => savedPhotoInputRef.current?.click()} type="button">Choose saved photo</button>
             {imageUrl && lastFile ? <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => void processReceipt(lastFile)} type="button">Read again</button> : null}
           </div>
-          <input accept="image/*" capture="environment" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={cameraInputRef} hidden type="file" />
           <input accept="image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={savedPhotoInputRef} hidden type="file" />
         </div>
 
