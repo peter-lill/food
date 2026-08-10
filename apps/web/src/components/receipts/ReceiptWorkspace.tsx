@@ -17,6 +17,7 @@ import {
   type ReceiptSummary,
 } from "@/lib/receipts/receipt.types";
 import styles from "./ReceiptWorkspace.module.css";
+import { takeStagedReceiptCapture } from "@/lib/receipts/staged-receipt-capture";
 
 const statusLabels: Record<ReceiptStatusValue, string> = {
   DRAFT: "Needs review",
@@ -122,10 +123,11 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The prepared receipt image could not be created.")), "image/jpeg", .94));
 }
 
-export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSummary[]; loadError: boolean }) {
+export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = false }: { receipts: ReceiptSummary[]; loadError: boolean; loadStagedCapture?: boolean }) {
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const savedPhotoInputRef = useRef<HTMLInputElement>(null);
+  const stagedCaptureStartedRef = useRef(false);
   const [lastFile, setLastFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState("Take a photo or choose a saved receipt image.");
@@ -220,6 +222,23 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
     if (cameraInputRef.current) cameraInputRef.current.value = "";
     if (savedPhotoInputRef.current) savedPhotoInputRef.current.value = "";
   }
+
+  useEffect(() => {
+    if (!loadStagedCapture || stagedCaptureStartedRef.current) return;
+    stagedCaptureStartedRef.current = true;
+    let cancelled = false;
+    void takeStagedReceiptCapture()
+      .then((file) => {
+        if (!cancelled && file) void processReceipt(file);
+      })
+      .catch((error) => {
+        console.error("Unable to load staged receipt capture", error);
+        if (!cancelled) setOcrError("The captured receipt photo could not be loaded. Take another photo or choose a saved image.");
+      });
+    return () => { cancelled = true; };
+    // The capture is consumed once; processReceipt intentionally does not retrigger this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadStagedCapture]);
 
   const ready = retailer.trim().length >= 2 && Boolean(purchasedAt) && Number(total) >= 0 && items.some((item) => item.name.trim());
   return (

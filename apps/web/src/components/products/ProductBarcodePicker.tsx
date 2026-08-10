@@ -10,6 +10,7 @@ import {
   type CurrentLocation,
 } from "@/lib/current-location";
 import { addScannedProductToPantry } from "@/lib/pantry/pantry.actions";
+import { addScannedProductToShopping } from "@/lib/shopping/shopping-barcode.actions";
 import type { ProductCatalogueItem } from "@/lib/products/product-catalogue.types";
 import styles from "./ProductBarcodePicker.module.css";
 
@@ -29,6 +30,8 @@ type ProductBarcodePickerProps = {
   autoOpenScanner?: boolean;
   fullPageScanner?: boolean;
   autoSubmitOnScan?: boolean;
+  scanTarget?: "pantry" | "shopping";
+  shoppingListId?: string;
 };
 
 function normaliseBarcode(value: string) {
@@ -84,6 +87,8 @@ export function ProductBarcodePicker({
   autoOpenScanner = false,
   fullPageScanner = false,
   autoSubmitOnScan = false,
+  scanTarget = "pantry",
+  shoppingListId,
 }: ProductBarcodePickerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -140,17 +145,20 @@ export function ProductBarcodePicker({
         if (nameRef.current) nameRef.current.value = product.name;
 
         if (autoSubmitOnScan) {
-          const saveResult = await addScannedProductToPantry(product.name, barcode);
+          const saveResult = scanTarget === "shopping" && shoppingListId
+            ? await addScannedProductToShopping(shoppingListId, product.name, barcode)
+            : await addScannedProductToPantry(product.name, barcode);
+          const targetLabel = scanTarget === "shopping" ? "Shopping" : "Pantry";
           if (saveResult.status !== "success") {
             return {
               tone: "error",
-              message: saveResult.message || `${product.name} could not be added to Pantry.`,
+              message: saveResult.message || `${product.name} could not be added to ${targetLabel}.`,
             };
           }
 
           return {
             tone: "success",
-            message: `${product.name} added to Pantry. Present the next barcode.`,
+            message: `${product.name} added to ${targetLabel}. Present the next barcode.`,
           };
         }
 
@@ -388,7 +396,7 @@ export function ProductBarcodePicker({
             </button>
           </div>
           <div className={styles.videoFrame}>
-            <video aria-label="Live camera preview" autoPlay muted playsInline ref={videoRef} />
+            <video aria-label="Live camera preview" autoPlay data-food-scanner-video muted playsInline ref={videoRef} />
             <div className={styles.scanGuide} />
           </div>
           <p className={`${styles.scanStatus} ${styles[scanTone]}`} aria-live="polite">{scanStatus}</p>

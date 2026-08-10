@@ -26,6 +26,29 @@ assert.equal(
   false,
   "the desktop profile footer should be the single Account destination",
 );
+
+assert.equal(
+  ownerNavigation.find((item) => item.label === "Scan")?.icon,
+  "camera",
+  "Scan navigation should use a camera icon",
+);
+
+const appShellSource = readFileSync(new URL("../src/components/AppShell.tsx", import.meta.url), "utf8");
+assert.match(appShellSource, /aria-label="Open camera"/);
+assert.doesNotMatch(appShellSource, /scan-choice-dialog/, "the camera action should open the scanner, not a separate modal");
+
+const scanPageSource = readFileSync(new URL("../src/app/scan/page.tsx", import.meta.url), "utf8");
+assert.match(scanPageSource, /scanTarget=\{target\}/);
+assert.match(scanPageSource, /shoppingListId=\{shoppingList\?\.id\}/);
+assert.match(scanPageSource, /href="\/scan\?target=pantry"/);
+assert.match(scanPageSource, /href="\/scan\?target=receipt"/);
+assert.match(scanPageSource, /href="\/scan\?target=shopping"/);
+assert.match(scanPageSource, /<ReceiptCamera \/>/, "receipt mode should use the clean camera workspace");
+
+const scannerStyles = readFileSync(new URL("../src/app/scan/scan.module.css", import.meta.url), "utf8");
+assert.match(scannerStyles, /\.scannerHeader\s*{[^}]*position:\s*fixed/);
+assert.match(scannerStyles, /\.modeSelector\s*{[^}]*grid-template-columns:\s*repeat\(3/);
+assert.match(scannerStyles, /\.receiptCamera\s*{[^}]*grid-template-rows:/, "receipt controls should occupy fixed non-overlapping rows");
 assert.equal(
   memberNavigation.some((item) => item.label === "Account"),
   true,

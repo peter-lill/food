@@ -13,7 +13,13 @@ async function loadReceiptsPageData() {
   }
 }
 
-export default async function ReceiptsPage() {
+export default async function ReceiptsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ capture?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const loadStagedCapture = (Array.isArray(params.capture) ? params.capture[0] : params.capture) === "staged";
   const { receipts, loadError } = await loadReceiptsPageData();
 
   return (
@@ -25,7 +31,7 @@ export default async function ReceiptsPage() {
         </div>
         <Link className="secondary-button" href="/prices">View price history</Link>
       </header>
-      <ReceiptWorkspace loadError={loadError} receipts={receipts} />
+      <ReceiptWorkspace loadError={loadError} loadStagedCapture={loadStagedCapture} receipts={receipts} />
     </>
   );
 }

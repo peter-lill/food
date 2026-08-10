@@ -120,7 +120,7 @@ export function AppShell({
   }
 
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
-  const hideMobileScanAction = pathname.startsWith("/scan") || pathname.startsWith("/receipts");
+  const hideMobileScanAction = pathname.startsWith("/scan");
 
   return (
     <div className={`app-frame${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
@@ -199,7 +199,7 @@ export function AppShell({
           </nav>
         </div>
       ) : null}
-      {!owner || hideMobileScanAction ? null : <Link aria-label="Scan a product" className="mobile-scan-action" href="/scan"><span><NavigationIcon name="scan" /></span>Scan</Link>}
+      {!owner || hideMobileScanAction ? null : <Link aria-label="Open camera" className="mobile-scan-action" href="/scan"><span><NavigationIcon name="camera" /></span>Camera</Link>}
       <nav className="mobile-nav" aria-label="Mobile navigation" style={{ "--mobile-nav-items": mobileItemCount } as CSSProperties}>
         {mobilePrimaryNavigation.map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);

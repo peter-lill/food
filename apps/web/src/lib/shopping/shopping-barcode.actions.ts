@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import type { ShoppingActionState } from "./shopping.types";
+import { initialShoppingActionState, type ShoppingActionState } from "./shopping.types";
 
 const maximumQuantity = 100_000;
 
@@ -149,4 +149,17 @@ export async function addBarcodeShoppingItem(
     console.error("Unable to add barcode Shopping item", error);
     return { status: "error", message: "The shopping item could not be added." };
   }
+}
+
+export async function addScannedProductToShopping(
+  listId: string,
+  name: string,
+  barcode: string,
+): Promise<ShoppingActionState> {
+  const formData = new FormData();
+  formData.set("name", name);
+  formData.set("barcode", barcode);
+  formData.set("quantity", "1");
+  formData.set("unit", "item");
+  return addBarcodeShoppingItem(listId, initialShoppingActionState, formData);
 }

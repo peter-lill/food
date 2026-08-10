@@ -1,5 +1,6 @@
 export type NavigationIconName =
   | "account"
+  | "camera"
   | "health"
   | "home"
   | "households"
@@ -24,7 +25,7 @@ export const ownerNavigation = [
   { label: "Planner", href: "/planner", icon: "planner", section: "Plan" },
   { label: "Shopping", href: "/shopping", icon: "shopping", section: "Plan" },
   { label: "Pantry", href: "/pantry", icon: "pantry", section: "Kitchen" },
-  { label: "Scan", href: "/scan", icon: "scan", section: "Kitchen" },
+  { label: "Scan", href: "/scan", icon: "camera", section: "Kitchen" },
   { label: "Products", href: "/products", icon: "products", section: "Kitchen" },
   { label: "Receipts", href: "/receipts", icon: "receipts", section: "Kitchen" },
   { label: "Prices", href: "/prices", icon: "prices", section: "Kitchen" },

@@ -1,5 +1,10 @@
 .workspace {
-  width: 100%;
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  overflow: hidden;
+  background: #050806;
+  color: #fff;
 }
 
 .workspace :global(.pantry-add-card) {
@@ -10,48 +15,154 @@
   box-shadow: none;
 }
 
-/* The dedicated Scan route starts with the camera. Detailed pantry fields
-   remain part of the normal Pantry add flow rather than covering the preview. */
 .workspace :global(.pantry-field-grid),
 .workspace :global(.pantry-form > .form-actions),
 .workspace :global(.pantry-form > .form-message) {
   display: none;
 }
 
-.closeButton {
+.scannerHeader {
   position: fixed;
-  z-index: 240;
-  top: max(20px, env(safe-area-inset-top));
-  right: 18px;
-  width: 48px;
-  height: 48px;
+  z-index: 260;
+  inset: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: calc(90px + env(safe-area-inset-top));
+  gap: 18px;
+  padding: max(16px, env(safe-area-inset-top)) 18px 14px;
+  background: #07150f;
+}
+
+.scannerHeader > div:first-child { display: grid; min-width: 0; gap: 4px; }
+.scannerHeader strong { overflow: hidden; font-size: 18px; text-overflow: ellipsis; white-space: nowrap; }
+.scannerHeader small { overflow: hidden; color: rgba(255, 255, 255, .72); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.headerActions { display: flex; flex: 0 0 auto; gap: 9px; }
+
+.closeButton,
+.flashlightButton {
+  position: static;
   display: grid;
+  width: 44px;
+  height: 44px;
   place-items: center;
   padding: 0;
   border: 1px solid rgba(255, 255, 255, .36);
   border-radius: 50%;
-  background: rgba(5, 10, 7, .58);
+  background: rgba(255, 255, 255, .08);
   color: #fff;
   cursor: pointer;
-  font-size: 32px;
-  font-weight: 300;
-  line-height: 1;
   backdrop-filter: blur(12px);
 }
 
-.closeButton:hover,
-.closeButton:focus-visible {
-  background: rgba(5, 10, 7, .78);
-  outline: 2px solid rgba(255, 255, 255, .72);
-  outline-offset: 2px;
+.closeButton { font-size: 31px; font-weight: 300; line-height: 1; }
+.flashlightButton svg { width: 21px; height: 21px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.flashlightButton[aria-pressed="true"] { border-color: #ffe994; background: #f2c94c; color: #173126; }
+.flashlightButton:disabled { opacity: .42; cursor: not-allowed; }
+.closeButton:hover, .closeButton:focus-visible, .flashlightButton:not(:disabled):hover, .flashlightButton:not(:disabled):focus-visible { outline: 2px solid rgba(255, 255, 255, .72); outline-offset: 2px; }
+
+.receiptCamera {
+  position: fixed;
+  z-index: 210;
+  inset: calc(90px + env(safe-area-inset-top)) 0 calc(106px + env(safe-area-inset-bottom));
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  justify-items: center;
+  min-height: 0;
+  gap: 12px;
+  padding: 18px 20px 16px;
+  overflow: hidden;
+  background: #08140f;
 }
 
-.shortcuts {
-  display: none;
+.receiptCamera video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
-@media (max-width: 900px) {
-  .workspace {
-    margin-top: 0;
-  }
+.receiptFrame {
+  z-index: 2;
+  align-self: center;
+  width: min(58vw, 340px);
+  height: min(44dvh, 360px);
+  border: 2px solid rgba(255, 255, 255, .96);
+  border-radius: 10px;
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .18), 0 0 30px rgba(255, 255, 255, .12);
+}
+
+.receiptStatus {
+  z-index: 3;
+  width: min(100%, 620px);
+  padding: 10px 14px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  border-radius: 999px;
+  background: rgba(8, 18, 13, .74);
+  text-align: center;
+  font-size: 12px;
+  font-weight: 750;
+  backdrop-filter: blur(14px);
+}
+
+.shutterButton {
+  z-index: 3;
+  display: grid;
+  width: 66px;
+  height: 66px;
+  place-items: center;
+  padding: 0;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: rgba(3, 12, 9, .45);
+  cursor: pointer;
+}
+.shutterButton span { width: 50px; height: 50px; border-radius: 50%; background: #fff; }
+.shutterButton:disabled { opacity: .55; cursor: wait; }
+
+.modeSelector {
+  position: fixed;
+  z-index: 260;
+  inset: auto 0 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  min-height: calc(106px + env(safe-area-inset-bottom));
+  padding: 10px max(20px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-bottom));
+  border-top: 1px solid #30473b;
+  background: #15231c;
+}
+
+.modeSelector a {
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  min-width: 0;
+  gap: 6px;
+  border-radius: 16px;
+  color: #b7c7be;
+}
+.modeSelector a > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 14px; }
+.modeSelector svg { width: 21px; height: 21px; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.modeSelector small { font-size: 11px; font-weight: 800; }
+.modeSelector .activeMode { color: #d7f2e3; }
+.modeSelector .activeMode > span { background: #24533e; }
+
+.emptyTarget {
+  position: fixed;
+  z-index: 210;
+  inset: calc(90px + env(safe-area-inset-top)) 0 calc(106px + env(safe-area-inset-bottom));
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+.emptyTarget > section { width: min(100%, 520px); }
+.shortcuts { display: none; }
+
+@media (max-width: 420px) {
+  .scannerHeader strong { font-size: 16px; }
+  .scannerHeader small { max-width: 210px; }
+  .receiptFrame { width: min(62vw, 250px); height: min(42dvh, 310px); }
 }
