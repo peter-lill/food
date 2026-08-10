@@ -65,4 +65,9 @@ const retailerQueueSource = readFileSync(new URL("enqueue-product-retailer-enric
 assert.match(retailerQueueSource, /process\.argv\.includes\("--all"\)/, "the catalogue can be refreshed globally after an authority policy change");
 assert.match(retailerQueueSource, /productImageEnrichment/, "a whole-catalogue refresh must re-evaluate images as well as listings");
 
+const missingPackQueueSource = readFileSync(new URL("enqueue-missing-retailer-pack-sizes.ts", import.meta.url), "utf8");
+assert.match(missingPackQueueSource, /packSize: null/, "missing package sizes must be found from retailer listings");
+assert.match(missingPackQueueSource, /productType: \{ not: "GENERIC_PRODUCE" \}/, "loose generic produce is not incorrectly treated as a missing package");
+assert.match(missingPackQueueSource, /force: true/, "package-size recovery must bypass the normal freshness window");
+
 console.log("Retailer refresh coverage regressions passed.");
