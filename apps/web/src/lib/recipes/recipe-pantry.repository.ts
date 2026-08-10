@@ -108,8 +108,8 @@ function plannerIngredients(recipe: PlannerRecipe): RecipeIngredientInput[] {
 export async function getRecipeAvailability(recipes: PlannerRecipe[]): Promise<RecipeAvailabilityMap> {
   const entries: Array<[string, RecipeIngredientInput[]]> = [
     ...recipes.map((recipe) => [recipe.id, plannerIngredients(recipe)] as [string, RecipeIngredientInput[]]),
-    ...hwqSnackRecipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),
-    ...bhfCatalogue.recipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine)] as [string, RecipeIngredientInput[]]),
+    ...hwqSnackRecipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine).filter((ingredient) => ingredient.name.length > 0)] as [string, RecipeIngredientInput[]]),
+    ...bhfCatalogue.recipes.map((recipe) => [recipe.id, recipe.ingredients.map(parseRecipeIngredientLine).filter((ingredient) => ingredient.name.length > 0)] as [string, RecipeIngredientInput[]]),
   ];
   const products = await getRecipeProductCatalogue(entries.flatMap(([, ingredients]) => ingredients));
   const productIndex = createRecipeProductIndex(products);

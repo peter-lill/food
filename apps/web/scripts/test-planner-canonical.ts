@@ -8,6 +8,7 @@ import { plannerMealSlots, plannerRecipesForSlot, withPlannerMealSelection } fro
 import { currentPlannerWeekStart } from "../src/lib/planner/planner-week";
 import type { PlannerRecipe } from "../src/lib/planner/planner.types";
 import type { RecipeProductIdentity } from "../src/lib/recipes/recipe-pantry";
+import { parseRecipeIngredientLine } from "../src/lib/recipes/recipe-pantry";
 
 const appleRecipe: PlannerRecipe = {
   id: "apple-recipe",
@@ -146,6 +147,47 @@ assert.match(fixedSlotMigration, /mealPlanId_day_slot/, "meal slots should be in
 assert.equal(hwqSnackRecipes.length, 20, "all HWQ full recipe cards remain available to Planner");
 assert.ok(bhfCatalogue.recipes.length > 0 && bhfCatalogue.recipes.every((recipe) => recipe.ingredients.length), "all BHF catalogue cards remain plannable");
 assert.ok(bhfCatalogue.recipes.some((recipe) => recipe.instructions.length), "BHF full recipe methods remain available");
+const beetrootRisotto = bhfCatalogue.recipes.find((recipe) => recipe.id === "bhf-beetroot-barley-risotto");
+assert(beetrootRisotto);
+const parsedRisottoIngredients = beetrootRisotto.ingredients
+  .map(parseRecipeIngredientLine)
+  .filter((ingredient) => ingredient.name.length > 0);
+assert.deepEqual(
+  parsedRisottoIngredients.map(({ name, quantity, unit }) => ({ name, quantity, unit })),
+  [
+    { name: "Olive Oil", quantity: 2, unit: "tsp" },
+    { name: "Pearl Barley", quantity: 200, unit: "g" },
+    { name: "Small Onion", quantity: 1, unit: "each" },
+    { name: "Garlic", quantity: 1, unit: "each" },
+    { name: "Beetroot", quantity: 200, unit: "g" },
+    { name: "Vegetable Stock", quantity: 500, unit: "ml" },
+    { name: "Pecan or Hazelnut", quantity: 20, unit: "g" },
+    { name: "Reduced fat Soft Cheese", quantity: 60, unit: "g" },
+    { name: "Dill", quantity: 1, unit: "tbsp" },
+    { name: "Rocket", quantity: 50, unit: "g" },
+    { name: "Fat free Greek Style Natural Yoghurt", quantity: 80, unit: "g" },
+  ],
+  "recipe headings and preparation notes must not leak into shopping or price-search terms",
+);
+assert.deepEqual(parseRecipeIngredientLine("½ cup rolled oats"), { name: "Rolled Oats", quantity: 0.5, unit: "cup" });
+assert.deepEqual(parseRecipeIngredientLine("400g (14oz) can chopped tomatoes"), { name: "Tomato", quantity: 1, unit: "can" });
+assert.deepEqual(parseRecipeIngredientLine("50g/2oz sugar"), { name: "Sugar", quantity: 50, unit: "g" });
+assert.deepEqual(parseRecipeIngredientLine("To serve: 60g rocket tossed with 1 tsp balsamic vinegar"), { name: "Rocket", quantity: 60, unit: "g" });
+assert.deepEqual(parseRecipeIngredientLine("For the soup"), { name: "", quantity: null, unit: null });
+const malformedCatalogueIngredients = bhfCatalogue.recipes.flatMap((recipe) => recipe.ingredients.flatMap((raw) => {
+  const parsed = parseRecipeIngredientLine(raw);
+  return (
+    /\b(?:and|or|with|of)$/i.test(parsed.name) ||
+    /^(?:To Serve|For )/i.test(parsed.name) ||
+    /\b(?:fl\s*)?oz\b/i.test(parsed.name) ||
+    /^\d/.test(parsed.name)
+  ) ? [{ recipe: recipe.name, raw, parsed }] : [];
+}));
+assert.deepEqual(
+  malformedCatalogueIngredients,
+  [],
+  "catalogue preparation notes, imperial alternatives and section labels must not become grocery products",
+);
 assert.equal(currentPlannerWeekStart(new Date("2026-08-09T14:00:00.000Z")).toISOString(), "2026-08-10T00:00:00.000Z", "Brisbane Monday anchors persisted weeks");
 
 console.log("Canonical weekly Planner regression checks passed.");
