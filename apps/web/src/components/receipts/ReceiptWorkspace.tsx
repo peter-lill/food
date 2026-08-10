@@ -226,7 +226,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
     <div className={styles.workspace}>
       <section className={`card ${styles.captureCard}`}>
         <div className={`${styles.captureStage} ${imageUrl ? styles.previewStage : styles.emptyStage}`}>
-          {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><div className={styles.captureFrame} aria-hidden="true" /><strong>Add a receipt</strong><p>Take a new photo or choose a saved image from Woolworths, your gallery or downloaded files.</p></div>}
+          {imageUrl ? <img className={styles.receiptPreview} alt="Receipt awaiting review" src={imageUrl} /> : <div className={styles.emptyCapture}><strong>Scan a receipt</strong><p>Take a clear photo now or choose one already saved on your device.</p></div>}
           {ocrBusy ? <div className={styles.processing} role="status"><strong>{ocrStatus}</strong><progress max="100" value={ocrProgress}>{ocrProgress}%</progress></div> : null}
           <div className={styles.captureActions}>
             <button className={styles.captureButton} disabled={ocrBusy} onClick={() => cameraInputRef.current?.click()} type="button">{imageUrl ? "Retake photo" : "Take photo"}</button>
