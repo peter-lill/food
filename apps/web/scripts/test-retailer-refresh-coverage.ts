@@ -70,4 +70,8 @@ assert.match(missingPackQueueSource, /packSize: null/, "missing package sizes mu
 assert.match(missingPackQueueSource, /productType: \{ not: "GENERIC_PRODUCE" \}/, "loose generic produce is not incorrectly treated as a missing package");
 assert.match(missingPackQueueSource, /force: true/, "package-size recovery must bypass the normal freshness window");
 
+const weakIdentityRepairSource = readFileSync(new URL("repair-weak-retailer-identities.ts", import.meta.url), "utf8");
+assert.match(weakIdentityRepairSource, /words\(currentName\)\.length !== 1/, "only one-word weak identities may be expanded from linked retailer listings");
+assert.match(weakIdentityRepairSource, /linked-retailer-repair/, "the replaced weak identity must remain searchable as an alias");
+
 console.log("Retailer refresh coverage regressions passed.");
