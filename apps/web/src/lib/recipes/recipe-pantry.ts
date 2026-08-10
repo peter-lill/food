@@ -150,6 +150,7 @@ export function parseRecipeIngredientLine(line: string): RecipeIngredientInput {
   const main = (cleanedSource.split(",")[0]?.trim() ?? cleanedSource)
     .replace(/\s+(?:made from|mixed with|tossed with|plus)\b.*$/i, "")
     .replace(/\s+cut into\b.*$/i, "")
+    .replace(/\s+or\s+.*$/i, "")
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?cloves?\s+of\s+/i, (match) => match.replace(/cloves?\s+of\s+/i, ""))
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, (match) => match.replace(/(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, ""))
     .trim();
