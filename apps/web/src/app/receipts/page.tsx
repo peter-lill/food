@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ReceiptWorkspace } from "@/components/receipts/ReceiptWorkspace";
 import { getReceiptImports } from "@/lib/receipts/receipt.repository";
+import styles from "./receipts.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -23,15 +24,21 @@ export default async function ReceiptsPage({
   const { receipts, loadError } = await loadReceiptsPageData();
 
   return (
-    <>
-      <header className="pantry-page-heading">
-        <div>
+    <div className={styles.page}>
+      <header className={styles.hero}>
+        <div className={styles.heroCopy}>
+          <p className="eyebrow">SMART RECEIPT IMPORT</p>
           <h1 className="page-title">Receipts</h1>
-          <p className="subtle">Photograph a receipt, correct the extracted lines, then import confirmed purchases into Food.</p>
+          <p className={styles.heroDescription}>Turn a supermarket receipt into reviewed Pantry items and reliable price history.</p>
+          <div className={styles.steps} aria-label="Receipt import steps">
+            <span>1. Capture</span>
+            <span>2. Check</span>
+            <span>3. Import</span>
+          </div>
         </div>
-        <Link className="secondary-button" href="/prices">View price history</Link>
+        <Link className={`secondary-button ${styles.priceLink}`} href="/prices">View price history</Link>
       </header>
       <ReceiptWorkspace loadError={loadError} loadStagedCapture={loadStagedCapture} receipts={receipts} />
-    </>
+    </div>
   );
 }
