@@ -9,6 +9,12 @@ export function NavigationIcon({ name }: { name: NavigationIconName }) {
           <path d="M5.5 9.5V21h13V9.5M9.5 21v-6h5v6" />
         </>
       ) : null}
+      {name === "camera" ? (
+        <>
+          <path d="M8.2 6 9.5 4h5L15.8 6H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" />
+          <circle cx="12" cy="13" r="4" />
+        </>
+      ) : null}
       {name === "planner" ? (
         <>
           <rect height="16" rx="2.5" width="18" x="3" y="5" />

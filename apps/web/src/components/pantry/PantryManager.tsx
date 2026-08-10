@@ -72,7 +72,7 @@ function ActionMessage({ state }: { state: PantryActionState }) {
   return <p className={`form-message ${state.status}`} role={state.status === "error" ? "alert" : "status"}>{state.message}</p>;
 }
 
-export function AddPantryForm({ products, autoOpenScanner = false, fullPageScanner = false }: { products: ProductCatalogueItem[]; autoOpenScanner?: boolean; fullPageScanner?: boolean }) {
+export function AddPantryForm({ products, autoOpenScanner = false, fullPageScanner = false, scanTarget = "pantry", shoppingListId }: { products: ProductCatalogueItem[]; autoOpenScanner?: boolean; fullPageScanner?: boolean; scanTarget?: "pantry" | "shopping"; shoppingListId?: string }) {
   const [state, action] = useActionState(createPantryItem, initialPantryActionState);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -91,6 +91,8 @@ export function AddPantryForm({ products, autoOpenScanner = false, fullPageScann
           fullPageScanner={fullPageScanner}
           nameError={state.fieldErrors?.name}
           products={products}
+          scanTarget={scanTarget}
+          shoppingListId={shoppingListId}
         />
         <PantryFields state={state} />
         <ActionMessage state={state} />
