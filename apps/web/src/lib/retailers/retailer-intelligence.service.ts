@@ -4,6 +4,7 @@ import {
   type RetailerCatalogueCandidate,
 } from "@/lib/prices/coles-woolworths-provider";
 import { retailerListingIdentity } from "@/lib/retailers/retailer-listing-identity";
+import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 
 const refreshWindowMs = 6 * 60 * 60 * 1000;
 const requiredRetailers = ["Coles", "Woolworths"] as const;
@@ -61,6 +62,7 @@ export function identityScore(product: ProductIdentity, candidate: RetailerCatal
   const productBarcode = normaliseBarcode(product.barcode);
   const candidateBarcode = normaliseBarcode(candidate.barcode);
   if (productBarcode && candidateBarcode && productBarcode === candidateBarcode) return 20_000;
+  if (productBarcode && candidateBarcode && productBarcode !== candidateBarcode) return Number.NEGATIVE_INFINITY;
 
   const productName = normalise([product.brand, product.name, product.canonicalName].filter(Boolean).join(" "));
   const candidateName = normalise(candidate.productName);
@@ -91,17 +93,33 @@ export function retailerSearchQuery(
   product: Pick<ProductIdentity, "name" | "canonicalName" | "brand" | "barcode" | "packSize">,
   retailer: (typeof requiredRetailers)[number],
 ) {
-  if (retailer === "Woolworths" && product.barcode?.trim()) return product.barcode.trim();
+  if (product.barcode?.trim()) return product.barcode.trim();
   return [product.brand, product.canonicalName ?? product.name, product.packSize]
     .filter(Boolean)
     .join(" ")
     || product.name;
 }
 
+export function authoritativeRetailerName(currentName: string, candidateName: string, exactBarcodeMatch: boolean) {
+  if (!exactBarcodeMatch) return currentName;
+  const parsed = parseProductName(candidateName).canonicalName
+    .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|mg|ml|l|pack|pk)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const currentTokens = new Set(tokens(currentName));
+  const candidateTokens = tokens(parsed);
+  const addsSpecificDetail = candidateTokens.some((token) => !currentTokens.has(token));
+  return addsSpecificDetail ? parsed : currentName;
+}
+
 async function searchRetailerCandidates(product: ProductIdentity) {
-  const searches = requiredRetailers.map((retailer) => searchColesAndWoolworthsCatalogue(
-    retailerSearchQuery(product, retailer),
-    { retailers: [retailer] },
+  const descriptiveQuery = [product.brand, product.canonicalName ?? product.name, product.packSize]
+    .filter(Boolean)
+    .join(" ") || product.name;
+  const searches = requiredRetailers.flatMap((retailer) => (
+    [...new Set([retailerSearchQuery(product, retailer), descriptiveQuery])].map((query) => (
+      searchColesAndWoolworthsCatalogue(query, { retailers: [retailer] })
+    ))
   ));
   return (await Promise.all(searches)).flat();
 }
@@ -215,10 +233,34 @@ export async function enrichProductRetailers(productId: string, options?: { forc
     if (!best) return [];
     const barcodeMatch = normaliseBarcode(product.barcode)
       && normaliseBarcode(product.barcode) === normaliseBarcode(best.candidate.barcode);
-    return barcodeMatch || best.score >= 900 ? [best.candidate] : [];
+    return normaliseBarcode(product.barcode)
+      ? barcodeMatch ? [best.candidate] : []
+      : best.score >= 900 ? [best.candidate] : [];
   });
 
   for (const candidate of accepted) await persistCandidate(product, candidate);
+
+  const authoritative = accepted
+    .filter((candidate) => normaliseBarcode(candidate.barcode) === normaliseBarcode(product.barcode))
+    .sort((left, right) => tokens(right.productName).length - tokens(left.productName).length)[0] ?? null;
+  if (authoritative) {
+    const detailedName = authoritativeRetailerName(product.name, authoritative.productName, true);
+    await prisma.product.update({
+      where: { id: product.id },
+      data: {
+        name: detailedName,
+        packSize: authoritative.packSize ?? product.packSize,
+        lifecycle: "MATCHED",
+      },
+    });
+    if (normaliseProductText(detailedName) !== normaliseProductText(product.name)) {
+      await prisma.productAlias.upsert({
+        where: { normalised: normaliseProductText(product.name) },
+        update: { productId: product.id, alias: product.name, source: `retailer:${authoritative.retailer}` },
+        create: { productId: product.id, alias: product.name, normalised: normaliseProductText(product.name), source: `retailer:${authoritative.retailer}` },
+      });
+    }
+  }
 
   const preferredImage = accepted.find((candidate) => candidate.retailer === "Coles" && candidate.imageUrl)?.imageUrl
     ?? accepted.find((candidate) => candidate.imageUrl)?.imageUrl

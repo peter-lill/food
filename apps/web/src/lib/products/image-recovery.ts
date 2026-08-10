@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
+import {
+  searchColesAndWoolworths,
+  searchColesAndWoolworthsCatalogue,
+} from "@/lib/prices/coles-woolworths-provider";
 import { resolveWoolworthsProductByBarcode } from "@/lib/prices/woolworths-barcode-resolver";
-import { findBestProductImage } from "@/lib/products/image-intelligence";
+import {
+  imageCandidateSourcePriority,
+  packagedMatchScore,
+  produceMatchScore,
+} from "@/lib/products/image-intelligence";
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
 import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
 import {
@@ -96,6 +103,15 @@ function providerScore(source: string) {
   return 60;
 }
 
+function candidateSelectionPriority(candidate: Candidate) {
+  const sourcePriority = imageCandidateSourcePriority(candidate.source);
+  return sourcePriority === 5 && candidate.identityScore === 100 ? 6 : sourcePriority;
+}
+
+function candidateMinimumQuality(candidate: Candidate) {
+  return candidateSelectionPriority(candidate) === 1 ? 70 : 55;
+}
+
 function emptyAssessment(url: string): ProductImageAssessment {
   return {
     url,
@@ -113,7 +129,8 @@ async function inspectCandidate(candidate: Candidate): Promise<CandidateInspecti
   const assessment = await assessProductImage(candidate.url).catch(() => emptyAssessment(candidate.url));
   if (!assessment.reachable) return { accepted: false, score: assessment.score, reason: "Image could not be reached", assessment };
   if (!assessment.contentType?.startsWith("image/")) return { accepted: false, score: assessment.score, reason: "Response was not an image", assessment };
-  if (assessment.score < 35) return { accepted: false, score: assessment.score, reason: `Quality score ${assessment.score} was below 35`, assessment };
+  const minimumQuality = candidateMinimumQuality(candidate);
+  if (assessment.score < minimumQuality) return { accepted: false, score: assessment.score, reason: `Quality score ${assessment.score} was below ${minimumQuality}`, assessment };
   return { accepted: true, score: assessment.score, reason: "Usable image", assessment };
 }
 
@@ -185,6 +202,8 @@ export async function recoverProductImage(productId: string, options: { allowGen
       barcode: true,
       category: true,
       packSize: true,
+      productType: true,
+      imageUrl: true,
       aliases: { select: { alias: true } },
     },
   });
@@ -201,7 +220,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
   ]);
   const produceIdentity = recognisedIdentity(identityValues, produceTerms);
   const genericIdentity = recognisedIdentity(identityValues, genericFoodTerms);
-  const isGeneric = !product.brand && !barcode;
+  const isGeneric = product.productType === "GENERIC_PRODUCE";
   const identity = genericIdentity ?? product.canonicalName ?? product.name;
   const diagnostics: ImageSearchDiagnostics = {
     identity,
@@ -212,43 +231,57 @@ export async function recoverProductImage(productId: string, options: { allowGen
     selectedSource: null,
   };
 
-  const primary = isGeneric ? null : await findBestProductImage(productId).catch((error) => {
-    diagnostics.steps.push({ provider: "Primary pipeline", status: "failed", candidates: 0, detail: error instanceof Error ? error.message : "Unknown failure" });
-    return null;
-  });
-  if (primary?.imageUrl) {
-    const candidate: Candidate = {
-      url: primary.imageUrl,
-      source: "Primary pipeline",
-      sourceLabel: "Primary pipeline",
-      providerScore: 80,
-      identityScore: null,
-    };
-    const candidateId = await recordDiscoveredCandidate(product.id, candidate);
-    const inspection = await inspectCandidate(candidate);
-    const overallScore = inspection.score ?? 0;
-    await recordCandidateAssessment({
-      candidateId,
-      assessment: inspection.assessment,
-      accepted: inspection.accepted,
-      rejectionReasons: inspection.accepted ? [] : [inspection.reason],
-      overallScore,
-    });
-    diagnostics.validation.push({ source: candidate.source, accepted: inspection.accepted, score: inspection.score, reason: inspection.reason });
-    diagnostics.steps.push({ provider: "Primary pipeline", status: inspection.accepted ? "success" : "failed", candidates: 1, detail: inspection.reason });
-    if (inspection.accepted) {
-      await markSelectedCandidate(product.id, candidateId);
-      diagnostics.selectedSource = candidate.source;
-      return { ...primary, diagnostics };
-    }
-  } else if (isGeneric) {
-    diagnostics.steps.push({ provider: "Primary pipeline", status: "skipped", candidates: 0, detail: "Generic families do not use retailer packaging images" });
-  } else if (!diagnostics.steps.some((step) => step.provider === "Primary pipeline")) {
-    diagnostics.steps.push({ provider: "Primary pipeline", status: "success", candidates: 0, detail: "No suitable candidate returned" });
-  }
-
   const candidates: Candidate[] = [];
+  const storedManufacturerCandidates = await prisma.$queryRaw<Array<{
+    url: string;
+    source: string;
+    sourceLabel: string;
+    providerScore: number | null;
+    identityScore: number | null;
+  }>>`
+    SELECT "url", "source", "sourceLabel", "providerScore", "identityScore"
+    FROM "ProductImageCandidate"
+    WHERE "productId" = ${product.id}
+      AND "rejected" = false
+      AND (LOWER("source") LIKE '%manufacturer%' OR LOWER("source") LIKE '%brand site%')
+  `;
+  candidates.push(...storedManufacturerCandidates.map((candidate) => ({
+    ...candidate,
+    providerScore: candidate.providerScore ?? 90,
+    identityScore: candidate.identityScore ?? 90,
+  })));
+  const linkedRetailerImages = await prisma.storeProduct.findMany({
+    where: {
+      productId: product.id,
+      active: true,
+      imageUrl: { not: null },
+      retailer: { in: ["Coles", "Woolworths"] },
+    },
+    select: { retailer: true, retailerProductName: true, imageUrl: true },
+  });
+  candidates.push(...linkedRetailerImages.flatMap((listing) => listing.imageUrl ? [{
+    url: listing.imageUrl,
+    source: listing.retailer,
+    sourceLabel: `${listing.retailer} · ${listing.retailerProductName}`,
+    providerScore: providerScore(listing.retailer),
+    identityScore: 90,
+  }] : []));
   if (/^\d{7,14}$/.test(barcode)) {
+    const exactRetailerMatches = (await searchColesAndWoolworthsCatalogue(barcode).catch(() => []))
+      .filter((candidate) => candidate.barcode?.replace(/\D/g, "") === barcode && candidate.imageUrl);
+    candidates.push(...exactRetailerMatches.map((candidate) => ({
+      url: candidate.imageUrl as string,
+      source: `${candidate.retailer} barcode`,
+      sourceLabel: `${candidate.retailer} · ${candidate.productName}`,
+      providerScore: 100,
+      identityScore: 100,
+    })));
+    diagnostics.steps.push({
+      provider: "Retailer barcode",
+      status: "success",
+      candidates: exactRetailerMatches.length,
+      detail: exactRetailerMatches.length ? "Exact retailer barcode image returned" : "No exact retailer barcode image",
+    });
     const woolworths = await resolveWoolworthsProductByBarcode(barcode);
     diagnostics.steps.push({
       provider: "Woolworths barcode",
@@ -292,25 +325,34 @@ export async function recoverProductImage(productId: string, options: { allowGen
   diagnostics.queries = queries;
 
   let retailerCount = 0;
-  if (!isGeneric) {
   for (const query of queries) {
     const results = await searchColesAndWoolworths(query).catch(() => []);
-    retailerCount += results.length;
     for (const result of results) {
       if (!result.imageUrl) continue;
+      const resultBarcode = result.barcode?.replace(/\D/g, "") ?? "";
+      if (barcode && resultBarcode && resultBarcode !== barcode) continue;
+      const source = result.retailer || "Retailer";
+      const identityScore = barcode && resultBarcode === barcode
+        ? 100
+        : isGeneric
+          ? produceMatchScore(normalise(identity).split(" ").filter(Boolean), result.productName, normalise(source))
+          : packagedMatchScore(
+              [product.brand, product.canonicalName ?? product.name, product.packSize].filter(Boolean).join(" "),
+              result.productName,
+              normalise(source),
+            );
+      if (identityScore < (isGeneric ? 65 : 82)) continue;
+      retailerCount += 1;
       candidates.push({
         url: result.imageUrl,
-        source: result.retailer || "Retailer",
-        sourceLabel: `${result.retailer || "Retailer"} · ${result.productName}`,
-        providerScore: providerScore(result.retailer || "Retailer"),
-        identityScore: null,
+        source,
+        sourceLabel: `${source} · ${result.productName}`,
+        providerScore: providerScore(source),
+        identityScore,
       });
     }
   }
-  }
-  diagnostics.steps.push(isGeneric
-    ? { provider: "Coles / Woolworths", status: "skipped", candidates: 0, detail: "Retailer packaging is excluded for generic families" }
-    : { provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
+  diagnostics.steps.push({ provider: "Coles / Woolworths", status: "success", candidates: retailerCount, detail: `Ran ${queries.length} search ${queries.length === 1 ? "query" : "queries"}` });
 
   if (isGeneric && options.allowGenerated) {
     const commons = await wikimediaFoodImages(identity);
@@ -326,8 +368,24 @@ export async function recoverProductImage(productId: string, options: { allowGen
     diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product is branded or barcoded" });
   }
 
-  const uniqueCandidates = [...new Map(candidates.map((candidate) => [candidate.url, candidate])).values()];
+  if (product.imageUrl) candidates.push({
+    url: product.imageUrl,
+    source: "Current/manual image",
+    sourceLabel: "Existing product image",
+    providerScore: 25,
+    identityScore: null,
+  });
+
+  const candidatesByUrl = new Map<string, Candidate>();
+  for (const candidate of candidates) {
+    const existing = candidatesByUrl.get(candidate.url);
+    if (!existing || candidateSelectionPriority(candidate) > candidateSelectionPriority(existing)) {
+      candidatesByUrl.set(candidate.url, candidate);
+    }
+  }
+  const uniqueCandidates = [...candidatesByUrl.values()];
   const candidateIds = new Map<string, string>();
+  const evaluated: Array<{ candidate: Candidate; candidateId: string; inspection: CandidateInspection; overallScore: number }> = [];
   for (const candidate of uniqueCandidates) {
     candidateIds.set(candidate.url, await recordDiscoveredCandidate(product.id, candidate));
   }
@@ -353,7 +411,18 @@ export async function recoverProductImage(productId: string, options: { allowGen
       overallScore,
     });
     diagnostics.validation.push({ source: candidate.source, accepted: inspection.accepted, score: overallScore, reason: inspection.reason });
-    if (!inspection.accepted) continue;
+    evaluated.push({ candidate, candidateId, inspection, overallScore });
+  }
+
+  const selected = evaluated
+    .filter((item) => item.inspection.accepted)
+    .sort((left, right) => (
+      candidateSelectionPriority(right.candidate) - candidateSelectionPriority(left.candidate)
+      || right.overallScore - left.overallScore
+    ))[0] ?? null;
+
+  if (selected) {
+    const { candidate, candidateId } = selected;
 
     await prisma.product.update({
       where: { id: product.id },

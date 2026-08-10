@@ -84,10 +84,10 @@ function imageDimensions(bytes: Uint8Array) {
 
 function sourceScore(source: ProductImageCandidate["source"]) {
   switch (source) {
-    case "manufacturer": return 28;
-    case "retailer": return 22;
+    case "retailer": return 32;
+    case "manufacturer": return 26;
     case "open-food-facts": return 15;
-    case "current": return 8;
+    case "current": return 3;
     default: return 5;
   }
 }
