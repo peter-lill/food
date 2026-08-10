@@ -53,12 +53,13 @@ export default async function ScanPage({
     : target === "shopping"
       ? { title: "Add to Shopping", help: shoppingList ? `Adding products to ${shoppingList.name}` : "Create a Shopping list before scanning" }
       : { title: "Add to Pantry", help: "Point the camera at a product barcode" };
+  const closeHref = target === "shopping" ? "/shopping" : target === "pantry" ? "/pantry" : "/receipts";
 
   return (
     <div className={styles.workspace}>
       <header className={styles.scannerHeader}>
         <div><strong>{headings.title}</strong><small>{headings.help}</small></div>
-        <div className={styles.headerActions}><ScannerFlashlightButton /><ScannerCloseButton /></div>
+        <div className={styles.headerActions}><ScannerFlashlightButton /><ScannerCloseButton href={closeHref} /></div>
       </header>
       <datalist id="pantry-units">
         <option value="item" />

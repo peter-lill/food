@@ -3,16 +3,11 @@
 import { useRouter } from "next/navigation";
 import styles from "./scan.module.css";
 
-export function ScannerCloseButton() {
+export function ScannerCloseButton({ href }: { href: "/pantry" | "/receipts" | "/shopping" }) {
   const router = useRouter();
 
   function closeScanner() {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
-
-    router.replace("/pantry");
+    router.replace(href);
   }
 
   return (
