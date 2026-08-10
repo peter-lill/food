@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
 import { chooseReceiptCandidate, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
 
@@ -81,5 +82,9 @@ assert.equal(
   true,
   "a plausible item list without a recognised receipt total still needs the fallback OCR pass",
 );
+
+const receiptPageStyles = readFileSync(new URL("../src/components/receipts/ReceiptWorkspace.module.css", import.meta.url), "utf8");
+assert.doesNotMatch(receiptPageStyles, /min-height:\s*(?:62|100)dvh/, "receipt capture must not dominate an entire phone or desktop viewport");
+assert.match(receiptPageStyles, /grid-template-columns:\s*minmax\(0,\s*1\.55fr\)\s+minmax\(310px,\s*\.72fr\)/);
 
 console.log("Receipt photo parser regression checks passed.");
