@@ -30,6 +30,8 @@
     "products:backfill:apply": "tsx scripts/backfill-product-intelligence.ts --apply",
     "products:reconcile": "tsx scripts/reconcile-product-catalogue.ts",
     "products:reconcile:apply": "tsx scripts/reconcile-product-catalogue.ts --apply",
+    "products:reconcile:known-aliases": "tsx scripts/reconcile-product-catalogue.ts --key=greek-yoghurt --key=lime-juice --key=lemon-juice",
+    "products:reconcile:known-aliases:apply": "tsx scripts/reconcile-product-catalogue.ts --apply --key=greek-yoghurt --key=lime-juice --key=lemon-juice",
     "products:cleanup": "tsx scripts/cleanup-product-intelligence.ts",
     "products:cleanup:apply": "tsx scripts/cleanup-product-intelligence.ts --apply",
     "products:images": "tsx scripts/enrich-product-images.ts",

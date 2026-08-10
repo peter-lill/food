@@ -2,6 +2,12 @@ import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, parseProductName } from "../src/lib/products/product-normalisation";
 
 const apply = process.argv.includes("--apply");
+const requestedKeys = new Set(
+  process.argv
+    .filter((argument) => argument.startsWith("--key="))
+    .map((argument) => argument.slice("--key=".length).trim())
+    .filter(Boolean),
+);
 
 function loadProducts() {
   return prisma.product.findMany({
@@ -181,14 +187,16 @@ async function main() {
     groups.set(parsed.canonicalKey, group);
   }
 
-  const duplicates = [...groups.entries()].filter(([, group]) => group.length > 1);
+  const selectedGroups = [...groups.entries()].filter(([key]) => requestedKeys.size === 0 || requestedKeys.has(key));
+  const duplicates = selectedGroups.filter(([, group]) => group.length > 1);
   console.log(apply ? "Applying Product Intelligence reconciliation..." : "Product Intelligence reconciliation dry run...");
   console.log(`Products: ${products.length}`);
   console.log(`Canonical identities: ${groups.size}`);
+  if (requestedKeys.size) console.log(`Selected identities: ${[...requestedKeys].join(", ")}`);
   console.log(`Duplicate groups: ${duplicates.length}`);
 
   for (const [key, group] of duplicates) await mergeGroup(key, group);
-  for (const [, group] of groups) {
+  for (const [, group] of selectedGroups) {
     if (group.length === 1) await normaliseSingle(group[0]);
   }
 
