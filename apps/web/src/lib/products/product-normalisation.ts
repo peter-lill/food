@@ -24,8 +24,8 @@ export type ParsedProductName = {
 };
 
 const fractionValues: Record<string, number> = {
-  "Â¼": 0.25, "Â½": 0.5, "Â¾": 0.75, "â…“": 1 / 3, "â…”": 2 / 3,
-  "â…›": 0.125, "â…œ": 0.375, "â…": 0.625, "â…ž": 0.875,
+  "¼": 0.25, "½": 0.5, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3,
+  "⅛": 0.125, "⅜": 0.375, "⅝": 0.625, "⅞": 0.875,
 };
 
 const spellingCorrections: Array<[RegExp, string]> = [
@@ -68,6 +68,7 @@ const variantGroups: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "no added salt", aliases: ["no salt added"] },
   { canonical: "reduced salt", aliases: ["salt reduced", "low salt", "lower salt"] },
   { canonical: "no added sugar", aliases: ["no sugar added"] },
+  { canonical: "fat free", aliases: ["0% fat", "zero fat", "no fat"] },
   { canonical: "reduced fat", aliases: ["low fat", "lite", "light"] },
   { canonical: "gluten free", aliases: [] },
   { canonical: "lactose free", aliases: [] },
@@ -108,6 +109,7 @@ const singularOverrides = new Map<string, string>([
   ["bananas", "banana"], ["apples", "apple"], ["pears", "pear"],
   ["chickpeas", "chickpea"], ["lentils", "lentil"], ["beans", "bean"],
   ["prawns", "prawn"], ["fillets", "fillet"], ["breasts", "breast"],
+  ["pecans", "pecan"], ["hazelnuts", "hazelnut"],
   ["cloves", "clove"],
 ]);
 
@@ -121,9 +123,9 @@ export function normaliseProductText(value: string) {
   return cleanWhitespace(
     value
       .toLocaleLowerCase("en-AU")
-      .replace(/[â€™']/g, "")
+      .replace(/[’']/g, "")
       .replace(/&/g, " and ")
-      .replace(/[â€â€‘â€’â€“â€”]/g, "-")
+      .replace(/[‐‑‒–—]/g, "-")
       .replace(/[-_/]+/g, " ")
       .replace(/[^a-z0-9. ]+/g, " "),
   );
@@ -166,10 +168,13 @@ function replaceAliases(value: string) {
 }
 
 function extractQuantities(value: string) {
-  const prefix = value.match(/^\s*(?:x\s*)?(?:(\d+\s+\d+\/\d+|\d+\/\d+|[Â¼Â½Â¾â…“â…”â…›â…œâ…â…ž]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b)?/i);
-  const quantity = parseNumber(prefix?.[1]);
-  const packQuantity = prefix?.[2] ? Number(prefix[2]) : null;
-  const packUnit = prefix?.[3]?.toLocaleLowerCase("en-AU") ?? null;
+  const measuredPrefix = value.match(/^\s*(?:x\s*)?(?:(\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*x\s*)?(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b/i);
+  const countPrefix = measuredPrefix
+    ? null
+    : value.match(/^\s*(?:x\s*)?(\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)(?=\s|$)/i);
+  const quantity = parseNumber(measuredPrefix?.[1] ?? countPrefix?.[1]);
+  const packQuantity = measuredPrefix?.[2] ? Number(measuredPrefix[2]) : null;
+  const packUnit = measuredPrefix?.[3]?.toLocaleLowerCase("en-AU") ?? null;
   const unitMatch = value.match(/\b(cups?|tablespoons?|tbsp|teaspoons?|tsp|cans?|tins?|jars?|packets?|packs?|bottles?|bunches?|fillets?|pieces?|items?)\b/i);
   return {
     quantity,
@@ -180,9 +185,13 @@ function extractQuantities(value: string) {
 }
 
 function stripRecipePrefix(value: string) {
-  return value
-    .replace(/^\s*x\s+/i, "")
-    .replace(/^\s*(?:(\d+\s+\d+\/\d+|\d+\/\d+|[Â¼Â½Â¾â…“â…”â…›â…œâ…â…ž]|\d+(?:\.\d+)?)\s*)?(?:x\s*)?(?:(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b\s*)?/i, "")
+  const withoutMarker = value.replace(/^\s*x\s+/i, "");
+  const measuredPrefix = /^\s*(?:(?:\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*x\s*)?\d+(?:\.\d+)?\s*(?:kg|g|mg|ml|l)\b\s*/i;
+  const countPrefix = /^\s*(?:\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*/i;
+  const withoutQuantity = measuredPrefix.test(withoutMarker)
+    ? withoutMarker.replace(measuredPrefix, "")
+    : withoutMarker.replace(countPrefix, "");
+  return withoutQuantity
     .replace(/^\s*(?:cups?|tablespoons?|tbsp|teaspoons?|tsp)\b\s*/i, "")
     .replace(/^\s*(?:cans?|tins?|jars?|packets?|packs?|bottles?|bunches?)\s+(?:of\s+)?/i, "")
     .trim();
@@ -253,11 +262,13 @@ function collapseRepeatedSequence(tokens: string[]) {
 function canonicalCore(value: string, variants: string[], attributes: ProductAttributes) {
   let tokens = normaliseProductText(value).split(" ").filter(Boolean);
   const variantTokens = new Set(variants.flatMap((variant) => normaliseProductText(variant).split(" ")));
+  const reducedFat = variants.includes("reduced fat") || variants.includes("fat free");
   tokens = tokens
     .filter((token) => !removableWords.has(token))
     .filter((token) => !containerWords.has(token))
     .filter((token) => !retailerWords.has(token))
     .filter((token) => !variantTokens.has(token))
+    .filter((token) => !(reducedFat && ["low", "lite", "light", "0"].includes(token)))
     .filter((token) => !/^\d+(?:\.\d+)?$/.test(token))
     .filter((token) => !["kg", "g", "mg", "ml", "l", "cup", "cups", "tbsp", "tsp", "x"].includes(token));
 
@@ -267,6 +278,7 @@ function canonicalCore(value: string, variants: string[], attributes: ProductAtt
 
   const component = attributes.component?.toLocaleLowerCase("en-AU") ?? null;
   const canonicalTokens = collapseRepeatedSequence(singulariseTokens(tokens));
+  while (["and", "or", "with", "of"].includes(canonicalTokens.at(-1) ?? "")) canonicalTokens.pop();
   const core = canonicalTokens.join(" ");
   if (component && !core.includes(component)) return `${core} ${component}`.trim();
   return core || normaliseProductText(value);

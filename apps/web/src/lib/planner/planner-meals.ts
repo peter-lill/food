@@ -1,4 +1,4 @@
-import type { PlannerDayPlan, PlannerMealSelection } from "./planner.types";
+import type { PlannerDayPlan, PlannerMealSelection, PlannerRecipe } from "./planner.types";
 
 export const plannerMealSlots = [
   { key: "breakfast", label: "Breakfast" },
@@ -13,6 +13,23 @@ const plannerMealSlotKeys = new Set<string>(plannerMealSlots.map((slot) => slot.
 
 export function isPlannerMealSlot(value: string): value is PlannerMealSlot {
   return plannerMealSlotKeys.has(value);
+}
+
+const mealTypesBySlot: Record<PlannerMealSlot, ReadonlySet<PlannerRecipe["mealType"]>> = {
+  breakfast: new Set(["Breakfast"]),
+  lunch: new Set(["Lunch & dinner"]),
+  dinner: new Set(["Lunch & dinner"]),
+  snacks: new Set(["Snacks", "Desserts", "Drinks"]),
+};
+
+export function plannerRecipesForSlot(
+  recipes: readonly PlannerRecipe[],
+  slot: PlannerMealSlot,
+  selectedRecipeId?: string,
+) {
+  return recipes.filter((recipe) =>
+    recipe.id === selectedRecipeId || mealTypesBySlot[slot].has(recipe.mealType),
+  );
 }
 
 export function withPlannerMealSelection(

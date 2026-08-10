@@ -2,7 +2,9 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   areEquivalentShoppingIngredients,
+  legacyRecipeShoppingIngredientMatches,
   mergeShoppingQuantity,
+  parseRecipeIngredientLine,
   type IngredientAvailability,
 } from "./recipe-pantry";
 
@@ -26,25 +28,36 @@ export async function addRecipeIngredientsToShoppingList(
     let added = 0;
     let reused = 0;
 
+    for (const item of [...items]) {
+      if (parseRecipeIngredientLine(item.name).name) continue;
+      await transaction.shoppingItem.delete({ where: { id: item.id } });
+      items.splice(items.indexOf(item), 1);
+    }
+
     for (const ingredient of missing) {
       const shoppingIngredient = {
         ...ingredient,
         quantity: ingredient.shoppingQuantity ?? ingredient.quantity,
       };
       const existing = items.find((item) => areEquivalentShoppingIngredients(item, shoppingIngredient));
-      if (existing) {
-        const merged = mergeShoppingQuantity(existing, shoppingIngredient);
+      const legacyExisting = existing ?? items.find((item) => legacyRecipeShoppingIngredientMatches(item, shoppingIngredient));
+      if (legacyExisting) {
+        const isLegacyCorrection = !existing;
+        const merged = isLegacyCorrection
+          ? { quantity: shoppingIngredient.quantity, unit: shoppingIngredient.unit }
+          : mergeShoppingQuantity(legacyExisting, shoppingIngredient);
         const updated = await transaction.shoppingItem.update({
-          where: { id: existing.id },
+          where: { id: legacyExisting.id },
           data: {
-            productId: existing.productId ?? shoppingIngredient.productId,
+            productId: legacyExisting.productId ?? shoppingIngredient.productId,
+            ...(isLegacyCorrection ? { name: shoppingIngredient.name } : {}),
             quantity: merged.quantity,
             unit: merged.unit,
             checked: false,
             stockedAt: null,
           },
         });
-        Object.assign(existing, updated);
+        Object.assign(legacyExisting, updated);
         reused += 1;
         continue;
       }

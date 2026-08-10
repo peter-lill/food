@@ -12,6 +12,7 @@ import {
 import { plannerRecipeCardView } from "@/lib/planner/planner-card";
 import {
   plannerMealSlots,
+  plannerRecipesForSlot,
   withPlannerMealSelection,
   type PlannerMealSlot,
 } from "@/lib/planner/planner-meals";
@@ -238,7 +239,7 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               return (
                 <article className={`${styles.dayCard}${dayMealCount ? ` ${styles.dayCardPlanned}` : ""}`} key={day.key}>
                   <div className={styles.dayHeading}>
-                    <div><span>{day.short}</span><strong>{day.label}</strong></div>
+                    <strong>{day.label}</strong>
                     <small>{dayMealCount}/4 planned</small>
                   </div>
                   <div className={styles.mealSlots}>
@@ -260,7 +261,9 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
                               onChange={(event) => void assignRecipe(day.key, slot.key, event.target.value)}
                             >
                               <option value="">Choose a recipe</option>
-                              {data.recipes.map((recipe) => <option value={recipe.id} key={recipe.id}>{recipe.name}</option>)}
+                              {plannerRecipesForSlot(data.recipes, slot.key, selection?.recipeId).map((recipe) => (
+                                <option value={recipe.id} key={recipe.id}>{recipe.name}</option>
+                              ))}
                             </select>
                           </label>
                           {importing ? <p className={styles.emptyDay}>Importing ingredients…</p> : selected && selection && recipeCard ? (
