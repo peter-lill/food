@@ -4,6 +4,8 @@ export type GroceryProviderResult = {
   retailer: GroceryProviderRetailer;
   name: string;
   price: number | null;
+  /** Retailer-provided package or sale size, separate from price units. */
+  packSize: string | null;
   unit: string | null;
   store: string | null;
   barcode: string | null;

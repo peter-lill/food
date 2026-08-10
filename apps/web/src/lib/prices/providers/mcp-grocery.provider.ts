@@ -10,6 +10,7 @@ type BridgeResponse = {
     retailer?: unknown;
     name?: unknown;
     price?: unknown;
+    packSize?: unknown;
     unit?: unknown;
     store?: unknown;
     barcode?: unknown;
@@ -87,6 +88,7 @@ export class McpGroceryProvider implements GroceryProvider {
             retailer: resultRetailer,
             name,
             price: money(item.price),
+            packSize: text(item.packSize),
             unit: text(item.unit),
             store: text(item.store),
             barcode: text(item.barcode),

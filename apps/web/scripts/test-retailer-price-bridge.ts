@@ -11,6 +11,7 @@ const candidate = toRetailerCatalogueCandidate({
   wasPrice: 7.5,
   isSpecial: true,
   promotion: "2 for $10",
+  packSize: "160g",
   unit: "160g",
   store: "coles",
   barcode: "9300605075753",
@@ -25,6 +26,23 @@ assert.equal(candidate.packSize, "160g");
 assert.equal(candidate.isSpecial, true);
 assert.equal(candidate.externalId, "12345");
 assert.equal(candidate.sourceUrl, "https://www.coles.com.au/product/kit-kat-milk-chocolate-block-160g-12345");
+
+const colesPackCandidate = toRetailerCatalogueCandidate({
+  retailer: "Coles",
+  name: "Ground Cumin",
+  price: 2.3,
+  wasPrice: null,
+  isSpecial: false,
+  promotion: null,
+  packSize: "30 g",
+  unit: null,
+  store: "coles",
+  barcode: "9300000000000",
+  imageUrl: null,
+  productId: "cumin-30g",
+  source: "coles-woolworths-mcp",
+});
+assert.equal(colesPackCandidate?.packSize, "30 g", "Coles package size must survive independently of the product name or unit price");
 
 const kitKatScore = identityScore(
   {
@@ -70,5 +88,6 @@ assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths
 assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
 assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
+assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
 
 console.log("Retailer bridge metadata regressions passed.");
