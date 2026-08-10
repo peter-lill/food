@@ -6,6 +6,11 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createReceiptImport } from "@/lib/receipts/receipt.actions";
 import {
+  chooseReceiptCandidate,
+  needsReceiptFallback,
+  type ReceiptOcrCandidate,
+} from "@/lib/receipts/receipt-ocr-selection";
+import {
   initialReceiptActionState,
   type ReceiptActionState,
   type ReceiptStatusValue,
@@ -84,7 +89,7 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
   const longestSide = Math.max(sourceWidth, sourceHeight);
-  const scale = Math.min(3, Math.max(1, 2800 / longestSide));
+  const scale = Math.min(3, Math.max(1, 3200 / longestSide));
   const width = Math.max(1, Math.round(sourceWidth * scale));
   const height = Math.max(1, Math.round(sourceHeight * scale));
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
@@ -92,10 +97,26 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   if (!context) throw new Error("Your browser could not prepare the receipt image.");
   context.drawImage(image, 0, 0, width, height);
   const pixels = context.getImageData(0, 0, width, height); const data = pixels.data;
+  const histogram = new Uint32Array(256);
   for (let index = 0; index < data.length; index += 4) {
     const grey = data[index] * .299 + data[index + 1] * .587 + data[index + 2] * .114;
-    const threshold = grey > 198 ? 255 : Math.max(0, Math.min(255, (grey - 118) * 1.85 + 118));
-    data[index] = threshold; data[index + 1] = threshold; data[index + 2] = threshold;
+    histogram[Math.round(grey)] += 1;
+  }
+  const pixelCount = width * height;
+  const percentile = (target: number) => {
+    let seen = 0;
+    for (let value = 0; value < histogram.length; value += 1) {
+      seen += histogram[value];
+      if (seen >= pixelCount * target) return value;
+    }
+    return 255;
+  };
+  const shadow = percentile(.02);
+  const highlight = Math.max(shadow + 24, percentile(.98));
+  for (let index = 0; index < data.length; index += 4) {
+    const grey = data[index] * .299 + data[index + 1] * .587 + data[index + 2] * .114;
+    const normalised = Math.max(0, Math.min(255, ((grey - shadow) * 255) / (highlight - shadow)));
+    data[index] = normalised; data[index + 1] = normalised; data[index + 2] = normalised;
   }
   context.putImageData(pixels, 0, 0);
   return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The prepared receipt image could not be created.")), "image/jpeg", .94));
@@ -105,7 +126,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const savedPhotoInputRef = useRef<HTMLInputElement>(null);
-  const lastFileRef = useRef<File | null>(null);
+  const [lastFile, setLastFile] = useState<File | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [ocrStatus, setOcrStatus] = useState("Take a photo or choose a saved receipt image.");
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -123,7 +144,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
     setItems((current) => current.map((item) => item.id === id ? { ...item, [field]: value } : item));
   }
   async function processReceipt(file: File) {
-    lastFileRef.current = file;
+    setLastFile(file);
     if (imageUrl) URL.revokeObjectURL(imageUrl);
     setImageUrl(URL.createObjectURL(file)); setOcrBusy(true); setOcrError(null); setOcrProgress(2); setOcrStatus("Preparing the receipt image…");
     let worker: Awaited<ReturnType<typeof import("tesseract.js")["createWorker"]>> | null = null;
@@ -131,26 +152,62 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
       const prepared = await prepareReceiptImage(file);
       setOcrProgress(10); setOcrStatus("Loading receipt recognition…");
       const { createWorker, PSM } = await import("tesseract.js");
+      let passStart = 18;
+      let passRange = 40;
       worker = await createWorker("eng", undefined, { logger(message) {
         if (typeof message.progress === "number") {
-          const base = message.status === "recognizing text" ? 18 : 10;
-          const range = message.status === "recognizing text" ? 80 : 8;
+          const base = message.status === "recognizing text" ? passStart : 10;
+          const range = message.status === "recognizing text" ? passRange : 8;
           setOcrProgress(Math.min(99, Math.round(base + message.progress * range)));
         }
       }});
-      await worker.setParameters({ tessedit_pageseg_mode: PSM.AUTO, preserve_interword_spaces: "1", user_defined_dpi: "300" });
-      setOcrStatus("Reading retailer, date, total and purchase lines…");
-      const result = await worker.recognize(prepared);
-      const text = (result.data.text ?? "").trim();
-      if (!text) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
-      const parsed = parseReceipt(text);
+      const candidates: ReceiptOcrCandidate[] = [];
+      await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", user_defined_dpi: "300" });
+      setOcrStatus("Reading the receipt as a structured list…");
+      const structuredResult = await worker.recognize(prepared);
+      const structuredText = (structuredResult.data.text ?? "").trim();
+      if (structuredText) {
+        candidates.push({
+          ocrConfidence: structuredResult.data.confidence ?? 0,
+          parsed: parseReceipt(structuredText),
+          pass: "structured",
+          text: structuredText,
+        });
+      }
+
+      if (!candidates.length || needsReceiptFallback(candidates[0])) {
+        passStart = 58;
+        passRange = 40;
+        await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: "1", user_defined_dpi: "300" });
+        setOcrStatus("Checking faint and separated receipt lines…");
+        const sparseResult = await worker.recognize(prepared);
+        const sparseText = (sparseResult.data.text ?? "").trim();
+        if (sparseText) {
+          candidates.push({
+            ocrConfidence: sparseResult.data.confidence ?? 0,
+            parsed: parseReceipt(sparseText),
+            pass: "sparse",
+            text: sparseText,
+          });
+        }
+      }
+
+      const best = chooseReceiptCandidate(candidates);
+      if (!best) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
+      const parsed = best.parsed;
       const extracted = parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2)));
-      setRetailer((current) => current || parsed.retailer || inferRetailer(text));
-      setPurchasedAt(parsed.purchasedAt ?? inferDate(text));
-      setTotal((current) => current || (parsed.total === null ? inferTotal(text) : parsed.total.toFixed(2)));
+      setRetailer(parsed.retailer || inferRetailer(best.text));
+      setPurchasedAt(parsed.purchasedAt ?? inferDate(best.text));
+      setTotal(parsed.total === null ? inferTotal(best.text) : parsed.total.toFixed(2));
       setItems(extracted.length ? extracted : [makeItem()]);
       setOcrProgress(100);
-      setOcrStatus(extracted.length ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}. Check the review below.` : "The receipt header was read, but product lines need confirmation. Add them below.");
+      const warning = parsed.warnings[0];
+      const unreliable = needsReceiptFallback(best);
+      setOcrStatus(extracted.length
+        ? warning || unreliable
+          ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}, but the scan needs careful review.${warning ? ` ${warning}` : " Some receipt details could not be reconciled."}`
+          : `Found ${extracted.length} purchase ${extracted.length === 1 ? "line" : "lines"} and reconciled them with the receipt. Check the review below.`
+        : "The receipt header was read, but product lines need confirmation. Add them below.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
       setOcrError(error instanceof Error ? error.message : "The receipt could not be read."); setOcrStatus("Receipt reading failed. Choose another image or retake the photo."); setOcrProgress(0);
@@ -174,7 +231,7 @@ export function ReceiptWorkspace({ receipts, loadError }: { receipts: ReceiptSum
           <div className={styles.captureActions}>
             <button className={styles.captureButton} disabled={ocrBusy} onClick={() => cameraInputRef.current?.click()} type="button">{imageUrl ? "Retake photo" : "Take photo"}</button>
             <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => savedPhotoInputRef.current?.click()} type="button">Choose saved photo</button>
-            {imageUrl && lastFileRef.current ? <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => void processReceipt(lastFileRef.current!)} type="button">Read again</button> : null}
+            {imageUrl && lastFile ? <button className={styles.secondaryCaptureButton} disabled={ocrBusy} onClick={() => void processReceipt(lastFile)} type="button">Read again</button> : null}
           </div>
           <input accept="image/*" capture="environment" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={cameraInputRef} hidden type="file" />
           <input accept="image/jpeg,image/png,image/webp,image/heic,image/heif" disabled={ocrBusy} onChange={(event) => void handleReceiptImage(event.currentTarget.files?.[0] ?? null)} ref={savedPhotoInputRef} hidden type="file" />

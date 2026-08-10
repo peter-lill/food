@@ -2,6 +2,10 @@ import { parseReceipt as parseBaseReceipt } from "./parseReceipt";
 import type { ParsedReceipt, ParsedReceiptItem, ReceiptParserDiagnostics } from "./types";
 
 const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
+const paymentMarker = /^(?:payment|payments?|eft|eftpos|visa|mastercard|merch\s+id|card|purchase|change)\b/i;
+const headerMarker = /^(?:woolworths|the fresh food people|coles supermarkets|tax invoice|abn|store|store manager|phone|served by|register|receipt|date|time|pos\b|description\b|price\b)/i;
+const summaryMarker = /^(?:(?:\d+\s+)?subtotal|(?:grand\s+)?total\b|gst\b|total includes gst|you saved|saving|savings)/i;
+const promotionMarker = /\b(?:special|promo(?:tional)?|save|\d+\s+for\s+\$?\d)|(?:for\s+\$?\d)/i;
 
 function normaliseLines(text: string) {
   return text
@@ -29,61 +33,83 @@ function cleanDescription(value: string) {
     .trim();
 }
 
-function findWoolworthsTotal(lines: string[]) {
+function detectDate(text: string) {
+  const match = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
+  if (!match) return null;
+  const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+  return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+}
+
+function findReceiptTotal(lines: string[]) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
-    if (!/^\s*total\s*(?:\(\s*\d+\s+items?\s*\))?\s*$/i.test(line)
-      && !/^\s*total\s*\(\s*\d+\s+items?\s*\)/i.test(line)) continue;
-
+    if (!/^(?:grand\s+)?total(?:\s+for\s+\d+\s+items?|\s*\(\s*\d+\s+items?\s*\))?\b/i.test(line)) continue;
+    if (/^total includes gst/i.test(line)) continue;
     const sameLine = moneyValues(line).at(-1);
     if (sameLine !== undefined) return { total: sameLine, totalLine: line, totalIndex: index };
 
-    for (let offset = 1; offset <= 2; offset += 1) {
-      const next = lines[index + offset];
-      if (!next) break;
-      const nextValue = moneyValues(next).at(-1);
-      if (nextValue !== undefined) {
-        return { total: nextValue, totalLine: `${line} | ${next}`, totalIndex: index };
-      }
+    const next = lines[index + 1];
+    const nextValue = next ? moneyValues(next).at(-1) : undefined;
+    if (nextValue !== undefined && !paymentMarker.test(next)) {
+      return { total: nextValue, totalLine: `${line} | ${next}`, totalIndex: index };
     }
   }
-
   return { total: null, totalLine: null, totalIndex: lines.length };
 }
 
-function parseWoolworthsItems(lines: string[], totalIndex: number) {
-  const descriptionIndex = lines.findIndex((line) => /^description\b/i.test(line));
-  const start = descriptionIndex >= 0 ? descriptionIndex + 1 : 0;
-  const section = lines.slice(start, totalIndex);
-  const items: ParsedReceiptItem[] = [];
-  let pendingDescription = "";
+function expectedItemCount(lines: string[]) {
+  for (const line of lines) {
+    const explicit = line.match(/total\s+(?:for\s+)?(\d+)\s+items?/i) ?? line.match(/(\d+)\s+subtotal\b/i);
+    if (explicit) return Number(explicit[1]);
+  }
+  return null;
+}
 
-  const quantityPattern = /\bqty\s+(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
-  const ignored = /^(?:promotional price|total includes gst|everyday rewards|ereceipt|description|price)$/i;
+function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", totalIndex: number) {
+  const descriptionIndex = lines.findIndex((line) => /^description\b/i.test(line));
+  if (descriptionIndex >= 0) return { start: descriptionIndex + 1, end: totalIndex };
+
+  if (retailer === "woolworths") {
+    const transactionIndex = lines.findIndex((line) => /\bpos\b.*\btrans\b/i.test(line));
+    if (transactionIndex >= 0) return { start: transactionIndex + 1, end: totalIndex };
+  }
+
+  const firstProductIndex = lines.findIndex((line, index) => index < totalIndex
+    && moneyValues(line).some((value) => value > 0)
+    && !headerMarker.test(line)
+    && !summaryMarker.test(line));
+  return { start: Math.max(0, firstProductIndex), end: totalIndex };
+}
+
+function parsePhotoItems(lines: string[], start: number, end: number) {
+  const items: ParsedReceiptItem[] = [];
+  const section = lines.slice(start, end);
+  const adjustments: number[] = [];
+  let pendingDescription = "";
+  const quantityPattern = /^(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?(?:\s+(\d+[.,]\d{2}))?/i;
 
   for (const line of section) {
-    if (ignored.test(line) || /^(?:saving|savings|gst|payment|eftpos|visa|mastercard)\b/i.test(line)) continue;
+    if (headerMarker.test(line) || summaryMarker.test(line) || paymentMarker.test(line)) {
+      pendingDescription = "";
+      continue;
+    }
 
     const quantityMatch = line.match(quantityPattern);
     if (quantityMatch) {
       const quantity = Number(quantityMatch[1]);
       const unitPrice = parseMoney(quantityMatch[2]);
-      const values = moneyValues(line);
-      const printedTotal = values.length > 1 ? values.at(-1) ?? null : null;
-      const lineTotal = printedTotal ?? (unitPrice === null ? null : Math.round(quantity * unitPrice * 100) / 100);
-      const inlineDescription = cleanDescription(line.slice(0, quantityMatch.index ?? 0));
-      const description = inlineDescription || pendingDescription || items.at(-1)?.description || "";
+      const printedTotal = quantityMatch[3] ? parseMoney(quantityMatch[3]) : null;
+      const calculatedTotal = unitPrice === null ? null : Math.round(quantity * unitPrice * 100) / 100;
+      const lineTotal = printedTotal ?? calculatedTotal;
+      const previous = items.at(-1);
 
-      if (description && lineTotal !== null) {
-        const previous = items.at(-1);
-        if (!inlineDescription && !pendingDescription && previous?.description === description) {
-          previous.quantity = quantity;
-          previous.price = lineTotal;
-          previous.sourceText = `${previous.sourceText} | ${line}`;
-          previous.confidence = 98;
-        } else {
-          items.push({ description, quantity, price: lineTotal, sourceText: `${description} | ${line}`, confidence: 98 });
-        }
+      if (pendingDescription && lineTotal !== null) {
+        items.push({ description: pendingDescription, quantity, price: lineTotal, sourceText: `${pendingDescription} | ${line}`, confidence: 98 });
+      } else if (previous && Number.isFinite(quantity)) {
+        previous.quantity = quantity;
+        if (previous.price === null && lineTotal !== null) previous.price = lineTotal;
+        previous.sourceText = `${previous.sourceText} | ${line}`;
+        previous.confidence = 98;
       }
       pendingDescription = "";
       continue;
@@ -94,8 +120,15 @@ function parseWoolworthsItems(lines: string[], totalIndex: number) {
       const last = matches.at(-1)!;
       const amount = parseMoney(last[0]);
       const inlineDescription = cleanDescription(line.slice(0, last.index ?? 0));
+
+      if (amount !== null && (amount < 0 || promotionMarker.test(line))) {
+        if (amount < 0) adjustments.push(amount);
+        pendingDescription = "";
+        continue;
+      }
+
       const description = inlineDescription || pendingDescription;
-      if (amount !== null && amount >= 0 && description && !/^qty\b/i.test(description)) {
+      if (amount !== null && amount >= 0 && description && !headerMarker.test(description)) {
         items.push({ description, quantity: 1, price: amount, sourceText: line, confidence: 96 });
       }
       pendingDescription = "";
@@ -103,47 +136,45 @@ function parseWoolworthsItems(lines: string[], totalIndex: number) {
     }
 
     const cleaned = cleanDescription(line);
-    if (cleaned && /[a-z]/i.test(cleaned) && !/^(?:special|save|promotion)/i.test(cleaned)) {
-      pendingDescription = pendingDescription ? `${pendingDescription} ${cleaned}` : cleaned;
-      if (pendingDescription.length > 140) pendingDescription = cleaned;
+    if (cleaned.length >= 2 && /[a-z]/i.test(cleaned) && !headerMarker.test(cleaned) && !promotionMarker.test(cleaned)) {
+      pendingDescription = cleaned;
     }
   }
 
-  return { items, section };
+  return { items, section, adjustments };
 }
 
-function parseWoolworthsReceipt(text: string): ParsedReceipt {
+function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): ParsedReceipt {
   const lines = normaliseLines(text);
-  const { total, totalLine, totalIndex } = findWoolworthsTotal(lines);
-  const { items, section } = parseWoolworthsItems(lines, totalIndex);
-  const dateMatch = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
-  const purchasedAt = dateMatch
-    ? `${dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]}-${dateMatch[2].padStart(2, "0")}-${dateMatch[1].padStart(2, "0")}`
-    : null;
-  const expectedMatch = lines.find((line) => /^\s*total\s*\(\s*\d+\s+items?\s*\)/i.test(line))?.match(/(\d+)\s+items?/i);
-  const expectedCount = expectedMatch ? Number(expectedMatch[1]) : null;
+  const retailerKey = retailer.toLowerCase() as "coles" | "woolworths";
+  const { total, totalLine, totalIndex } = findReceiptTotal(lines);
+  const bounds = itemSectionBounds(lines, retailerKey, totalIndex);
+  const { items, section, adjustments } = parsePhotoItems(lines, bounds.start, bounds.end);
+  const expectedCount = expectedItemCount(lines);
   const detectedUnits = items.reduce((sum, item) => sum + item.quantity, 0);
-  const calculated = Math.round(items.reduce((sum, item) => sum + (item.price ?? 0), 0) * 100) / 100;
+  const itemTotal = items.reduce((sum, item) => sum + (item.price ?? 0), 0);
+  const calculated = Math.round((itemTotal + adjustments.reduce((sum, value) => sum + value, 0)) * 100) / 100;
   const warnings: string[] = [];
 
   if (expectedCount !== null && Math.abs(expectedCount - detectedUnits) > 0.001) {
     warnings.push(`Receipt reports ${expectedCount} items, but ${detectedUnits} units were detected.`);
   }
   if (total !== null && items.length > 0 && Math.abs(total - calculated) > 0.05) {
-    warnings.push(`Detected purchases total $${calculated.toFixed(2)}, which differs from the receipt total of $${total.toFixed(2)}.`);
+    warnings.push(`Detected purchases and discounts total $${calculated.toFixed(2)}, which differs from the receipt total of $${total.toFixed(2)}.`);
   }
 
+  const purchasedAt = detectDate(text);
   const diagnostics: ReceiptParserDiagnostics = {
     normalisedLines: lines,
     itemSectionLines: section,
     totalLine,
-    paymentStartLine: lines.find((line) => /^(?:payment|eftpos|visa|mastercard)\b/i.test(line)) ?? null,
+    paymentStartLine: lines.find((line) => paymentMarker.test(line)) ?? null,
   };
-
   const confidenceParts = [Boolean(purchasedAt), total !== null, items.length > 0, warnings.length === 0];
+
   return {
-    retailer: "Woolworths",
-    retailerKey: "woolworths",
+    retailer,
+    retailerKey,
     purchasedAt,
     total: total ?? (items.length ? calculated : null),
     items,
@@ -154,8 +185,7 @@ function parseWoolworthsReceipt(text: string): ParsedReceipt {
 }
 
 export function parseReceipt(text: string): ParsedReceipt {
-  if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(text)) {
-    return parseWoolworthsReceipt(text);
-  }
+  if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(text)) return parsePhotoReceipt(text, "Woolworths");
+  if (/\bcoles\b|coles supermarkets/i.test(text)) return parsePhotoReceipt(text, "Coles");
   return parseBaseReceipt(text);
 }
