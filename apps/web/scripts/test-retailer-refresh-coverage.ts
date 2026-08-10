@@ -40,6 +40,12 @@ assert.equal(identityScore(milkyBar, {
   barcode: "9300605000000",
   imageUrl: "https://example.com/wrong.jpg",
 }), Number.NEGATIVE_INFINITY, "a name match must never override a conflicting barcode");
+const retailerAuthoritySource = readFileSync(new URL("../src/lib/retailers/retailer-intelligence.service.ts", import.meta.url), "utf8");
+assert.match(retailerAuthoritySource, /conflictingExternalIds/, "a discovered barcode conflict must deactivate the stale retailer listing");
+assert.match(retailerAuthoritySource, /data: \{ active: false \}/, "conflicting listings must not remain available for price comparison");
+const underDetailedQueueSource = readFileSync(new URL("enqueue-underdetailed-retailer-products.ts", import.meta.url), "utf8");
+assert.match(underDetailedQueueSource, /listingTokens\.length > productTokens\.length/, "a more detailed linked retailer name must trigger an authority refresh");
+assert.match(underDetailedQueueSource, /force: true/, "under-detailed barcode products must bypass the freshness window");
 assert.equal(
   authoritativeRetailerName("Milky bar", "Nestle Milkybar Nesquik Strawberry Block 170g", true),
   "Nestle Milkybar Nesquik Strawberry Block",

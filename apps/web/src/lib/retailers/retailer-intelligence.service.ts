@@ -243,6 +243,16 @@ export async function enrichProductRetailers(productId: string, options?: { forc
     .filter((candidate) => normaliseBarcode(candidate.barcode) === normaliseBarcode(product.barcode))
     .sort((left, right) => tokens(right.productName).length - tokens(left.productName).length)[0] ?? null;
   if (authoritative) {
+    const conflictingExternalIds = [...new Set(candidates
+      .filter((candidate) => candidate.externalId && candidate.barcode && normaliseBarcode(candidate.barcode) !== normaliseBarcode(product.barcode))
+      .map((candidate) => candidate.externalId!))];
+    if (conflictingExternalIds.length) {
+      await prisma.storeProduct.updateMany({
+        where: { productId: product.id, active: true, externalId: { in: conflictingExternalIds } },
+        data: { active: false },
+      });
+    }
+
     const detailedName = authoritativeRetailerName(product.name, authoritative.productName, true);
     await prisma.product.update({
       where: { id: product.id },

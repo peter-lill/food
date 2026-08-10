@@ -278,9 +278,21 @@
 
 .listingIdentity {
   display: flex;
+  flex: 1 1 0;
   align-items: center;
   gap: 12px;
   min-width: 0;
+}
+
+.retailerListing > :last-child {
+  flex: 0 0 220px;
+  text-align: right;
+}
+
+@media (max-width: 620px) {
+  .retailerListing > :last-child {
+    flex-basis: 142px;
+  }
 }
 
 .listingImage {
