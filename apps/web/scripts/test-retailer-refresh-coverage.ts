@@ -24,8 +24,11 @@ const milkyBar = {
   packSize: "170 g",
   imageUrl: null,
 };
-assert.equal(retailerSearchQuery(milkyBar, "Coles"), "9300605161948", "Coles should be searched by exact barcode too");
-assert.equal(retailerSearchQuery(milkyBar, "Woolworths"), "9300605161948");
+assert.equal(
+  retailerSearchQuery(milkyBar),
+  "9300605161948",
+  "the shared retailer search query uses the exact barcode for every retailer",
+);
 assert.equal(identityScore(milkyBar, {
   retailer: "Coles",
   productName: "Milkybar White Choc Block 170g",
