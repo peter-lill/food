@@ -145,7 +145,7 @@ const cases: Array<{
   { input: "Or Stir Fry Vegetable Mix", canonical: "Stir Fry Vegetable Mix" },
   { input: "Peas Thawed", canonical: "Peas", family: "Peas", preparation: ["Thawed"] },
   { input: "Pita Pocket Bread", canonical: "Pita Bread", family: "Bread" },
-  { input: "Plain Greek Yoghurt Plus Teaspoons Extra", canonical: "Plain Greek Yoghurt" },
+  { input: "Plain Greek Yoghurt Plus Teaspoons Extra", canonical: "Greek Yoghurt" },
   { input: "Sage Leaves Torn", canonical: "Sage", family: "Sage", preparation: ["Torn"] },
   { input: "Salmon Into Cm Cubes", canonical: "Salmon", family: "Salmon", preparation: ["Cut Into Cubes"] },
   { input: "Sized Tomato", canonical: "Tomato", family: "Tomato" },
@@ -194,6 +194,11 @@ console.log(`Grocery Intelligence ${cases.length} regression checks passed.`);
 const asparagusIngredient = parseProductName("140g asparagus trimmed of woody stalks and cut into 5cm pieces");
 assert.equal(asparagusIngredient.canonicalName, "Asparagus");
 assert.equal(asparagusIngredient.canonicalKey, "asparagus");
+for (const yoghurtName of ["Greek natural yoghurt", "Greek yoghurt", "Plain Greek yoghurt", "Greek yogurt"]) {
+  assert.equal(parseProductName(yoghurtName).canonicalName, "Greek Yoghurt", `${JSON.stringify(yoghurtName)} should share one canonical product`);
+}
+assert.equal(parseProductName("Juice of lime").canonicalName, "Lime Juice");
+assert.equal(parseProductName("Lime juice").canonicalName, "Lime Juice");
 console.log("Recipe preparation suffix regression checks passed.");
 
 assert.equal(genericImageIdentity("Chicken Breast Horizontally"), "Chicken Breast");

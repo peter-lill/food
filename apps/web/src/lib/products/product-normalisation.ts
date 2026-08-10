@@ -49,6 +49,20 @@ const synonymGroups: Array<{ canonical: string; aliases: string[] }> = [
   { canonical: "chicken stock", aliases: ["chicken broth"] },
   { canonical: "vegetable stock", aliases: ["vegetable broth", "veggie stock"] },
   {
+    canonical: "greek yoghurt",
+    aliases: [
+      "greek natural yoghurt",
+      "natural greek yoghurt",
+      "plain greek yoghurt",
+      "greek yogurt",
+      "greek natural yogurt",
+      "natural greek yogurt",
+      "plain greek yogurt",
+    ],
+  },
+  { canonical: "lime juice", aliases: ["juice of lime"] },
+  { canonical: "lemon juice", aliases: ["juice of lemon"] },
+  {
     canonical: "button mushroom",
     aliases: [
       "button mushrooms",
