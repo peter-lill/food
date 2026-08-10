@@ -144,6 +144,15 @@ const fixedSlotMigration = readFileSync(
 assert.match(fixedSlotMigration, /DEFAULT 'dinner'/, "existing one-per-day meals should migrate into Dinner");
 assert.match(fixedSlotMigration, /mealPlanId_day_slot/, "meal slots should be independently unique within each day");
 
+const shoppingRepairMigration = readFileSync(
+  new URL("../prisma/migrations/20260810191500_repair_recipe_shopping_items/migration.sql", import.meta.url),
+  "utf8",
+);
+assert.match(shoppingRepairMigration, /Fat free Greek Style Natural Yoghurt/);
+assert.match(shoppingRepairMigration, /"unit" = 'g'/);
+assert.match(shoppingRepairMigration, /"unit" = 'ml'/);
+assert.match(shoppingRepairMigration, /DELETE FROM "ShoppingItem"[\s\S]*'to serve'/i);
+
 assert.equal(hwqSnackRecipes.length, 20, "all HWQ full recipe cards remain available to Planner");
 assert.ok(bhfCatalogue.recipes.length > 0 && bhfCatalogue.recipes.every((recipe) => recipe.ingredients.length), "all BHF catalogue cards remain plannable");
 assert.ok(bhfCatalogue.recipes.some((recipe) => recipe.instructions.length), "BHF full recipe methods remain available");
