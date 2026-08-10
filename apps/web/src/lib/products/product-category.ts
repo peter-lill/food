@@ -84,7 +84,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
       "green bean", "green beans", "herb", "kale", "kiwifruit", "leek", "lemon", "lettuce", "lime",
       "mandarin", "mango", "mint", "mushroom", "nectarine", "onion", "orange",
       "oregano", "parsley", "pea", "peas", "pear", "potato", "pumpkin", "radish", "rosemary",
-      "sage", "spinach", "spring onion", "strawberry", "sweet potato", "thyme",
+      "sage", "salad", "spinach", "spring onion", "strawberry", "sweet potato", "thyme",
       "rocket", "tomato", "watermelon", "zucchini",
     ],
   },
@@ -105,7 +105,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   },
   {
     department: "Bakery",
-    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "tortilla", "tortillas", "wrap"],
+    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "toast", "tortilla", "tortillas", "wrap"],
   },
   {
     department: "Frozen",

@@ -47,7 +47,7 @@ const genericFoodTerms = [
   "apple", "avocado", "banana", "bean", "beetroot", "broccoli", "cabbage", "capsicum",
   "carrot", "cauliflower", "celery", "cucumber", "garlic", "ginger", "grape", "lemon",
   "lettuce", "lime", "mango", "mushroom", "onion", "orange", "pear", "potato", "pumpkin",
-  "rocket", "spinach", "sweet potato", "tomato", "watermelon", "zucchini",
+  "rocket", "spinach", "stock cube", "sweet potato", "toast", "tomato", "watermelon", "zucchini",
 ] as const;
 
 function money(value: number | null) {

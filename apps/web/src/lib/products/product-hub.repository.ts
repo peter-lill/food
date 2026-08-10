@@ -395,8 +395,9 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
           },
         },
       },
-      storeProducts: { orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }] },
+      storeProducts: { where: { active: true }, orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }] },
       priceObservations: {
+        where: { OR: [{ storeProductId: null }, { storeProduct: { active: true } }] },
         orderBy: { observedAt: "desc" },
         take: 100,
       },

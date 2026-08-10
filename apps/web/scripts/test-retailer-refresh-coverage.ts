@@ -40,6 +40,12 @@ assert.equal(identityScore(milkyBar, {
   barcode: "9300605000000",
   imageUrl: "https://example.com/wrong.jpg",
 }), Number.NEGATIVE_INFINITY, "a name match must never override a conflicting barcode");
+const retailerAuthoritySource = readFileSync(new URL("../src/lib/retailers/retailer-intelligence.service.ts", import.meta.url), "utf8");
+assert.match(retailerAuthoritySource, /conflictingExternalIds/, "a discovered barcode conflict must deactivate the stale retailer listing");
+assert.match(retailerAuthoritySource, /data: \{ active: false \}/, "conflicting listings must not remain available for price comparison");
+const underDetailedQueueSource = readFileSync(new URL("enqueue-underdetailed-retailer-products.ts", import.meta.url), "utf8");
+assert.match(underDetailedQueueSource, /listingTokens\.length > productTokens\.length/, "a more detailed linked retailer name must trigger an authority refresh");
+assert.match(underDetailedQueueSource, /force: true/, "under-detailed barcode products must bypass the freshness window");
 assert.equal(
   authoritativeRetailerName("Milky bar", "Nestle Milkybar Nesquik Strawberry Block 170g", true),
   "Nestle Milkybar Nesquik Strawberry Block",
@@ -69,5 +75,9 @@ const missingPackQueueSource = readFileSync(new URL("enqueue-missing-retailer-pa
 assert.match(missingPackQueueSource, /packSize: null/, "missing package sizes must be found from retailer listings");
 assert.match(missingPackQueueSource, /productType: \{ not: "GENERIC_PRODUCE" \}/, "loose generic produce is not incorrectly treated as a missing package");
 assert.match(missingPackQueueSource, /force: true/, "package-size recovery must bypass the normal freshness window");
+
+const weakIdentityRepairSource = readFileSync(new URL("repair-weak-retailer-identities.ts", import.meta.url), "utf8");
+assert.match(weakIdentityRepairSource, /words\(currentName\)\.length !== 1/, "only one-word weak identities may be expanded from linked retailer listings");
+assert.match(weakIdentityRepairSource, /linked-retailer-repair/, "the replaced weak identity must remain searchable as an alias");
 
 console.log("Retailer refresh coverage regressions passed.");
