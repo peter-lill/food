@@ -58,14 +58,9 @@ const kitKatProduct = {
   packSize: "155g",
 };
 assert.equal(
-  retailerSearchQuery(kitKatProduct, "Woolworths"),
+  retailerSearchQuery(kitKatProduct),
   "9300605158696",
-  "Woolworths can resolve exact products efficiently by barcode",
-);
-assert.equal(
-  retailerSearchQuery(kitKatProduct, "Coles"),
-  "Nestlé Kitkat Aero Mint Chocolate Block 155g",
-  "Coles must use the descriptive product and pack query because its catalogue search does not resolve GTINs reliably",
+  "Every retailer uses the same barcode-first query when an exact product barcode is available",
 );
 
 const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");

@@ -91,7 +91,6 @@ export function identityScore(product: ProductIdentity, candidate: RetailerCatal
 
 export function retailerSearchQuery(
   product: Pick<ProductIdentity, "name" | "canonicalName" | "brand" | "barcode" | "packSize">,
-  retailer: (typeof requiredRetailers)[number],
 ) {
   if (product.barcode?.trim()) return product.barcode.trim();
   return [product.brand, product.canonicalName ?? product.name, product.packSize]
@@ -117,7 +116,7 @@ async function searchRetailerCandidates(product: ProductIdentity) {
     .filter(Boolean)
     .join(" ") || product.name;
   const searches = requiredRetailers.flatMap((retailer) => (
-    [...new Set([retailerSearchQuery(product, retailer), descriptiveQuery])].map((query) => (
+    [...new Set([retailerSearchQuery(product), descriptiveQuery])].map((query) => (
       searchColesAndWoolworthsCatalogue(query, { retailers: [retailer] })
     ))
   ));
