@@ -3,6 +3,7 @@ import {
   areEquivalentShoppingIngredients,
   createRecipeProductIndex,
   getIngredientAvailability,
+  legacyRecipeShoppingIngredientMatches,
   mergeShoppingQuantity,
   recipeProductQueryCandidates,
   type RecipeProductIdentity,
@@ -90,6 +91,30 @@ assert.deepEqual(
   mergeShoppingQuantity({ quantity: 2, unit: "each" }, { quantity: 3, unit: "each" }),
   { quantity: 5, unit: "each" },
   "reused shopping items should preserve and combine compatible quantities",
+);
+assert.equal(
+  legacyRecipeShoppingIngredientMatches(
+    { name: "Pearl Barley", quantity: 200, unit: "each" },
+    { name: "Pearl Barley", quantity: 200, unit: "g" },
+  ),
+  true,
+  "attached metric quantities previously stored as each should be corrected instead of duplicated",
+);
+assert.equal(
+  legacyRecipeShoppingIngredientMatches(
+    { name: "Fat Greek Style Natural Yoghurt Mixed with Dill", quantity: 80, unit: "tbsp" },
+    { name: "Fat free Greek Style Natural Yoghurt", quantity: 80, unit: "g" },
+  ),
+  true,
+  "legacy preparation text should reconcile with the cleaned grocery ingredient",
+);
+assert.equal(
+  legacyRecipeShoppingIngredientMatches(
+    { name: "Apple", quantity: 2, unit: "each" },
+    { name: "Apple", quantity: 3, unit: "each" },
+  ),
+  false,
+  "ordinary shopping items must retain the existing merge behaviour",
 );
 
 console.log("Recipe pantry and shopping regression checks passed.");

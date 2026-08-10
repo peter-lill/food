@@ -242,6 +242,30 @@ export function areEquivalentShoppingIngredients(
   return [...recipeIngredientIdentityKeys(incoming.name)].some((key) => existingKeys.has(key));
 }
 
+function legacyRecipeIngredientIdentity(value: string) {
+  return normaliseProductText(parseRecipeIngredientLine(value).name)
+    .split(" ")
+    .filter((token) => !["low", "reduced", "fat", "free"].includes(token))
+    .join(" ");
+}
+
+export function legacyRecipeShoppingIngredientMatches(
+  existing: { name: string; quantity: number | null; unit: string | null },
+  incoming: { name: string; quantity: number | null; unit: string | null },
+) {
+  const existingIdentity = legacyRecipeIngredientIdentity(existing.name);
+  const incomingIdentity = legacyRecipeIngredientIdentity(incoming.name);
+  if (!existingIdentity || existingIdentity !== incomingIdentity) return false;
+
+  const malformedName = /\b(?:and|or|with|of)$/i.test(existing.name) ||
+    /\b(?:made from|mixed with)\b/i.test(existing.name);
+  const incompatibleAttachedMeasure = normaliseProductText(existing.unit ?? "") === "each" &&
+    ["g", "kg", "mg", "ml", "l"].includes(normaliseProductText(incoming.unit ?? "")) &&
+    existing.quantity === incoming.quantity;
+  const malformedFatVariant = /^(?:low soft cheese|fat greek style natural yoghurt)/i.test(existing.name);
+  return malformedName || incompatibleAttachedMeasure || malformedFatVariant;
+}
+
 export function mergeShoppingQuantity(
   existing: { quantity: number | null; unit: string | null },
   incoming: { quantity: number | null; unit: string | null },
