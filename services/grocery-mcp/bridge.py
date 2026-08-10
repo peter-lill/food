@@ -75,11 +75,15 @@ def first_identifier(item: dict, keys: tuple[str, ...]) -> str | None:
 
 def nested_value(item: object, keys: tuple[str, ...]) -> object | None:
     """Find a named field in retailer payloads that move metadata into nested objects."""
-    wanted = {key.casefold() for key in keys}
+    # Retailers commonly expose the same value under several field names. Honour
+    # the caller's order so a specific package-size field wins over a generic
+    # quantity field, regardless of JSON object ordering.
+    wanted = tuple(key.casefold() for key in keys)
     if isinstance(item, dict):
-        for key, value in item.items():
-            if key.casefold() in wanted and value is not None:
-                return value
+        for wanted_key in wanted:
+            for key, value in item.items():
+                if key.casefold() == wanted_key and value is not None:
+                    return value
         for value in item.values():
             found = nested_value(value, keys)
             if found is not None:
@@ -133,7 +137,11 @@ def coles_products(result: dict) -> list[dict]:
         if brand and brand.casefold() not in name.casefold():
             name = f"{brand} {name}"
 
-        pack_size = nested_text(source, ("packageSize", "package_size", "packSize", "size", "quantity"))
+        pack_size = nested_text(source, (
+            "packageSize", "package_size", "packSize", "sizeDescription",
+            "productSize", "netContent", "netWeight", "weight", "volume",
+            "quantityDescription", "size", "quantity",
+        ))
         if pack_size and pack_size.casefold() not in name.casefold():
             name = f"{name} {pack_size}"
 
@@ -151,6 +159,7 @@ def coles_products(result: dict) -> list[dict]:
             ),
             "promotion": promotion,
             "unit": pack_size,
+            "packSize": pack_size,
             "store": "coles",
             "barcode": nested_identifier(source, ("barcode", "gtin", "ean", "upc")),
             "imageUrl": nested_text(source, ("imageUrl", "imageURL", "thumbnailUrl")),

@@ -85,7 +85,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
       "mandarin", "mango", "mint", "mushroom", "nectarine", "onion", "orange",
       "oregano", "parsley", "pea", "peas", "pear", "potato", "pumpkin", "radish", "rosemary",
       "sage", "spinach", "spring onion", "strawberry", "sweet potato", "thyme",
-      "tomato", "watermelon", "zucchini",
+      "rocket", "tomato", "watermelon", "zucchini",
     ],
   },
   {
@@ -134,7 +134,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   {
     department: "Pantry",
     terms: [
-      "baking powder", "bean", "beans", "cereal", "chickpea", "cinnamon", "coffee",
+      "allspice", "baking powder", "bean", "beans", "cereal", "chickpea", "cinnamon", "coffee", "cumin",
       "flour", "honey", "lentil", "noodle", "nut", "nuts", "oats", "oil", "pasta",
       "pepper", "pesto", "quinoa", "rice", "salt", "sauce", "seed", "seeds", "spice",
       "stock", "sugar", "tea", "vinegar",

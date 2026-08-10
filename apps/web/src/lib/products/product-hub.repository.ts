@@ -20,6 +20,7 @@ export type ProductHubListItem = {
   slug: string | null;
   brand: string | null;
   category: string | null;
+  productType: string;
   imageUrl: string | null;
   barcode: string | null;
   aliasCount: number;
@@ -134,6 +135,7 @@ function canonicalProduceFamily(value: string) {
     .trim();
 
   if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
+  if (/\brocket\b/.test(normalised)) return "Rocket Leaves";
 
   return null;
 }
@@ -312,6 +314,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         category: product.category,
+        productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
         barcode: product.barcode,
         aliasCount: product.aliases.length,
@@ -320,7 +323,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         retailerCount: retailers.size,
         latestPrice: bestRetailerPrice?.price ?? null,
         latestRetailer: bestRetailerPrice?.retailer ?? null,
-        latestPackSize: bestRetailerPrice?.packSize ?? null,
+        latestPackSize: bestRetailerPrice ? bestRetailerPrice.packSize ?? "Size not recorded" : null,
         latestObservedAt: latest?.observedAt ?? null,
         latestIsSpecial: bestRetailerPrice?.isSpecial ?? false,
         priceNeedsSpecificVariant: false,
@@ -338,6 +341,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;
+      current.productType = product.productType;
       const genericImage = familyImage
         ?? product.imageUrl
         ?? (storedImageProducts.has(product.id) ? "stored://product-image" : null);
@@ -358,7 +362,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     if (latest && (!current.latestObservedAt || latest.observedAt > current.latestObservedAt)) {
       current.latestPrice = bestRetailerPrice?.price ?? null;
       current.latestRetailer = bestRetailerPrice?.retailer ?? null;
-      current.latestPackSize = bestRetailerPrice?.packSize ?? null;
+      current.latestPackSize = bestRetailerPrice ? bestRetailerPrice.packSize ?? "Size not recorded" : null;
       current.latestObservedAt = latest.observedAt;
       current.latestIsSpecial = bestRetailerPrice?.isSpecial ?? false;
     }

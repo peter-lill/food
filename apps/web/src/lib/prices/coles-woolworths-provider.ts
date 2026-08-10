@@ -359,7 +359,7 @@ export function toRetailerCatalogueCandidate(result: GroceryProviderResult): Ret
     retailer: result.retailer,
     productName: result.name.trim(),
     price: result.price,
-    packSize: detectPackSize(result.name, result.unit),
+    packSize: detectPackSize(result.packSize, result.name, result.unit),
     isSpecial: result.isSpecial,
     sourceUrl: retailerProductUrl(result.retailer, result.name.trim(), externalId),
     externalId,

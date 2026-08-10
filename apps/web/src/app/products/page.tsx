@@ -38,6 +38,7 @@ type CompletionProduct = {
   category: string | null;
   brand: string | null;
   barcode: string | null;
+  productType: string;
   latestPrice: number | null;
   recipeCount: number;
 };
@@ -46,7 +47,7 @@ const genericFoodTerms = [
   "apple", "avocado", "banana", "bean", "beetroot", "broccoli", "cabbage", "capsicum",
   "carrot", "cauliflower", "celery", "cucumber", "garlic", "ginger", "grape", "lemon",
   "lettuce", "lime", "mango", "mushroom", "onion", "orange", "pear", "potato", "pumpkin",
-  "spinach", "sweet potato", "tomato", "watermelon", "zucchini",
+  "rocket", "spinach", "sweet potato", "tomato", "watermelon", "zucchini",
 ] as const;
 
 function money(value: number | null) {
@@ -93,7 +94,8 @@ function productDisplay(product: { name: string; canonicalName: string | null; c
   return { title, receiptName, category };
 }
 
-function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category" | "recipeCount">) {
+function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category" | "recipeCount" | "productType">) {
+  if (product.productType === "GENERIC_PRODUCE") return true;
   if (product.brand || product.barcode) return false;
   if (product.recipeCount > 0) return true;
   const category = normaliseName(product.category ?? "");
