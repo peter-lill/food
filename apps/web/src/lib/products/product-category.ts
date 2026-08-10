@@ -105,7 +105,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
   },
   {
     department: "Bakery",
-    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "tortilla", "tortillas", "wrap"],
+    terms: ["bagel", "bread", "brioche", "bun", "croissant", "flatbread", "pita", "roll", "toast", "tortilla", "tortillas", "wrap"],
   },
   {
     department: "Frozen",

@@ -181,6 +181,15 @@ function replaceAliases(value: string) {
   return cleanWhitespace(result);
 }
 
+function simplifyRecipeDerivedProduct(value: string) {
+  // A recipe may describe prepared stock by the cube used to make it. The
+  // purchasable identity is the stock cube, not the complete instruction.
+  return value.replace(
+    /\b(vegetable|chicken|beef)\s+stock\s+(?:made|prepared)\s+(?:from|with)\s+(?:an?\s+)?(?:(?:low|reduced|no)[ -]?salt\s+)?(?:\1\s+)?stock\s+cubes?\b/gi,
+    "$1 stock cube",
+  );
+}
+
 function extractQuantities(value: string) {
   const measuredPrefix = value.match(/^\s*(?:x\s*)?(?:(\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+(?:\.\d+)?)\s*x\s*)?(\d+(?:\.\d+)?)\s*(kg|g|mg|ml|l)\b/i);
   const countPrefix = measuredPrefix
@@ -208,6 +217,7 @@ function stripRecipePrefix(value: string) {
   return withoutQuantity
     .replace(/^\s*(?:cups?|tablespoons?|tbsp|teaspoons?|tsp)\b\s*/i, "")
     .replace(/^\s*(?:cans?|tins?|jars?|packets?|packs?|bottles?|bunches?)\s+(?:of\s+)?/i, "")
+    .replace(/^\s*(?:slices?|pieces?)\s+(?:of\s+)?/i, "")
     .trim();
 }
 
@@ -300,7 +310,7 @@ function canonicalCore(value: string, variants: string[], attributes: ProductAtt
 
 export function parseProductName(rawValue: string): ParsedProductName {
   const raw = cleanWhitespace(rawValue);
-  const corrected = replaceAliases(raw);
+  const corrected = replaceAliases(simplifyRecipeDerivedProduct(raw));
   const quantities = extractQuantities(corrected);
   const stripped = stripRecipePreparationSuffix(stripRecipePrefix(corrected));
   const attributes = detectAttributes(stripped);

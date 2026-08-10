@@ -199,6 +199,12 @@ for (const yoghurtName of ["Greek natural yoghurt", "Greek yoghurt", "Plain Gree
 }
 assert.equal(parseProductName("Juice of lime").canonicalName, "Lime Juice");
 assert.equal(parseProductName("Lime juice").canonicalName, "Lime Juice");
+assert.equal(
+  parseProductName("500ml vegetable stock made from a low-salt stock cube").canonicalName,
+  "Vegetable Stock Cube",
+  "recipe preparation language must resolve to the purchasable stock cube",
+);
+assert.equal(parseProductName("2 slices toast").canonicalName, "Toast", "recipe quantity units must not become the product name");
 console.log("Recipe preparation suffix regression checks passed.");
 
 assert.equal(genericImageIdentity("Chicken Breast Horizontally"), "Chicken Breast");
