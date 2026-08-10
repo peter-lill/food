@@ -1,0 +1,101 @@
+.page {
+  display: grid;
+  gap: 22px;
+  width: 100%;
+  max-width: 1240px;
+  margin-inline: auto;
+}
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 28px 30px;
+  border: 1px solid var(--line);
+  border-radius: 26px;
+  background:
+    radial-gradient(circle at 92% 12%, rgba(255, 190, 92, .22), transparent 18rem),
+    linear-gradient(135deg, #f0f8f2, #fffdf8 68%);
+  box-shadow: 0 14px 40px rgba(37, 65, 48, .07);
+}
+
+.heroCopy {
+  min-width: 0;
+}
+
+.hero h1 {
+  margin: 5px 0 8px;
+  font-size: clamp(2.3rem, 5vw, 4.25rem);
+  line-height: .96;
+  letter-spacing: -.055em;
+}
+
+.heroDescription {
+  max-width: 680px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.steps span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(25, 104, 76, .14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .72);
+  color: var(--accent-dark);
+  font-size: .76rem;
+  font-weight: 850;
+}
+
+.priceLink {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .page {
+    gap: 16px;
+  }
+
+  .hero {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 18px;
+    padding: 22px 20px;
+    border-radius: 22px;
+  }
+
+  .hero h1 {
+    font-size: 2.7rem;
+  }
+
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .steps span {
+    justify-content: center;
+    padding-inline: 7px;
+    text-align: center;
+  }
+
+  .priceLink {
+    width: 100%;
+    text-align: center;
+  }
+}
