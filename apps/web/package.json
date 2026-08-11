@@ -38,7 +38,7 @@
     "products:reconcile:known-aliases:apply": "tsx scripts/reconcile-product-catalogue.ts --apply --key=greek-yoghurt --key=lime-juice --key=lemon-juice",
     "products:reconcile:recipe-residue": "tsx scripts/reconcile-product-catalogue.ts --apply --key=vegetable-stock-cube --key=toast",
     "products:repair-weak-retailer-identities": "tsx scripts/repair-weak-retailer-identities.ts",
-    "products:refresh-underdetailed-retailer-products": "tsx scripts/enqueue-underdetailed-retailer-products.ts",
+    "products:refresh-underdetailed-retailer-products": "tsx scripts/enqueue-underdetailed-retailer-pack-sizes.ts",
     "products:cleanup": "tsx scripts/cleanup-product-intelligence.ts",
     "products:cleanup:apply": "tsx scripts/cleanup-product-intelligence.ts --apply",
     "products:images": "tsx scripts/enrich-product-images.ts",
@@ -55,7 +55,7 @@
     "recipes:pantry-shopping:test": "tsx scripts/test-recipe-pantry-shopping.ts",
     "planner:canonical:test": "tsx scripts/test-planner-canonical.ts",
     "navigation:test": "tsx scripts/test-navigation.ts",
-    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts",
+    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts && tsx scripts/test-receipt-yamanto-production.ts",
     "retailers:stores:test": "tsx scripts/test-coles-store-directory.ts",
     "retailers:coles:stores:import": "tsx scripts/import-coles-store-directory.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
