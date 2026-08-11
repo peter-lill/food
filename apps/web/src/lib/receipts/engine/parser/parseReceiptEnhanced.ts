@@ -43,6 +43,18 @@ function detectDate(text: string) {
 function findReceiptTotal(lines: string[]) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    const standaloneItemCount = /^\d+\s+items?:?$/i.test(line);
+    if (standaloneItemCount) {
+      const followingLines = lines.slice(index + 1, index + 3);
+      const totalOffset = followingLines.findIndex((candidate) =>
+        /^(?:total\s*)?\$?\s*\d+[.,]\d{2}$/i.test(candidate),
+      );
+      if (totalOffset >= 0) {
+        const totalLine = followingLines[totalOffset];
+        const total = moneyValues(totalLine).at(-1);
+        if (total !== undefined) return { total, totalLine: `${line} | ${totalLine}`, totalIndex: index };
+      }
+    }
     if (!/^(?:grand\s+)?total(?:\s+for\s+\d+\s+items?|\s*\(\s*\d+\s+items?\s*\))?\b/i.test(line)) continue;
     if (/^total includes gst/i.test(line)) continue;
     const sameLine = moneyValues(line).at(-1);
@@ -59,7 +71,9 @@ function findReceiptTotal(lines: string[]) {
 
 function expectedItemCount(lines: string[]) {
   for (const line of lines) {
-    const explicit = line.match(/total\s+(?:for\s+)?(\d+)\s+items?/i) ?? line.match(/(\d+)\s+subtotal\b/i);
+    const explicit = line.match(/total\s+(?:for\s+)?(\d+)\s+items?/i)
+      ?? line.match(/^(\d+)\s+items?:?$/i)
+      ?? line.match(/(\d+)\s+subtotal\b/i);
     if (explicit) return Number(explicit[1]);
   }
   return null;
