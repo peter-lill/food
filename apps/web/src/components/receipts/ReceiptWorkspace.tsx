@@ -18,6 +18,7 @@ import {
 } from "@/lib/receipts/receipt.types";
 import styles from "./ReceiptWorkspace.module.css";
 import { takeStagedReceiptCapture } from "@/lib/receipts/staged-receipt-capture";
+import { receiptLinesFromBlocks, receiptLinesText } from "@/lib/receipts/receipt-structure";
 
 const statusLabels: Record<ReceiptStatusValue, string> = {
   DRAFT: "Needs review",
@@ -165,14 +166,16 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const candidates: ReceiptOcrCandidate[] = [];
       await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", user_defined_dpi: "300" });
       setOcrStatus("Reading the receipt as a structured list…");
-      const structuredResult = await worker.recognize(prepared);
-      const structuredText = (structuredResult.data.text ?? "").trim();
+      const structuredResult = await worker.recognize(prepared, {}, { blocks: true });
+      const structuredLines = receiptLinesFromBlocks(structuredResult.data.blocks, structuredResult.data.text ?? "");
+      const structuredText = receiptLinesText(structuredLines).trim();
       if (structuredText) {
         candidates.push({
           ocrConfidence: structuredResult.data.confidence ?? 0,
           parsed: parseReceipt(structuredText),
           pass: "structured",
           text: structuredText,
+          lines: structuredLines,
         });
       }
 
@@ -181,14 +184,16 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         passRange = 40;
         await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: "1", user_defined_dpi: "300" });
         setOcrStatus("Checking faint and separated receipt lines…");
-        const sparseResult = await worker.recognize(prepared);
-        const sparseText = (sparseResult.data.text ?? "").trim();
+        const sparseResult = await worker.recognize(prepared, {}, { blocks: true });
+        const sparseLines = receiptLinesFromBlocks(sparseResult.data.blocks, sparseResult.data.text ?? "");
+        const sparseText = receiptLinesText(sparseLines).trim();
         if (sparseText) {
           candidates.push({
             ocrConfidence: sparseResult.data.confidence ?? 0,
             parsed: parseReceipt(sparseText),
             pass: "sparse",
             text: sparseText,
+            lines: sparseLines,
           });
         }
       }

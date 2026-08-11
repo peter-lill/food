@@ -1,10 +1,12 @@
 import type { ParsedReceipt } from "./engine/parser";
+import { receiptStructureScore, type ReceiptOcrLine } from "./receipt-structure";
 
 export interface ReceiptOcrCandidate {
   ocrConfidence: number;
   parsed: ParsedReceipt;
   pass: "structured" | "sparse";
   text: string;
+  lines?: ReceiptOcrLine[];
 }
 
 export function receiptCandidateScore(candidate: ReceiptOcrCandidate) {
@@ -16,6 +18,7 @@ export function receiptCandidateScore(candidate: ReceiptOcrCandidate) {
     + (parsed.purchasedAt ? 12 : 0)
     + (parsed.total !== null ? 16 : 0)
     + Math.max(0, Math.min(100, ocrConfidence))
+    + receiptStructureScore(candidate.lines ?? candidate.text.split(/\r?\n/).filter(Boolean).map((text) => ({ text, confidence: 0, bbox: null })))
     - parsed.warnings.length * 55
   );
 }
