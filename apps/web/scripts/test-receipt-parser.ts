@@ -49,7 +49,7 @@ COLES SUGAR RAW 2KG 3.20
 %ICE BREAK ICED COFFEE 500ML 2.90
 %MILKYBAR CHOC BLOCK 170GRAM 3.75
 %KITKAT COOKIE DOUGH 170GRAM 3.75
-%KIT KAT CHUNKY AERO 155GRAM 4.15
+%KIT KAT CHUNKY AERO 155GRAM 4.19
 HAWAIIAN PIZZA SCROL 2PACK 3.75
 Total for 11 items: $35.60
 EFT $25.00
@@ -68,6 +68,20 @@ assert.deepEqual(
 );
 assert.equal(coles.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.deepEqual(coles.warnings, []);
+assert.deepEqual(
+  coles.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM"),
+  { description: "KIT KAT CHUNKY AERO 155GRAM", quantity: 1, price: 4.19, sourceText: "%KIT KAT CHUNKY AERO 155GRAM 4.19", confidence: 96 },
+);
+assert.equal(coles.items.find((item) => item.description.includes("SCROL 2PACK"))?.price, 3.75);
+assert.equal(coles.items.some((item) => /11\s+items|EFT|PEPSI OR SOLO|25\.00|6\.40/.test(`${item.description} ${item.price}`)), false);
+
+const splitColesSummary = parseReceipt(colesPhotoText
+  .replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\nTotal for 11 items: $35.60", "HAWAIIAN PIZZA SCROL 2PACK\n11 items\n$35.60")
+  .replace("EFT $25.00", "EFT\n$25.00"));
+assert.equal(splitColesSummary.total, 35.6);
+assert.equal(splitColesSummary.items.some((item) => item.price === 35.6 || item.price === 25), false);
+assert.equal(splitColesSummary.items.some((item) => /11\s+items|EFT|PEPSI OR SOLO/.test(item.description)), false);
+assert.equal(splitColesSummary.diagnostics.totalLine, "11 items | $35.60");
 
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
