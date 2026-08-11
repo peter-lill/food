@@ -43,6 +43,23 @@ function detectDate(text: string) {
 function findReceiptTotal(lines: string[], recoverFromTender = false) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
+    if (recoverFromTender && /^(?:tal|[\[({]?[t7]?otal)\s+for\b/i.test(line)) {
+      const following = lines.slice(index + 1, index + 6);
+      const countOffset = following.findIndex((candidate) => /^\d+\s+(?:items?|[1il]tens?)[:;]?$/i.test(candidate));
+      if (countOffset >= 0) {
+        for (let offset = countOffset + 1; offset < following.length - 1; offset += 1) {
+          const dollars = following[offset].match(/^\$\s*(\d{1,4})$/);
+          const cents = following[offset + 1].match(/^(\d{2})$/);
+          if (dollars && cents) {
+            return {
+              total: Number(`${dollars[1]}.${cents[1]}`),
+              totalLine: [line, ...following.slice(0, offset + 2)].join(" | "),
+              totalIndex: index,
+            };
+          }
+        }
+      }
+    }
     const standaloneItemCount = /^\d+\s+items?:?$/i.test(line);
     if (standaloneItemCount) {
       const followingLines = lines.slice(index + 1, index + 3);
@@ -95,6 +112,7 @@ function findReceiptTotal(lines: string[], recoverFromTender = false) {
 function expectedItemCount(lines: string[]) {
   for (const line of lines) {
     const explicit = line.match(/(?:total|[\[({]?otal)\s+(?:for\s+)?(\d+)\s+items?/i)
+      ?? line.match(/^(\d+)\s+[1il]tens?[:;]?$/i)
       ?? line.match(/^(\d+)\s+items?:?$/i)
       ?? line.match(/(\d+)\s+subtotal\b/i);
     if (explicit) return Number(explicit[1]);

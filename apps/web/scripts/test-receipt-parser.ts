@@ -175,6 +175,51 @@ assert.equal(exactYamantoStructuredOcr.items.some((item) => /^(?:Cl|CF)$/i.test(
 assert.equal(exactYamantoStructuredOcr.items.some((item) => item.price === 25 || item.price === 10.6), false);
 assert.equal(exactYamantoStructuredOcr.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 3.75);
 
+const exactYamantoSparseOcr = parseReceipt(`
+coles
+PAY
+[ime:
+16.00
+COLA 1.25LITRE
+8 $4.00 EACH
+40
+w solo 1.25. 2 FOR
+$4.8
+IGAR RAW 2KG
+SSO 750ML 750ML
+4
+50
+AK ICFD COFFE S00ML
+2
+90
+AR CHOC BLOCK 170GRAM
+3
+9
+JOOKIE DOUGH 170GRAM
+HUNKY AERO 155GRAM
+AWALTAN P1ZZA SCROL 2PACK
+tal for
+11 1tens:
+$35
+60
+$25.00
+$10.60
+ST INCLUDED IN TOTA!
+2.9/
+PURCHASE
+BALANCE
+`);
+assert.equal(exactYamantoSparseOcr.total, 35.6, "fragmented sparse OCR must recover the explicit receipt total");
+assert.equal(exactYamantoSparseOcr.diagnostics.totalLine, "tal for | 11 1tens: | $35 | 60");
+assert.equal(exactYamantoSparseOcr.items.some((item) => /1tens/i.test(item.description)), false);
+assert.equal(exactYamantoSparseOcr.items.some((item) => item.price === 35.6 || item.price === 25 || item.price === 10.6), false);
+assert.match(exactYamantoSparseOcr.warnings.join("\n"), /Receipt reports 11 items/);
+assert.match(exactYamantoSparseOcr.warnings.join("\n"), /differs from the receipt total of \$35\.60/);
+assert.equal(chooseReceiptCandidate([
+  { ocrConfidence: 70, parsed: exactYamantoStructuredOcr, pass: "structured", text: "yamanto structured" },
+  { ocrConfidence: 65, parsed: exactYamantoSparseOcr, pass: "sparse", text: "yamanto sparse" },
+])?.pass, "structured", "the fuller structured OCR must beat the fragmented two-line sparse result");
+
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
   { ocrConfidence: 88, parsed: incompleteColes, pass: "structured", text: "incomplete" },
