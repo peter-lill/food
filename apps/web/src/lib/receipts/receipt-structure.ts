@@ -4,19 +4,52 @@ export type ReceiptLineRole = "header" | "product" | "quantity" | "promotion" | 
 export interface ClassifiedReceiptLine extends ReceiptOcrLine { role: ReceiptLineRole }
 
 const money = /-?\$?\s*\d+[.,]\d{2}\b/;
-const total = /^(?:grand\s+)?(?:total|[\[({]?[t7]?otal|tal)\b/i;
+const total = /^(?:grand\s+)?(?:total|[l1\[({]?[t7]?otal|tal)\b/i;
 const itemCount = /\b\d+\s+(?:items?|[1il]tens?)\b/i;
 const tender = /^(?:eft|ef[t1i]|cl\b|cf\]?\b|visa|mastercard|card|purchase|change)\b/i;
-const tax = /\bgst\b|^tax\b(?!\s+invoice)|\bincluded\s+in\s+total\b/i;
+const tax = /\b(?:gst|g3t|3st|gs[!1t])\b|^tax\b(?!\s+invoice)|\binc[i1l]?\s*uded\s+in\s+total\b|\bincluded\s+in\s+total\b/i;
 const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for(?:\s+\$?\d)?)/i;
 const header = /^(?:coles|woolworths|tax invoice|store|phone|served by|register|receipt|date|time|description)\b/i;
 const footer = /^(?:expiry|balance|rrn|apsn|merchant|approved)\b/i;
+const terminalMoney = /(-?\$?\s*\d+[.,]\d{2})\s*$/;
 
 function moneyValues(text: string) {
   return [...text.matchAll(/-?\$?\s*(\d+)[.,](\d{2})\b/g)].map((match) => {
     const value = Number(`${match[1]}.${match[2]}`);
     return match[0].trim().startsWith("-") ? -value : value;
   });
+}
+
+function lastMoneyValue(text: string) {
+  return moneyValues(text).at(-1) ?? null;
+}
+
+function descriptionBeforeMoney(text: string) {
+  const match = text.match(terminalMoney);
+  return (match ? text.slice(0, match.index) : text)
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function weakMoneyDescription(text: string) {
+  const description = descriptionBeforeMoney(text);
+  const letters = description.replace(/[^\p{L}]/gu, "");
+  const words = description.split(/\s+/).filter(Boolean);
+  return lastMoneyValue(text) !== null
+    && letters.length <= 10
+    && words.length <= 4
+    && !/\b(?:ml|litre|liter|gram|kg|pack|each)\b/i.test(description);
+}
+
+function normaliseOcrLine(text: string) {
+  let value = text.replace(/\s+/g, " ").trim();
+  value = value.replace(/\$(\d{1,4})\s+(\d{2})(?=\s|$)/g, (_match, dollars: string, cents: string) => `$${dollars}.${cents}`);
+  value = value.replace(/(\s)(\d{1,4})\s+(\d{2})\s*$/g, (_match, prefix: string, dollars: string, cents: string) => `${prefix}${dollars}.${cents}`);
+  if (/^(?:l?otal|tal|[\[({]?otal)\s+for\b/i.test(value)) {
+    value = value.replace(/^(?:l?otal|tal|[\[({]?otal)/i, "Total");
+  }
+  return value;
 }
 
 export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine {
@@ -35,7 +68,7 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
 }
 
 export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
-  const classified = lines.map(classifyReceiptLine);
+  const classified = lines.map((line) => classifyReceiptLine({ ...line, text: normaliseOcrLine(line.text) }));
   const firstTerminal = classified.findIndex((line) => line.role === "tender" || line.role === "tax" || line.role === "footer");
   let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
 
@@ -47,7 +80,8 @@ export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
     const label = classified[index].text.replace(money, " ").trim();
     const ratio = previousAmount && unitAmount ? previousAmount / unitAmount : 0;
     if (classified[index - 1].role === "product" && classified[index].role === "product"
-      && !/[a-z]{4,}/i.test(label) && Number.isInteger(ratio) && ratio >= 2 && ratio <= 20) {
+      && (!/[a-z]{4,}/i.test(label) || weakMoneyDescription(classified[index].text))
+      && Number.isInteger(ratio) && ratio >= 2 && ratio <= 20) {
       classified[index] = { ...classified[index], text: `${ratio} @ $${unitAmount!.toFixed(2)} EACH`, role: "quantity" };
     }
   }
@@ -96,6 +130,50 @@ export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
   return classified;
 }
 
+function sanitiseReceiptLines(lines: ReceiptOcrLine[]) {
+  const classified = classifyReceiptLines(lines);
+  let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
+  const taxIndex = classified.findIndex((line) => line.role === "tax");
+
+  // In the production Yamanto scan the explicit total was lost, while two damaged
+  // payment labels immediately before GST still carried $25.00 and $10.60. When at
+  // least two consecutive weak/tender rows sit directly before tax, their sum is a
+  // safer receipt total than summing every OCR line as merchandise.
+  if (totalIndex < 0 && taxIndex > 1) {
+    const tenderIndexes: number[] = [];
+    for (let index = taxIndex - 1; index >= Math.max(0, taxIndex - 4); index -= 1) {
+      const line = classified[index];
+      const amount = lastMoneyValue(line.text);
+      if (amount === null || amount <= 0) break;
+      if (line.role === "tender" || weakMoneyDescription(line.text)) tenderIndexes.unshift(index);
+      else break;
+    }
+
+    if (tenderIndexes.length >= 2) {
+      const recoveredTotal = Math.round(tenderIndexes.reduce((sum, index) => sum + (lastMoneyValue(classified[index].text) ?? 0), 0) * 100) / 100;
+      const firstTender = tenderIndexes[0];
+      for (const index of tenderIndexes) classified[index] = { ...classified[index], role: "tender" };
+      classified.splice(firstTender, 0, {
+        text: `TOTAL $${recoveredTotal.toFixed(2)}`,
+        confidence: Math.min(...tenderIndexes.map((index) => classified[index]?.confidence ?? 0)),
+        bbox: null,
+        role: "total",
+      });
+      totalIndex = firstTender;
+    }
+  }
+
+  if (totalIndex >= 0) {
+    for (let index = totalIndex + 1; index < classified.length; index += 1) {
+      if (classified[index].role === "product" || classified[index].role === "unknown") {
+        classified[index] = { ...classified[index], role: "footer" };
+      }
+    }
+  }
+
+  return classified.filter((line) => line.role !== "tender" && line.role !== "tax" && line.role !== "footer");
+}
+
 export function receiptStructureScore(lines: ReceiptOcrLine[]) {
   const classified = classifyReceiptLines(lines);
   const roles = new Set(classified.map((line) => line.role));
@@ -114,13 +192,23 @@ export function receiptStructureScore(lines: ReceiptOcrLine[]) {
 type TesseractBlock = { paragraphs?: Array<{ lines?: Array<{ text?: string; confidence?: number; bbox?: ReceiptOcrBox }> }> };
 
 export function receiptLinesFromBlocks(blocks: TesseractBlock[] | null | undefined, fallbackText: string): ReceiptOcrLine[] {
-  const lines = blocks?.flatMap((block) => block.paragraphs ?? []).flatMap((paragraph) => paragraph.lines ?? []).map((line) => ({
+  const fallbackLines = fallbackText
+    .split(/\r?\n/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .map((text) => ({ text, confidence: 0, bbox: null as ReceiptOcrBox | null }));
+
+  // Tesseract's aggregate text is substantially more coherent on the real crumpled
+  // Coles receipt than reconstructing strings from layout blocks. Prefer aggregate
+  // text for parsing and keep block geometry only as a fallback when text is absent.
+  if (fallbackLines.length > 0) return sanitiseReceiptLines(fallbackLines);
+
+  const blockLines = blocks?.flatMap((block) => block.paragraphs ?? []).flatMap((paragraph) => paragraph.lines ?? []).map((line) => ({
     text: line.text?.trim() ?? "",
     confidence: line.confidence ?? 0,
     bbox: line.bbox ?? null,
   })).filter((line) => line.text) ?? [];
-  if (lines.length > 0) return lines;
-  return fallbackText.split(/\r?\n/).map((text) => text.trim()).filter(Boolean).map((text) => ({ text, confidence: 0, bbox: null }));
+  return blockLines;
 }
 
 export function receiptLinesText(lines: ReceiptOcrLine[]) {

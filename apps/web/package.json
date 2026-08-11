@@ -55,7 +55,7 @@
     "recipes:pantry-shopping:test": "tsx scripts/test-recipe-pantry-shopping.ts",
     "planner:canonical:test": "tsx scripts/test-planner-canonical.ts",
     "navigation:test": "tsx scripts/test-navigation.ts",
-    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts",
+    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts && tsx scripts/test-receipt-yamanto-production.ts",
     "retailers:stores:test": "tsx scripts/test-coles-store-directory.ts",
     "retailers:coles:stores:import": "tsx scripts/import-coles-store-directory.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
