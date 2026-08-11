@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
-import { chooseReceiptCandidate, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
+import { canPopulateReceiptCandidate, chooseReceiptCandidate, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
 import { classifyReceiptLines, receiptLinesFromBlocks, receiptStructureScore } from "../src/lib/receipts/receipt-structure";
 
 const woolworthsPhotoText = `
@@ -260,6 +260,24 @@ assert.equal(deployedYamanto.total, 35.6);
 assert.equal(deployedYamanto.items.length, 8);
 assert.equal(deployedYamanto.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.equal(deployedYamanto.items.some((item) => /Lhe AL|cme A|INCLUDED IN TOTAL|RAY or/i.test(item.description)), false);
+
+const twoFragmentColes = parseReceipt(`
+Coles
+BEE 0 CO 0 1.25 0.00
+he es ee SUGAR RAW 2kg 4.50
+`);
+const fullColesCandidate = { ocrConfidence: 58, parsed: deployedYamanto, pass: "structured" as const, text: "full Coles", lines: deployedYamantoLines };
+const twoFragmentCandidate = { ocrConfidence: 86, parsed: twoFragmentColes, pass: "sparse" as const, text: "two fragments" };
+assert.equal(twoFragmentColes.diagnostics.totalLine, null);
+assert.equal(canPopulateReceiptCandidate(twoFragmentCandidate), false, "a calculated total and two fragments must never populate the review");
+assert.equal(canPopulateReceiptCandidate(fullColesCandidate), true);
+assert.equal(chooseReceiptCandidate([twoFragmentCandidate, fullColesCandidate])?.pass, "structured", "the reconciled Coles pass must beat a cleaner two-fragment OCR pass");
+
+const ordinaryShortPricedProductLines = classifyReceiptLines([
+  { text: "COLES BEEF MINCE 500G 16.00", confidence: 90, bbox: null },
+  { text: "COLES MILK 2L 4.00", confidence: 90, bbox: null },
+]);
+assert.deepEqual(ordinaryShortPricedProductLines.map((line) => line.role), ["product", "product"], "a legitimate lower-priced Coles product must not be converted into a quantity row");
 
 const geometryLines = receiptLinesFromBlocks([{ paragraphs: [{ lines: [
   { text: "HAWAIIAN PIZZA SCROL 2PACK 4.15", confidence: 91, bbox: { x0: 80, y0: 400, x1: 780, y1: 440 } },

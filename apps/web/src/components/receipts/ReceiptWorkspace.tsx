@@ -6,6 +6,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { createReceiptImport } from "@/lib/receipts/receipt.actions";
 import {
+  canPopulateReceiptCandidate,
   chooseReceiptCandidate,
   needsReceiptFallback,
   type ReceiptOcrCandidate,
@@ -201,15 +202,18 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const best = chooseReceiptCandidate(candidates);
       if (!best) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
       const parsed = best.parsed;
-      const extracted = parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2)));
+      const safeToPopulate = canPopulateReceiptCandidate(best);
+      const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
       setRetailer(parsed.retailer || inferRetailer(best.text));
       setPurchasedAt(parsed.purchasedAt ?? inferDate(best.text));
-      setTotal(parsed.total === null ? inferTotal(best.text) : parsed.total.toFixed(2));
+      setTotal(safeToPopulate && parsed.total !== null ? parsed.total.toFixed(2) : "");
       setItems(extracted.length ? extracted : [makeItem()]);
       setOcrProgress(100);
       const warning = parsed.warnings[0];
       const unreliable = needsReceiptFallback(best);
-      setOcrStatus(extracted.length
+      setOcrStatus(!safeToPopulate
+        ? "The receipt could not be reconciled reliably. Its uncertain product lines and calculated total were left blank for manual review."
+        : extracted.length
         ? warning || unreliable
           ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}, but the scan needs careful review.${warning ? ` ${warning}` : " Some receipt details could not be reconciled."}`
           : `Found ${extracted.length} purchase ${extracted.length === 1 ? "line" : "lines"} and reconciled them with the receipt. Check the review below.`
