@@ -114,10 +114,15 @@ assert.match(productionColesRegression.warnings.join("\n"), /differs from the re
 const damagedTotalLabel = parseReceipt(`
 Tax Invoice ABN: 45 004 189 708
 Description $
-COLES SUGAR RAW 2KG 4.50
+PEPSI MAX COLA 1.25LITRE 16.00
+4 @ 4.00 EACH
+PEPSI OR SOLO 1.25L 2 FOR 4.80 -6.40
+COLES SUGAR RAW 2KG 3.20
+DARE ESPRESSO 750ML 4.50
 ICE BREAK ICED COFFEE 500ML 2.90
-MILKYBAR CHOC BLOCK 170GRAM 83.75
-KIT KAT CHUNKY AERO 155GRAM 4.19
+MILKYBAR CHOC BLOCK 170GRAM 3.75
+KITKAT COOKIE DOUGH 170GRAM 3.75
+KIT KAT CHUNKY AERO 155GRAM 3.75
 HAWAIIAN PIZZA SCROL 2PACK 4.15
 $35.60
 or 11 1160s 29.00
@@ -130,7 +135,11 @@ assert.equal(damagedTotalLabel.total, 35.6, "split tender payments should recove
 assert.equal(damagedTotalLabel.diagnostics.totalLine, "$35.60 | reconciled from tender payments");
 assert.equal(damagedTotalLabel.items.find((item) => item.description.includes("SCROL 2PACK"))?.price, 4.15);
 assert.equal(damagedTotalLabel.items.some((item) => /or 11 1160s|EFT/i.test(item.description)), false);
-assert.equal(damagedTotalLabel.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 4.19);
+assert.equal(damagedTotalLabel.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 3.75);
+assert.equal(damagedTotalLabel.items.find((item) => item.description === "COLES SUGAR RAW 2KG")?.price, 3.2);
+assert.equal(damagedTotalLabel.items.length, 8);
+assert.equal(damagedTotalLabel.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.deepEqual(damagedTotalLabel.warnings, []);
 
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
