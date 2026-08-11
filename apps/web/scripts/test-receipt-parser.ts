@@ -221,6 +221,28 @@ assert.equal(chooseReceiptCandidate([
   { ocrConfidence: 65, parsed: exactYamantoSparseOcr, pass: "sparse", text: "yamanto sparse" },
 ])?.pass, "structured", "the fuller structured OCR must beat the fragmented two-line sparse result");
 
+const yamantoProductionLines = [
+  "Coles Supermarkets Australia Pty Ltd", "Tax Invoice ABN: 45 004 189 708", "Date: 09/08/2026", "Description $",
+  "PEPSI MAX COLA 1.25LITRE 16.00", "4 @ $4.00 EACH", "2 FOR", "$4.80 -$6.40",
+  "COLES SUGAR RAW 2KG 3.20", "DARE ESPRESSO 750ML 4.50", "ICE BREAK ICED COFFEE 500ML 2.90",
+  "MILKYBAR CHOC BLOCK 170GRAM 3.75", "KITKAT COOKIE DOUGH 170GRAM 3.75", "KIT KAT CHUNKY AERO 155GRAM 3.75",
+  "HAWAIIAN PIZZA SCROL 2PACK 4.15", "tems", "$35.60", "3ST INCLUDED IN TOTAL", "$2.57", "ups", "$25.00", "BALANCE",
+].map((text, index) => ({ text, confidence: 80, bbox: { x0: 40, y0: index * 40, x1: 760, y1: index * 40 + 30 } }));
+const yamantoProductionRoles = classifyReceiptLines(yamantoProductionLines);
+assert.equal(yamantoProductionRoles.find((line) => line.text === "2 FOR")?.role, "promotion");
+assert.equal(yamantoProductionRoles.find((line) => line.text === "tems")?.role, "item-count");
+assert.equal(yamantoProductionRoles.find((line) => line.text === "$35.60")?.role, "total");
+assert.equal(yamantoProductionRoles.find((line) => line.text === "3ST INCLUDED IN TOTAL")?.role, "tax");
+assert.equal(yamantoProductionRoles.find((line) => line.text === "ups")?.role, "footer");
+const yamantoProduction = parseReceipt(yamantoProductionLines.map((line) => line.text).join("\n"), yamantoProductionLines);
+assert.equal(yamantoProduction.retailer, "Coles");
+assert.equal(yamantoProduction.purchasedAt, "2026-08-09");
+assert.equal(yamantoProduction.total, 35.6);
+assert.equal(yamantoProduction.items.length, 8);
+assert.equal(yamantoProduction.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.equal(yamantoProduction.items.some((item) => /2 FOR|tems|3ST INCLUDED|ups/i.test(item.description)), false);
+assert.deepEqual(yamantoProduction.warnings, []);
+
 const geometryLines = receiptLinesFromBlocks([{ paragraphs: [{ lines: [
   { text: "HAWAIIAN PIZZA SCROL 2PACK 4.15", confidence: 91, bbox: { x0: 80, y0: 400, x1: 780, y1: 440 } },
   { text: "Total for 11 items: $35.60", confidence: 87, bbox: { x0: 70, y0: 470, x1: 790, y1: 515 } },
@@ -248,5 +270,7 @@ assert.equal(
 const receiptPageStyles = readFileSync(new URL("../src/components/receipts/ReceiptWorkspace.module.css", import.meta.url), "utf8");
 assert.doesNotMatch(receiptPageStyles, /min-height:\s*(?:62|100)dvh/, "receipt capture must not dominate an entire phone or desktop viewport");
 assert.match(receiptPageStyles, /grid-template-columns:\s*minmax\(0,\s*1\.55fr\)\s+minmax\(310px,\s*\.72fr\)/);
+const receiptWorkspaceSource = readFileSync(new URL("../src/components/receipts/ReceiptWorkspace.tsx", import.meta.url), "utf8");
+assert.doesNotMatch(receiptWorkspaceSource, /if \(!match\) return new Date\(\)\.toISOString\(\)\.slice\(0, 10\)/, "an unreadable receipt date must not silently become today's date");
 
 console.log("Receipt photo parser regression checks passed.");

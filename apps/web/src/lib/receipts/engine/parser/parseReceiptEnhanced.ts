@@ -1,5 +1,6 @@
 import { parseReceipt as parseBaseReceipt } from "./parseReceipt";
 import type { ParsedReceipt, ParsedReceiptItem, ReceiptParserDiagnostics } from "./types";
+import { classifyReceiptLines, type ReceiptOcrLine } from "../../receipt-structure";
 
 const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
 const paymentMarker = /^(?:payment|payments?|eft|eftpos|visa|mastercard|merch\s+id|card|purchase|change)\b/i;
@@ -247,8 +248,26 @@ function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): Pars
   };
 }
 
-export function parseReceipt(text: string): ParsedReceipt {
-  if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(text)) return parsePhotoReceipt(text, "Woolworths");
-  if (/\bcoles\b|coles supermarkets|45\s+004\s+189\s+708/i.test(text)) return parsePhotoReceipt(text, "Coles");
-  return parseBaseReceipt(text);
+function structurallySafeText(text: string, ocrLines?: ReceiptOcrLine[]) {
+  if (!ocrLines?.length) return text;
+  const lines = classifyReceiptLines(ocrLines);
+  const safe: string[] = [];
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    if (line.role === "tender" || line.role === "tax" || line.role === "footer") continue;
+    if (line.role === "promotion" && /^\$?\s*\d+[.,]\d{2}$/.test(lines[index + 1]?.text ?? "")) {
+      safe.push(`${line.text} ${lines[index + 1].text}`);
+      index += 1;
+      continue;
+    }
+    safe.push(line.role === "total" && !/\btotal\b/i.test(line.text) ? `TOTAL ${line.text}` : line.text);
+  }
+  return safe.join("\n");
+}
+
+export function parseReceipt(text: string, ocrLines?: ReceiptOcrLine[]): ParsedReceipt {
+  const safeText = structurallySafeText(text, ocrLines);
+  if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(safeText)) return parsePhotoReceipt(safeText, "Woolworths");
+  if (/\bcoles\b|coles supermarkets|45\s+004\s+189\s+708/i.test(safeText)) return parsePhotoReceipt(safeText, "Coles");
+  return parseBaseReceipt(safeText);
 }
