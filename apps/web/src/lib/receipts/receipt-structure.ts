@@ -208,7 +208,7 @@ export function receiptLinesFromBlocks(blocks: TesseractBlock[] | null | undefin
     confidence: line.confidence ?? 0,
     bbox: line.bbox ?? null,
   })).filter((line) => line.text) ?? [];
-  return sanitiseReceiptLines(blockLines);
+  return blockLines;
 }
 
 export function receiptLinesText(lines: ReceiptOcrLine[]) {
