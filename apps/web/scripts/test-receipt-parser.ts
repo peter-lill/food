@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
 import { chooseReceiptCandidate, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
+import { classifyReceiptLines, receiptLinesFromBlocks, receiptStructureScore } from "../src/lib/receipts/receipt-structure";
 
 const woolworthsPhotoText = `
 Woolworths
@@ -219,6 +220,16 @@ assert.equal(chooseReceiptCandidate([
   { ocrConfidence: 70, parsed: exactYamantoStructuredOcr, pass: "structured", text: "yamanto structured" },
   { ocrConfidence: 65, parsed: exactYamantoSparseOcr, pass: "sparse", text: "yamanto sparse" },
 ])?.pass, "structured", "the fuller structured OCR must beat the fragmented two-line sparse result");
+
+const geometryLines = receiptLinesFromBlocks([{ paragraphs: [{ lines: [
+  { text: "HAWAIIAN PIZZA SCROL 2PACK 4.15", confidence: 91, bbox: { x0: 80, y0: 400, x1: 780, y1: 440 } },
+  { text: "Total for 11 items: $35.60", confidence: 87, bbox: { x0: 70, y0: 470, x1: 790, y1: 515 } },
+  { text: "EFT $25.00", confidence: 85, bbox: { x0: 70, y0: 540, x1: 790, y1: 580 } },
+  { text: "EFT $10.60", confidence: 83, bbox: { x0: 70, y0: 590, x1: 790, y1: 630 } },
+] }] }], "");
+assert.deepEqual(classifyReceiptLines(geometryLines).map((line) => line.role), ["product", "total", "tender", "tender"]);
+assert.equal(receiptStructureScore(geometryLines), 75);
+assert.deepEqual(geometryLines[1].bbox, { x0: 70, y0: 470, x1: 790, y1: 515 });
 
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
