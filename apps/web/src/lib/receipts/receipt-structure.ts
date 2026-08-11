@@ -39,7 +39,8 @@ function weakMoneyDescription(text: string) {
   return lastMoneyValue(text) !== null
     && letters.length <= 10
     && words.length <= 4
-    && !/\b(?:ml|litre|liter|gram|kg|pack|each)\b/i.test(description);
+    && !/\b\d+(?:\.\d+)?\s*(?:ml|l|litres?|liters?|g|grams?|kg|packs?)\b/i.test(description)
+    && !/\beach\b/i.test(description);
 }
 
 function normaliseOcrLine(text: string) {
