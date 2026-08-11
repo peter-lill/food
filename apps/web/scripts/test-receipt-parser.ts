@@ -141,6 +141,40 @@ assert.equal(damagedTotalLabel.items.length, 8);
 assert.equal(damagedTotalLabel.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.deepEqual(damagedTotalLabel.warnings, []);
 
+const exactYamantoStructuredOcr = parseReceipt(`
+; 650 |
+heCK Ou cai]
+: “Receipt wn
+' 0126 [1me: 14: 2V
+$
+Jr D1 on
+Mix COLA 1.25LITRE 16.00
+1 @ $4.00 EACH hn
+) SOLO 1.25. 2 FOR $4.8 er
+IGAR RAW 2KG 3. £
+ARF ESPRESSO 750ML 750ML 4.90
+«¥1CF BREAK ICED COFFE 500ML 2.90
+MILKYBAR CHOC BLOCK 170GRAM 3.79
+2K1TKAT COOKIE DOUGH 170GRAM 3.79
+KIT KAT CHUNKY AERO 155GRAM 3.75
+HAWAIIAN P1ZZA SCROL 2PACK 4.13
+[otal for 11 items; $35.60
+Cl $25. 00
+CF] $10.60
+Coles
+09/08, 26
+627340) 28
+EXPIRY @
+PURCHASE
+BALANCE
+RRN 001
+`);
+assert.equal(exactYamantoStructuredOcr.total, 35.6, "the exact damaged Yamanto total marker must remain authoritative");
+assert.equal(exactYamantoStructuredOcr.diagnostics.totalLine, "[otal for 11 items; $35.60");
+assert.equal(exactYamantoStructuredOcr.items.some((item) => /^(?:Cl|CF)$/i.test(item.description)), false);
+assert.equal(exactYamantoStructuredOcr.items.some((item) => item.price === 25 || item.price === 10.6), false);
+assert.equal(exactYamantoStructuredOcr.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 3.75);
+
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
   { ocrConfidence: 88, parsed: incompleteColes, pass: "structured", text: "incomplete" },

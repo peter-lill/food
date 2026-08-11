@@ -55,7 +55,7 @@ function findReceiptTotal(lines: string[], recoverFromTender = false) {
         if (total !== undefined) return { total, totalLine: `${line} | ${totalLine}`, totalIndex: index };
       }
     }
-    if (!/^(?:grand\s+)?total(?:\s+for\s+\d+\s+items?|\s*\(\s*\d+\s+items?\s*\))?\b/i.test(line)) continue;
+    if (!/^(?:grand\s+)?(?:total|[\[({]?otal)(?:\s+for\s+\d+\s+items?|\s*\(\s*\d+\s+items?\s*\))?\b/i.test(line)) continue;
     if (/^total includes gst/i.test(line)) continue;
     const sameLine = moneyValues(line).at(-1);
     if (sameLine !== undefined) return { total: sameLine, totalLine: line, totalIndex: index };
@@ -94,7 +94,7 @@ function findReceiptTotal(lines: string[], recoverFromTender = false) {
 
 function expectedItemCount(lines: string[]) {
   for (const line of lines) {
-    const explicit = line.match(/total\s+(?:for\s+)?(\d+)\s+items?/i)
+    const explicit = line.match(/(?:total|[\[({]?otal)\s+(?:for\s+)?(\d+)\s+items?/i)
       ?? line.match(/^(\d+)\s+items?:?$/i)
       ?? line.match(/(\d+)\s+subtotal\b/i);
     if (explicit) return Number(explicit[1]);
