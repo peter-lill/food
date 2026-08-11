@@ -83,6 +83,34 @@ assert.equal(splitColesSummary.items.some((item) => item.price === 35.6 || item.
 assert.equal(splitColesSummary.items.some((item) => /11\s+items|EFT|PEPSI OR SOLO/.test(item.description)), false);
 assert.equal(splitColesSummary.diagnostics.totalLine, "11 items | $35.60");
 
+const productionColesRegression = parseReceipt(`
+Coles Supermarkets Australia Pty Ltd
+Tax Invoice ABN: 45 004 189 708
+Description $
+COLES SUGAR RAW 2KG 4.50
+ICE BREAK ICED COFFEE 500ML 2.90
+MILKYBAR CHOC BLOCK 170GRAM 83.75
+KIT KAT CHUNKY AERO 155GRAM 4.19
+HAWAIIAN PIZZA SCROL 2PACK
+11 items
+$35.60
+or 11 1160s 29.00
+EFT $25.00
+EFT $10.60
+GST INCLUDED IN TOTAL $2.57
+`);
+assert.equal(productionColesRegression.total, 35.6, "the explicit Coles total must override malformed merchandise sums");
+assert.deepEqual(
+  productionColesRegression.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM"),
+  { description: "KIT KAT CHUNKY AERO 155GRAM", quantity: 1, price: 4.19, sourceText: "KIT KAT CHUNKY AERO 155GRAM 4.19", confidence: 96 },
+);
+assert.equal(productionColesRegression.items.find((item) => item.description === "COLES SUGAR RAW 2KG")?.price, 4.5);
+assert.equal(productionColesRegression.items.find((item) => item.description === "ICE BREAK ICED COFFEE 500ML")?.price, 2.9);
+assert.equal(productionColesRegression.items.some((item) => /MILKYBAR|SCROL|11\s+items|EFT|or 11 1160s/i.test(item.description)), false);
+assert.equal(productionColesRegression.items.some((item) => item.price === 35.6 || item.price === 29 || item.price === 25), false);
+assert.match(productionColesRegression.warnings.join("\n"), /Rejected 1 merchandise price grossly above the explicit receipt total/);
+assert.match(productionColesRegression.warnings.join("\n"), /differs from the receipt total of \$35\.60/);
+
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
   { ocrConfidence: 88, parsed: incompleteColes, pass: "structured", text: "incomplete" },
