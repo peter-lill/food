@@ -12,6 +12,13 @@ const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for
 const header = /^(?:coles|woolworths|tax invoice|store|phone|served by|register|receipt|date|time|description)\b/i;
 const footer = /^(?:expiry|balance|rrn|apsn|merchant|approved)\b/i;
 
+function moneyValues(text: string) {
+  return [...text.matchAll(/-?\$?\s*(\d+)[.,](\d{2})\b/g)].map((match) => {
+    const value = Number(`${match[1]}.${match[2]}`);
+    return match[0].trim().startsWith("-") ? -value : value;
+  });
+}
+
 export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine {
   const text = line.text.replace(/\s+/g, " ").trim();
   let role: ReceiptLineRole = "unknown";
@@ -31,6 +38,37 @@ export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
   const classified = lines.map(classifyReceiptLine);
   const firstTerminal = classified.findIndex((line) => line.role === "tender" || line.role === "tax" || line.role === "footer");
   let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
+
+  // A damaged quantity row can look like a second tiny product. Use its numeric
+  // relationship with the preceding line total to recover the row's structure.
+  for (let index = 1; index < classified.length; index += 1) {
+    const previousAmount = moneyValues(classified[index - 1].text).at(-1);
+    const unitAmount = moneyValues(classified[index].text).at(-1);
+    const label = classified[index].text.replace(money, " ").trim();
+    const ratio = previousAmount && unitAmount ? previousAmount / unitAmount : 0;
+    if (classified[index - 1].role === "product" && classified[index].role === "product"
+      && !/[a-z]{4,}/i.test(label) && Number.isInteger(ratio) && ratio >= 2 && ratio <= 20) {
+      classified[index] = { ...classified[index], text: `${ratio} @ $${unitAmount!.toFixed(2)} EACH`, role: "quantity" };
+    }
+  }
+
+  // Coles commonly prints split tenders immediately before the GST section. If
+  // their sum matches an earlier amount, that earlier line is the total boundary
+  // even when its label was destroyed by OCR.
+  if (totalIndex < 0 && firstTerminal > 2 && classified[firstTerminal].role === "tax") {
+    const pricedBeforeTax = classified.slice(Math.max(0, firstTerminal - 6), firstTerminal)
+      .map((line, offset) => ({ index: Math.max(0, firstTerminal - 6) + offset, value: moneyValues(line.text).at(-1) }))
+      .filter((entry): entry is { index: number; value: number } => entry.value !== undefined && entry.value > 0);
+    const tenders = pricedBeforeTax.slice(-2);
+    if (tenders.length === 2) {
+      const tenderTotal = Math.round((tenders[0].value + tenders[1].value) * 100) / 100;
+      const matchingTotal = pricedBeforeTax.slice(0, -2).reverse().find((entry) => Math.abs(entry.value - tenderTotal) <= 0.01);
+      if (matchingTotal) {
+        totalIndex = matchingTotal.index;
+        classified[totalIndex] = { ...classified[totalIndex], role: "total" };
+      }
+    }
+  }
 
   // OCR frequently separates a damaged item-count label from its amount. Locate the
   // summary structurally: it is the final standalone amount immediately before the

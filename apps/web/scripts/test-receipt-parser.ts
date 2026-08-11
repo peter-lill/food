@@ -243,6 +243,24 @@ assert.equal(yamantoProduction.items.reduce((sum, item) => sum + item.quantity, 
 assert.equal(yamantoProduction.items.some((item) => /2 FOR|tems|3ST INCLUDED|ups/i.test(item.description)), false);
 assert.deepEqual(yamantoProduction.warnings, []);
 
+const deployedYamantoLines = [
+  "Coles Supermarkets Australia Pty Ltd", "Tax Invoice ABN: 45 004 189 708", "Description $",
+  "ee PEPSL MAK COLA 1 25LITRI 16.00", "nr a Le 4 4.00", "COLES SUGAR RAW 2KG 3.20",
+  "a RESSO 750ML 750M 4.50", "BRIE (F BREAK CED COFFE 500M 2.90", "BRIER M11 KVBAR CHOC BLOCK 170GRAM 3.75",
+  "RRR KITKAT COOKIE DOUGH 1 70GRAM 3.75", "KIT KAT CHUNKY AERO 155GRAM 3.75", "a ie AAWALLIAN PIZZA SCROL 2PACK 4.15",
+  "tems $35.60", "Lhe AL 25.00", "cme A 10.60", "eles C1 INCLUDED IN TOTAL 2.57", "RAY or 16 00 ong 0.00",
+].map((text, index) => ({ text, confidence: 62, bbox: { x0: 45, y0: index * 42, x1: 755, y1: index * 42 + 30 } }));
+const deployedYamantoRoles = classifyReceiptLines(deployedYamantoLines);
+assert.equal(deployedYamantoRoles.find((line) => line.text.includes("@ $4.00"))?.role, "quantity");
+assert.equal(deployedYamantoRoles.find((line) => line.text === "tems $35.60")?.role, "total");
+assert.equal(deployedYamantoRoles.find((line) => line.text === "Lhe AL 25.00")?.role, "footer");
+assert.equal(deployedYamantoRoles.find((line) => line.text === "cme A 10.60")?.role, "footer");
+const deployedYamanto = parseReceipt(deployedYamantoLines.map((line) => line.text).join("\n"), deployedYamantoLines);
+assert.equal(deployedYamanto.total, 35.6);
+assert.equal(deployedYamanto.items.length, 8);
+assert.equal(deployedYamanto.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.equal(deployedYamanto.items.some((item) => /Lhe AL|cme A|INCLUDED IN TOTAL|RAY or/i.test(item.description)), false);
+
 const geometryLines = receiptLinesFromBlocks([{ paragraphs: [{ lines: [
   { text: "HAWAIIAN PIZZA SCROL 2PACK 4.15", confidence: 91, bbox: { x0: 80, y0: 400, x1: 780, y1: 440 } },
   { text: "Total for 11 items: $35.60", confidence: 87, bbox: { x0: 70, y0: 470, x1: 790, y1: 515 } },
