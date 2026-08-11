@@ -118,7 +118,8 @@ COLES SUGAR RAW 2KG 4.50
 ICE BREAK ICED COFFEE 500ML 2.90
 MILKYBAR CHOC BLOCK 170GRAM 83.75
 KIT KAT CHUNKY AERO 155GRAM 4.19
-HAWAIIAN PIZZA SCROL 2PACK 35.60
+HAWAIIAN PIZZA SCROL 2PACK 4.15
+$35.60
 or 11 1160s 29.00
 EFT 25.00
 EFT 10.60
@@ -126,8 +127,8 @@ GST INCLUDED IN TOTAL 2.57
 `);
 assert.equal(damagedTotalLabel.retailer, "Coles");
 assert.equal(damagedTotalLabel.total, 35.6, "split tender payments should recover a damaged Coles total label");
-assert.equal(damagedTotalLabel.diagnostics.totalLine, "HAWAIIAN PIZZA SCROL 2PACK 35.60 | reconciled from tender payments");
-assert.equal(damagedTotalLabel.items.find((item) => item.description.includes("SCROL 2PACK"))?.price, undefined);
+assert.equal(damagedTotalLabel.diagnostics.totalLine, "$35.60 | reconciled from tender payments");
+assert.equal(damagedTotalLabel.items.find((item) => item.description.includes("SCROL 2PACK"))?.price, 4.15);
 assert.equal(damagedTotalLabel.items.some((item) => /or 11 1160s|EFT/i.test(item.description)), false);
 assert.equal(damagedTotalLabel.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 4.19);
 
