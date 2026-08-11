@@ -95,10 +95,11 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
   return { start: Math.max(0, firstProductIndex), end: totalIndex };
 }
 
-function parsePhotoItems(lines: string[], start: number, end: number) {
+function parsePhotoItems(lines: string[], start: number, end: number, receiptTotal: number | null) {
   const items: ParsedReceiptItem[] = [];
   const section = lines.slice(start, end);
   const adjustments: number[] = [];
+  const rejectedPrices: number[] = [];
   let pendingDescription = "";
   const quantityPattern = /^(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?(?:\s+(\d+[.,]\d{2}))?/i;
 
@@ -143,7 +144,11 @@ function parsePhotoItems(lines: string[], start: number, end: number) {
 
       const description = inlineDescription || pendingDescription;
       if (amount !== null && amount >= 0 && description && !headerMarker.test(description)) {
-        items.push({ description, quantity: 1, price: amount, sourceText: line, confidence: 96 });
+        if (receiptTotal !== null && amount > receiptTotal * 2) {
+          rejectedPrices.push(amount);
+        } else {
+          items.push({ description, quantity: 1, price: amount, sourceText: line, confidence: 96 });
+        }
       }
       pendingDescription = "";
       continue;
@@ -155,7 +160,7 @@ function parsePhotoItems(lines: string[], start: number, end: number) {
     }
   }
 
-  return { items, section, adjustments };
+  return { items, section, adjustments, rejectedPrices };
 }
 
 function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): ParsedReceipt {
@@ -163,13 +168,16 @@ function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): Pars
   const retailerKey = retailer.toLowerCase() as "coles" | "woolworths";
   const { total, totalLine, totalIndex } = findReceiptTotal(lines);
   const bounds = itemSectionBounds(lines, retailerKey, totalIndex);
-  const { items, section, adjustments } = parsePhotoItems(lines, bounds.start, bounds.end);
+  const { items, section, adjustments, rejectedPrices } = parsePhotoItems(lines, bounds.start, bounds.end, total);
   const expectedCount = expectedItemCount(lines);
   const detectedUnits = items.reduce((sum, item) => sum + item.quantity, 0);
   const itemTotal = items.reduce((sum, item) => sum + (item.price ?? 0), 0);
   const calculated = Math.round((itemTotal + adjustments.reduce((sum, value) => sum + value, 0)) * 100) / 100;
   const warnings: string[] = [];
 
+  if (rejectedPrices.length > 0) {
+    warnings.push(`Rejected ${rejectedPrices.length} merchandise price${rejectedPrices.length === 1 ? "" : "s"} grossly above the explicit receipt total.`);
+  }
   if (expectedCount !== null && Math.abs(expectedCount - detectedUnits) > 0.001) {
     warnings.push(`Receipt reports ${expectedCount} items, but ${detectedUnits} units were detected.`);
   }
