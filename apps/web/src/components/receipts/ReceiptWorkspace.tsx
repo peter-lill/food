@@ -73,7 +73,7 @@ function inferTotal(text: string) {
 }
 function inferDate(text: string) {
   const match = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
-  if (!match) return new Date().toISOString().slice(0, 10);
+  if (!match) return "";
   const year = match[3].length === 2 ? `20${match[3]}` : match[3];
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
@@ -135,7 +135,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
   const [ocrBusy, setOcrBusy] = useState(false);
   const [ocrError, setOcrError] = useState<string | null>(null);
   const [retailer, setRetailer] = useState("");
-  const [purchasedAt, setPurchasedAt] = useState(() => new Date().toISOString().slice(0, 10));
+  const [purchasedAt, setPurchasedAt] = useState("");
   const [total, setTotal] = useState("");
   const [items, setItems] = useState<DraftItem[]>([]);
 
@@ -172,7 +172,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       if (structuredText) {
         candidates.push({
           ocrConfidence: structuredResult.data.confidence ?? 0,
-          parsed: parseReceipt(structuredText),
+          parsed: parseReceipt(structuredText, structuredLines),
           pass: "structured",
           text: structuredText,
           lines: structuredLines,
@@ -190,7 +190,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         if (sparseText) {
           candidates.push({
             ocrConfidence: sparseResult.data.confidence ?? 0,
-            parsed: parseReceipt(sparseText),
+            parsed: parseReceipt(sparseText, sparseLines),
             pass: "sparse",
             text: sparseText,
             lines: sparseLines,

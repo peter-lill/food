@@ -7,8 +7,8 @@ const money = /-?\$?\s*\d+[.,]\d{2}\b/;
 const total = /^(?:grand\s+)?(?:total|[\[({]?[t7]?otal|tal)\b/i;
 const itemCount = /\b\d+\s+(?:items?|[1il]tens?)\b/i;
 const tender = /^(?:eft|ef[t1i]|cl\b|cf\]?\b|visa|mastercard|card|purchase|change)\b/i;
-const tax = /\b(?:gst|tax)\b/i;
-const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for\s+\$?)\b/i;
+const tax = /\bgst\b|^tax\b(?!\s+invoice)|\bincluded\s+in\s+total\b/i;
+const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for(?:\s+\$?\d)?)/i;
 const header = /^(?:coles|woolworths|tax invoice|store|phone|served by|register|receipt|date|time|description)\b/i;
 const footer = /^(?:expiry|balance|rrn|apsn|merchant|approved)\b/i;
 
@@ -28,7 +28,34 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
 }
 
 export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
-  return lines.map(classifyReceiptLine);
+  const classified = lines.map(classifyReceiptLine);
+  const firstTerminal = classified.findIndex((line) => line.role === "tender" || line.role === "tax" || line.role === "footer");
+  let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
+
+  // OCR frequently separates a damaged item-count label from its amount. Locate the
+  // summary structurally: it is the final standalone amount immediately before the
+  // tax/payment/footer section, not another merchandise candidate.
+  if (totalIndex < 0 && firstTerminal > 0) {
+    for (let index = firstTerminal - 1; index >= Math.max(0, firstTerminal - 4); index -= 1) {
+      if (/^\$?\s*\d+[.,]\d{2}$/.test(classified[index].text)) {
+        totalIndex = index;
+        classified[index] = { ...classified[index], role: "total" };
+        if (index > 0 && classified[index - 1].role === "unknown") {
+          classified[index - 1] = { ...classified[index - 1], role: "item-count" };
+        }
+        break;
+      }
+    }
+  }
+
+  if (totalIndex >= 0) {
+    for (let index = totalIndex + 1; index < classified.length; index += 1) {
+      if (classified[index].role === "product" || classified[index].role === "unknown") {
+        classified[index] = { ...classified[index], role: "footer" };
+      }
+    }
+  }
+  return classified;
 }
 
 export function receiptStructureScore(lines: ReceiptOcrLine[]) {
