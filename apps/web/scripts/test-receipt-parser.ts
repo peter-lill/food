@@ -111,6 +111,26 @@ assert.equal(productionColesRegression.items.some((item) => item.price === 35.6 
 assert.match(productionColesRegression.warnings.join("\n"), /Rejected 1 merchandise price grossly above the explicit receipt total/);
 assert.match(productionColesRegression.warnings.join("\n"), /differs from the receipt total of \$35\.60/);
 
+const damagedTotalLabel = parseReceipt(`
+Tax Invoice ABN: 45 004 189 708
+Description $
+COLES SUGAR RAW 2KG 4.50
+ICE BREAK ICED COFFEE 500ML 2.90
+MILKYBAR CHOC BLOCK 170GRAM 83.75
+KIT KAT CHUNKY AERO 155GRAM 4.19
+HAWAIIAN PIZZA SCROL 2PACK 35.60
+or 11 1160s 29.00
+EFT 25.00
+EFT 10.60
+GST INCLUDED IN TOTAL 2.57
+`);
+assert.equal(damagedTotalLabel.retailer, "Coles");
+assert.equal(damagedTotalLabel.total, 35.6, "split tender payments should recover a damaged Coles total label");
+assert.equal(damagedTotalLabel.diagnostics.totalLine, "HAWAIIAN PIZZA SCROL 2PACK 35.60 | reconciled from tender payments");
+assert.equal(damagedTotalLabel.items.find((item) => item.description.includes("SCROL 2PACK"))?.price, undefined);
+assert.equal(damagedTotalLabel.items.some((item) => /or 11 1160s|EFT/i.test(item.description)), false);
+assert.equal(damagedTotalLabel.items.find((item) => item.description === "KIT KAT CHUNKY AERO 155GRAM")?.price, 4.19);
+
 const incompleteColes = parseReceipt(colesPhotoText.replace("HAWAIIAN PIZZA SCROL 2PACK 3.75\n", ""));
 const selected = chooseReceiptCandidate([
   { ocrConfidence: 88, parsed: incompleteColes, pass: "structured", text: "incomplete" },

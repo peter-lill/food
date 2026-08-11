@@ -40,7 +40,7 @@ function detectDate(text: string) {
   return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
 }
 
-function findReceiptTotal(lines: string[]) {
+function findReceiptTotal(lines: string[], recoverFromTender = false) {
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index];
     const standaloneItemCount = /^\d+\s+items?:?$/i.test(line);
@@ -64,6 +64,29 @@ function findReceiptTotal(lines: string[]) {
     const nextValue = next ? moneyValues(next).at(-1) : undefined;
     if (nextValue !== undefined && !paymentMarker.test(next)) {
       return { total: nextValue, totalLine: `${line} | ${next}`, totalIndex: index };
+    }
+  }
+
+  const paymentIndex = recoverFromTender ? lines.findIndex((line) => paymentMarker.test(line)) : -1;
+  if (paymentIndex >= 0) {
+    const paymentAmounts = lines
+      .slice(paymentIndex, paymentIndex + 4)
+      .filter((line) => paymentMarker.test(line))
+      .flatMap(moneyValues)
+      .filter((value) => value > 0);
+    const tendered = Math.round(paymentAmounts.reduce((sum, value) => sum + value, 0) * 100) / 100;
+
+    if (tendered > 0) {
+      for (let index = paymentIndex - 1; index >= Math.max(0, paymentIndex - 6); index -= 1) {
+        const candidate = moneyValues(lines[index]).at(-1);
+        if (candidate !== undefined && candidate > 0 && Math.abs(candidate - tendered) <= 0.05) {
+          return {
+            total: candidate,
+            totalLine: `${lines[index]} | reconciled from tender payments`,
+            totalIndex: index,
+          };
+        }
+      }
     }
   }
   return { total: null, totalLine: null, totalIndex: lines.length };
@@ -166,7 +189,7 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
 function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): ParsedReceipt {
   const lines = normaliseLines(text);
   const retailerKey = retailer.toLowerCase() as "coles" | "woolworths";
-  const { total, totalLine, totalIndex } = findReceiptTotal(lines);
+  const { total, totalLine, totalIndex } = findReceiptTotal(lines, retailerKey === "coles");
   const bounds = itemSectionBounds(lines, retailerKey, totalIndex);
   const { items, section, adjustments, rejectedPrices } = parsePhotoItems(lines, bounds.start, bounds.end, total);
   const expectedCount = expectedItemCount(lines);
@@ -208,6 +231,6 @@ function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): Pars
 
 export function parseReceipt(text: string): ParsedReceipt {
   if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(text)) return parsePhotoReceipt(text, "Woolworths");
-  if (/\bcoles\b|coles supermarkets/i.test(text)) return parsePhotoReceipt(text, "Coles");
+  if (/\bcoles\b|coles supermarkets|45\s+004\s+189\s+708/i.test(text)) return parsePhotoReceipt(text, "Coles");
   return parseBaseReceipt(text);
 }
