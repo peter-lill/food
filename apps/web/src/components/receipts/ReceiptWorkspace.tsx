@@ -155,6 +155,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const prepared = await prepareReceiptImage(file);
       setOcrProgress(10); setOcrStatus("Loading receipt recognition…");
       const { createWorker, PSM } = await import("tesseract.js");
+      type ReceiptPsm = (typeof PSM)[keyof typeof PSM];
       let passStart = 18;
       let passRange = 25;
       worker = await createWorker("eng", undefined, { logger(message) {
@@ -168,7 +169,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const recognise = async (
         image: File | Blob,
         pass: ReceiptOcrCandidate["pass"],
-        psm: string,
+        psm: ReceiptPsm,
         status: string,
         start: number,
         range: number,
