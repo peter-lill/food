@@ -6,7 +6,7 @@ const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
 const paymentMarker = /^(?:payment|payments?|eft|eftpos|visa|mastercard|merch\s+id|card|purchase|change)\b/i;
 const headerMarker = /^(?:woolworths|the fresh food people|coles supermarkets|tax invoice|abn|store|store manager|phone|served by|register|receipt|date|time|pos\b|description\b|price\b)/i;
 const summaryMarker = /^(?:(?:\d+\s+)?subtotal|(?:grand\s+)?total\b|gst\b|total includes gst|you saved|saving|savings)/i;
-const promotionMarker = /\b(?:special|promo(?:tional)?|save|\d+\s+for\s+\$?\d)|(?:for\s+\$?\d)/i;
+const promotionMarker = /\b(?:special|promo(?:tional)?|save|redeemed\s+free|\d+\s+for\s+\$?\d)|(?:for\s+\$?\d)/i;
 
 function normaliseLines(text: string) {
   return text
@@ -131,7 +131,7 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
   }
 
   const firstProductIndex = lines.findIndex((line, index) => index < totalIndex
-    && moneyValues(line).some((value) => value > 0)
+    && (moneyValues(line).some((value) => value > 0) || /[a-z]{4,}/i.test(line))
     && !headerMarker.test(line)
     && !summaryMarker.test(line));
   return { start: Math.max(0, firstProductIndex), end: totalIndex };
@@ -144,6 +144,12 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
   const rejectedPrices: number[] = [];
   let pendingDescription = "";
   const quantityPattern = /^(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?(?:\s+(\d+[.,]\d{2}))?/i;
+
+  const flushPending = () => {
+    if (!pendingDescription) return;
+    items.push({ description: pendingDescription, quantity: 1, price: null, sourceText: pendingDescription, confidence: 72 });
+    pendingDescription = "";
+  };
 
   for (const line of section) {
     if (headerMarker.test(line) || summaryMarker.test(line) || paymentMarker.test(line)) {
@@ -164,7 +170,7 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
         items.push({ description: pendingDescription, quantity, price: lineTotal, sourceText: `${pendingDescription} | ${line}`, confidence: 98 });
       } else if (previous && Number.isFinite(quantity)) {
         previous.quantity = quantity;
-        if (previous.price === null && lineTotal !== null) previous.price = lineTotal;
+        if (lineTotal !== null) previous.price = lineTotal;
         previous.sourceText = `${previous.sourceText} | ${line}`;
         previous.confidence = 98;
       }
@@ -180,10 +186,12 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
 
       if (amount !== null && (amount < 0 || promotionMarker.test(line))) {
         if (amount < 0) adjustments.push(amount);
+        else if (/redeemed\s+free/i.test(line)) adjustments.push(-amount);
         pendingDescription = "";
         continue;
       }
 
+      if (pendingDescription && inlineDescription) flushPending();
       const description = inlineDescription || pendingDescription;
       if (amount !== null && amount >= 0 && description && !headerMarker.test(description)) {
         if (receiptTotal !== null && amount > receiptTotal * 2) {
@@ -197,11 +205,15 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
     }
 
     const cleaned = cleanDescription(line);
-    if (cleaned.length >= 2 && /[a-z]/i.test(cleaned) && !headerMarker.test(cleaned) && !promotionMarker.test(cleaned)) {
+    if (cleaned.length >= 4 && /[a-z]/i.test(cleaned) && !headerMarker.test(cleaned) && !promotionMarker.test(cleaned)) {
+      flushPending();
       pendingDescription = cleaned;
+    } else if (promotionMarker.test(cleaned)) {
+      pendingDescription = "";
     }
   }
 
+  flushPending();
   return { items, section, adjustments, rejectedPrices };
 }
 
@@ -213,7 +225,8 @@ function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): Pars
   const { items, section, adjustments, rejectedPrices } = parsePhotoItems(lines, bounds.start, bounds.end, total);
   const expectedCount = expectedItemCount(lines);
   const detectedUnits = items.reduce((sum, item) => sum + item.quantity, 0);
-  const itemTotal = items.reduce((sum, item) => sum + (item.price ?? 0), 0);
+  const pricedItems = items.filter((item) => item.price !== null);
+  const itemTotal = pricedItems.reduce((sum, item) => sum + (item.price ?? 0), 0);
   const calculated = Math.round((itemTotal + adjustments.reduce((sum, value) => sum + value, 0)) * 100) / 100;
   const warnings: string[] = [];
 
@@ -223,7 +236,7 @@ function parsePhotoReceipt(text: string, retailer: "Coles" | "Woolworths"): Pars
   if (expectedCount !== null && Math.abs(expectedCount - detectedUnits) > 0.001) {
     warnings.push(`Receipt reports ${expectedCount} items, but ${detectedUnits} units were detected.`);
   }
-  if (total !== null && items.length > 0 && Math.abs(total - calculated) > 0.05) {
+  if (total !== null && items.length > 0 && pricedItems.length === items.length && Math.abs(total - calculated) > 0.05) {
     warnings.push(`Detected purchases and discounts total $${calculated.toFixed(2)}, which differs from the receipt total of $${total.toFixed(2)}.`);
   }
 

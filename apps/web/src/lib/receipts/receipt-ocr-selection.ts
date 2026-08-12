@@ -40,8 +40,10 @@ export function needsReceiptFallback(candidate: ReceiptOcrCandidate) {
 }
 
 export function canPopulateReceiptCandidate(candidate: ReceiptOcrCandidate) {
+  const itemCountMismatch = candidate.parsed.warnings.some((warning) => /^Receipt reports \d+ items?, but /i.test(warning));
   return Boolean(candidate.parsed.retailer)
     && candidate.parsed.diagnostics.totalLine !== null
     && candidate.parsed.total !== null
-    && candidate.parsed.items.length >= 3;
+    && candidate.parsed.items.length >= 3
+    && !itemCountMismatch;
 }

@@ -155,8 +155,9 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const prepared = await prepareReceiptImage(file);
       setOcrProgress(10); setOcrStatus("Loading receipt recognition…");
       const { createWorker, PSM } = await import("tesseract.js");
+      type ReceiptPsm = (typeof PSM)[keyof typeof PSM];
       let passStart = 18;
-      let passRange = 40;
+      let passRange = 25;
       worker = await createWorker("eng", undefined, { logger(message) {
         if (typeof message.progress === "number") {
           const base = message.status === "recognizing text" ? passStart : 10;
@@ -165,38 +166,44 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         }
       }});
       const candidates: ReceiptOcrCandidate[] = [];
-      await worker.setParameters({ tessedit_pageseg_mode: PSM.SINGLE_BLOCK, preserve_interword_spaces: "1", user_defined_dpi: "300" });
-      setOcrStatus("Reading the receipt as a structured list…");
-      const structuredResult = await worker.recognize(prepared, {}, { blocks: true });
-      const structuredLines = receiptLinesFromBlocks(structuredResult.data.blocks, structuredResult.data.text ?? "");
-      const structuredText = receiptLinesText(structuredLines).trim();
-      if (structuredText) {
+      const recognise = async (
+        image: File | Blob,
+        pass: ReceiptOcrCandidate["pass"],
+        psm: ReceiptPsm,
+        status: string,
+        start: number,
+        range: number,
+      ) => {
+        passStart = start;
+        passRange = range;
+        await worker!.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: "1", user_defined_dpi: "300" });
+        setOcrStatus(status);
+        const result = await worker!.recognize(image, {}, { blocks: true });
+        const lines = receiptLinesFromBlocks(result.data.blocks, result.data.text ?? "");
+        const text = receiptLinesText(lines).trim();
+        if (!text) return;
         candidates.push({
-          ocrConfidence: structuredResult.data.confidence ?? 0,
-          parsed: parseReceipt(structuredText, structuredLines),
-          pass: "structured",
-          text: structuredText,
-          lines: structuredLines,
+          ocrConfidence: result.data.confidence ?? 0,
+          parsed: parseReceipt(text, lines),
+          pass,
+          text,
+          lines,
         });
+      };
+
+      // The real Springwood Coles receipt is clearer before global contrast
+      // normalisation. Read the original image first and only enhance it as a
+      // fallback. This avoids erasing faint prices at the right edge of the paper.
+      await recognise(file, "structured", PSM.SINGLE_BLOCK, "Reading the original receipt…", 18, 25);
+
+      let currentBest = chooseReceiptCandidate(candidates);
+      if (!currentBest || needsReceiptFallback(currentBest)) {
+        await recognise(prepared, "structured", PSM.SINGLE_BLOCK, "Checking an enhanced receipt image…", 43, 25);
       }
 
-      if (!candidates.length || needsReceiptFallback(candidates[0])) {
-        passStart = 58;
-        passRange = 40;
-        await worker.setParameters({ tessedit_pageseg_mode: PSM.SPARSE_TEXT, preserve_interword_spaces: "1", user_defined_dpi: "300" });
-        setOcrStatus("Checking faint and separated receipt lines…");
-        const sparseResult = await worker.recognize(prepared, {}, { blocks: true });
-        const sparseLines = receiptLinesFromBlocks(sparseResult.data.blocks, sparseResult.data.text ?? "");
-        const sparseText = receiptLinesText(sparseLines).trim();
-        if (sparseText) {
-          candidates.push({
-            ocrConfidence: sparseResult.data.confidence ?? 0,
-            parsed: parseReceipt(sparseText, sparseLines),
-            pass: "sparse",
-            text: sparseText,
-            lines: sparseLines,
-          });
-        }
+      currentBest = chooseReceiptCandidate(candidates);
+      if (!currentBest || needsReceiptFallback(currentBest)) {
+        await recognise(prepared, "sparse", PSM.SPARSE_TEXT, "Checking faint and separated receipt lines…", 68, 30);
       }
 
       const best = chooseReceiptCandidate(candidates);
@@ -204,8 +211,12 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       const parsed = best.parsed;
       const safeToPopulate = canPopulateReceiptCandidate(best);
       const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
-      setRetailer(parsed.retailer || inferRetailer(best.text));
-      setPurchasedAt(parsed.purchasedAt ?? inferDate(best.text));
+      const allCandidateText = candidates.map((candidate) => candidate.text).join("\n");
+      const recoveredDate = parsed.purchasedAt
+        ?? candidates.map((candidate) => candidate.parsed.purchasedAt).find((value): value is string => Boolean(value))
+        ?? inferDate(allCandidateText);
+      setRetailer(parsed.retailer || inferRetailer(allCandidateText));
+      setPurchasedAt(recoveredDate ?? "");
       setTotal(safeToPopulate && parsed.total !== null ? parsed.total.toFixed(2) : "");
       setItems(extracted.length ? extracted : [makeItem()]);
       setOcrProgress(100);

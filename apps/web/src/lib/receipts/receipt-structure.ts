@@ -4,7 +4,7 @@ export type ReceiptLineRole = "header" | "product" | "quantity" | "promotion" | 
 export interface ClassifiedReceiptLine extends ReceiptOcrLine { role: ReceiptLineRole }
 
 const money = /-?\$?\s*\d+[.,]\d{2}\b/;
-const total = /^(?:grand\s+)?(?:total|[l1\[({]?[t7]?otal|tal)\b/i;
+const total = /^(?:grand\s+)?(?:total|l[o0]te!?l|[l1\[({]?[t7]?otal|tal)\b/i;
 const itemCount = /\b\d+\s+(?:items?|[1il]tens?)\b/i;
 const tender = /^(?:eft|ef[t1i]|cl\b|cf\]?\b|visa|mastercard|card|purchase|change)\b/i;
 const tax = /\b(?:gst|g3t|3st|gs[!1t])\b|^tax\b(?!\s+invoice)|\binc[i1l]?\s*uded\s+in\s+total\b|\bincluded\s+in\s+total\b/i;
@@ -47,8 +47,10 @@ function normaliseOcrLine(text: string) {
   let value = text.replace(/\s+/g, " ").trim();
   value = value.replace(/\$(\d{1,4})\s+(\d{2})(?=\s|$)/g, (_match, dollars: string, cents: string) => `$${dollars}.${cents}`);
   value = value.replace(/(\s)(\d{1,4})\s+(\d{2})\s*$/g, (_match, prefix: string, dollars: string, cents: string) => `${prefix}${dollars}.${cents}`);
-  if (/^(?:l?otal|tal|[\[({]?otal)\s+for\b/i.test(value)) {
-    value = value.replace(/^(?:l?otal|tal|[\[({]?otal)/i, "Total");
+  value = value.replace(/(\s)(\d{1,4})[.,](\d)\s*$/g, (_match, prefix: string, dollars: string, cents: string) => `${prefix}${dollars}.${cents}0`);
+  value = value.replace(/(\s)(\d{1,4})\s*[.,]\s*[oO]\s*$/g, (_match, prefix: string, dollars: string) => `${prefix}${dollars}.00`);
+  if (/^(?:l?[o0]te!?l|l?otal|tal|[\[({]?otal)\s+for\b/i.test(value)) {
+    value = value.replace(/^(?:l?[o0]te!?l|l?otal|tal|[\[({]?otal)/i, "Total");
   }
   return value;
 }
@@ -199,9 +201,9 @@ export function receiptLinesFromBlocks(blocks: TesseractBlock[] | null | undefin
     .filter(Boolean)
     .map((text) => ({ text, confidence: 0, bbox: null as ReceiptOcrBox | null }));
 
-  // Tesseract's aggregate text is substantially more coherent on the real crumpled
-  // Coles receipt than reconstructing strings from layout blocks. Prefer aggregate
-  // text for parsing and keep block geometry only as a fallback when text is absent.
+  // Tesseract's aggregate text is substantially more coherent on photographed
+  // receipts than rebuilding strings from noisy layout blocks. Prefer aggregate
+  // text for parsing and keep block geometry as a fallback when text is absent.
   if (fallbackLines.length > 0) return sanitiseReceiptLines(fallbackLines);
 
   const blockLines = blocks?.flatMap((block) => block.paragraphs ?? []).flatMap((paragraph) => paragraph.lines ?? []).map((line) => ({
