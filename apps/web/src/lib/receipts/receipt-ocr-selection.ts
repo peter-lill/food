@@ -43,5 +43,6 @@ export function canPopulateReceiptCandidate(candidate: ReceiptOcrCandidate) {
   return Boolean(candidate.parsed.retailer)
     && candidate.parsed.diagnostics.totalLine !== null
     && candidate.parsed.total !== null
-    && candidate.parsed.items.length >= 3;
+    && candidate.parsed.items.length >= 3
+    && candidate.parsed.warnings.length === 0;
 }
