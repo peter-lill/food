@@ -3,6 +3,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { productDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 
 const apply = process.argv.includes("--apply");
 
@@ -13,11 +14,17 @@ function words(value: string) {
 function replacementName(currentName: string, listingNames: string[]) {
   const current = normaliseProductText(currentName);
   if (words(currentName).length !== 1 || !current) return null;
-  const candidates = [...new Set(listingNames.map((name) => name.trim()).filter(Boolean))]
-    .filter((name) => words(name).length >= 2)
-    .filter((name) => new RegExp(`\\b${current}\\b`, "i").test(normaliseProductText(name)))
-    .sort((left, right) => right.length - left.length);
-  return candidates[0] ?? null;
+  const currentConcept = identifyGrocery(currentName);
+  if (currentConcept) return currentConcept.canonicalName;
+
+  // A generic word such as "Mix" must never inherit whichever linked retailer
+  // title happens to be longest. Only repair when every recognised listing
+  // independently resolves to the same grocery concept.
+  const identities = listingNames
+    .map((name) => identifyGrocery(name)?.canonicalName ?? null)
+    .filter((name): name is string => Boolean(name));
+  if (!identities.length || identities.length !== listingNames.length) return null;
+  return new Set(identities).size === 1 ? identities[0] : null;
 }
 
 async function main() {

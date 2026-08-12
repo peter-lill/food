@@ -205,6 +205,10 @@ assert.equal(
   "recipe preparation language must resolve to the purchasable stock cube",
 );
 assert.equal(parseProductName("2 slices toast").canonicalName, "Toast", "recipe quantity units must not become the product name");
+assert.equal(parseProductName("Greek style natural yoghurt mixed with dill").canonicalName, "Greek Yoghurt", "recipe serving instructions must not create product identities");
+assert.equal(identifyGrocery("Coles Broccoli Medium approx. 340g")?.canonicalName, "Broccoli", "retailer produce wording must resolve to the produce concept");
+assert.equal(identifyGrocery("Coles Cauliflower Medium 1 Each")?.canonicalName, "Cauliflower", "retailer size wording must not become canonical produce identity");
+assert.equal(identifyGrocery("Woolworths Dill Fresh Herb 15g")?.canonicalName, "Dill", "retailer herb wording must resolve to the herb concept");
 console.log("Recipe preparation suffix regression checks passed.");
 
 assert.equal(genericImageIdentity("Chicken Breast Horizontally"), "Chicken Breast");

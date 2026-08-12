@@ -58,6 +58,8 @@ const synonymGroups: Array<{ canonical: string; aliases: string[] }> = [
       "greek natural yogurt",
       "natural greek yogurt",
       "plain greek yogurt",
+      "greek style natural yoghurt",
+      "greek style natural yogurt",
     ],
   },
   { canonical: "lime juice", aliases: ["juice of lime"] },
@@ -101,6 +103,8 @@ const preparationTerms = [
 const recipePreparationSuffixes = [
   /\btrimmed\s+of\s+woody\s+stalks?\b.*$/i,
   /\bcut\s+into\s+(?:(?:\d+(?:\.\d+)?)\s*)?(?:cm|centimetres?)?\s*(?:pieces?|slices?|wedges?|cubes?)\b.*$/i,
+  /\bmixed\s+with\b.*$/i,
+  /\bto\s+(?:serve|garnish)\b.*$/i,
 ];
 
 const removableWords = new Set([

@@ -32,7 +32,12 @@ const genericFoodTerms = [
 const unsuitableCommonsWords = [
   "diagram", "drawing", "icon", "logo", "map", "painting", "poster", "seal", "symbol",
   "schizophyllum", "spore", "microscopy", "fungus",
+  "cooked", "dish", "recipe", "salad", "sauce", "stir fry", "with oyster",
 ] as const;
+
+const incompatibleProduceWords: Record<string, readonly string[]> = {
+  broccoli: ["chinese broccoli", "broccolini", "rapini", "gai lan", "kai lan"],
+};
 
 const commonsQueries: Record<string, string> = {
   mushroom: "button mushroom Agaricus bisporus food",
@@ -179,11 +184,12 @@ async function wikimediaFoodImages(identity: string) {
       const title = normalise(page.title ?? "");
       const matchedTerms = identityTerms.filter((term) => title.includes(term)).length;
       const unsuitable = unsuitableCommonsWords.some((word) => title.includes(word));
+      const incompatible = (incompatibleProduceWords[identity] ?? []).some((word) => title.includes(word));
       const landscapePenalty = info?.width && info?.height && info.width / info.height > 3 ? 1 : 0;
       return {
         url: info?.thumburl ?? info?.url ?? null,
         title: page.title ?? identity,
-        score: Math.round((matchedTerms / Math.max(1, identityTerms.length)) * 100) - (unsuitable ? 100 : 0) - landscapePenalty * 20,
+        score: Math.round((matchedTerms / Math.max(1, identityTerms.length)) * 100) - (unsuitable || incompatible ? 100 : 0) - landscapePenalty * 20,
         mime: info?.mime ?? "",
       };
     })
