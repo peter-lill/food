@@ -228,4 +228,46 @@ assert.equal(liveDeployed.items.reduce((sum, item) => sum + item.quantity, 0), 1
 assert.deepEqual(liveDeployed.warnings, []);
 assert.equal(canPopulateReceiptCandidate(liveDeployedCandidate), true, `exact live PNG candidate should populate: ${receiptCandidatePopulationProblems(liveDeployedCandidate).join(", ")}`);
 
+// Exact SINGLE_BLOCK OCR from the complete phone-camera image supplied after
+// PR #154. The Description heading gained debris on both sides, which previously
+// allowed store/register/date preamble rows to become nine fake products.
+const completePhonePhoto = `
+Seta oles Supermarkets Australia pty Ltd
+I I Rice ABN I 004 189 708 .
+s Store: 4089 CS YAMANTO
+- Store Manage Jamie B '
+JIE 07 3173 6300 Ly
+I Ccrved Bye Assisted Checkout Ba
+I Register: 116 Receipt: 99
+JES 09/08/2026 Time: 14:20 f -
+5 Description $ Lids -
+BE: coc MAX COLA 1.25LTTRE 16.00 a
+4 @ $4.00 EACH
+PEPST OR SOLO 1.25.2 FOR $4.8 -$6.40
+LES SUGAR RAW 2KG 3.20 a
+DARE ESPRESSO 750ML 750ML 4.50
+T1CE BREAK ICED COFFE 500ML 2.90
+MIL KYRAR CHOC BLOCK 170GRAM 3.75
+4KITKAT COOKIE DOUGH 170GRAM 3.19
+BN iKTT KAT CHUNKY AERO 1S5GRAM 3.75
+HAWAIIAN PIZZA SCROL 2PACK 4.15
+lotal for 11 items: $35.60
+EF] $25.00
+EF] $10.60
+GST INCLUDED IN TOTAL $2.57
+Coles
+09/08/26
+`;
+const completePhoneLines = receiptLinesFromBlocks(undefined, completePhonePhoto);
+const completePhoneParsed = parseReceipt(receiptLinesText(completePhoneLines), completePhoneLines);
+const completePhoneCandidate = { ocrConfidence: 53, parsed: completePhoneParsed, pass: "structured" as const, text: receiptLinesText(completePhoneLines), lines: completePhoneLines };
+assert.equal(completePhoneParsed.items.some((item) => /Store Manage|Assisted Checkout|Register|Receipt: 99|Description/i.test(item.description)), false, "preamble above a damaged Description heading must not become products");
+assert.equal(completePhoneParsed.retailer, "Coles");
+assert.equal(completePhoneParsed.purchasedAt, "2026-08-09");
+assert.equal(completePhoneParsed.total, 35.6);
+assert.equal(completePhoneParsed.items.length, 8);
+assert.equal(completePhoneParsed.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.match(completePhoneParsed.warnings.join("\n"), /differs from the receipt total/, "one OCR-damaged price should remain explicitly reviewable");
+assert.equal(canPopulateReceiptCandidate(completePhoneCandidate), true, `complete phone photo should populate: ${receiptCandidatePopulationProblems(completePhoneCandidate).join(", ")}`);
+
 console.log("Yamanto production receipt regression checks passed.");

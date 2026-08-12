@@ -12,6 +12,7 @@ const tender = /^(?:eft|ef[t1i]|cl\b|cf\]?\b|visa|mastercard|card|purchase|chang
 const tax = /\b(?:gst|g3t|3st|gs[!1t])\b|^tax\b(?!\s+invoice)|\binc[i1l]?\s*uded\s+in\s+total\b|\bincluded\s+in\s+total\b/i;
 const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for(?:\s+\$?\d)?)/i;
 const header = /^(?:coles|woolworths|tax invoice|store|phone|served by|register|receipt|date|time|description)\b/i;
+const merchandiseHeader = /\bdescr(?:iption|[i1l]pt[i1l]on)\b/i;
 const receiptDate = /^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}(?:\s+\d{1,2}:\d{2})?\b/;
 const footer = /^(?:expiry|balance|rrn|apsn|merchant|approved)\b/i;
 const terminalMoney = /(-?\$?\s*\d+[.,]\d{2})\s*$/;
@@ -66,7 +67,7 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
   else if (tender.test(text)) role = "tender";
   else if (tax.test(text)) role = "tax";
   else if (promotion.test(text)) role = "promotion";
-  else if ((header.test(text) || hasKnownRetailerIdentity(text)) && !money.test(text)) role = "header";
+  else if ((header.test(text) || merchandiseHeader.test(text) || hasKnownRetailerIdentity(text)) && !money.test(text)) role = "header";
   else if (receiptDate.test(text)) role = "header";
   else if (footer.test(text)) role = "footer";
   else if (/^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(text)) role = "quantity";
@@ -144,6 +145,25 @@ function sanitiseReceiptLines(lines: ReceiptOcrLine[]) {
   const classified = classifyReceiptLines(lines);
   let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
   const taxIndex = classified.findIndex((line) => line.role === "tax");
+
+  // Product-table headings often retain the word Description but gain leading
+  // and trailing OCR debris. It remains a reliable merchandise boundary: discard
+  // product-like and unknown preamble rows before it while retaining retailer and
+  // date metadata classified as headers.
+  const merchandiseHeaderIndex = classified.findIndex((line, index) =>
+    index < (totalIndex < 0 ? classified.length : totalIndex) && merchandiseHeader.test(line.text));
+  if (merchandiseHeaderIndex >= 0) {
+    for (let index = 0; index <= merchandiseHeaderIndex; index += 1) {
+      const embeddedDate = classified[index].text.match(/\b\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}\b/)?.[0];
+      const metadataWorthRetaining = hasKnownRetailerIdentity(classified[index].text)
+        || Boolean(embeddedDate);
+      if (embeddedDate && classified[index].role !== "header") {
+        classified[index] = { ...classified[index], text: embeddedDate, role: "header" };
+      } else if (!metadataWorthRetaining) {
+        classified[index] = { ...classified[index], role: "footer" };
+      }
+    }
+  }
 
   // On real Coles camera OCR the Description label can disappear while the lone
   // price-column "$" survives. Treat that column marker as the merchandise start
