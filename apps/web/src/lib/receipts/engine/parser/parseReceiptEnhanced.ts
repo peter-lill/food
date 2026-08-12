@@ -36,10 +36,27 @@ function cleanDescription(value: string) {
 }
 
 function detectDate(text: string) {
-  const match = text.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/);
-  if (!match) return null;
-  const year = match[3].length === 2 ? `20${match[3]}` : match[3];
-  return `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  const candidates = text.split(/\r?\n/).flatMap((line, lineIndex) => {
+    const matches = [...line.matchAll(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/g)];
+    return matches.map((match) => {
+      const raw = match[0];
+      const before = line.slice(0, match.index ?? 0);
+      const labelled = /\bdate\s*[:\-]?\s*$/i.test(before);
+      const beginsLine = line.trim().startsWith(raw);
+      const score = (labelled ? 5 : 0) + (beginsLine ? 4 : 0) + (match[3].length === 4 ? 1 : 0);
+      return { match, lineIndex, score };
+    });
+  });
+  const best = candidates.sort((left, right) => right.score - left.score || right.lineIndex - left.lineIndex)[0];
+  if (!best) return null;
+  const [, dayValue, monthValue, yearValue] = best.match;
+  const day = Number(dayValue);
+  const month = Number(monthValue);
+  const year = Number(yearValue.length === 2 ? `20${yearValue}` : yearValue);
+  if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000 || year > 2100) return null;
+  const candidate = new Date(Date.UTC(year, month - 1, day));
+  if (candidate.getUTCFullYear() !== year || candidate.getUTCMonth() !== month - 1 || candidate.getUTCDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function findReceiptTotal(lines: string[], recoverFromTender = false) {
@@ -131,11 +148,36 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
     if (transactionIndex >= 0) return { start: transactionIndex + 1, end: totalIndex };
   }
 
-  const firstProductIndex = lines.findIndex((line, index) => index < totalIndex
-    && (moneyValues(line).some((value) => value > 0) || /[a-z]{4,}/i.test(line))
+  const isPricedMerchandise = (line: string) => moneyValues(line).some((value) => value > 0)
+    && /[a-z]{2,}/i.test(line)
     && !headerMarker.test(line)
-    && !summaryMarker.test(line));
-  return { start: Math.max(0, firstProductIndex), end: totalIndex };
+    && !summaryMarker.test(line)
+    && !paymentMarker.test(line)
+    && !promotionMarker.test(line);
+
+  // Split-digit repair can make ABN/header debris look like a price (for example
+  // `89 70` -> `89.70`). Require merchandise continuity after the first priced row:
+  // another priced product, a quantity row, or a promotion must follow nearby.
+  const firstProductIndex = lines.findIndex((line, index) => {
+    if (index >= totalIndex || !isPricedMerchandise(line)) return false;
+    return lines.slice(index + 1, Math.min(totalIndex, index + 4)).some((candidate) =>
+      isPricedMerchandise(candidate)
+      || /^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(candidate)
+      || promotionMarker.test(candidate));
+  });
+  if (firstProductIndex < 0) return { start: totalIndex, end: totalIndex };
+
+  // A recognized table heading may have been removed by structural sanitising.
+  // Preserve a small contiguous run of product-looking rows immediately before the
+  // first priced product when OCR lost only their prices (Springwood litter/milk).
+  let start = firstProductIndex;
+  for (let index = firstProductIndex - 1; index >= Math.max(0, firstProductIndex - 3); index -= 1) {
+    const candidate = lines[index];
+    const hasPackShape = /\b\d+(?:\.\d+)?\s*(?:ml|l|litres?|liters?|g|grams?|kg|packs?)\b/i.test(candidate);
+    if (!hasPackShape || !/[a-z]{3,}/i.test(candidate) || headerMarker.test(candidate) || summaryMarker.test(candidate)) break;
+    start = index;
+  }
+  return { start, end: totalIndex };
 }
 
 function parsePhotoItems(lines: string[], start: number, end: number, receiptTotal: number | null) {

@@ -55,6 +55,21 @@ function similarity(left: string, right: string) {
   return 1 - distance(left, right) / Math.max(left.length, right.length);
 }
 
+function packScore(ocrPack: string, candidatePack: string) {
+  if (ocrPack === candidatePack) return .16;
+  const ocrMatch = ocrPack.match(/^(\d+)(g|ml|pack)$/);
+  const candidateMatch = candidatePack.match(/^(\d+)(g|ml|pack)$/);
+  if (ocrMatch && candidateMatch && ocrMatch[2] === candidateMatch[2]
+    && ocrMatch[1].length === candidateMatch[1].length
+    && distance(ocrMatch[1], candidateMatch[1]) === 1) {
+    // Receipt OCR commonly confuses one digit in dense pack sizes (for example
+    // 155g -> 135g). Keep a small positive signal when the product wording is
+    // otherwise strong; exact pack-size candidates still outrank this recovery.
+    return .04;
+  }
+  return -.65;
+}
+
 function expandedTokens(value: string) {
   const base = tokens(value);
   return [...base, ...base.slice(0, -1).map((token, index) => token + base[index + 1])];
@@ -78,7 +93,7 @@ export function matchReceiptProduct(ocr: string, candidates: ReceiptProductCandi
     const best = names.map((name) => scoreName(ocr, name)).sort((left, right) => right.score - left.score)[0] ?? { score: 0, matches: 0 };
     const candidatePack = pack([candidate.packSize, ...names].filter(Boolean).join(" "));
     let score = best.score;
-    if (ocrPack && candidatePack) score += ocrPack === candidatePack ? .16 : -.65;
+    if (ocrPack && candidatePack) score += packScore(ocrPack, candidatePack);
     return { candidate, score, matches: best.matches };
   }).sort((left, right) => right.score - left.score);
 
