@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { stageReceiptCapture } from "@/lib/receipts/staged-receipt-capture";
-import { visibleFrameSourceCrop } from "@/lib/receipts/camera-frame-crop";
+import { projectCropToImage, visibleFrameSourceCrop } from "@/lib/receipts/camera-frame-crop";
 import styles from "./scan.module.css";
 
 export function ReceiptCamera() {
@@ -54,7 +54,6 @@ export function ReceiptCamera() {
     setCapturing(true);
     setStatus("Saving receipt photo…");
     try {
-      const canvas = document.createElement("canvas");
       const videoBounds = video.getBoundingClientRect();
       const frameBounds = frame.getBoundingClientRect();
       const crop = visibleFrameSourceCrop(
@@ -63,11 +62,41 @@ export function ReceiptCamera() {
         { left: frameBounds.left, top: frameBounds.top, width: frameBounds.width, height: frameBounds.height },
       );
       if (!crop) throw new Error("The visible receipt frame could not be captured. Please retake the photo.");
-      canvas.width = Math.round(crop.width);
-      canvas.height = Math.round(crop.height);
+      const track = (video.srcObject as MediaStream | null)?.getVideoTracks()[0];
+      const ImageCaptureConstructor = (globalThis as typeof globalThis & {
+        ImageCapture?: new (track: MediaStreamTrack) => { takePhoto(): Promise<Blob> };
+      }).ImageCapture;
+      let source: CanvasImageSource = video;
+      let sourceCrop = crop;
+      let capturedBitmap: ImageBitmap | null = null;
+      if (track && ImageCaptureConstructor) {
+        try {
+          const fullResolutionPhoto = await new ImageCaptureConstructor(track).takePhoto();
+          capturedBitmap = await createImageBitmap(fullResolutionPhoto);
+          const projectedCrop = projectCropToImage(
+            crop,
+            { width: video.videoWidth, height: video.videoHeight },
+            { width: capturedBitmap.width, height: capturedBitmap.height },
+          );
+          if (projectedCrop) {
+            source = capturedBitmap;
+            sourceCrop = projectedCrop;
+          }
+        } catch (error) {
+          console.warn("Full-resolution receipt photo unavailable; using the camera stream frame", error);
+        }
+      }
+      if (sourceCrop.width < 900) {
+        capturedBitmap?.close();
+        throw new Error("The camera did not provide enough receipt detail. Move closer or choose a saved photo.");
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(sourceCrop.width);
+      canvas.height = Math.round(sourceCrop.height);
       const context = canvas.getContext("2d");
       if (!context) throw new Error("The receipt image could not be prepared.");
-      context.drawImage(video, crop.left, crop.top, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
+      context.drawImage(source, sourceCrop.left, sourceCrop.top, sourceCrop.width, sourceCrop.height, 0, 0, canvas.width, canvas.height);
+      capturedBitmap?.close();
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
         (result) => result ? resolve(result) : reject(new Error("The receipt photo could not be captured.")),
         "image/jpeg",

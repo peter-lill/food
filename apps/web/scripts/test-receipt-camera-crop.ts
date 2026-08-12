@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { visibleFrameSourceCrop } from "../src/lib/receipts/camera-frame-crop";
+import { projectCropToImage, visibleFrameSourceCrop } from "../src/lib/receipts/camera-frame-crop";
 
 // Production-shaped mobile case: a landscape 1280x720 sensor is displayed as
 // a portrait 390x844 object-fit:cover preview. The saved file must be the guide,
@@ -15,6 +15,13 @@ assert.deepEqual(
   { left: 487, top: 89, width: 305, height: 418 },
 );
 assert.ok(mobileCrop.width < 1280 / 3, "portrait preview should exclude landscape content hidden by object-fit cover");
+const fullResolutionCrop = projectCropToImage(mobileCrop, { width: 1280, height: 720 }, { width: 4032, height: 3024 });
+assert.ok(fullResolutionCrop);
+assert.deepEqual(
+  Object.fromEntries(Object.entries(fullResolutionCrop).map(([key, value]) => [key, Math.round(value)])),
+  { left: 1535, top: 657, width: 962, height: 1317 },
+);
+assert.ok(fullResolutionCrop.width >= 900, "the full-resolution still must preserve enough receipt pixels for OCR");
 
 const matchingAspect = visibleFrameSourceCrop(
   { width: 1000, height: 1500 },
