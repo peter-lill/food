@@ -186,4 +186,46 @@ console.log("Yamanto camera candidates", browserCandidates.map((candidate) => ({
   selected: candidate === selectedBrowserCandidate,
 })));
 
+// Exact SINGLE_BLOCK aggregate OCR captured from the PNG supplied after PR #149.
+// Its retailer name appears only as the damaged footer word "Colgg" and its
+// quantity row lacks both a readable leading digit and @ symbol.
+const liveDeployedPsm6 = `
+| ckout =O
+Receipt ) 4
+¢ Time: 14:4
+$
+MAX COLA 1.25LTTRE 16.00
+a $4.00 EACH Be
+¢ S000 1.25. 2 FOR $4.8 _ $6.40
+JAR RAW 2KG 3.2
+£SS0 750M 750ML 4.50
+AK ICED COFFE 500M. 2.90
+MILKYBAR CHOC BLOCK 170GRAM 3.75
+KITK# JOKIE DOUGH 170GRAM 3 J
+KIT Kf HUNKY AERO 155GRAM 3.79
+AWAITAN PIZZA SCROL 2PACK 4.19
+tal for 11 items; $35.60
+: $25.00
+j $10.60
+GST INCLUDED IN TOIAl $2 57
+Colgg
+09/08/26
+627340 2
+EXPIRY
+PURCHASE
+BALANCE
+RRN 001 4
+`;
+const liveDeployedLines = receiptLinesFromBlocks(undefined, liveDeployedPsm6);
+assert.equal(liveDeployedLines.some((line) => line.text === "Colgg"), true, "an OCR-damaged retailer identity after the total must survive sanitising");
+const liveDeployed = parseReceipt(receiptLinesText(liveDeployedLines), liveDeployedLines);
+const liveDeployedCandidate = { ocrConfidence: 74, parsed: liveDeployed, pass: "structured" as const, text: receiptLinesText(liveDeployedLines), lines: liveDeployedLines };
+assert.equal(liveDeployed.retailer, "Coles");
+assert.equal(liveDeployed.purchasedAt, "2026-08-09");
+assert.equal(liveDeployed.total, 35.6);
+assert.equal(liveDeployed.items.length, 8);
+assert.equal(liveDeployed.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.deepEqual(liveDeployed.warnings, []);
+assert.equal(canPopulateReceiptCandidate(liveDeployedCandidate), true, `exact live PNG candidate should populate: ${receiptCandidatePopulationProblems(liveDeployedCandidate).join(", ")}`);
+
 console.log("Yamanto production receipt regression checks passed.");

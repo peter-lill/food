@@ -4,6 +4,7 @@ import type {
   ReceiptParserDiagnostics,
   ReceiptRetailer,
 } from "./types";
+import { hasRetailerIdentity } from "../../receipt-retailer-identity";
 
 const retailerProfiles: Array<{
   key: ReceiptRetailer;
@@ -82,7 +83,7 @@ function normaliseLines(text: string) {
 
 function detectRetailer(text: string) {
   for (const profile of retailerProfiles) {
-    if (profile.markers.some((marker) => marker.test(text))) {
+    if (profile.markers.some((marker) => marker.test(text)) || (profile.key !== "generic" && hasRetailerIdentity(text, profile.key))) {
       return { retailer: profile.displayName, retailerKey: profile.key };
     }
   }
@@ -191,7 +192,7 @@ function parseWoolworths(lines: string[]): ParserResult {
   let started = false;
   let inItems = false;
 
-  const quantityPattern = /\bqty\s+(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
+  const quantityPattern = /^\s*(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
 
   for (const line of lines) {
     if (/^\s*description\b/i.test(line)) {
@@ -284,7 +285,7 @@ function parseAldi(lines: string[]): ParserResult {
   let started = false;
 
   const productPattern = /^(\d{5,8})\s+(.+?)\s+(\d+[.,]\d{2})\s+[A-Z]\s*$/i;
-  const quantityPattern = /^\s*qty\s+(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*ea\.?/i;
+  const quantityPattern = /^\s*(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
 
   for (const line of lines) {
     if (/^\s*subtotal\b/i.test(line) || /^\s*credit\s+surcharge\b/i.test(line) || /^\s*total\s*\(?incl/i.test(line)) {
@@ -455,9 +456,25 @@ function parseGeneric(lines: string[], detectedTotal: number | null): ParserResu
   const items: ParsedReceiptItem[] = [];
   const adjustments: ParsedAdjustment[] = [];
   let buffer = "";
+  const quantityPattern = /^\s*(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?/i;
 
   for (const line of itemSectionLines) {
     if (shouldIgnore(line) || containsHardStop(line)) {
+      buffer = "";
+      continue;
+    }
+
+    const quantityMatch = line.match(quantityPattern);
+    const previous = items.at(-1);
+    if (quantityMatch && previous) {
+      const quantity = Number(quantityMatch[1]);
+      const unitPrice = parseMoney(quantityMatch[2]);
+      if (Number.isFinite(quantity) && unitPrice !== null) {
+        previous.quantity = quantity;
+        previous.price = Math.round(quantity * unitPrice * 100) / 100;
+        previous.sourceText = `${previous.sourceText} | ${line}`;
+        previous.confidence = 98;
+      }
       buffer = "";
       continue;
     }

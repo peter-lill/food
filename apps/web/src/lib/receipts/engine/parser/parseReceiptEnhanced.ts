@@ -1,6 +1,7 @@
 import { parseReceipt as parseBaseReceipt } from "./parseReceipt";
 import type { ParsedReceipt, ParsedReceiptItem, ReceiptParserDiagnostics } from "./types";
 import { classifyReceiptLines, type ReceiptOcrLine } from "../../receipt-structure";
+import { hasRetailerIdentity } from "../../receipt-retailer-identity";
 
 const moneyPattern = /-?\$?\s*\d+[.,]\d{2}\b/g;
 const paymentMarker = /^(?:payment|payments?|eft|eftpos|visa|mastercard|merch\s+id|card|purchase|change)\b/i;
@@ -280,7 +281,7 @@ function structurallySafeText(text: string, ocrLines?: ReceiptOcrLine[]) {
 
 export function parseReceipt(text: string, ocrLines?: ReceiptOcrLine[]): ParsedReceipt {
   const safeText = structurallySafeText(text, ocrLines);
-  if (/\bwoolworths\b|everyday rewards|\bereceipt\b/i.test(safeText)) return parsePhotoReceipt(safeText, "Woolworths");
-  if (/\bcoles\b|coles supermarkets|45\s+004\s+189\s+708/i.test(safeText)) return parsePhotoReceipt(safeText, "Coles");
+  if (hasRetailerIdentity(safeText, "woolworths")) return parsePhotoReceipt(safeText, "Woolworths");
+  if (hasRetailerIdentity(safeText, "coles")) return parsePhotoReceipt(safeText, "Coles");
   return parseBaseReceipt(safeText);
 }
