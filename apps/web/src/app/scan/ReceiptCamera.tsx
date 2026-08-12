@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { stageReceiptCapture } from "@/lib/receipts/staged-receipt-capture";
+import { visibleFrameSourceCrop } from "@/lib/receipts/camera-frame-crop";
 import styles from "./scan.module.css";
 
 export function ReceiptCamera() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const [status, setStatus] = useState("Starting the rear camera…");
   const [capturing, setCapturing] = useState(false);
 
@@ -23,7 +25,7 @@ export function ReceiptCamera() {
       try {
         stream = await navigator.mediaDevices.getUserMedia({
           audio: false,
-          video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
         });
         if (cancelled || !videoRef.current) {
           stream.getTracks().forEach((track) => track.stop());
@@ -47,16 +49,25 @@ export function ReceiptCamera() {
 
   async function captureReceipt() {
     const video = videoRef.current;
-    if (!video || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || capturing) return;
+    const frame = frameRef.current;
+    if (!video || !frame || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA || capturing) return;
     setCapturing(true);
     setStatus("Saving receipt photo…");
     try {
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      const videoBounds = video.getBoundingClientRect();
+      const frameBounds = frame.getBoundingClientRect();
+      const crop = visibleFrameSourceCrop(
+        { width: video.videoWidth, height: video.videoHeight },
+        { left: videoBounds.left, top: videoBounds.top, width: videoBounds.width, height: videoBounds.height },
+        { left: frameBounds.left, top: frameBounds.top, width: frameBounds.width, height: frameBounds.height },
+      );
+      if (!crop) throw new Error("The visible receipt frame could not be captured. Please retake the photo.");
+      canvas.width = Math.round(crop.width);
+      canvas.height = Math.round(crop.height);
       const context = canvas.getContext("2d");
       if (!context) throw new Error("The receipt image could not be prepared.");
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      context.drawImage(video, crop.left, crop.top, crop.width, crop.height, 0, 0, canvas.width, canvas.height);
       const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(
         (result) => result ? resolve(result) : reject(new Error("The receipt photo could not be captured.")),
         "image/jpeg",
@@ -74,7 +85,7 @@ export function ReceiptCamera() {
   return (
     <div className={styles.receiptCamera}>
       <video aria-label="Live receipt camera preview" autoPlay data-food-scanner-video muted playsInline ref={videoRef} />
-      <div className={styles.receiptFrame} aria-hidden="true" />
+      <div className={styles.receiptFrame} aria-hidden="true" ref={frameRef} />
       <div className={styles.receiptStatus} role="status">{status}</div>
       <button aria-label="Take receipt photo" className={styles.shutterButton} disabled={capturing} onClick={() => void captureReceipt()} type="button"><span /></button>
     </div>
