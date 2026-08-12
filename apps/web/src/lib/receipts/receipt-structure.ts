@@ -143,6 +143,17 @@ function sanitiseReceiptLines(lines: ReceiptOcrLine[]) {
   let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
   const taxIndex = classified.findIndex((line) => line.role === "tax");
 
+  // On real Coles camera OCR the Description label can disappear while the lone
+  // price-column "$" survives. Treat that column marker as the merchandise start
+  // boundary and discard only unknown preamble fragments before it. Known retailer
+  // and date metadata are retained.
+  const priceColumnIndex = classified.findIndex((line, index) => index < (totalIndex < 0 ? classified.length : totalIndex) && /^\$$/.test(line.text));
+  if (priceColumnIndex >= 0) {
+    for (let index = 0; index <= priceColumnIndex; index += 1) {
+      if (classified[index].role === "unknown") classified[index] = { ...classified[index], role: "footer" };
+    }
+  }
+
   // In the production Yamanto scan the explicit total was lost, while two damaged
   // payment labels immediately before GST still carried $25.00 and $10.60. When at
   // least two consecutive weak/tender rows sit directly before tax, their sum is a
