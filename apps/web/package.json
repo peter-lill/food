@@ -26,7 +26,7 @@
     "products:starter-catalogue": "tsx scripts/seed-starter-catalogue.ts",
     "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
     "products:retailer-authority": "tsx scripts/enqueue-product-retailer-enrichment.ts --all",
-    "products:reconcile-categories": "tsx scripts/reconcile-product-categories.ts",
+    "products:reconcile-categories": "tsx scripts/reconcile-product-catalogue.ts",
     "products:refresh-missing-pack-sizes": "tsx scripts/enqueue-missing-retailer-pack-sizes.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",
@@ -55,7 +55,7 @@
     "recipes:pantry-shopping:test": "tsx scripts/test-recipe-pantry-shopping.ts",
     "planner:canonical:test": "tsx scripts/test-planner-canonical.ts",
     "navigation:test": "tsx scripts/test-navigation.ts",
-    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts && tsx scripts/test-receipt-yamanto-production.ts && tsx scripts/test-receipt-springwood-production.ts && tsx scripts/test-receipt-camera-crop.ts && tsx scripts/test-receipt-product-match.ts",
+    "receipts:parser:test": "tsx scripts/test-receipt-parser.ts && tsx scripts/test-receipt-yamanto-production.ts && tsx scripts/test-receipt-yamanto-post158.ts && tsx scripts/test-receipt-springwood-production.ts && tsx scripts/test-receipt-camera-crop.ts && tsx scripts/test-receipt-product-match.ts",
     "retailers:stores:test": "tsx scripts/test-coles-store-directory.ts",
     "retailers:coles:stores:import": "tsx scripts/import-coles-store-directory.ts",
     "recipes:sync:bhf": "node scripts/sync-bhf-recipes.mjs"
@@ -79,10 +79,10 @@
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react-dom": "^19.2.4",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
-    "prisma": "^7.8.0",
+    "prisma": "^7.9.0",
     "tsx": "^4.20.6",
     "typescript": "^5"
   }
