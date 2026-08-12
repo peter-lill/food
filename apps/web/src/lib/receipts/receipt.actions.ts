@@ -8,9 +8,31 @@ import { prisma } from "@/lib/prisma";
 import { ProductResolver } from "@/lib/product-intelligence";
 import { pantryLocations } from "@/lib/pantry/pantry.types";
 import type { ReceiptActionState } from "./receipt.types";
+import { matchReceiptProduct } from "./receipt-product-match";
 
 const maximumReceiptItems = 100;
 const maximumQuantity = 100_000;
+
+export async function matchReceiptProductNames(retailer: string, descriptions: string[]) {
+  const requested = descriptions.slice(0, maximumReceiptItems).map((value) => value.slice(0, 300));
+  if (!requested.length) return [];
+  const products = await prisma.product.findMany({
+    select: {
+      id: true, name: true, canonicalName: true, brand: true, packSize: true,
+      aliases: { select: { alias: true } },
+      storeProducts: {
+        where: retailer.trim() ? { retailer: { equals: retailer.trim(), mode: "insensitive" } } : undefined,
+        select: { retailerProductName: true },
+      },
+    },
+  });
+  const candidates = products.map((product) => ({
+    ...product,
+    aliases: product.aliases.map((entry) => entry.alias),
+    retailerNames: product.storeProducts.map((entry) => entry.retailerProductName),
+  }));
+  return requested.map((description) => ({ description, match: matchReceiptProduct(description, candidates) }));
+}
 
 function textValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();

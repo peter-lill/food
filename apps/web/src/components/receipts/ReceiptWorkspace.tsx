@@ -4,7 +4,7 @@ import { parseReceipt } from "@/lib/receipts/engine/parser";
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { createReceiptImport } from "@/lib/receipts/receipt.actions";
+import { createReceiptImport, matchReceiptProductNames } from "@/lib/receipts/receipt.actions";
 import {
   canPopulateReceiptCandidate,
   chooseReceiptCandidate,
@@ -224,7 +224,17 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         populationProblems: receiptCandidatePopulationProblems(candidate),
         selected: candidate === best,
       })));
-      const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
+      let matchedNames = new Map<string, string>();
+      if (safeToPopulate && parsed.items.length) {
+        setOcrStatus("Checking product wording against your catalogueâ€¦");
+        try {
+          const matches = await matchReceiptProductNames(parsed.retailer ?? "", parsed.items.map((item) => item.description));
+          matchedNames = new Map(matches.flatMap((entry) => entry.match ? [[entry.description, entry.match.name] as const] : []));
+        } catch (error) {
+          console.warn("Unable to match receipt wording to catalogue", error);
+        }
+      }
+      const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(matchedNames.get(item.description) ?? item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
       const allCandidateText = candidates.map((candidate) => candidate.text).join("\n");
       const recoveredDate = parsed.purchasedAt
         ?? candidates.map((candidate) => candidate.parsed.purchasedAt).find((value): value is string => Boolean(value))
@@ -241,7 +251,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         : extracted.length
         ? warning || unreliable
           ? `Found ${extracted.length} likely purchase ${extracted.length === 1 ? "line" : "lines"}, but the scan needs careful review.${warning ? ` ${warning}` : " Some receipt details could not be reconciled."}`
-          : `Found ${extracted.length} purchase ${extracted.length === 1 ? "line" : "lines"} and reconciled them with the receipt. Check the review below.`
+          : `Found ${extracted.length} purchase ${extracted.length === 1 ? "line" : "lines"} and reconciled them with the receipt.${matchedNames.size ? ` Corrected ${matchedNames.size} product ${matchedNames.size === 1 ? "name" : "names"} from your catalogue.` : ""} Check the review below.`
         : "The receipt header was read, but product lines need confirmation. Add them below.");
     } catch (error) {
       console.error("Unable to OCR receipt", error);
