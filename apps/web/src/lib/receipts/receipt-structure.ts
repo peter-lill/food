@@ -10,6 +10,7 @@ const tender = /^(?:eft|ef[t1i]|cl\b|cf\]?\b|visa|mastercard|card|purchase|chang
 const tax = /\b(?:gst|g3t|3st|gs[!1t])\b|^tax\b(?!\s+invoice)|\binc[i1l]?\s*uded\s+in\s+total\b|\bincluded\s+in\s+total\b/i;
 const promotion = /-\s*\$?\d+[.,]\d{2}\b|\b(?:promo|save|redeemed free|\d+\s+for(?:\s+\$?\d)?)/i;
 const header = /^(?:coles|woolworths|tax invoice|store|phone|served by|register|receipt|date|time|description)\b/i;
+const receiptDate = /^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}(?:\s+\d{1,2}:\d{2})?\b/;
 const footer = /^(?:expiry|balance|rrn|apsn|merchant|approved)\b/i;
 const terminalMoney = /(-?\$?\s*\d+[.,]\d{2})\s*$/;
 
@@ -64,6 +65,7 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
   else if (tax.test(text)) role = "tax";
   else if (promotion.test(text)) role = "promotion";
   else if (header.test(text) && !money.test(text)) role = "header";
+  else if (receiptDate.test(text)) role = "header";
   else if (footer.test(text)) role = "footer";
   else if (/^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(text)) role = "quantity";
   else if (money.test(text) && /[a-z]/i.test(text)) role = "product";
@@ -77,13 +79,16 @@ export function classifyReceiptLines(lines: ReceiptOcrLine[]) {
 
   // A damaged quantity row can look like a second tiny product. Use its numeric
   // relationship with the preceding line total to recover the row's structure.
+  // Real camera OCR can also lose the @ symbol while preserving the word EACH;
+  // in that case the ratio is more trustworthy than the damaged leading digit.
   for (let index = 1; index < classified.length; index += 1) {
     const previousAmount = moneyValues(classified[index - 1].text).at(-1);
     const unitAmount = moneyValues(classified[index].text).at(-1);
     const label = classified[index].text.replace(money, " ").trim();
     const ratio = previousAmount && unitAmount ? previousAmount / unitAmount : 0;
+    const explicitEach = /\beach\b/i.test(classified[index].text);
     if (classified[index - 1].role === "product" && classified[index].role === "product"
-      && (!/[a-z]{4,}/i.test(label) || weakMoneyDescription(classified[index].text))
+      && (explicitEach || !/[a-z]{4,}/i.test(label) || weakMoneyDescription(classified[index].text))
       && Number.isInteger(ratio) && ratio >= 2 && ratio <= 20) {
       classified[index] = { ...classified[index], text: `${ratio} @ $${unitAmount!.toFixed(2)} EACH`, role: "quantity" };
     }
@@ -137,6 +142,17 @@ function sanitiseReceiptLines(lines: ReceiptOcrLine[]) {
   const classified = classifyReceiptLines(lines);
   let totalIndex = classified.findIndex((line) => line.role === "total" || line.role === "item-count");
   const taxIndex = classified.findIndex((line) => line.role === "tax");
+
+  // On real Coles camera OCR the Description label can disappear while the lone
+  // price-column "$" survives. Treat that column marker as the merchandise start
+  // boundary and discard only unknown preamble fragments before it. Known retailer
+  // and date metadata are retained.
+  const priceColumnIndex = classified.findIndex((line, index) => index < (totalIndex < 0 ? classified.length : totalIndex) && /^\$$/.test(line.text));
+  if (priceColumnIndex >= 0) {
+    for (let index = 0; index <= priceColumnIndex; index += 1) {
+      if (classified[index].role === "unknown") classified[index] = { ...classified[index], role: "footer" };
+    }
+  }
 
   // In the production Yamanto scan the explicit total was lost, while two damaged
   // payment labels immediately before GST still carried $25.00 and $10.60. When at

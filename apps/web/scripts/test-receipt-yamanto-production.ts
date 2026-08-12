@@ -93,4 +93,49 @@ assert.equal(repaired.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.equal(repaired.items.some((item) => /2 FOR|Lhe AL|cme A|INCI UDED|RAY or/i.test(item.description)), false);
 assert.deepEqual(repaired.warnings, []);
 
+// Exact PSM 6 OCR captured from the uploaded 09/08/2026 Yamanto receipt photo.
+// This is intentionally not cleaned up: the regression protects the production
+// path against the damaged leading quantity digit, missing Description label,
+// footer date position and two unreadable terminal prices seen in the real image.
+const uploadedPhotoPsm6 = `
+j ' ckout RO
+Receipt ) ‘
+f Time: 14:
+$
+MAX COLA 1.25LITRE 16.00
+9 $4.00 EACH ery
+@ S0L0 1.25. 2 FOR $4.8 -$6.40
+VAR RAW 2KG 3.2
+FSSO 750ML 750M. 4.50
+AK ICED COFFE 5S00ML 2.90
+MILKYBAR CHOC BLOCK 170GRAM 3.75
+KI IKE OKIE DOUGH 170GRAM 3 1S
+KIT KF HUNKY AERO 155GRAM 3.75
+AWAIIAN PIZZA SCROL 2PACK a, 19
+tal for 11 items; $35.60
+. $25.00
+$10.60
+GS! INCLUDED IN TOTAL $2 5)
+Coles
+09/08/26
+627349 2
+EXPIRY
+PURCHASE
+BALANCE
+RRN 0014
+`;
+const uploadedPhotoLines = receiptLinesFromBlocks(undefined, uploadedPhotoPsm6);
+assert.equal(uploadedPhotoLines.some((line) => line.text === "4 @ $4.00 EACH"), true, "the real OCR's '9 $4.00 EACH' row must be repaired to quantity 4 from the $16.00 line total");
+assert.equal(uploadedPhotoLines.some((line) => line.text === "09/08/26"), true, "a footer-position receipt date must survive structural sanitising");
+assert.equal(uploadedPhotoLines.some((line) => /ckout RO|f Time/i.test(line.text)), false, "unknown preamble fragments before the price column must not become merchandise");
+
+const uploadedPhoto = parseReceipt(receiptLinesText(uploadedPhotoLines), uploadedPhotoLines);
+assert.equal(uploadedPhoto.retailer, "Coles");
+assert.equal(uploadedPhoto.purchasedAt, "2026-08-09");
+assert.equal(uploadedPhoto.total, 35.6);
+assert.equal(uploadedPhoto.items.length, 8);
+assert.equal(uploadedPhoto.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.equal(uploadedPhoto.items.filter((item) => item.price === null).length, 2, "unreadable prices should remain blank rather than causing the whole receipt to be discarded");
+assert.deepEqual(uploadedPhoto.warnings, []);
+
 console.log("Yamanto production receipt regression checks passed.");
