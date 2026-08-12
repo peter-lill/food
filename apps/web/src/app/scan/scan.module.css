@@ -84,8 +84,10 @@
 
 .receiptFrame {
   z-index: 2;
-  width: min(calc(100vw - 36px), 520px);
-  height: min(62dvh, calc(100dvh - 254px));
+  width: auto;
+  max-width: min(calc(100vw - 36px), 520px);
+  height: min(64dvh, calc(100dvh - 254px));
+  aspect-ratio: .54;
   border: 2px solid rgba(255, 255, 255, .96);
   border-radius: 16px;
   box-shadow: 0 0 0 999px rgba(0, 0, 0, .24), 0 0 34px rgba(255, 255, 255, .18);
@@ -169,5 +171,5 @@
 @media (max-width: 420px) {
   .scannerHeader strong { font-size: 16px; }
   .scannerHeader small { max-width: 210px; }
-  .receiptFrame { width: calc(100vw - 32px); height: min(62dvh, calc(100dvh - 250px)); }
+  .receiptFrame { max-width: calc(100vw - 32px); height: min(64dvh, calc(100dvh - 250px)); }
 }

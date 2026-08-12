@@ -33,7 +33,7 @@ export function ReceiptCamera() {
         }
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
-        setStatus("Hold steady and avoid glare.");
+        setStatus("Fit the entire receipt, including its total, inside the guide.");
       } catch (error) {
         console.error("Unable to start receipt camera", error);
         setStatus("Camera access failed. Check browser permission or choose a saved photo from Receipts.");
@@ -86,7 +86,7 @@ export function ReceiptCamera() {
           console.warn("Full-resolution receipt photo unavailable; using the camera stream frame", error);
         }
       }
-      if (sourceCrop.width < 900) {
+      if (sourceCrop.width < 700) {
         capturedBitmap?.close();
         throw new Error("The camera did not provide enough receipt detail. Move closer or choose a saved photo.");
       }
