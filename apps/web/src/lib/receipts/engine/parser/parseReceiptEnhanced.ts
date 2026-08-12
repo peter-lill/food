@@ -148,17 +148,23 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
     if (transactionIndex >= 0) return { start: transactionIndex + 1, end: totalIndex };
   }
 
-  // When the Description heading is badly damaged, alphabetic store/header debris
-  // must not define the merchandise boundary. A real merchandise section on Coles
-  // and Woolworths receipts contains a priced product row; start at the first such
-  // row and allow later unpriced OCR lines to remain reviewable within the section.
-  const firstProductIndex = lines.findIndex((line, index) => index < totalIndex
-    && moneyValues(line).some((value) => value > 0)
+  const isPricedMerchandise = (line: string) => moneyValues(line).some((value) => value > 0)
     && /[a-z]{2,}/i.test(line)
     && !headerMarker.test(line)
     && !summaryMarker.test(line)
     && !paymentMarker.test(line)
-    && !promotionMarker.test(line));
+    && !promotionMarker.test(line);
+
+  // Split-digit repair can make ABN/header debris look like a price (for example
+  // `89 70` -> `89.70`). Require merchandise continuity after the first priced row:
+  // another priced product, a quantity row, or a promotion must follow nearby.
+  const firstProductIndex = lines.findIndex((line, index) => {
+    if (index >= totalIndex || !isPricedMerchandise(line)) return false;
+    return lines.slice(index + 1, Math.min(totalIndex, index + 4)).some((candidate) =>
+      isPricedMerchandise(candidate)
+      || /^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(candidate)
+      || promotionMarker.test(candidate));
+  });
   return { start: firstProductIndex >= 0 ? firstProductIndex : totalIndex, end: totalIndex };
 }
 
