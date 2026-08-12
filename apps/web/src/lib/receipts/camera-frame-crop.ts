@@ -1,5 +1,25 @@
 export type Rectangle = { left: number; top: number; width: number; height: number };
 
+export function projectCropToImage(crop: Rectangle, sourceSize: { width: number; height: number }, imageSize: { width: number; height: number }) {
+  if (sourceSize.width <= 0 || sourceSize.height <= 0 || imageSize.width <= 0 || imageSize.height <= 0) return null;
+  // A still photo commonly uses the sensor's full 4:3 area while the preview is
+  // a centred 16:9 crop. Map through that cover crop instead of stretching it.
+  const previewScale = Math.max(sourceSize.width / imageSize.width, sourceSize.height / imageSize.height);
+  const hiddenLeft = (imageSize.width * previewScale - sourceSize.width) / 2;
+  const hiddenTop = (imageSize.height * previewScale - sourceSize.height) / 2;
+  const projected = {
+    left: (crop.left + hiddenLeft) / previewScale,
+    top: (crop.top + hiddenTop) / previewScale,
+    width: crop.width / previewScale,
+    height: crop.height / previewScale,
+  };
+  return projected.left >= 0 && projected.top >= 0
+    && projected.left + projected.width <= imageSize.width + 1
+    && projected.top + projected.height <= imageSize.height + 1
+    ? projected
+    : null;
+}
+
 export function visibleFrameSourceCrop(
   videoSize: { width: number; height: number },
   videoBounds: Rectangle,
