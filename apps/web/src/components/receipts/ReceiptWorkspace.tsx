@@ -7,6 +7,7 @@ import { useFormStatus } from "react-dom";
 import { createReceiptImport, matchReceiptProductNames } from "@/lib/receipts/receipt.actions";
 import {
   canPopulateReceiptCandidate,
+  chooseReceiptDate,
   chooseReceiptCandidate,
   needsReceiptFallback,
   receiptCandidatePopulationProblems,
@@ -236,8 +237,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       }
       const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(matchedNames.get(item.description) ?? item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
       const allCandidateText = candidates.map((candidate) => candidate.text).join("\n");
-      const recoveredDate = parsed.purchasedAt
-        ?? candidates.map((candidate) => candidate.parsed.purchasedAt).find((value): value is string => Boolean(value))
+      const recoveredDate = chooseReceiptDate(candidates)
         ?? inferDate(allCandidateText);
       setRetailer(parsed.retailer || inferRetailer(allCandidateText));
       setPurchasedAt(recoveredDate ?? "");

@@ -21,7 +21,10 @@ function normalise(value: string) {
 }
 
 function pack(value: string) {
-  const packText = normalise(value).replace(/(?<=\d)s(?=\d)/g, "5").replace(/(?<=\d)o(?=\d)/g, "0");
+  const packText = normalise(value)
+    .replace(/\bs(?=\d{2,}\s*(?:ml|g)\b)/g, "5")
+    .replace(/(?<=\d)s(?=\d)/g, "5").replace(/(?<=\d)o(?=\d)/g, "0")
+    .replace(/\b(\d+)\s+(\d{1,2})\s*(litres?|l)\b/g, "$1.$2$3");
   const match = packText.match(/(\d+(?:\.\d+)?)\s*(kg|g|grams?|litres?|l|ml|pack|pk)\b/);
   if (!match) return null;
   const amount = Number(match[1]);
@@ -34,7 +37,11 @@ function pack(value: string) {
 }
 
 function tokens(value: string) {
-  return normalise(value).split(" ").filter((token) => token.length > 1 && !noise.has(token) && !/^\d/.test(token));
+  const cleaned = normalise(value)
+    .replace(/^\s*\d+(?=[a-z])/, "")
+    .replace(/^\s*(?:\d+[a-z]?|[a-z]{1,2})\s+(?=[a-z0-9]*[a-z][a-z0-9]*\s)/i, "")
+    .replace(/(?<=[a-z])1(?=[a-z])/g, "i");
+  return cleaned.split(" ").filter((token) => token.length > 1 && !noise.has(token) && !/^\d/.test(token));
 }
 
 function distance(left: string, right: string) {
@@ -52,6 +59,8 @@ function distance(left: string, right: string) {
 
 function similarity(left: string, right: string) {
   if (left === right) return 1;
+  const [shorter, longer] = left.length <= right.length ? [left, right] : [right, left];
+  if (shorter.length >= 4 && longer.startsWith(shorter)) return .8;
   return 1 - distance(left, right) / Math.max(left.length, right.length);
 }
 
@@ -60,7 +69,7 @@ function packScore(ocrPack: string, candidatePack: string) {
   const ocrMatch = ocrPack.match(/^(\d+)(g|ml|pack)$/);
   const candidateMatch = candidatePack.match(/^(\d+)(g|ml|pack)$/);
   if (ocrMatch && candidateMatch && ocrMatch[2] === candidateMatch[2]
-    && ocrMatch[1].length === candidateMatch[1].length
+    && Math.abs(ocrMatch[1].length - candidateMatch[1].length) <= 1
     && distance(ocrMatch[1], candidateMatch[1]) === 1) {
     // Receipt OCR commonly confuses one digit in dense pack sizes (for example
     // 155g -> 135g). Keep a small positive signal when the product wording is
@@ -94,8 +103,14 @@ export function matchReceiptProduct(ocr: string, candidates: ReceiptProductCandi
     const candidatePack = pack([candidate.packSize, ...names].filter(Boolean).join(" "));
     let score = best.score;
     if (ocrPack && candidatePack) score += packScore(ocrPack, candidatePack);
-    return { candidate, score, matches: best.matches };
-  }).sort((left, right) => right.score - left.score);
+    const ocrTerms = expandedTokens(ocr);
+    const displayTerms = tokens(candidate.canonicalName ?? candidate.name);
+    // The first display token is commonly a catalogue-backed brand/retailer.
+    // Later unmatched tokens are product variants (for example Mint) and must
+    // never be invented when the receipt did not establish them.
+    const unsupportedSpecificity = displayTerms.slice(1).some((term) => !ocrTerms.some((ocrTerm) => similarity(ocrTerm, term) >= .72));
+    return { candidate, score, matches: best.matches, unsupportedSpecificity };
+  }).filter((entry) => !entry.unsupportedSpecificity).sort((left, right) => right.score - left.score);
 
   const best = ranked[0];
   const runnerUp = ranked[1];
