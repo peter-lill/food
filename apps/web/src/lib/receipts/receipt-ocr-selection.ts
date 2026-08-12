@@ -45,7 +45,10 @@ export function canPopulateReceiptCandidate(candidate: ReceiptOcrCandidate) {
 
 export function receiptCandidatePopulationProblems(candidate: ReceiptOcrCandidate) {
   const problems: string[] = [];
-  if (!candidate.parsed.retailer) problems.push("missing retailer");
+  // Retailer OCR is metadata, not evidence that the merchandise rows are unsafe.
+  // The camera workspace already recovers retailer from all OCR passes and keeps
+  // the form un-submittable until a retailer is present. Do not blank otherwise
+  // reconciled product lines just because the best merchandise pass read "Soles".
   if (candidate.parsed.diagnostics.totalLine === null || candidate.parsed.total === null) problems.push("missing explicit total");
   if (candidate.parsed.items.length < 3) problems.push("fewer than three product lines");
   if (candidate.parsed.warnings.some((warning) => /^Receipt reports \d+ items?, but /i.test(warning))) problems.push("reported item count does not reconcile");
