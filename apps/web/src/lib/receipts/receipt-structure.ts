@@ -39,7 +39,8 @@ function weakMoneyDescription(text: string) {
   return lastMoneyValue(text) !== null
     && letters.length <= 10
     && words.length <= 4
-    && !/\b(?:ml|litre|liter|gram|kg|pack|each)\b/i.test(description);
+    && !/\b\d+(?:\.\d+)?\s*(?:ml|l|litres?|liters?|g|grams?|kg|packs?)\b/i.test(description)
+    && !/\beach\b/i.test(description);
 }
 
 function normaliseOcrLine(text: string) {
@@ -60,7 +61,7 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
   else if (tender.test(text)) role = "tender";
   else if (tax.test(text)) role = "tax";
   else if (promotion.test(text)) role = "promotion";
-  else if (header.test(text)) role = "header";
+  else if (header.test(text) && !money.test(text)) role = "header";
   else if (footer.test(text)) role = "footer";
   else if (/^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(text)) role = "quantity";
   else if (money.test(text) && /[a-z]/i.test(text)) role = "product";
