@@ -27,6 +27,10 @@ assert.ok(fullResolutionCrop.height / fullResolutionCrop.width > 1.8, "the guide
 
 const cameraStyles = readFileSync(new URL("../src/app/scan/scan.module.css", import.meta.url), "utf8");
 assert.match(cameraStyles, /\.receiptFrame\s*\{[\s\S]*?aspect-ratio:\s*\.54/, "the visible camera guide must use the tested long-receipt aspect ratio");
+const cameraSource = readFileSync(new URL("../src/app/scan/ReceiptCamera.tsx", import.meta.url), "utf8");
+assert.match(cameraSource, /accept="image\/\*"[\s\S]*capture="environment"/, "mobile receipt capture must use the phone's full-resolution rear camera");
+assert.doesNotMatch(cameraSource, /getUserMedia|ImageCapture|sourceCrop\.width\s*</, "mobile capture must not depend on a low-resolution preview stream or an impossible zoom threshold");
+assert.match(cameraSource, /stageReceiptCapture\(file\)/, "the original full-resolution camera file must be staged for OCR");
 
 const matchingAspect = visibleFrameSourceCrop(
   { width: 1000, height: 1500 },
