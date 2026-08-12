@@ -131,10 +131,17 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
     if (transactionIndex >= 0) return { start: transactionIndex + 1, end: totalIndex };
   }
 
+  // When the Description heading is badly damaged, alphabetic store/header debris
+  // must not define the merchandise boundary. A real merchandise section on Coles
+  // and Woolworths receipts contains a priced product row; start at the first such
+  // row and allow later unpriced OCR lines to remain reviewable within the section.
   const firstProductIndex = lines.findIndex((line, index) => index < totalIndex
-    && (moneyValues(line).some((value) => value > 0) || /[a-z]{4,}/i.test(line))
+    && moneyValues(line).some((value) => value > 0)
+    && /[a-z]{2,}/i.test(line)
     && !headerMarker.test(line)
-    && !summaryMarker.test(line));
+    && !summaryMarker.test(line)
+    && !paymentMarker.test(line)
+    && !promotionMarker.test(line));
   return { start: Math.max(0, firstProductIndex), end: totalIndex };
 }
 
