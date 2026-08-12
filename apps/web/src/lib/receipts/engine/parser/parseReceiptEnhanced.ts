@@ -165,7 +165,19 @@ function itemSectionBounds(lines: string[], retailer: "coles" | "woolworths", to
       || /^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(candidate)
       || promotionMarker.test(candidate));
   });
-  return { start: firstProductIndex >= 0 ? firstProductIndex : totalIndex, end: totalIndex };
+  if (firstProductIndex < 0) return { start: totalIndex, end: totalIndex };
+
+  // A recognized table heading may have been removed by structural sanitising.
+  // Preserve a small contiguous run of product-looking rows immediately before the
+  // first priced product when OCR lost only their prices (Springwood litter/milk).
+  let start = firstProductIndex;
+  for (let index = firstProductIndex - 1; index >= Math.max(0, firstProductIndex - 3); index -= 1) {
+    const candidate = lines[index];
+    const hasPackShape = /\b\d+(?:\.\d+)?\s*(?:ml|l|litres?|liters?|g|grams?|kg|packs?)\b/i.test(candidate);
+    if (!hasPackShape || !/[a-z]{3,}/i.test(candidate) || headerMarker.test(candidate) || summaryMarker.test(candidate)) break;
+    start = index;
+  }
+  return { start, end: totalIndex };
 }
 
 function parsePhotoItems(lines: string[], start: number, end: number, receiptTotal: number | null) {
