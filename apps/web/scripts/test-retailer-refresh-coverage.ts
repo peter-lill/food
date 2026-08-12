@@ -77,7 +77,10 @@ assert.match(missingPackQueueSource, /productType: \{ not: "GENERIC_PRODUCE" \}/
 assert.match(missingPackQueueSource, /force: true/, "package-size recovery must bypass the normal freshness window");
 
 const weakIdentityRepairSource = readFileSync(new URL("repair-weak-retailer-identities.ts", import.meta.url), "utf8");
-assert.match(weakIdentityRepairSource, /words\(currentName\)\.length !== 1/, "only one-word weak identities may be expanded from linked retailer listings");
+assert.match(weakIdentityRepairSource, /identities\.length !== listingNames\.length/, "weak identities must not be expanded from a mixed set of retailer products");
+assert.match(weakIdentityRepairSource, /new Set\(identities\)\.size === 1/, "retailer repair requires unanimous grocery identity evidence");
 assert.match(weakIdentityRepairSource, /linked-retailer-repair/, "the replaced weak identity must remain searchable as an alias");
+assert.match(imageRecoverySource, /incompatibleProduceWords/, "generic produce image selection must reject conflicting varieties");
+assert.match(imageRecoverySource, /with oyster/, "generic produce image selection must reject prepared dishes");
 
 console.log("Retailer refresh coverage regressions passed.");
