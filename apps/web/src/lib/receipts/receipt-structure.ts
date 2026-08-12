@@ -1,3 +1,5 @@
+import { hasKnownRetailerIdentity } from "./receipt-retailer-identity";
+
 export interface ReceiptOcrBox { x0: number; y0: number; x1: number; y1: number }
 export interface ReceiptOcrLine { text: string; confidence: number; bbox: ReceiptOcrBox | null }
 export type ReceiptLineRole = "header" | "product" | "quantity" | "promotion" | "item-count" | "total" | "tender" | "tax" | "footer" | "unknown";
@@ -64,7 +66,7 @@ export function classifyReceiptLine(line: ReceiptOcrLine): ClassifiedReceiptLine
   else if (tender.test(text)) role = "tender";
   else if (tax.test(text)) role = "tax";
   else if (promotion.test(text)) role = "promotion";
-  else if (header.test(text) && !money.test(text)) role = "header";
+  else if ((header.test(text) || hasKnownRetailerIdentity(text)) && !money.test(text)) role = "header";
   else if (receiptDate.test(text)) role = "header";
   else if (footer.test(text)) role = "footer";
   else if (/^(?:qty\s+)?\d+(?:\.\d+)?\s*@/i.test(text)) role = "quantity";

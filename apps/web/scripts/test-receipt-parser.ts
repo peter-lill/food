@@ -3,6 +3,14 @@ import { readFileSync } from "node:fs";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
 import { canPopulateReceiptCandidate, chooseReceiptCandidate, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
 import { classifyReceiptLines, receiptLinesFromBlocks, receiptStructureScore } from "../src/lib/receipts/receipt-structure";
+import { hasRetailerIdentity } from "../src/lib/receipts/receipt-retailer-identity";
+
+assert.equal(hasRetailerIdentity("Colgg", "coles"), true, "bounded OCR distance should recover a damaged standalone retailer word");
+assert.equal(hasRetailerIdentity("Woolwrths", "woolworths"), true, "retailer identity recovery should apply across supported retailers");
+assert.equal(hasRetailerIdentity("COLA", "coles"), false, "ordinary product words must not become retailer identities");
+
+const genericQuantityReceipt = parseReceipt(`Unknown Market\nDescription\nCOLA 4.00\n3 @ $1.00 EACH\nTOTAL $4.00`);
+assert.equal(genericQuantityReceipt.items[0]?.quantity, 3, "a structural quantity row should update the preceding item without requiring a QTY prefix");
 
 const woolworthsPhotoText = `
 Woolworths
