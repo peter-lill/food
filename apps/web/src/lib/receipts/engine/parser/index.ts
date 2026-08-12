@@ -3,6 +3,17 @@ export * from "./types";
 import { parseReceipt as parseEnhancedReceipt } from "./parseReceiptEnhanced";
 import type { ReceiptOcrLine } from "../../receipt-structure";
 
+function expectedItemCount(lines: string[]) {
+  for (const line of lines) {
+    const match = line.match(/(?:total|[\[({]?otal)\s+(?:for\s+)?(\d+)\s+items?/i)
+      ?? line.match(/^(\d+)\s+[1il]tens?[:;]?$/i)
+      ?? line.match(/^(\d+)\s+items?:?$/i)
+      ?? line.match(/(\d+)\s+subtotal\b/i);
+    if (match) return Number(match[1]);
+  }
+  return null;
+}
+
 function legacyPlainTextResult(result: ReturnType<typeof parseEnhancedReceipt>) {
   const hadUnpricedItems = result.items.some((item) => item.price === null);
   if (!hadUnpricedItems) return result;
@@ -14,6 +25,13 @@ function legacyPlainTextResult(result: ReturnType<typeof parseEnhancedReceipt>) 
   // price was lost. Plain-text parser callers historically dropped those incomplete
   // rows, so keep that behaviour for existing fixtures and imports that do not
   // provide OCR structure.
+  const expectedCount = expectedItemCount(result.diagnostics.normalisedLines);
+  const detectedUnits = items.reduce((sum, item) => sum + item.quantity, 0);
+  if (expectedCount !== null && Math.abs(expectedCount - detectedUnits) > 0.001
+    && !warnings.some((warning) => /^Receipt reports /i.test(warning))) {
+    warnings.push(`Receipt reports ${expectedCount} items, but ${detectedUnits} units were detected.`);
+  }
+
   if (result.total !== null && items.length > 0 && !warnings.some((warning) => /differs from the receipt total/i.test(warning))) {
     const adjustments = result.diagnostics.itemSectionLines.reduce((sum, line) => {
       const values = [...line.matchAll(/-\$?\s*(\d+)[.,](\d{2})\b/g)]
