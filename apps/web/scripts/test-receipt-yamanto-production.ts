@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
+import { canPopulateReceiptCandidate, chooseReceiptCandidate, receiptCandidatePopulationProblems } from "../src/lib/receipts/receipt-ocr-selection";
 import {
   classifyReceiptLines,
+  receiptLineCandidatesFromOcr,
   receiptLinesFromBlocks,
   receiptLinesText,
 } from "../src/lib/receipts/receipt-structure";
@@ -137,5 +139,51 @@ assert.equal(uploadedPhoto.items.length, 8);
 assert.equal(uploadedPhoto.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.equal(uploadedPhoto.items.filter((item) => item.price === null).length, 2, "unreadable prices should remain blank rather than causing the whole receipt to be discarded");
 assert.deepEqual(uploadedPhoto.warnings, []);
+
+const uploadedPhotoCandidate = {
+  ocrConfidence: 61,
+  parsed: uploadedPhoto,
+  pass: "structured" as const,
+  text: receiptLinesText(uploadedPhotoLines),
+  lines: uploadedPhotoLines,
+};
+assert.equal(canPopulateReceiptCandidate(uploadedPhotoCandidate), true, `actual camera OCR should populate: ${receiptCandidatePopulationProblems(uploadedPhotoCandidate).join(", ")}`);
+
+// Browser Tesseract exposes both aggregate text and geometry-backed block lines.
+// A photographed receipt can have a fragmented aggregate result while its block
+// representation remains coherent, so candidate selection must evaluate both.
+const fragmentedAggregate = `Coles\nDescription $\nPEPSI MAX 16.00\n11 items\n$35\n60`;
+const ocrVariants = receiptLineCandidatesFromOcr(
+  [{ paragraphs: [{ lines: uploadedPhotoPsm6.split(/\r?\n/).filter(Boolean).map((text, index) => ({
+    text,
+    confidence: 61,
+    bbox: { x0: 40, y0: index * 32, x1: 760, y1: index * 32 + 24 },
+  })) }] }],
+  fragmentedAggregate,
+);
+assert.equal(ocrVariants.length, 2, "aggregate and geometry OCR representations should both become candidates");
+const browserCandidates = ocrVariants.map((lines) => {
+  const text = receiptLinesText(lines);
+  return { ocrConfidence: 61, parsed: parseReceipt(text, lines), pass: "structured" as const, text, lines };
+});
+const selectedBrowserCandidate = chooseReceiptCandidate(browserCandidates);
+assert.ok(selectedBrowserCandidate);
+assert.equal(canPopulateReceiptCandidate(selectedBrowserCandidate), true);
+assert.equal(selectedBrowserCandidate.parsed.retailer, "Coles");
+assert.equal(selectedBrowserCandidate.parsed.purchasedAt, "2026-08-09");
+assert.equal(selectedBrowserCandidate.parsed.total, 35.6);
+assert.equal(selectedBrowserCandidate.parsed.items.length, 8);
+assert.equal(selectedBrowserCandidate.parsed.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+
+console.log("Yamanto camera candidates", browserCandidates.map((candidate) => ({
+  retailer: candidate.parsed.retailer,
+  date: candidate.parsed.purchasedAt,
+  total: candidate.parsed.total,
+  lines: candidate.parsed.items.length,
+  units: candidate.parsed.items.reduce((sum, item) => sum + item.quantity, 0),
+  warnings: candidate.parsed.warnings,
+  populationProblems: receiptCandidatePopulationProblems(candidate),
+  selected: candidate === selectedBrowserCandidate,
+})));
 
 console.log("Yamanto production receipt regression checks passed.");

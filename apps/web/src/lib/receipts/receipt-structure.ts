@@ -210,24 +210,38 @@ export function receiptStructureScore(lines: ReceiptOcrLine[]) {
 
 type TesseractBlock = { paragraphs?: Array<{ lines?: Array<{ text?: string; confidence?: number; bbox?: ReceiptOcrBox }> }> };
 
-export function receiptLinesFromBlocks(blocks: TesseractBlock[] | null | undefined, fallbackText: string): ReceiptOcrLine[] {
-  const fallbackLines = fallbackText
-    .split(/\r?\n/)
-    .map((text) => text.trim())
-    .filter(Boolean)
-    .map((text) => ({ text, confidence: 0, bbox: null as ReceiptOcrBox | null }));
-
-  // Tesseract's aggregate text is substantially more coherent on photographed
-  // receipts than rebuilding strings from noisy layout blocks. Prefer aggregate
-  // text for parsing and keep block geometry as a fallback when text is absent.
-  if (fallbackLines.length > 0) return sanitiseReceiptLines(fallbackLines);
-
-  const blockLines = blocks?.flatMap((block) => block.paragraphs ?? []).flatMap((paragraph) => paragraph.lines ?? []).map((line) => ({
+function receiptBlockLines(blocks: TesseractBlock[] | null | undefined) {
+  return blocks?.flatMap((block) => block.paragraphs ?? []).flatMap((paragraph) => paragraph.lines ?? []).map((line) => ({
     text: line.text?.trim() ?? "",
     confidence: line.confidence ?? 0,
     bbox: line.bbox ?? null,
   })).filter((line) => line.text) ?? [];
-  return blockLines;
+}
+
+export function receiptLineCandidatesFromOcr(blocks: TesseractBlock[] | null | undefined, aggregateText: string) {
+  const variants: ReceiptOcrLine[][] = [];
+  const aggregateLines = aggregateText
+    .split(/\r?\n/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .map((text) => ({ text, confidence: 0, bbox: null as ReceiptOcrBox | null }));
+  const blockLines = receiptBlockLines(blocks);
+
+  if (aggregateLines.length > 0) variants.push(sanitiseReceiptLines(aggregateLines));
+  if (blockLines.length > 0) {
+    const structured = sanitiseReceiptLines(blockLines);
+    if (receiptLinesText(structured) !== receiptLinesText(variants[0] ?? [])) variants.push(structured);
+  }
+  return variants;
+}
+
+export function receiptLinesFromBlocks(blocks: TesseractBlock[] | null | undefined, fallbackText: string): ReceiptOcrLine[] {
+  // Tesseract's aggregate text is substantially more coherent on photographed
+  // receipts than rebuilding strings from noisy layout blocks. Keep this helper's
+  // aggregate-first behaviour for callers that want one result; the camera path
+  // evaluates every representation through receiptLineCandidatesFromOcr.
+  const variants = receiptLineCandidatesFromOcr(blocks, fallbackText);
+  return fallbackText.trim() ? variants[0] ?? [] : receiptBlockLines(blocks);
 }
 
 export function receiptLinesText(lines: ReceiptOcrLine[]) {

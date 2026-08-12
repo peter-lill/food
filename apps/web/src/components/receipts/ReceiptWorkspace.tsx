@@ -9,6 +9,7 @@ import {
   canPopulateReceiptCandidate,
   chooseReceiptCandidate,
   needsReceiptFallback,
+  receiptCandidatePopulationProblems,
   type ReceiptOcrCandidate,
 } from "@/lib/receipts/receipt-ocr-selection";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@/lib/receipts/receipt.types";
 import styles from "./ReceiptWorkspace.module.css";
 import { takeStagedReceiptCapture } from "@/lib/receipts/staged-receipt-capture";
-import { receiptLinesFromBlocks, receiptLinesText } from "@/lib/receipts/receipt-structure";
+import { receiptLineCandidatesFromOcr, receiptLinesText } from "@/lib/receipts/receipt-structure";
 
 const statusLabels: Record<ReceiptStatusValue, string> = {
   DRAFT: "Needs review",
@@ -179,16 +180,17 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
         await worker!.setParameters({ tessedit_pageseg_mode: psm, preserve_interword_spaces: "1", user_defined_dpi: "300" });
         setOcrStatus(status);
         const result = await worker!.recognize(image, {}, { blocks: true });
-        const lines = receiptLinesFromBlocks(result.data.blocks, result.data.text ?? "");
-        const text = receiptLinesText(lines).trim();
-        if (!text) return;
-        candidates.push({
-          ocrConfidence: result.data.confidence ?? 0,
-          parsed: parseReceipt(text, lines),
-          pass,
-          text,
-          lines,
-        });
+        for (const lines of receiptLineCandidatesFromOcr(result.data.blocks, result.data.text ?? "")) {
+          const text = receiptLinesText(lines).trim();
+          if (!text || candidates.some((candidate) => candidate.pass === pass && candidate.text === text)) continue;
+          candidates.push({
+            ocrConfidence: result.data.confidence ?? 0,
+            parsed: parseReceipt(text, lines),
+            pass,
+            text,
+            lines,
+          });
+        }
       };
 
       // The real Springwood Coles receipt is clearer before global contrast
@@ -210,6 +212,18 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
       if (!best) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
       const parsed = best.parsed;
       const safeToPopulate = canPopulateReceiptCandidate(best);
+      console.info("Receipt OCR candidate selection", candidates.map((candidate) => ({
+        pass: candidate.pass,
+        ocrConfidence: candidate.ocrConfidence,
+        retailer: candidate.parsed.retailer,
+        purchasedAt: candidate.parsed.purchasedAt,
+        total: candidate.parsed.total,
+        productLines: candidate.parsed.items.length,
+        units: candidate.parsed.items.reduce((sum, item) => sum + item.quantity, 0),
+        warnings: candidate.parsed.warnings,
+        populationProblems: receiptCandidatePopulationProblems(candidate),
+        selected: candidate === best,
+      })));
       const extracted = safeToPopulate ? parsed.items.map((item) => makeItem(item.description, String(item.quantity), item.price === null ? "" : item.price.toFixed(2))) : [];
       const allCandidateText = candidates.map((candidate) => candidate.text).join("\n");
       const recoveredDate = parsed.purchasedAt
