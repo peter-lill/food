@@ -8,6 +8,7 @@ import styles from "./scan.module.css";
 export function ReceiptCamera() {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoTrackRef = useRef<MediaStreamTrack | null>(null);
   const nativeInputRef = useRef<HTMLInputElement>(null);
   const [status, setStatus] = useState("Starting the rear camera…");
   const [capturing, setCapturing] = useState(false);
@@ -23,6 +24,7 @@ export function ReceiptCamera() {
       stream = result;
       if (cancelled || !videoRef.current) return result.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = result;
+      videoTrackRef.current = result.getVideoTracks()[0] ?? null;
       await videoRef.current.play();
       setCameraReady(true);
       setStatus("Fit the entire receipt and total inside the visible camera image, then press the shutter once.");
@@ -30,7 +32,7 @@ export function ReceiptCamera() {
       console.error("Unable to start receipt camera", error);
       setStatus("The in-app camera is unavailable. Use the full-resolution camera option below.");
     });
-    return () => { cancelled = true; stream?.getTracks().forEach((track) => track.stop()); };
+    return () => { cancelled = true; videoTrackRef.current = null; stream?.getTracks().forEach((track) => track.stop()); };
   }, []);
 
   async function stage(file: File) {
@@ -43,6 +45,24 @@ export function ReceiptCamera() {
     if (!video || !cameraReady || capturing) return;
     setCapturing(true); setStatus("Saving the visible camera image…");
     try {
+      // Android commonly provides a much smaller live preview than the still
+      // camera can produce. Keep one shutter, but ask the sensor for its still.
+      const ImageCaptureConstructor = (window as typeof window & {
+        ImageCapture?: new (track: MediaStreamTrack) => { takePhoto(): Promise<Blob> };
+      }).ImageCapture;
+      const track = videoTrackRef.current;
+      if (ImageCaptureConstructor && track) {
+        try {
+          setStatus("Taking a full-resolution receipt photoâ€¦");
+          const photo = await new ImageCaptureConstructor(track).takePhoto();
+          if (photo.size > 0) {
+            await stage(new File([photo], `receipt-${Date.now()}.jpg`, { type: photo.type || "image/jpeg" }));
+            return;
+          }
+        } catch (error) {
+          console.warn("Full-resolution still capture unavailable; using the live frame", error);
+        }
+      }
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth; canvas.height = video.videoHeight;
       const context = canvas.getContext("2d");

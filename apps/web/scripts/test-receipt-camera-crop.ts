@@ -30,6 +30,8 @@ assert.match(cameraStyles, /\.receiptFrame\s*\{[\s\S]*?aspect-ratio:\s*\.54/, "t
 const cameraSource = readFileSync(new URL("../src/app/scan/ReceiptCamera.tsx", import.meta.url), "utf8");
 assert.match(cameraSource, /getUserMedia/, "the primary receipt camera must provide an in-app live preview");
 assert.match(cameraSource, /aria-label="Take receipt photo"/, "the primary in-app flow must use one shutter");
+assert.match(cameraSource, /new ImageCaptureConstructor\(track\)\.takePhoto\(\)/, "the one-shutter path must request a sensor-resolution still before using the preview frame");
+assert.match(cameraSource, /Full-resolution still capture unavailable; using the live frame/, "unsupported still capture must retain a preview-frame fallback");
 assert.match(cameraSource, /canvas\.width = video\.videoWidth; canvas\.height = video\.videoHeight/, "capture must preserve the complete visible sensor frame");
 assert.match(cameraStyles, /\.receiptCamera video\s*\{[\s\S]*?object-fit:\s*contain/, "the preview must expose the complete frame sent to OCR");
 assert.doesNotMatch(cameraSource, /visibleFrameSourceCrop|sourceCrop\.width\s*</, "the one-shutter path must not hide or reject part of the visible frame");
