@@ -1,7 +1,7 @@
 export * from "./types";
 
 import { parseReceipt as parseEnhancedReceipt } from "./parseReceiptEnhanced";
-import type { ReceiptOcrLine } from "../../receipt-structure";
+import { classifyReceiptLines, type ReceiptOcrLine } from "../../receipt-structure";
 
 function expectedItemCount(lines: string[]) {
   for (const line of lines) {
@@ -53,7 +53,15 @@ function legacyPlainTextResult(result: ReturnType<typeof parseEnhancedReceipt>) 
   };
 }
 
+function structuredReceiptLines(lines: ReceiptOcrLine[]) {
+  return classifyReceiptLines(lines).map((line) => line.role === "item-count"
+    ? { ...line, text: `TOTAL FOR ${line.text}` }
+    : line);
+}
+
 export function parseReceipt(text: string, ocrLines?: ReceiptOcrLine[]) {
-  const result = parseEnhancedReceipt(text, ocrLines);
-  return ocrLines?.length ? result : legacyPlainTextResult(result);
+  if (ocrLines?.length) {
+    return parseEnhancedReceipt(text, structuredReceiptLines(ocrLines));
+  }
+  return legacyPlainTextResult(parseEnhancedReceipt(text));
 }
