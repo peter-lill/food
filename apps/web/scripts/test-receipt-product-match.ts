@@ -18,6 +18,7 @@ const cases = [
   ["MIL KYRAR CHOC BLOCK 170GRAM", "milkybar"],
   ["4KITKAT COOKIE DOUGH 170GRAM", "cookie"],
   ["iKTT KAT CHUNKY AERO 1S5GRAM", "aero"],
+  ["KIT KAT CHUNKY AERO 135GRAM", "aero"],
 ] as const;
 
 for (const [ocr, expected] of cases) assert.equal(matchReceiptProduct(ocr, candidates)?.productId, expected, ocr);
