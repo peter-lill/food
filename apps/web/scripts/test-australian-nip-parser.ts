@@ -109,6 +109,11 @@ const sourcedFallback = validatedRetailerLabelText({ output: [
 ] }, "https://www.coles.com.au/product/arnotts-flatbread-dippers-feta-and-olive-130g-5481620");
 assert.match(sourcedFallback ?? "", /1920 kJ/);
 assert.equal(validatedRetailerLabelText({ output: [{ type: "message", content: [{ type: "output_text", text: sourcedFallback ?? "" }] }] }, "https://www.coles.com.au/product/arnotts-flatbread-dippers-feta-and-olive-130g-5481620"), null, "unsourced model output must be rejected");
+const woolworthsFallback = validatedRetailerLabelText({ output: [
+  { type: "web_search_call", action: { sources: [{ url: "https://www.woolworths.com.au/shop/productdetails/6055275" }] } },
+  { type: "message", content: [{ type: "output_text", text: "Nutrition Information\nServing size: 25g\nEnergy: 400 kJ 1600 kJ\nIngredients: Wheat Flour, Olive Oil." }] },
+] }, "https://www.woolworths.com.au/shop/productdetails/6055275?utm_source=test");
+assert.match(woolworthsFallback ?? "", /1600 kJ/, "an exact Woolworths product citation must support label fallback enrichment");
 
 for (const fixture of fixtures) {
   const result = parseAustralianNip(fixture.source);

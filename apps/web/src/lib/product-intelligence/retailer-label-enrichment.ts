@@ -148,11 +148,11 @@ function mergeLabels(labels: RetailerLabel[]) {
 }
 
 export async function enrichProductFromRetailerLabels(productId: string) {
-  const [current] = await prisma.$queryRaw<Array<{ servingSize: string | null; calories: number | null; proteinGrams: number | null; carbsGrams: number | null; fatGrams: number | null; ingredientsText: string | null }>>(Prisma.sql`
-    SELECT "servingSize", "calories", "proteinGrams", "carbsGrams", "fatGrams", "ingredientsText"
+  const [current] = await prisma.$queryRaw<Array<{ servingSize: string | null; servingsPerPackage: number | null; calories: number | null; proteinGrams: number | null; carbsGrams: number | null; fatGrams: number | null; ingredientsText: string | null }>>(Prisma.sql`
+    SELECT "servingSize", "servingsPerPackage", "calories", "proteinGrams", "carbsGrams", "fatGrams", "ingredientsText"
     FROM "Product" WHERE "id" = ${productId} LIMIT 1
   `);
-  if (current?.servingSize && current.ingredientsText && [current.calories, current.proteinGrams, current.carbsGrams, current.fatGrams].every((value) => value !== null)) {
+  if (current?.servingSize && current.servingsPerPackage !== null && current.ingredientsText && [current.calories, current.proteinGrams, current.carbsGrams, current.fatGrams].every((value) => value !== null)) {
     return { status: "already-complete" as const };
   }
   const listings = await prisma.storeProduct.findMany({

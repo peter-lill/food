@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import { Prisma, ProductType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export type ApkeQuality = {
@@ -16,6 +16,8 @@ export type ApkeQuality = {
 
 type QualityRow = {
   id: string;
+  productType: ProductType;
+  category: string | null;
   name: string;
   canonicalName: string | null;
   brand: string | null;
@@ -49,7 +51,7 @@ function percentage(values: boolean[]) {
 export async function calculateProductQuality(productId: string): Promise<ApkeQuality | null> {
   const rows = await prisma.$queryRaw<QualityRow[]>(Prisma.sql`
     SELECT
-      p."id", p."name", p."canonicalName", p."brand", p."barcode", p."packSize", p."imageUrl", p."lifecycle"::text,
+      p."id", p."name", p."canonicalName", p."productType", p."category", p."brand", p."barcode", p."packSize", p."imageUrl", p."lifecycle"::text,
       COALESCE(n."servingsPerPackage", p."servingsPerPackage") AS "servingsPerPackage",
       COALESCE(n."servingSize", p."servingSize") AS "servingSize",
       COALESCE(n."servingQuantity", p."servingQuantity") AS "servingQuantity",
@@ -81,6 +83,24 @@ export async function calculateProductQuality(productId: string): Promise<ApkeQu
     if (!present) missingFields.push(field);
     return present;
   };
+
+  if (row.productType === ProductType.GENERIC_PRODUCE) {
+    const identityScore = percentage([
+      require(row.canonicalName ?? row.name, "canonicalName"),
+      require(row.category, "category"),
+    ]);
+    return {
+      productId: row.id,
+      identityScore,
+      nutritionScore: 100,
+      labelScore: 100,
+      retailScore: 100,
+      imageScore: 100,
+      overallScore: Math.round(identityScore * 0.3 + 70),
+      missingFields: [...new Set(missingFields)],
+      issues,
+    };
+  }
 
   const identityScore = percentage([
     require(row.barcode, "gtin"),

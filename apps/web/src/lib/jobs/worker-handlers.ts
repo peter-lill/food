@@ -2,6 +2,8 @@ import { backgroundJobTypes, type BackgroundJob } from "@/lib/jobs/background-jo
 import { importCandidateAsset } from "@/lib/images/image-asset.service";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
+import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
+import { saveProductQuality } from "@/lib/product-intelligence/apke-quality";
 
 export const workerJobTypes = {
   ...backgroundJobTypes,
@@ -70,8 +72,10 @@ export async function handleBackgroundJob(job: BackgroundJob) {
 
     case workerJobTypes.productRetailerEnrichment: {
       const productId = requireString(payload, "productId");
-      const result = await enrichProductRetailers(productId, { force: payload.force === true });
-      return { productId, ...result };
+      const retailerResult = await enrichProductRetailers(productId, { force: payload.force === true });
+      const labelResult = await enrichProductFromRetailerLabels(productId);
+      const quality = await saveProductQuality(productId);
+      return { productId, ...retailerResult, labelStatus: labelResult.status, qualityScore: quality?.overallScore ?? null };
     }
 
     default:
