@@ -1,4 +1,3 @@
-import "server-only";
 import { configuredOpenAi } from "@/lib/ai/provider-settings";
 import { validatedRetailerLabelText, type RetailerSearchResponse } from "./openai-retailer-response";
 

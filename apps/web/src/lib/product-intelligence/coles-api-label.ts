@@ -1,4 +1,3 @@
-import "server-only";
 import { colesProductLabelSourceFromData } from "./coles-label-page";
 
 type BridgePayload = { status?: string; results?: Array<{ productId?: unknown; raw?: unknown }> };
