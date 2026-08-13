@@ -207,6 +207,10 @@ assert.equal(
 assert.equal(parseProductName("Vegetable stock made from a low stock cube").canonicalName, "Vegetable Stock Cube");
 assert.equal(identifyGrocery("Sandhurst Baby Capers In Wine Vinegar")?.family, "Capers");
 assert.equal(identifyGrocery("Vanilla Yoghurt 170g")?.family, "Yoghurt");
+assert.equal(identifyGrocery("Arnott's Flatbread Dippers Feta & Olive 130g")?.family, "Flatbread Dippers");
+assert.notEqual(identifyGrocery("Arnott's Flatbread Dippers Feta & Olive 130g")?.canonicalName, "Feta");
+assert.equal(identifyGrocery("Rosemary Crackers With Parmesan 150g")?.family, "Crackers");
+assert.notEqual(identifyGrocery("Rosemary Crackers With Parmesan 150g")?.canonicalName, "Parmesan");
 assert.equal(isRecipeInstructionResidue("To Serve"), true);
 assert.equal(isRecipeInstructionResidue("For garnish"), true);
 assert.equal(isRecipeInstructionResidue("Vegetable stock"), false);

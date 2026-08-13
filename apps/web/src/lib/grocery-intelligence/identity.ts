@@ -1,7 +1,7 @@
 import { normaliseProductText, parseProductName } from "@/lib/products/product-normalisation";
 import { findGroceryConcept } from "./ontology";
 
-export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.5";
+export const GROCERY_IDENTITY_ENGINE_VERSION = "1.1.6";
 
 export type GroceryIdentity = {
   source: string;
@@ -80,6 +80,14 @@ const variantPhrases = [
 
 function inferredFamily(value: string) {
   const normalised = normaliseProductText(value);
+  // For composite packaged foods, the food form is the identity and embedded
+  // ingredients describe the flavour. This must run before ontology matching
+  // so "flatbread dippers feta and olive" cannot collapse into Feta.
+  if (/\bflatbreads?\b|\bdippers?\b/.test(normalised)) return "Flatbread Dippers";
+  if (/\bcrackers?\b/.test(normalised)) return "Crackers";
+  if (/\b(?:potato|corn|tortilla|pita)\s+chips?\b/.test(normalised)) return "Chips";
+  if (/\bbiscuits?\b|\bcookies?\b/.test(normalised)) return "Biscuits";
+  if (/\bdips?\b/.test(normalised)) return "Dips";
   if (/\b(?:yoghurt|yogurt)\b/.test(normalised)) return "Yoghurt";
   if (/\bcapers?\b/.test(normalised)) return "Capers";
   if (/\b(?:vegetable|chicken|beef)\s+stock\s+cubes?\b/.test(normalised)) return "Stock Cubes";
