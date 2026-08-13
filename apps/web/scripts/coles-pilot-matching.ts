@@ -34,17 +34,19 @@ export function pilotQueryVariants(query: string) {
   return [...new Set(variants)];
 }
 
-function comparablePackSize(value: string) {
-  const match = normaliseProductText(value).match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pack|pk|tablets?|rolls?)/);
-  if (!match) return null;
-  const amount = Number(match[1]);
-  const unit = match[2];
+function comparableDimension(amountText: string, unit: string) {
+  const amount = Number(amountText);
   if (unit === "kg") return `${amount * 1000}g`;
   if (unit === "l") return `${amount * 1000}ml`;
   if (unit === "pk") return `${amount}pack`;
   if (unit === "tablet" || unit === "tablets") return `${amount}tablets`;
   if (unit === "roll" || unit === "rolls") return `${amount}rolls`;
   return `${amount}${unit}`;
+}
+
+function comparablePackDimensions(value: string) {
+  return [...normaliseProductText(value).matchAll(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pack|pk|tablets?|rolls?)/g)]
+    .map((match) => comparableDimension(match[1], match[2]));
 }
 
 function productIdentity(value: string) {
@@ -63,10 +65,11 @@ export function explainPilotCandidate(query: string, candidate: RetailerCatalogu
 
   const queryText = matchingText(query);
   const candidateText = matchingText(candidate.productName);
-  const expectedPack = comparablePackSize(queryText);
-  const actualPack = comparablePackSize(candidate.packSize) ?? comparablePackSize(candidateText);
-  if (!expectedPack) return { score: -Infinity, rejection: "query package size was not understood" };
-  if (expectedPack !== actualPack) return { score: -Infinity, rejection: `package size ${actualPack ?? "unknown"} does not match ${expectedPack}` };
+  const expectedPack = comparablePackDimensions(queryText);
+  const actualPack = [...new Set([...comparablePackDimensions(candidate.packSize), ...comparablePackDimensions(candidateText)])];
+  if (!expectedPack.length) return { score: -Infinity, rejection: "query package size was not understood" };
+  const missingDimension = expectedPack.find((dimension) => !actualPack.includes(dimension));
+  if (missingDimension) return { score: -Infinity, rejection: `package dimensions ${actualPack.join(" + ") || "unknown"} do not include ${missingDimension}` };
 
   for (const phrase of requiredPhrases) {
     if (queryText.includes(phrase) && !candidateText.includes(phrase)) return { score: -Infinity, rejection: `missing required phrase: ${phrase}` };
