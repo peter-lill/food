@@ -28,6 +28,8 @@ assert.ok(fullResolutionCrop.height / fullResolutionCrop.width > 1.8, "the guide
 const cameraStyles = readFileSync(new URL("../src/app/scan/scan.module.css", import.meta.url), "utf8");
 assert.match(cameraStyles, /\.receiptFrame\s*\{[\s\S]*?aspect-ratio:\s*\.54/, "the visible camera guide must use the tested long-receipt aspect ratio");
 const cameraSource = readFileSync(new URL("../src/app/scan/ReceiptCamera.tsx", import.meta.url), "utf8");
+const stagedCaptureSource = readFileSync(new URL("../src/lib/receipts/staged-receipt-capture.ts", import.meta.url), "utf8");
+const receiptsPageSource = readFileSync(new URL("../src/app/receipts/page.tsx", import.meta.url), "utf8");
 assert.match(cameraSource, /getUserMedia/, "the primary receipt camera must provide an in-app live preview");
 assert.match(cameraSource, /aria-label="Take receipt photo"/, "the primary in-app flow must use one shutter");
 assert.match(cameraSource, /new ImageCaptureConstructor\(track\)\.takePhoto\(\)/, "the one-shutter path must request a sensor-resolution still before using the preview frame");
@@ -36,6 +38,13 @@ assert.match(cameraSource, /canvas\.width = video\.videoWidth; canvas\.height = 
 assert.match(cameraStyles, /\.receiptCamera video\s*\{[\s\S]*?object-fit:\s*contain/, "the preview must expose the complete frame sent to OCR");
 assert.doesNotMatch(cameraSource, /visibleFrameSourceCrop|sourceCrop\.width\s*</, "the one-shutter path must not hide or reject part of the visible frame");
 assert.match(cameraSource, /Use full-resolution camera/, "devices with weak browser streams must retain an explicit full-resolution fallback");
+assert.match(cameraSource, /facingMode:\s*\{ exact: "environment" \}/, "receipt capture must request the rear camera before accepting a browser default");
+assert.match(cameraSource, /appearsFrontFacing[\s\S]*?throw new Error\("A rear camera could not be selected/, "a detected front camera must never silently capture a receipt");
+assert.match(stagedCaptureSource, /const captureId = crypto\.randomUUID\(\)/, "every staged photo must have a unique handoff identity");
+assert.match(stagedCaptureSource, /store\.get\(captureId\)[\s\S]*?store\.delete\(captureId\)/, "receipt review must consume only the requested capture");
+assert.doesNotMatch(stagedCaptureSource, /captureKey\s*=\s*"latest"/, "parallel or repeated captures must not share a stale latest-image slot");
+assert.match(cameraSource, /capture=\$\{encodeURIComponent\(captureId\)\}/, "the camera must navigate with the exact staged capture identity");
+assert.match(receiptsPageSource, /stagedCaptureId=\{stagedCaptureId \?\? null\}/, "the receipt page must pass the exact capture identity to OCR");
 
 const matchingAspect = visibleFrameSourceCrop(
   { width: 1000, height: 1500 },

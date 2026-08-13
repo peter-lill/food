@@ -14,13 +14,30 @@ export function ReceiptCamera() {
   const [capturing, setCapturing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
 
+  async function openRearCamera() {
+    const video = { width: { ideal: 3840 }, height: { ideal: 2160 } };
+    let result: MediaStream;
+    try {
+      result = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, facingMode: { exact: "environment" } } });
+    } catch {
+      result = await navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, facingMode: { ideal: "environment" } } });
+    }
+
+    const track = result.getVideoTracks()[0];
+    const appearsFrontFacing = track?.getSettings().facingMode === "user" || /\b(front|user|facetime)\b/i.test(track?.label ?? "");
+    if (!appearsFrontFacing) return result;
+
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const rear = devices.find((device) => device.kind === "videoinput" && /\b(back|rear|environment)\b/i.test(device.label));
+    result.getTracks().forEach((candidate) => candidate.stop());
+    if (!rear) throw new Error("A rear camera could not be selected. Choose a saved receipt photo instead.");
+    return navigator.mediaDevices.getUserMedia({ audio: false, video: { ...video, deviceId: { exact: rear.deviceId } } });
+  }
+
   useEffect(() => {
     let cancelled = false;
     let stream: MediaStream | null = null;
-    void navigator.mediaDevices?.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
-    }).then(async (result) => {
+    void openRearCamera().then(async (result) => {
       stream = result;
       if (cancelled || !videoRef.current) return result.getTracks().forEach((track) => track.stop());
       videoRef.current.srcObject = result;
@@ -36,8 +53,8 @@ export function ReceiptCamera() {
   }, []);
 
   async function stage(file: File) {
-    await stageReceiptCapture(file);
-    router.push("/receipts?capture=staged");
+    const captureId = await stageReceiptCapture(file);
+    router.push(`/receipts?capture=${encodeURIComponent(captureId)}`);
   }
 
   async function captureVisibleFrame() {

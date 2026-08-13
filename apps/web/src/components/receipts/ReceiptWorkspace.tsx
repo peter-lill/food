@@ -127,7 +127,7 @@ async function prepareReceiptImage(file: File): Promise<Blob> {
   return await new Promise<Blob>((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("The prepared receipt image could not be created.")), "image/jpeg", .94));
 }
 
-export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = false }: { receipts: ReceiptSummary[]; loadError: boolean; loadStagedCapture?: boolean }) {
+export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }: { receipts: ReceiptSummary[]; loadError: boolean; stagedCaptureId?: string | null }) {
   const [state, action] = useActionState(createReceiptImport, initialReceiptActionState);
   const savedPhotoInputRef = useRef<HTMLInputElement>(null);
   const stagedCaptureStartedRef = useRef(false);
@@ -266,10 +266,10 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
   }
 
   useEffect(() => {
-    if (!loadStagedCapture || stagedCaptureStartedRef.current) return;
+    if (!stagedCaptureId || stagedCaptureStartedRef.current) return;
     stagedCaptureStartedRef.current = true;
     let cancelled = false;
-    void takeStagedReceiptCapture()
+    void takeStagedReceiptCapture(stagedCaptureId)
       .then((file) => {
         if (!cancelled && file) void processReceipt(file);
       })
@@ -280,7 +280,7 @@ export function ReceiptWorkspace({ receipts, loadError, loadStagedCapture = fals
     return () => { cancelled = true; };
     // The capture is consumed once; processReceipt intentionally does not retrigger this effect.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadStagedCapture]);
+  }, [stagedCaptureId]);
 
   const ready = retailer.trim().length >= 2 && Boolean(purchasedAt) && Number(total) >= 0 && items.some((item) => item.name.trim());
   return (
