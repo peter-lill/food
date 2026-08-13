@@ -54,21 +54,6 @@ export function AccountPanel({
         </div>
       </section>
 
-      <section className={styles.accountSummary} aria-label="Account benefits">
-        <article>
-          <span aria-hidden="true">♥</span>
-          <div><strong>Favourites</strong><small>Saved across every signed-in device</small></div>
-        </article>
-        <article>
-          <span aria-hidden="true">⌂</span>
-          <div><strong>Households</strong><small>Plan and shop with the people you live with</small></div>
-        </article>
-        <article>
-          <span aria-hidden="true">◎</span>
-          <div><strong>Location aware</strong><small>Use your home store or current shopping location</small></div>
-        </article>
-      </section>
-
       <div className={styles.accountGrid}>
         {isOwner ? (
           <section className={`${styles.accountCard} ${styles.householdCard}`}>
