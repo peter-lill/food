@@ -32,6 +32,19 @@ const cases = [
 ] as const;
 
 for (const [ocr, expected] of cases) assert.equal(matchReceiptProduct(ocr, candidates)?.productId, expected, ocr);
+assert.equal(matchReceiptProduct("5F FPST MAX COLA 1 25LITRE", candidates)?.name, "Pepsi Max Cola 1.25L");
+assert.equal(matchReceiptProduct("5 SUGAR RAW 2KG", candidates)?.name, "Coles Raw Sugar 2kg");
+assert.equal(matchReceiptProduct("ARE ESPRESSO 750ML 750ML", candidates)?.name, "Dare Espresso 750ml");
+assert.equal(matchReceiptProduct("4MILKYBAR CHOC BLOCK 170GRAM 3 7", candidates)?.name, "Milkybar Chocolate Block 170g");
+assert.equal(matchReceiptProduct("ve K11kAT COOKIE DOUGH 170GRAM", candidates)?.name, "KitKat Cookie Dough 170g");
+assert.equal(matchReceiptProduct("a WIT KAT CHUNKY AERO 155GRAM", candidates)?.name, "KitKat Chunky Aero 155g");
+
+const duplicateCatalogueRecords = [
+  ...candidates,
+  { id: "pepsi-retailer-record", name: "Pepsi Max No Sugar Bottle", canonicalName: "Pepsi Max Cola", brand: "Pepsi", packSize: "1.25L" },
+];
+assert.equal(matchReceiptProduct("5F FPST MAX COLA 1 25LITRE", duplicateCatalogueRecords)?.productId, "pepsi",
+  "equivalent catalogue records must reinforce one identity rather than make it ambiguous");
 assert.equal(matchReceiptProduct("KIT KAT CHUNKY", candidates), null, "Ambiguous wording without a readable pack size must be preserved");
 assert.equal(matchReceiptProduct("COLES PRODUCT", candidates), null, "Weak matches must be preserved");
 assert.equal(matchReceiptProduct("KIT KAT CHUNKY AERO 155GRAM", [

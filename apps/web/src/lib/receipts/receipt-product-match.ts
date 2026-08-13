@@ -83,6 +83,17 @@ function expandedTokens(value: string) {
   return [...base, ...base.slice(0, -1).map((token, index) => token + base[index + 1])];
 }
 
+function candidateIdentity(candidate: ReceiptProductCandidate) {
+  return `${normalise(candidate.canonicalName ?? candidate.name)}|${pack(candidate.packSize ?? candidate.name) ?? ""}`;
+}
+
+function receiptDisplayName(candidate: ReceiptProductCandidate) {
+  const name = candidate.canonicalName?.trim() || candidate.name.trim();
+  const candidatePack = pack(candidate.packSize ?? candidate.name);
+  if (!candidate.packSize?.trim() || !candidatePack || pack(name) === candidatePack) return name;
+  return `${name} ${candidate.packSize.trim()}`;
+}
+
 function scoreName(ocr: string, candidateName: string) {
   const ocrTokens = expandedTokens(ocr);
   const candidateTokens = tokens(candidateName);
@@ -115,11 +126,14 @@ export function matchReceiptProduct(ocr: string, candidates: ReceiptProductCandi
     // Later unmatched tokens are product variants (for example Mint) and must
     // never be invented when the receipt did not establish them.
     const unsupportedSpecificity = displayTerms.slice(1).some((term) => !ocrTerms.some((ocrTerm) => similarity(ocrTerm, term) >= .72));
-    return { candidate, score, matches: best.matches, unsupportedSpecificity };
+    return { candidate, identity: candidateIdentity(candidate), score, matches: best.matches, unsupportedSpecificity };
   }).filter((entry) => !entry.unsupportedSpecificity).sort((left, right) => right.score - left.score);
 
   const best = ranked[0];
-  const runnerUp = ranked[1];
+  // A catalogue may contain several retailer/barcode records for one canonical
+  // product. Those are corroboration, not competing identities. Only a genuinely
+  // different product should make an OCR match ambiguous.
+  const runnerUp = ranked.find((entry) => entry.identity !== best?.identity);
   if (!best || best.matches < 2 || best.score < .76 || (runnerUp && best.score - runnerUp.score < .1)) return null;
-  return { productId: best.candidate.id, name: best.candidate.canonicalName ?? best.candidate.name, confidence: Math.min(1, best.score) };
+  return { productId: best.candidate.id, name: receiptDisplayName(best.candidate), confidence: Math.min(1, best.score) };
 }
