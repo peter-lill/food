@@ -5,6 +5,7 @@ import { imageCandidateSourcePriority } from "../src/lib/products/image-intellig
 import {
   authoritativeRetailerName,
   identityScore,
+  informativeRetailerIdentity,
   retailerSearchQuery,
   retailersNeedRefresh,
 } from "../src/lib/retailers/retailer-intelligence.service";
@@ -14,6 +15,29 @@ assert.equal(retailersNeedRefresh(["Woolworths"]), true);
 assert.equal(retailersNeedRefresh(["Coles"]), true);
 assert.equal(retailersNeedRefresh(["Coles", "Woolworths"]), false);
 assert.equal(retailersNeedRefresh(["Coles", "Woolworths", "Coles"]), false);
+
+const repairedMix = {
+  id: "brownie-mix",
+  name: "Betty Crocker Gluten Free Chocolate Fudge Brownie Mix 450g",
+  canonicalName: "Mix",
+  brand: null,
+  barcode: null,
+  packSize: "450g",
+  imageUrl: null,
+};
+assert.equal(informativeRetailerIdentity(repairedMix), repairedMix.name, "a stale generic canonical label must not override the detailed product name");
+assert.equal(retailerSearchQuery(repairedMix), `${repairedMix.name} 450g`, "retailer search must use the detailed displayed identity, not Mix");
+assert.ok(identityScore(repairedMix, {
+  retailer: "Coles",
+  productName: "Coles 4 Leaf Salad Mix 200g",
+  price: 8,
+  packSize: "200g",
+  isSpecial: false,
+  sourceUrl: "https://example.com/salad",
+  externalId: "salad",
+  barcode: null,
+  imageUrl: null,
+}) < 900, "sharing only the generic word Mix must not attach an unrelated retailer product");
 
 const milkyBar = {
   id: "milky-bar",
@@ -43,6 +67,7 @@ assert.equal(identityScore(milkyBar, {
 const retailerAuthoritySource = readFileSync(new URL("../src/lib/retailers/retailer-intelligence.service.ts", import.meta.url), "utf8");
 assert.match(retailerAuthoritySource, /conflictingExternalIds/, "a discovered barcode conflict must deactivate the stale retailer listing");
 assert.match(retailerAuthoritySource, /data: \{ active: false \}/, "conflicting listings must not remain available for price comparison");
+assert.match(retailerAuthoritySource, /acceptedExternalIds/, "a successful refresh must retire older retailer listings that conflict with the accepted identity");
 const underDetailedQueueSource = readFileSync(new URL("enqueue-underdetailed-retailer-products.ts", import.meta.url), "utf8");
 assert.match(underDetailedQueueSource, /listingTokens\.length > productTokens\.length/, "a more detailed linked retailer name must trigger an authority refresh");
 assert.match(underDetailedQueueSource, /force: true/, "under-detailed barcode products must bypass the freshness window");
