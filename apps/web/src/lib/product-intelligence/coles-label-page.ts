@@ -29,14 +29,31 @@ function productFromNextData(html: string): ColesProduct | null {
   }
 }
 
+function productFromUnknown(value: unknown): ColesProduct | null {
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = productFromUnknown(item);
+      if (found) return found;
+    }
+    return null;
+  }
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  if (record.nutrition && (record.additionalInfo || typeof record.nutrition === "object")) return record as ColesProduct;
+  for (const item of Object.values(record)) {
+    const found = productFromUnknown(item);
+    if (found) return found;
+  }
+  return null;
+}
+
 function nutrientName(value: string) {
   if (/^fat\s*-\s*saturated$/i.test(value)) return "Saturated Fat";
   if (/^sugars?\s*-\s*total$/i.test(value)) return "Sugars";
   return value;
 }
 
-export function colesProductLabelSource(html: string) {
-  const product = productFromNextData(html);
+function labelSource(product: ColesProduct | null) {
   if (!product) return null;
   const lines = ["Nutrition Information"];
   const nutrition = product.nutrition;
@@ -73,4 +90,12 @@ export function colesProductLabelSource(html: string) {
     }
   }
   return lines.join("\n");
+}
+
+export function colesProductLabelSource(html: string) {
+  return labelSource(productFromNextData(html));
+}
+
+export function colesProductLabelSourceFromData(value: unknown) {
+  return labelSource(productFromUnknown(value));
 }
