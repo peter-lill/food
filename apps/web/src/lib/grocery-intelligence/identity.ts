@@ -80,6 +80,9 @@ const variantPhrases = [
 
 function inferredFamily(value: string) {
   const normalised = normaliseProductText(value);
+  if (/\b(?:yoghurt|yogurt)\b/.test(normalised)) return "Yoghurt";
+  if (/\bcapers?\b/.test(normalised)) return "Capers";
+  if (/\b(?:vegetable|chicken|beef)\s+stock\s+cubes?\b/.test(normalised)) return "Stock Cubes";
   if (/\b(?:bread|loaf|loaves|roll|rolls|bun|buns|sourdough)\b/.test(normalised)) return "Bread";
   if (
     !/\b(?:peanut|almond|cashew|hazelnut|chocolate|jam|vegemite)\b/.test(normalised)

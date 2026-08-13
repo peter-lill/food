@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { backgroundJobTypes, enqueueBackgroundJob } from "@/lib/jobs/background-jobs";
 import { productDepartment } from "./product-category";
 import {
+  isRecipeInstructionResidue,
   normaliseProductText,
   parseProductName,
   type ParsedProductName,
@@ -77,6 +78,9 @@ async function findCanonicalProduct(
 export async function resolveCanonicalProduct(
   input: ResolveCanonicalProductInput,
 ): Promise<CanonicalProductResolution> {
+  if ((input.source === "recipe" || input.source === "ingredient") && isRecipeInstructionResidue(input.rawName)) {
+    throw new Error(`Recipe instruction residue is not a product: ${JSON.stringify(input.rawName)}.`);
+  }
   const parsed = parseProductName(input.rawName);
   const barcode = cleanOptional(input.barcode);
   const brand = cleanOptional(input.brand);

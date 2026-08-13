@@ -1,6 +1,6 @@
 import { prisma } from "../src/lib/prisma";
 import { backgroundJobTypes, enqueueBackgroundJob } from "../src/lib/jobs/background-jobs";
-import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
+import { genericImageIdentity, isGenericFoodImageEligible } from "../src/lib/products/generic-image-policy";
 import { readImageAsset, type ImageAssetRecord } from "../src/lib/images/image-asset.service";
 
 const apply = process.argv.includes("--apply");
@@ -14,8 +14,9 @@ async function main() {
       brand: null,
       barcode: null,
       ingredientRecords: { some: {} },
+      productType: "GENERIC_PRODUCE",
     },
-    select: { id: true, name: true, canonicalName: true, imageUrl: true },
+    select: { id: true, name: true, canonicalName: true, imageUrl: true, productType: true, category: true },
     orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
   });
 
@@ -23,7 +24,7 @@ async function main() {
   const skipped: string[] = [];
   for (const product of products) {
     const sourceIdentity = product.canonicalName ?? product.name;
-    const identity = genericImageIdentity(sourceIdentity);
+    const identity = isGenericFoodImageEligible(product) ? genericImageIdentity(sourceIdentity) : null;
     if (!identity) {
       skipped.push(sourceIdentity);
       continue;

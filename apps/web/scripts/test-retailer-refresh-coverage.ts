@@ -62,7 +62,7 @@ assert.ok(imageCandidateSourcePriority("manufacturer") > imageCandidateSourcePri
 assert.ok(imageCandidateSourcePriority("Open Food Facts") > imageCandidateSourcePriority("Current/manual image"));
 
 const imageRecoverySource = readFileSync(new URL("../src/lib/products/image-recovery.ts", import.meta.url), "utf8");
-assert.match(imageRecoverySource, /product\.productType === "GENERIC_PRODUCE"/, "a missing brand or barcode must not make a packaged snack generic");
+assert.match(imageRecoverySource, /isGenericFoodImageEligible\(product\)/, "generic image generation must use the complete produce eligibility policy");
 assert.match(imageRecoverySource, /searchColesAndWoolworthsCatalogue\(barcode\)/, "known barcodes should search retailer catalogues directly");
 assert.match(imageRecoverySource, /linkedRetailerImages/, "existing retailer listings should provide replacement image candidates");
 assert.match(imageRecoverySource, /candidateSelectionPriority\(right\.candidate\)/, "all usable images should be ranked before selection");

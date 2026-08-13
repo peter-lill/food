@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { importImageAssetBytes } from "@/lib/images/image-asset.service";
 import { prisma } from "@/lib/prisma";
-import { genericImageIdentity } from "@/lib/products/generic-image-policy";
+import { genericImageIdentity, isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
 import { configuredOpenAi } from "@/lib/ai/provider-settings";
 
 const defaultModel = "gpt-image-2";
@@ -11,6 +11,8 @@ function promptFor(identity: string) {
 }
 
 export async function generateGenericProductImage(productId: string, identity: string) {
+  const product = await prisma.product.findUnique({ where: { id: productId }, select: { productType: true, category: true, name: true, canonicalName: true } });
+  if (!product || !isGenericFoodImageEligible(product)) return null;
   const safeIdentity = genericImageIdentity(identity);
   if (!safeIdentity) return null;
   const provider = await configuredOpenAi();

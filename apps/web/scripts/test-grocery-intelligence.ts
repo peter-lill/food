@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 import { groceryConcepts } from "../src/lib/grocery-intelligence/ontology";
-import { genericImageIdentity } from "../src/lib/products/generic-image-policy";
+import { genericImageIdentity, isGenericFoodImageEligible } from "../src/lib/products/generic-image-policy";
 import { productDepartment } from "../src/lib/products/product-category";
-import { parseProductName } from "../src/lib/products/product-normalisation";
+import { isRecipeInstructionResidue, parseProductName } from "../src/lib/products/product-normalisation";
 
 const cases: Array<{
   input: string;
@@ -204,6 +204,15 @@ assert.equal(
   "Vegetable Stock Cube",
   "recipe preparation language must resolve to the purchasable stock cube",
 );
+assert.equal(parseProductName("Vegetable stock made from a low stock cube").canonicalName, "Vegetable Stock Cube");
+assert.equal(identifyGrocery("Sandhurst Baby Capers In Wine Vinegar")?.family, "Capers");
+assert.equal(identifyGrocery("Vanilla Yoghurt 170g")?.family, "Yoghurt");
+assert.equal(isRecipeInstructionResidue("To Serve"), true);
+assert.equal(isRecipeInstructionResidue("For garnish"), true);
+assert.equal(isRecipeInstructionResidue("Vegetable stock"), false);
+assert.equal(isGenericFoodImageEligible({ productType: "OTHER", category: "Other", name: "Beatrix Potter Alphabet U Peter Rabbit With Radishes" }), false);
+assert.equal(isGenericFoodImageEligible({ productType: "OTHER", category: "Pantry", name: "Bakery Cinnamon Donuts" }), false);
+assert.equal(isGenericFoodImageEligible({ productType: "GENERIC_PRODUCE", category: "Fruit & vegetables", name: "Broccoli" }), true);
 assert.equal(parseProductName("2 slices toast").canonicalName, "Toast", "recipe quantity units must not become the product name");
 assert.equal(parseProductName("Greek style natural yoghurt mixed with dill").canonicalName, "Greek Yoghurt", "recipe serving instructions must not create product identities");
 assert.equal(identifyGrocery("Coles Broccoli Medium approx. 340g")?.canonicalName, "Broccoli", "retailer produce wording must resolve to the produce concept");

@@ -11,6 +11,7 @@ import {
 } from "@/lib/products/image-intelligence";
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
 import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
+import { isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
 import {
   markSelectedCandidate,
   recordCandidateAssessment,
@@ -226,7 +227,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
   ]);
   const produceIdentity = recognisedIdentity(identityValues, produceTerms);
   const genericIdentity = recognisedIdentity(identityValues, genericFoodTerms);
-  const isGeneric = product.productType === "GENERIC_PRODUCE";
+  const isGeneric = isGenericFoodImageEligible(product);
   const identity = genericIdentity ?? product.canonicalName ?? product.name;
   const diagnostics: ImageSearchDiagnostics = {
     identity,
