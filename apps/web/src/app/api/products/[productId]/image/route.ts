@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 import { assessProductImage } from "@/lib/products/image-quality";
+import { isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
 import {
   ensureProductPrimaryAsset,
   getProductPrimaryImageAsset,
@@ -21,13 +22,14 @@ function noImageResponse() {
   });
 }
 
-async function localAssetResponse(productId: string) {
-  const selectedCandidates = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
+async function localAssetResponse(productId: string, allowGenericImage: boolean, currentImageUrl?: string | null) {
+  const selectedCandidates = await prisma.$queryRaw<Array<{ id: string; source: string; url: string }>>`
+    SELECT "id", "source", "url"
     FROM "ProductImageCandidate"
     WHERE "productId" = ${productId}
       AND "selected" = true
       AND "rejected" = false
+      AND (${allowGenericImage} OR ("source" <> 'OpenAI generated' AND "url" NOT LIKE 'generated://%'))
     ORDER BY "updatedAt" DESC
     LIMIT 1
   `;
@@ -42,8 +44,10 @@ async function localAssetResponse(productId: string) {
         });
         return null;
       })
-    : await getProductPrimaryImageAsset(productId)
-      ?? await ensureProductPrimaryAsset(productId).catch((error) => {
+    : (!allowGenericImage && currentImageUrl?.startsWith("generated://"))
+      ? null
+      : await getProductPrimaryImageAsset(productId)
+        ?? await ensureProductPrimaryAsset(productId).catch((error) => {
         console.warn("Primary image asset import failed", {
           productId,
           error: error instanceof Error ? error.message : String(error),
@@ -118,9 +122,6 @@ async function usableExistingImage(imageUrl: string | null) {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { productId } = await context.params;
-  const stored = await localAssetResponse(productId);
-  if (stored) return stored;
-
   const product = await prisma.product.findUnique({
     where: { id: productId },
     select: {
@@ -130,6 +131,8 @@ export async function GET(_request: Request, context: RouteContext) {
       imageUrl: true,
       brand: true,
       barcode: true,
+      category: true,
+      productType: true,
       storeProducts: {
         where: { imageUrl: { not: null }, active: true },
         orderBy: [{ lastSeenAt: "desc" }, { updatedAt: "desc" }],
@@ -138,7 +141,10 @@ export async function GET(_request: Request, context: RouteContext) {
     },
   });
   if (!product) return noImageResponse();
-  const genericFamily = !product.brand && !product.barcode;
+  const allowGenericImage = isGenericFoodImageEligible(product);
+  const stored = await localAssetResponse(productId, allowGenericImage, product.imageUrl);
+  if (stored) return stored;
+  const genericFamily = allowGenericImage;
 
   if (genericFamily) {
     const familyName = product.canonicalName ?? product.name;
@@ -162,13 +168,13 @@ export async function GET(_request: Request, context: RouteContext) {
     });
 
     for (const familyProduct of familyProducts) {
-      const familyAsset = await localAssetResponse(familyProduct.id);
+      const familyAsset = await localAssetResponse(familyProduct.id, true);
       if (familyAsset) return familyAsset;
     }
   }
 
   const imageOptions = [
-    product.imageUrl,
+    ...(!allowGenericImage && product.imageUrl?.startsWith("generated://") ? [] : [product.imageUrl]),
     ...(genericFamily ? [] : product.storeProducts.map((listing) => listing.imageUrl)),
   ].filter((value): value is string => Boolean(value));
 
@@ -188,7 +194,7 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (result?.imageUrl) {
-    const imported = await localAssetResponse(product.id);
+    const imported = await localAssetResponse(product.id, allowGenericImage, result.imageUrl);
     if (imported) return imported;
     const proxied = await proxyImage(result.imageUrl);
     if (proxied) return proxied;
