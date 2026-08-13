@@ -10,6 +10,7 @@ import {
   enrichProductFromCandidate,
   type ProductEnrichmentCandidate,
 } from "@/lib/products/product-intelligence";
+import { searchColesAndWoolworthsCatalogue } from "@/lib/prices/coles-woolworths-provider";
 
 export const runtime = "nodejs";
 
@@ -17,7 +18,7 @@ const supportedExternalBarcode = /^\d{7,14}$/;
 const providerTimeoutMs = 6_000;
 
 type RouteContext = { params: Promise<{ barcode: string }> };
-type ProductLookupSource = "local" | "open-food-facts" | "upcitemdb" | "serpapi";
+type ProductLookupSource = "local" | "open-food-facts" | "upcitemdb" | "serpapi" | "retailer";
 
 type OpenFoodFactsProduct = {
   product_name?: string;
@@ -225,8 +226,29 @@ async function lookupSerpApi(
   };
 }
 
+function barcodeDigits(value: string | null | undefined) {
+  return value?.replace(/\D/g, "") ?? "";
+}
+
+async function lookupRetailers(barcode: string): Promise<ProductEnrichmentCandidate | null> {
+  const candidates = await searchColesAndWoolworthsCatalogue(barcode);
+  const exact = candidates
+    .filter((candidate) => barcodeDigits(candidate.barcode) === barcodeDigits(barcode))
+    .sort((left, right) => Number(Boolean(right.imageUrl)) - Number(Boolean(left.imageUrl)))[0];
+  if (!exact) return null;
+  return {
+    name: exact.productName,
+    barcode,
+    packSize: exact.packSize,
+    imageUrl: exact.imageUrl,
+    source: `retailer:${exact.retailer.toLocaleLowerCase("en-AU")}`,
+    confidence: 96,
+  };
+}
+
 async function lookupBestExternalProduct(barcode: string, location: ResolvedSearchLocation) {
   const providers = [
+    (_signal: AbortSignal) => lookupRetailers(barcode),
     (signal: AbortSignal) => lookupOpenFoodFacts(barcode, signal),
     (signal: AbortSignal) => lookupUpcItemDb(barcode, signal),
     (signal: AbortSignal) => lookupSerpApi(barcode, signal, location),

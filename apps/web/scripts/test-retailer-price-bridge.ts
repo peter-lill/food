@@ -93,10 +93,12 @@ assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly 
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
 assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
 assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
-assert.match(bridgeSource, /WOOLWORTHS_SEARCH_URL[\s\S]*method="POST"/, "Woolworths search uses the current structured POST contract rather than the retired GET query");
+assert.match(bridgeSource, /method: 'POST'[\s\S]*credentials: 'include'/, "Woolworths search runs in an established storefront session rather than the retired anonymous client");
+assert.match(bridgeSource, /sync_playwright[\s\S]*page\.goto[\s\S]*page\.evaluate/, "Woolworths establishes and reuses real browser state before calling its UI API");
+assert.match(bridgeSource, /ExcludeSearchTypes[\s\S]*EnableAdReRanking/, "Woolworths receives the complete current search payload");
 assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
 assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");
-assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout\)/, "Woolworths read timeouts must be classified explicitly");
+assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout, RuntimeError\)/, "Woolworths browser failures must open the circuit explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
 
 const genericImageSource = readFileSync(new URL("../src/lib/products/generic-image-generation.ts", import.meta.url), "utf8");
