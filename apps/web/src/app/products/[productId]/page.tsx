@@ -10,6 +10,7 @@ import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enric
 import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
 import { getProductHubDetail } from "@/lib/products/product-hub.repository";
+import { getOrGenerateProductContent } from "@/lib/ai/product-content";
 import styles from "../products.module.css";
 
 export const dynamic = "force-dynamic";
@@ -98,6 +99,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   await enrichProductKnowledge(decodedProductId);
   const product = await getProductHubDetail(decodedProductId, { specific: specific === "1" });
   if (!product) notFound();
+  const generatedKnowledge = await getOrGenerateProductContent(product.id).catch(() => null);
   const isGenericProduct = !product.brand && !product.barcode && product.storeProducts.length === 0;
 
   const rawDisplayName = collapseRepeatedPhrase(product.name);
@@ -108,7 +110,9 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
   const department = productDepartment(product.category, canonicalName ?? displayName);
   const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
-  const knowledge = knowledgeFor(canonicalName ?? displayName);
+  const knowledge: ProductKnowledge | null = generatedKnowledge
+    ? { overview: generatedKnowledge.overview, uses: generatedKnowledge.uses, storage: generatedKnowledge.storage }
+    : knowledgeFor(canonicalName ?? displayName);
   const description = heroProductDescription(product.description) ?? knowledge?.overview ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
   for (const observation of product.priceObservations) {

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { importImageAssetBytes } from "@/lib/images/image-asset.service";
 import { prisma } from "@/lib/prisma";
 import { genericImageIdentity } from "@/lib/products/generic-image-policy";
+import { configuredOpenAi } from "@/lib/ai/provider-settings";
 
 const defaultModel = "gpt-image-2";
 
@@ -12,11 +13,11 @@ function promptFor(identity: string) {
 export async function generateGenericProductImage(productId: string, identity: string) {
   const safeIdentity = genericImageIdentity(identity);
   if (!safeIdentity) return null;
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return null;
-
-  const model = process.env.FOOD_GENERIC_IMAGE_MODEL?.trim() || defaultModel;
-  const response = await fetch("https://api.openai.com/v1/images/generations", {
+  const provider = await configuredOpenAi();
+  if (!provider) return null;
+  const { apiKey } = provider;
+  const model = provider.model || defaultModel;
+  const response = await fetch(`${provider.baseUrl.replace(/\/$/, "")}/images/generations`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({

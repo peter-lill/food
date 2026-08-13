@@ -9,6 +9,13 @@ export const metadata = {
 
 const adminTools = [
   {
+    title: "AI Providers",
+    description: "Securely configure and test AI Compute for evidence-bound product-page content generation.",
+    href: "/admin/ai-settings",
+    icon: "AI",
+    primary: true,
+  },
+  {
     title: "Catalogue Health",
     description: "Monitor APKE quality, GTIN verification, Australian label completeness, retailer coverage and repair workload.",
     href: "/admin/product-intelligence/catalogue-health",

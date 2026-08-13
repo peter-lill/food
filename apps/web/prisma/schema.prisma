@@ -103,9 +103,38 @@ model Product {
   storeProducts        StoreProduct[]
   priceObservations    PriceObservation[]
   enrichmentJobs       ProductEnrichmentJob[]
+  generatedContent     ProductGeneratedContent?
 
   @@index([foodKnowledgeId])
   @@index([productType, lifecycle])
+}
+
+model AiProviderSetting {
+  provider        String   @id
+  encryptedApiKey String
+  iv              String
+  authTag         String
+  baseUrl         String
+  model           String
+  enabled         Boolean  @default(true)
+  lastTestedAt    DateTime?
+  lastTestOk      Boolean?
+  lastTestMessage String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model ProductGeneratedContent {
+  productId    String   @id
+  overview     String
+  uses         String[] @default([])
+  storage      String[] @default([])
+  evidenceHash String
+  provider     String
+  model        String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
 }
 
 model FoodKnowledge {
