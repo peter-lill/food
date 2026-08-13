@@ -383,6 +383,10 @@ export async function searchColesAndWoolworthsCatalogue(
     console.warn("Grocery provider catalogue search completed with errors", errors);
   }
 
+  if (!results.length && errors.length) {
+    throw new Error(`Grocery provider catalogue search failed: ${errors.join("; ")}`);
+  }
+
   const candidates = results.flatMap((result): RetailerCatalogueCandidate[] => {
     const candidate = toRetailerCatalogueCandidate(result);
     return candidate ? [candidate] : [];

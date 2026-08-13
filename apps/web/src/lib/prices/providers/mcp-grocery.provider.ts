@@ -63,7 +63,8 @@ export class McpGroceryProvider implements GroceryProvider {
       if (storeId) url.searchParams.set("storeId", storeId);
 
       const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 12_000);
+      const timeoutMs = Math.max(15_000, Number(process.env.GROCERY_MCP_TIMEOUT_MS ?? 30_000));
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const response = await fetch(url, {
           cache: "no-store",
