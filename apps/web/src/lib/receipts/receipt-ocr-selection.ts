@@ -11,7 +11,19 @@ export interface ReceiptOcrCandidate {
 }
 
 function hasExplicitQuantity(item: ParsedReceiptItem) {
-  return item.quantity > 1 && /(?:^|\|\s*)\d+(?:\.\d+)?\s*@\s*\$?\s*\d+[.,]\d{2}/i.test(item.sourceText);
+  return item.quantity > 1 && /(?:^|\|\s*)(?:\d+(?:\.\d+)?\s*@|\d[0o])\s*\$?\s*\d+[.,]\d{1,2}/i.test(item.sourceText);
+}
+
+function identityTokens(description: string) {
+  return new Set(description.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim().split(/\s+/).filter((token) => token.length > 1));
+}
+
+function sameItemIdentity(left: ParsedReceiptItem, right: ParsedReceiptItem) {
+  const leftTokens = identityTokens(left.description);
+  const rightTokens = identityTokens(right.description);
+  const common = [...leftTokens].filter((token) => rightTokens.has(token));
+  const sharedPack = common.some((token) => /^\d+(?:ml|l|g|kg|pack)$/.test(token));
+  return sharedPack && common.length >= 3;
 }
 
 export function receiptCandidateScore(candidate: ReceiptOcrCandidate) {
@@ -35,7 +47,8 @@ export function receiptCandidateScore(candidate: ReceiptOcrCandidate) {
 
 function sameReceiptMetadata(candidate: ReceiptOcrCandidate, best: ReceiptOcrCandidate) {
   if (candidate.parsed.retailerKey !== best.parsed.retailerKey) return false;
-  if (candidate.parsed.total !== null && best.parsed.total !== null
+  if (candidate.parsed.diagnostics.totalLine !== null && best.parsed.diagnostics.totalLine !== null
+    && candidate.parsed.total !== null && best.parsed.total !== null
     && Math.abs(candidate.parsed.total - best.parsed.total) > 0.05) return false;
   return true;
 }
@@ -76,6 +89,10 @@ export function combineReceiptCandidateEvidence(best: ReceiptOcrCandidate, candi
     const evidence = itemCandidates
       .map((candidate) => ({ candidate, item: candidate.parsed.items[index] }))
       .filter((entry): entry is { candidate: ReceiptOcrCandidate; item: ParsedReceiptItem } => Boolean(entry.item));
+    const identityQuantityEvidence = candidates
+      .filter((candidate) => sameReceiptMetadata(candidate, best))
+      .flatMap((candidate) => candidate.parsed.items.map((candidateItem) => ({ candidate, item: candidateItem })))
+      .filter((entry) => hasExplicitQuantity(entry.item) && sameItemIdentity(item, entry.item));
 
     let quantity = item.quantity;
     let price = item.price;
@@ -83,8 +100,7 @@ export function combineReceiptCandidateEvidence(best: ReceiptOcrCandidate, candi
     let confidence = item.confidence;
 
     if (!hasExplicitQuantity(item)) {
-      const explicit = evidence
-        .filter((entry) => hasExplicitQuantity(entry.item))
+      const explicit = [...evidence.filter((entry) => hasExplicitQuantity(entry.item)), ...identityQuantityEvidence]
         .sort((left, right) => receiptCandidateScore(right.candidate) - receiptCandidateScore(left.candidate))[0];
       if (explicit && explicit.item.quantity !== quantity) {
         quantity = explicit.item.quantity;

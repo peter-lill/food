@@ -29,7 +29,11 @@ function moneyValues(line: string) {
 
 function cleanDescription(value: string) {
   return value
-    .replace(/^[*%^#~]+\s*/, "")
+    .replace(/^[*%^#~<>=»«]+\s*/, "")
+    // Coles prints tax/offer markers in a narrow left column. OCR commonly
+    // turns those symbols into a lowercase x, sometimes joined to one extra
+    // damaged capital (for example `xSVANILLA`). They are not product text.
+    .replace(/^x(?:[A-Z](?=[A-Z]{3,})|\s+)(?=[A-Z])/, "")
     .replace(/[^\p{L}\p{N}&'()\-\/\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -187,6 +191,7 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
   const rejectedPrices: number[] = [];
   let pendingDescription = "";
   const quantityPattern = /^(?:qty\s+)?(\d+(?:\.\d+)?)\s*@\s*\$?\s*(\d+[.,]\d{2})\s*(?:each|ea\.?)?(?:\s+(\d+[.,]\d{2}))?/i;
+  const damagedQuantityPattern = /^(\d)\s*[0o@]\s*\$?\s*(\d+[.,]\d{1,2})\s*e/i;
 
   const flushPending = () => {
     if (!pendingDescription) return;
@@ -200,14 +205,23 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
       continue;
     }
 
-    const quantityMatch = line.match(quantityPattern);
+    const quantityMatch = line.match(quantityPattern) ?? line.match(damagedQuantityPattern);
     if (quantityMatch) {
       const quantity = Number(quantityMatch[1]);
       const unitPrice = parseMoney(quantityMatch[2]);
       const printedTotal = quantityMatch[3] ? parseMoney(quantityMatch[3]) : null;
       const calculatedTotal = unitPrice === null ? null : Math.round(quantity * unitPrice * 100) / 100;
-      const lineTotal = printedTotal ?? calculatedTotal;
       const previous = items.at(-1);
+      const previousPrice = previous?.price ?? null;
+      const damagedQuantity = !quantityPattern.test(line);
+      // A damaged quantity row can retain only one unit-price decimal (`2O
+      // $1.5 E`). When its calculated value is close to the already printed
+      // product total, keep the printed total and use the row only as quantity
+      // evidence.
+      const lineTotal = printedTotal
+        ?? (damagedQuantity && previousPrice !== null && calculatedTotal !== null && Math.abs(previousPrice - calculatedTotal) <= .15
+          ? previousPrice
+          : calculatedTotal);
 
       if (pendingDescription && lineTotal !== null) {
         items.push({ description: pendingDescription, quantity, price: lineTotal, sourceText: `${pendingDescription} | ${line}`, confidence: 98 });
@@ -234,8 +248,14 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
         continue;
       }
 
-      if (pendingDescription && inlineDescription) flushPending();
-      const description = inlineDescription || pendingDescription;
+      const pendingHasPackShape = /\b\d+(?:\.\d+)?\s*(?:ml|l|litres?|liters?|g|grams?|kg|packs?)\b/i.test(pendingDescription);
+      if (pendingDescription && inlineDescription && pendingHasPackShape) flushPending();
+      // Wrapped descriptions can be split immediately before the priced part.
+      // Join only a pack-less fragment; a fragment already containing its own
+      // pack shape is a distinct product whose price was lost.
+      const description = pendingDescription && inlineDescription
+        ? `${pendingDescription} ${inlineDescription}`
+        : inlineDescription || pendingDescription;
       if (amount !== null && amount >= 0 && description && !headerMarker.test(description)) {
         if (receiptTotal !== null && amount > receiptTotal * 2) {
           rejectedPrices.push(amount);
