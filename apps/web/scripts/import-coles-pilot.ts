@@ -4,7 +4,7 @@ import { ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { searchColesAndWoolworthsCatalogue, type RetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
-import { explainPilotCandidate } from "./coles-pilot-matching";
+import { explainPilotCandidate, pilotQueryVariants } from "./coles-pilot-matching";
 
 const apply = process.argv.includes("--apply");
 
@@ -45,7 +45,12 @@ type Selection = typeof pilotSelections[number];
 type Accepted = { selection: Selection; candidate: RetailerCatalogueCandidate; score: number };
 
 async function resolveSelection(selection: Selection): Promise<Accepted> {
-  const candidates = await searchColesAndWoolworthsCatalogue(selection.query, { retailers: ["Coles"] });
+  const searches = await Promise.all(pilotQueryVariants(selection.query).map((query) => (
+    searchColesAndWoolworthsCatalogue(query, { retailers: ["Coles"] })
+  )));
+  const candidates = [...new Map(
+    searches.flat().map((candidate) => [`${candidate.retailer}:${candidate.externalId ?? candidate.productName}`, candidate]),
+  ).values()];
   const assessed = candidates.map((candidate) => ({ selection, candidate, ...explainPilotCandidate(selection.query, candidate) }));
   const ranked = assessed
     .filter(({ score }) => Number.isFinite(score))
