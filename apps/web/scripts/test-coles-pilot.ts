@@ -9,6 +9,7 @@ assert.match(source, /retailers: \["Coles"\]/, "the pilot must query Coles only"
 assert.match(source, /candidate\.externalId/, "a retailer product ID must be required");
 assert.match(source, /Ambiguous Coles match/, "ambiguous matches must fail rather than import");
 assert.match(source, /Candidates inspected:/, "failed production previews must expose actual candidate diagnostics");
+assert.match(source, /Competing candidates:/, "ambiguous production previews must expose every competing identity");
 assert.match(source, /retailer_externalId/, "existing retailer listings must prevent duplicates");
 assert.match(source, /productAlias\.findUnique/, "existing canonical aliases must prevent duplicates");
 assert.match(source, /Preview complete\. No database changes were made/, "preview must be the default mode");
@@ -19,6 +20,11 @@ const candidate = (productName: string, packSize: string): RetailerCatalogueCand
   imageUrl: null, sourceUrl: null, isSpecial: false,
 });
 assert.ok(Number.isFinite(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Light Milk 2L", "2L"))));
+assert.ok(
+  scorePilotCandidate("Coles Full Cream Milk 2L", candidate("Coles Full Cream Milk 2L", "2L"))
+    > scorePilotCandidate("Coles Full Cream Milk 2L", candidate("Coles Full Cream Milk Homogenised 2L", "2L")),
+  "an exact normalized product identity must beat a merely similar candidate",
+);
 assert.equal(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Simply Light Coconut Milk 400mL", "400mL")), -Infinity,
   "milk must not match coconut milk with a different pack size");
 assert.match(explainPilotCandidate("Coles Light Milk 2L", candidate("Coles Simply Light Coconut Milk 400mL", "400mL")).rejection ?? "", /package size/);
