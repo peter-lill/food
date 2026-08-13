@@ -27,10 +27,14 @@ const cases = [
   ["ve K11kAT COOKIE DOUGH 170GRAM", "cookie"],
   ["iKTT KAT CHUNKY AERO 1S5GRAM", "aero"],
   ["KIT KAT CHUNKY AERO 135GRAM", "aero"],
+  ["ICE BREAK ICED COFFE S000ML", "coffee"],
   ["HAWAIIAN PIZZA SCROL 2PACK", "scroll"],
 ] as const;
 
 for (const [ocr, expected] of cases) assert.equal(matchReceiptProduct(ocr, candidates)?.productId, expected, ocr);
 assert.equal(matchReceiptProduct("KIT KAT CHUNKY", candidates), null, "Ambiguous wording without a readable pack size must be preserved");
 assert.equal(matchReceiptProduct("COLES PRODUCT", candidates), null, "Weak matches must be preserved");
+assert.equal(matchReceiptProduct("KIT KAT CHUNKY AERO 155GRAM", [
+  { id: "invented-mint", name: "KitKat Aero Mint Chocolate Block", canonicalName: "KitKat Aero Mint Chocolate Block", packSize: "155g" },
+]), null, "catalogue matching must not invent a flavour absent from the receipt");
 console.log("Receipt catalogue product matching tests passed.");

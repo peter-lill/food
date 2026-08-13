@@ -141,6 +141,24 @@ export function chooseReceiptCandidate(candidates: ReceiptOcrCandidate[]) {
   return best ? combineReceiptCandidateEvidence(best, candidates) : null;
 }
 
+export function chooseReceiptDate(candidates: ReceiptOcrCandidate[]) {
+  const evidence = candidates.flatMap((candidate) => {
+    const textLength = Math.max(1, candidate.text.length);
+    return [...candidate.text.matchAll(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{2,4})\b/g)].map((match) => {
+      const year = match[3].length === 2 ? `20${match[3]}` : match[3];
+      return {
+        date: `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`,
+        score: (match.index ?? 0) / textLength
+          + (canPopulateReceiptCandidate(candidate) ? 1 : 0)
+          + (candidate.parsed.purchasedAt === `${year}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}` ? 2 : 0),
+      };
+    });
+  });
+  return evidence.sort((left, right) => right.score - left.score)[0]?.date
+    ?? candidates.map((candidate) => candidate.parsed.purchasedAt).find((date): date is string => Boolean(date))
+    ?? null;
+}
+
 export function needsReceiptFallback(candidate: ReceiptOcrCandidate) {
   return candidate.parsed.items.length === 0
     || candidate.parsed.diagnostics.totalLine === null

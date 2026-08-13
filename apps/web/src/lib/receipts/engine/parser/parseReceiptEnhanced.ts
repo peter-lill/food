@@ -257,6 +257,45 @@ function parsePhotoItems(lines: string[], start: number, end: number, receiptTot
   }
 
   flushPending();
+
+  // A torn/faint price column may leave only `3 7` at the end of a product.
+  // Recover it only from an identical price printed on another product; then
+  // permit one cents-only OCR correction when that same repeated shelf price
+  // makes the explicit receipt arithmetic balance.
+  const pricedValues = items.flatMap((item) => item.price === null ? [] : [item.price]);
+  for (const item of items.filter((entry) => entry.price === null)) {
+    const fragment = item.description.match(/\s(\d+)\s+(\d)\s*$/);
+    if (!fragment) continue;
+    const prefix = `${fragment[1]}.${fragment[2]}`;
+    const matches = [...new Set(pricedValues.filter((price) => price.toFixed(2).startsWith(prefix)))];
+    const viable = matches.filter((candidate) => {
+      const provisional = Math.round((items.reduce((sum, entry) => sum + (entry === item ? candidate : entry.price ?? 0), 0) + adjustments.reduce((sum, value) => sum + value, 0)) * 100) / 100;
+      const difference = receiptTotal === null ? 0 : Math.round((receiptTotal - provisional) * 100) / 100;
+      if (difference === 0) return true;
+      if (Math.abs(difference) > .09) return false;
+      return items.filter((entry) => entry !== item && entry.price !== null
+        && pricedValues.includes(Math.round(((entry.price ?? 0) + difference) * 100) / 100)).length === 1;
+    });
+    if (viable.length !== 1) continue;
+    item.price = viable[0];
+    item.description = item.description.slice(0, fragment.index).trim();
+    item.confidence = Math.min(item.confidence, 86);
+  }
+
+  if (receiptTotal !== null && items.every((item) => item.price !== null)) {
+    const current = Math.round((items.reduce((sum, item) => sum + (item.price ?? 0), 0) + adjustments.reduce((sum, value) => sum + value, 0)) * 100) / 100;
+    const difference = Math.round((receiptTotal - current) * 100) / 100;
+    if (Math.abs(difference) > 0 && Math.abs(difference) <= .09) {
+      const repairs = items.flatMap((item) => {
+        const corrected = Math.round(((item.price ?? 0) + difference) * 100) / 100;
+        return pricedValues.some((price) => price === corrected) ? [{ item, corrected }] : [];
+      });
+      if (repairs.length === 1) {
+        repairs[0].item.price = repairs[0].corrected;
+        repairs[0].item.confidence = Math.min(repairs[0].item.confidence, 86);
+      }
+    }
+  }
   return { items, section, adjustments, rejectedPrices };
 }
 

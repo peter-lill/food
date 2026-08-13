@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
-import { canPopulateReceiptCandidate, chooseReceiptCandidate, combineReceiptCandidateEvidence, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
+import { canPopulateReceiptCandidate, chooseReceiptCandidate, chooseReceiptDate, combineReceiptCandidateEvidence, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
 import { receiptLinesFromBlocks, receiptLinesText } from "../src/lib/receipts/receipt-structure";
 
 const latestReviewOcr = `
@@ -29,6 +29,52 @@ EFT $10.60
 GST INCLUDED IN TOTAL $2.57
 09/08/26
 `;
+
+// Exact review fields shown by the deployed mobile scan after PR #160. The
+// total survived, but OCR column debris, a split price and one cents error
+// corrupted individual products. This must be repaired structurally before UI
+// population rather than hidden by a correct receipt total.
+const mobileReviewOcr = `
+Coles
+se 19/08/2026 Time 14:20
+5F FPST MAX COLA 1 25LITRE 16.00
+4 @ $4.00 EACH
+PEPSI OR SOLO 1.25L 2 FOR $4.80 -$6.40
+5 SUGAR RAW 2KG 3.20
+ARE ESPRESSO 750ML 750ML 4.50
+ICE BREAK ICED COFFE S000ML 2.90
+4MILKYBAR CHOC BLOCK 170GRAM 3 7
+ve K11kAT COOKIE DOUGH 170GRAM 3.79
+KIT KAT CHUNKY AERO 155GRAM 3.75
+HAWAIIAN PIZZA SCROL 2PACK 4.15
+Total for 11 items: $35.60
+EFT $25.00
+EFT $10.60
+09/08/26 14:20
+`;
+
+const mobileLines = receiptLinesFromBlocks(undefined, mobileReviewOcr);
+const mobile = parseReceipt(receiptLinesText(mobileLines), mobileLines);
+assert.equal(mobile.purchasedAt, "2026-08-09");
+assert.equal(mobile.total, 35.6);
+assert.equal(mobile.items.length, 8);
+assert.equal(mobile.items.reduce((sum, item) => sum + item.quantity, 0), 11);
+assert.deepEqual(mobile.items.map(({ description, quantity, price }) => ({ description, quantity, price })), [
+  { description: "5F FPST MAX COLA 1 25LITRE", quantity: 4, price: 16 },
+  { description: "5 SUGAR RAW 2KG", quantity: 1, price: 3.2 },
+  { description: "ARE ESPRESSO 750ML 750ML", quantity: 1, price: 4.5 },
+  { description: "ICE BREAK ICED COFFE S000ML", quantity: 1, price: 2.9 },
+  { description: "4MILKYBAR CHOC BLOCK 170GRAM", quantity: 1, price: 3.75 },
+  { description: "ve K11kAT COOKIE DOUGH 170GRAM", quantity: 1, price: 3.75 },
+  { description: "KIT KAT CHUNKY AERO 155GRAM", quantity: 1, price: 3.75 },
+  { description: "HAWAIIAN PIZZA SCROL 2PACK", quantity: 1, price: 4.15 },
+]);
+assert.deepEqual(mobile.warnings, []);
+const noisyHeaderDate = parseReceipt("Coles\n19/08/2026\nMILK 3.20\nBREAD 4.00\nEGGS 5.00\nTotal $12.20", undefined);
+assert.equal(chooseReceiptDate([
+  { ocrConfidence: 80, parsed: noisyHeaderDate, pass: "structured", text: "Coles\n19/08/2026\nproducts\nTotal $35.60" },
+  { ocrConfidence: 70, parsed: mobile, pass: "structured", text: mobileReviewOcr },
+]), "2026-08-09", "a clean footer date from a reconciled candidate must beat noisy header OCR");
 
 const latestLines = receiptLinesFromBlocks(undefined, latestReviewOcr);
 const latest = parseReceipt(receiptLinesText(latestLines), latestLines);
