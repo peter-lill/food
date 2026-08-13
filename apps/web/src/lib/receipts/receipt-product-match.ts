@@ -23,7 +23,9 @@ function normalise(value: string) {
 function pack(value: string) {
   const packText = normalise(value)
     .replace(/\bs(?=\d{2,}\s*(?:ml|g)\b)/g, "5")
-    .replace(/(?<=\d)s(?=\d)/g, "5").replace(/(?<=\d)o(?=\d)/g, "0")
+    .replace(/\b(\d)\s+(\d{2})(?=\s*(?:litres?|l)\b)/g, "$1.$2")
+    .replace(/(?<=\d)s(?=\d)/g, "5")
+    .replace(/(?<=\d)o(?=\d)/g, "0")
     .replace(/\b(\d+)\s+(\d{1,2})\s*(litres?|l)\b/g, "$1.$2$3");
   const match = packText.match(/(\d+(?:\.\d+)?)\s*(kg|g|grams?|litres?|l|ml|pack|pk)\b/);
   if (!match) return null;
@@ -71,9 +73,6 @@ function packScore(ocrPack: string, candidatePack: string) {
   if (ocrMatch && candidateMatch && ocrMatch[2] === candidateMatch[2]
     && Math.abs(ocrMatch[1].length - candidateMatch[1].length) <= 1
     && distance(ocrMatch[1], candidateMatch[1]) === 1) {
-    // Receipt OCR commonly confuses one digit in dense pack sizes (for example
-    // 155g -> 135g). Keep a small positive signal when the product wording is
-    // otherwise strong; exact pack-size candidates still outrank this recovery.
     return .04;
   }
   return -.65;
@@ -92,7 +91,14 @@ function scoreName(ocr: string, candidateName: string) {
   const strong = similarities.filter((value) => value >= .72);
   const exact = similarities.filter((value) => value === 1).length;
   const coverage = strong.reduce((sum, value) => sum + value, 0) / candidateTokens.length;
-  return { score: coverage + exact * .035, matches: strong.length };
+
+  // Catalogue titles are often longer than the abbreviated receipt wording. Two or
+  // three strong identity anchors (for example COOKIE + DOUGH, or RAW + SUGAR)
+  // should not be diluted by generic catalogue suffixes such as Chocolate Block.
+  const anchors = [...similarities].sort((left, right) => right - left).slice(0, Math.min(3, candidateTokens.length));
+  const anchorAverage = anchors.reduce((sum, value) => sum + value, 0) / Math.max(1, anchors.length);
+  const anchorScore = anchorAverage * .72 + Math.min(strong.length, 3) * .08 + exact * .02;
+  return { score: Math.max(coverage + exact * .035, anchorScore), matches: strong.length };
 }
 
 export function matchReceiptProduct(ocr: string, candidates: ReceiptProductCandidate[]): ReceiptProductMatch | null {

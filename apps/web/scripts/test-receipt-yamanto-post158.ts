@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
-import { canPopulateReceiptCandidate, chooseReceiptCandidate, chooseReceiptDate } from "../src/lib/receipts/receipt-ocr-selection";
+import { canPopulateReceiptCandidate, chooseReceiptCandidate, chooseReceiptDate, combineReceiptCandidateEvidence, needsReceiptFallback } from "../src/lib/receipts/receipt-ocr-selection";
 import { receiptLinesFromBlocks, receiptLinesText } from "../src/lib/receipts/receipt-structure";
 
 const latestReviewOcr = `
@@ -98,5 +98,38 @@ assert.deepEqual(reconciled.warnings, []);
 assert.equal(reconciled.items.length, 8);
 assert.equal(reconciled.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 assert.equal(chooseReceiptCandidate([latestCandidate, reconciledCandidate]), reconciledCandidate, "a lower-confidence OCR pass that exactly reconciles the receipt must beat a wrong-price pass");
+
+// Latest production review after PR #160: one OCR representation had the right
+// merchandise boundary and total, but lost the Pepsi quantity, lost the Milkybar
+// price and misread the receipt date as the future 19/08/2026. Another pass can
+// carry those missing fields. Evidence should be combined only across candidates
+// that agree on retailer, total and item order rather than trusting one pass whole.
+const screenshotItems = reconciled.items.map((item, index) => {
+  if (index === 0) return { ...item, quantity: 1, sourceText: item.description };
+  if (index === 4) return { ...item, price: null, sourceText: "4MILKYBAR CHOC BLOCK 170GRAM 3 7" };
+  return item;
+});
+const screenshotCandidate = {
+  ...reconciledCandidate,
+  ocrConfidence: 86,
+  parsed: { ...reconciled, purchasedAt: "2026-08-19", items: screenshotItems, warnings: [] },
+};
+const corroboratingCandidate = {
+  ...reconciledCandidate,
+  ocrConfidence: 61,
+  parsed: {
+    ...reconciled,
+    purchasedAt: "2026-08-09",
+    items: reconciled.items.map((item, index) => index === 0
+      ? { ...item, quantity: 4, sourceText: `${item.description} | 4 @ $4.00 EACH` }
+      : item),
+  },
+};
+assert.equal(needsReceiptFallback(screenshotCandidate), true, "a selected pass with an unpriced purchase must trigger the other OCR passes");
+const combined = combineReceiptCandidateEvidence(screenshotCandidate, [screenshotCandidate, corroboratingCandidate], new Date("2026-08-13T01:12:00+10:00"));
+assert.equal(combined.parsed.purchasedAt, "2026-08-09", "a future OCR date must not beat corroborated same-receipt evidence");
+assert.equal(combined.parsed.items[0]?.quantity, 4, "an explicit 4 @ $4.00 quantity from another aligned pass must restore Pepsi quantity");
+assert.equal(combined.parsed.items[4]?.price, 3.75, "a missing Milkybar price may be filled from an aligned pass without replacing conflicting non-null prices");
+assert.equal(combined.parsed.items.reduce((sum, item) => sum + item.quantity, 0), 11);
 
 console.log("Latest Yamanto review regression checks passed.");
