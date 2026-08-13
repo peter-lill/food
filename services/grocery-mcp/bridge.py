@@ -7,8 +7,11 @@ import threading
 import time
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from queue import Queue
 from urllib.parse import parse_qs, quote, urlparse
 from urllib.request import Request, urlopen
+
+from playwright.sync_api import sync_playwright
 
 sys.path.insert(0, "/opt/grocery-mcp/upstream")
 
@@ -237,6 +240,104 @@ _woolworths_unavailable_until = 0.0
 _woolworths_circuit_lock = threading.Lock()
 
 
+class WoolworthsBrowserSession:
+    """Run Woolworths UI requests inside a storefront browser session."""
+
+    def __init__(self) -> None:
+        self._requests: Queue = Queue()
+        self._thread = threading.Thread(target=self._run, daemon=True, name="woolworths-browser")
+        self._thread.start()
+
+    def search(self, query: str, limit: int) -> object:
+        completed: Queue = Queue(maxsize=1)
+        self._requests.put((query, limit, completed))
+        try:
+            success, value = completed.get(timeout=WOOLWORTHS_TIMEOUT_SECONDS + 20)
+        except Exception as error:
+            raise RuntimeError("browser session did not return in time") from error
+        if not success:
+            raise RuntimeError(str(value))
+        return value
+
+    def _run(self) -> None:
+        with sync_playwright() as playwright:
+            browser = None
+            page = None
+            while True:
+                query, limit, completed = self._requests.get()
+                try:
+                    if browser is None or not browser.is_connected():
+                        browser = playwright.chromium.launch(
+                            headless=True,
+                            args=["--no-sandbox", "--disable-dev-shm-usage"],
+                        )
+                        context = browser.new_context(
+                            locale="en-AU",
+                            timezone_id="Australia/Brisbane",
+                            user_agent=(
+                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                "Chrome/143.0.0.0 Safari/537.36"
+                            ),
+                        )
+                        page = context.new_page()
+                        page.goto(
+                            "https://www.woolworths.com.au/",
+                            wait_until="domcontentloaded",
+                            timeout=WOOLWORTHS_TIMEOUT_SECONDS * 1000,
+                        )
+                    search_path = f"/shop/search/products?searchTerm={quote(query)}"
+                    if not page.url.startswith("https://www.woolworths.com.au/shop/search"):
+                        page.goto(
+                            f"https://www.woolworths.com.au{search_path}",
+                            wait_until="domcontentloaded",
+                            timeout=WOOLWORTHS_TIMEOUT_SECONDS * 1000,
+                        )
+                    title = page.title().casefold()
+                    if "access denied" in title or "captcha" in title:
+                        raise RuntimeError("Woolworths requires browser verification")
+                    payload = {
+                        "Filters": [], "IsSpecial": False, "Location": search_path,
+                        "PageNumber": 1, "PageSize": min(36, max(limit, 1)),
+                        "SearchTerm": query, "SortType": "TraderRelevance",
+                        "IsHideEverydayMarketProducts": False,
+                        "IsRegisteredRewardCardPromotion": None,
+                        "ExcludeSearchTypes": ["UntraceableVendors"], "GpBoost": 0,
+                        "GroupEdmVariants": False, "EnableAdReRanking": False,
+                    }
+                    result = page.evaluate(
+                        """async ({url, payload}) => {
+                          const response = await fetch(url, {
+                            method: 'POST', credentials: 'include',
+                            headers: {'accept': 'application/json, text/plain, */*', 'content-type': 'application/json'},
+                            body: JSON.stringify(payload)
+                          });
+                          if (!response.ok) throw new Error(`HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+                          return response.json();
+                        }""",
+                        {"url": WOOLWORTHS_SEARCH_URL, "payload": payload},
+                    )
+                    completed.put((True, result))
+                except Exception as error:
+                    if browser is not None:
+                        browser.close()
+                    browser = None
+                    page = None
+                    completed.put((False, error))
+
+
+_woolworths_browser: WoolworthsBrowserSession | None = None
+_woolworths_browser_lock = threading.Lock()
+
+
+def woolworths_browser() -> WoolworthsBrowserSession:
+    global _woolworths_browser
+    with _woolworths_browser_lock:
+        if _woolworths_browser is None:
+            _woolworths_browser = WoolworthsBrowserSession()
+        return _woolworths_browser
+
+
 def clean_search_query(query: str) -> str:
     cleaned = re.sub(
         r"\b(?:css|font|style|inherit|weight|webkit|text|decoration|display|flex|grid|margin|padding|border|background)\b",
@@ -263,24 +364,14 @@ def search_woolworths(query: str, limit: int) -> list[dict]:
     cleaned_query = clean_search_query(query)
     if not cleaned_query:
         return []
-    body = json.dumps({
-        "Filters": [], "IsSpecial": False, "Location": "", "PageNumber": 1,
-        "PageSize": min(36, max(limit, 1)), "SearchTerm": cleaned_query,
-        "SortType": "TraderRelevance",
-    }).encode("utf-8")
-    request = Request(WOOLWORTHS_SEARCH_URL, data=body, headers={
-        "Accept": "application/json", "Content-Type": "application/json",
-        "Origin": "https://www.woolworths.com.au",
-        "Referer": "https://www.woolworths.com.au/",
-        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
-    }, method="POST")
     try:
-        with urlopen(request, timeout=WOOLWORTHS_TIMEOUT_SECONDS) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (TimeoutError, socket.timeout):
+        payload = woolworths_browser().search(cleaned_query, limit)
+    except (TimeoutError, socket.timeout, RuntimeError) as error:
         with _woolworths_circuit_lock:
             _woolworths_unavailable_until = time.monotonic() + WOOLWORTHS_CIRCUIT_SECONDS
-        raise RuntimeError(f"search timed out; circuit open for {WOOLWORTHS_CIRCUIT_SECONDS}s") from None
+        raise RuntimeError(
+            f"browser search failed ({error}); circuit open for {WOOLWORTHS_CIRCUIT_SECONDS}s"
+        ) from None
     with _woolworths_circuit_lock:
         _woolworths_unavailable_until = 0.0
     products = []
