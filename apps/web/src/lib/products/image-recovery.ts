@@ -375,7 +375,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
     diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product is branded or barcoded" });
   }
 
-  if (product.imageUrl) candidates.push({
+  if (product.imageUrl && (isGeneric || !product.imageUrl.startsWith("generated://"))) candidates.push({
     url: product.imageUrl,
     source: "Current/manual image",
     sourceLabel: "Existing product image",

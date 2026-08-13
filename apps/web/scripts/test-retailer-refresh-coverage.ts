@@ -66,6 +66,11 @@ assert.match(imageRecoverySource, /isGenericFoodImageEligible\(product\)/, "gene
 assert.match(imageRecoverySource, /searchColesAndWoolworthsCatalogue\(barcode\)/, "known barcodes should search retailer catalogues directly");
 assert.match(imageRecoverySource, /linkedRetailerImages/, "existing retailer listings should provide replacement image candidates");
 assert.match(imageRecoverySource, /candidateSelectionPriority\(right\.candidate\)/, "all usable images should be ranked before selection");
+assert.match(imageRecoverySource, /isGeneric \|\| !product\.imageUrl\.startsWith\("generated:\/\/"\)/, "specific products must not recycle an old generated generic image during recovery");
+const productImageRouteSource = readFileSync(new URL("../src/app/api/products/[productId]/image/route.ts", import.meta.url), "utf8");
+assert.match(productImageRouteSource, /isGenericFoodImageEligible\(product\)/, "the image endpoint must check full generic eligibility before serving a generated asset");
+assert.match(productImageRouteSource, /const genericFamily = allowGenericImage/, "specific unbranded retailer products must retain retailer image fallbacks");
+assert.match(productImageRouteSource, /"source" <> 'OpenAI generated'/, "specific products must not serve a previously selected generated generic asset");
 
 const retailerQueueSource = readFileSync(new URL("enqueue-product-retailer-enrichment.ts", import.meta.url), "utf8");
 assert.match(retailerQueueSource, /process\.argv\.includes\("--all"\)/, "the catalogue can be refreshed globally after an authority policy change");

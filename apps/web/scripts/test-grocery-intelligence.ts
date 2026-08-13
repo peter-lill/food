@@ -215,6 +215,7 @@ assert.equal(isRecipeInstructionResidue("To Serve"), true);
 assert.equal(isRecipeInstructionResidue("For garnish"), true);
 assert.equal(isRecipeInstructionResidue("Vegetable stock"), false);
 assert.equal(isGenericFoodImageEligible({ productType: "OTHER", category: "Other", name: "Beatrix Potter Alphabet U Peter Rabbit With Radishes" }), false);
+assert.equal(isGenericFoodImageEligible({ productType: "PACKAGED_FOOD", category: "Other", name: "Beatrix Potter Alphabet U Peter Rabbit With Radishes", canonicalName: "Radishes" }), false);
 assert.equal(isGenericFoodImageEligible({ productType: "OTHER", category: "Pantry", name: "Bakery Cinnamon Donuts" }), false);
 assert.equal(isGenericFoodImageEligible({ productType: "GENERIC_PRODUCE", category: "Fruit & vegetables", name: "Broccoli" }), true);
 assert.equal(parseProductName("2 slices toast").canonicalName, "Toast", "recipe quantity units must not become the product name");
