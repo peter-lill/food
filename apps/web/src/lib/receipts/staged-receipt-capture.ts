@@ -1,6 +1,5 @@
 const databaseName = "food-receipt-capture";
 const storeName = "captures";
-const captureKey = "latest";
 
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
@@ -16,28 +15,32 @@ function openDatabase() {
 }
 
 export async function stageReceiptCapture(file: File) {
+  const captureId = crypto.randomUUID();
   const database = await openDatabase();
   await new Promise<void>((resolve, reject) => {
     const transaction = database.transaction(storeName, "readwrite");
-    transaction.objectStore(storeName).put(file, captureKey);
+    transaction.objectStore(storeName).put(file, captureId);
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error ?? new Error("Receipt capture could not be saved."));
   });
   database.close();
+  return captureId;
 }
 
-export async function takeStagedReceiptCapture() {
+export async function takeStagedReceiptCapture(captureId: string) {
   const database = await openDatabase();
   const file = await new Promise<File | null>((resolve, reject) => {
+    let captured: File | null = null;
     const transaction = database.transaction(storeName, "readwrite");
     const store = transaction.objectStore(storeName);
-    const request = store.get(captureKey);
+    const request = store.get(captureId);
     request.onsuccess = () => {
       const result = request.result;
-      store.delete(captureKey);
-      resolve(result instanceof File ? result : null);
+      captured = result instanceof File ? result : null;
+      store.delete(captureId);
     };
-    request.onerror = () => reject(request.error ?? new Error("Receipt capture could not be loaded."));
+    transaction.oncomplete = () => resolve(captured);
+    transaction.onerror = () => reject(transaction.error ?? request.error ?? new Error("Receipt capture could not be loaded."));
   });
   database.close();
   return file;

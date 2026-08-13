@@ -20,7 +20,7 @@ export default async function ReceiptsPage({
   searchParams: Promise<{ capture?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const loadStagedCapture = (Array.isArray(params.capture) ? params.capture[0] : params.capture) === "staged";
+  const stagedCaptureId = Array.isArray(params.capture) ? params.capture[0] : params.capture;
   const { receipts, loadError } = await loadReceiptsPageData();
 
   return (
@@ -38,7 +38,7 @@ export default async function ReceiptsPage({
         </div>
         <Link className={`secondary-button ${styles.priceLink}`} href="/prices">View price history</Link>
       </header>
-      <ReceiptWorkspace loadError={loadError} loadStagedCapture={loadStagedCapture} receipts={receipts} />
+      <ReceiptWorkspace loadError={loadError} stagedCaptureId={stagedCaptureId ?? null} receipts={receipts} />
     </div>
   );
 }
