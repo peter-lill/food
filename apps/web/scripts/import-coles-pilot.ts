@@ -58,7 +58,11 @@ async function resolveSelection(selection: Selection): Promise<Accepted> {
     throw new Error(`No authoritative Coles match for: ${selection.query}\nCandidates inspected:\n${diagnostics}`);
   }
   if (ranked[1] && winner.score - ranked[1].score < 5 && ranked[1].candidate.externalId !== winner.candidate.externalId) {
-    throw new Error(`Ambiguous Coles match for: ${selection.query}`);
+    const competing = ranked
+      .filter(({ score }) => winner.score - score < 5)
+      .map(({ candidate, score }) => `- ${candidate.productName} | ${candidate.packSize ?? "no size"} | $${candidate.price ?? "no price"} | ID ${candidate.externalId ?? "none"} | barcode ${candidate.barcode ?? "none"} | score ${score.toFixed(1)}`)
+      .join("\n");
+    throw new Error(`Ambiguous Coles match for: ${selection.query}\nCompeting candidates:\n${competing}`);
   }
   return winner;
 }

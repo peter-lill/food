@@ -28,6 +28,14 @@ function comparablePackSize(value: string) {
   return `${amount}${unit}`;
 }
 
+function productIdentity(value: string) {
+  return normaliseProductText(value)
+    .replace(/\bcoles\b/g, " ")
+    .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|tablets?|rolls?)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function explainPilotCandidate(query: string, candidate: RetailerCatalogueCandidate): { score: number; rejection: string | null } {
   if (candidate.retailer !== "Coles") return { score: -Infinity, rejection: "not a Coles result" };
   if (!candidate.externalId) return { score: -Infinity, rejection: "missing Coles product ID" };
@@ -57,7 +65,8 @@ export function explainPilotCandidate(query: string, candidate: RetailerCatalogu
   const actual = new Set(words(candidateText));
   const coverage = expected.filter((token) => actual.has(token)).length / expected.length;
   if (coverage < 0.8) return { score: -Infinity, rejection: `name coverage ${Math.round(coverage * 100)}% is below 80%` };
-  return { score: coverage * 100 + (candidate.barcode ? 5 : 0) + (candidate.imageUrl ? 5 : 0), rejection: null };
+  const exactIdentity = productIdentity(queryText) === productIdentity(candidateText);
+  return { score: coverage * 100 + (exactIdentity ? 30 : 0) + (candidate.barcode ? 5 : 0) + (candidate.imageUrl ? 5 : 0), rejection: null };
 }
 
 export function scorePilotCandidate(query: string, candidate: RetailerCatalogueCandidate) {
