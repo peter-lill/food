@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { hwqSnackRecipes } from "../src/lib/recipes/hwq-snacks";
 import bhfCatalogue from "../src/generated/bhf-recipes.json";
 import { plannerRecipeCardView } from "../src/lib/planner/planner-card";
@@ -131,6 +131,15 @@ const plannerWorkspaceSource = readFileSync(
   "utf8",
 );
 assert.doesNotMatch(plannerWorkspaceSource, /day\.short/, "Planner day cards should show Monday, not both Mon and Monday");
+for (const sourcePath of ["../src/lib/planner/planner.repository.ts", "../src/lib/products/product-hub.repository.ts"]) {
+  const source = readFileSync(new URL(sourcePath, import.meta.url), "utf8");
+  const localRecipeImages = [...source.matchAll(/["'`](\/recipes\/[^"'`]+\.(?:avif|jpe?g|png|webp))["'`]/gi)]
+    .map((match) => match[1]);
+  assert.ok(localRecipeImages.length > 0, `${sourcePath} should expose local recipe images`);
+  for (const imageUrl of localRecipeImages) {
+    assert.ok(existsSync(new URL(`../public${imageUrl}`, import.meta.url)), `${imageUrl} must exist in the production public directory`);
+  }
+}
 let multiMealPlan = withPlannerMealSelection({}, "monday", "breakfast", { recipeId: appleRecipe.id, servings: 2 });
 multiMealPlan = withPlannerMealSelection(multiMealPlan, "monday", "dinner", { recipeId: flourRecipe.id, servings: 1 });
 assert.equal(Object.keys(multiMealPlan.monday ?? {}).length, 2, "adding Dinner must not replace Breakfast");
