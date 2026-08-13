@@ -189,9 +189,13 @@ function simplifyRecipeDerivedProduct(value: string) {
   // A recipe may describe prepared stock by the cube used to make it. The
   // purchasable identity is the stock cube, not the complete instruction.
   return value.replace(
-    /\b(vegetable|chicken|beef)\s+stock\s+(?:made|prepared)\s+(?:from|with)\s+(?:an?\s+)?(?:(?:low|reduced|no)[ -]?salt\s+)?(?:\1\s+)?stock\s+cubes?\b/gi,
+    /\b(vegetable|chicken|beef)\s+stock\s+(?:made|prepared)\s+(?:from|with)\s+(?:an?\s+)?(?:(?:low|reduced|no)(?:[ -]?salt)?\s+)?(?:\1\s+)?stock\s+cubes?\b/gi,
     "$1 stock cube",
   );
+}
+
+export function isRecipeInstructionResidue(value: string) {
+  return /^(?:to serve|for (?:serving|garnish)|optional|as needed)$/i.test(cleanWhitespace(value));
 }
 
 function extractQuantities(value: string) {

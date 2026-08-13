@@ -117,7 +117,7 @@ function extractImageUrl(html: string, sourceUrl: URL) {
 
 export async function cacheExternalRecipeImage(externalRecipeId: string) {
   const recipe = externalRecipes.find((item) => item.id === externalRecipeId);
-  if (!recipe || recipe.sourceName !== "Heart Foundation") return null;
+  if (!recipe) return null;
 
   const cached = await readCachedRecipeImage(externalRecipeId);
   if (cached) {
@@ -125,18 +125,20 @@ export async function cacheExternalRecipeImage(externalRecipeId: string) {
   }
 
   const sourceUrl = new URL(sourceAliases.get(recipe.sourceUrl) ?? recipe.sourceUrl);
-  const pageResponse = await fetch(sourceUrl, {
-    headers: {
-      "User-Agent": "Mozilla/5.0 (compatible; FoodRecipeImporter/1.0)",
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-AU,en;q=0.9",
-    },
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!pageResponse.ok) return null;
-
-  const imageUrl = extractImageUrl(await pageResponse.text(), sourceUrl);
+  let imageUrl = recipe.imageUrl;
+  if (!imageUrl) {
+    const pageResponse = await fetch(sourceUrl, {
+      headers: {
+        "User-Agent": "Mozilla/5.0 (compatible; FoodRecipeImporter/1.0)",
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-AU,en;q=0.9",
+      },
+      cache: "no-store",
+      signal: AbortSignal.timeout(20_000),
+    });
+    if (!pageResponse.ok) return null;
+    imageUrl = extractImageUrl(await pageResponse.text(), sourceUrl);
+  }
   if (!imageUrl) return null;
 
   const imageResponse = await fetch(imageUrl, {

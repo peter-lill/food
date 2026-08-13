@@ -46,3 +46,9 @@ export function genericImageIdentity(value: string) {
   if (!/[a-z]{2}/i.test(identity)) return null;
   return identity;
 }
+
+export function isGenericFoodImageEligible(product: { productType: string; category: string | null; name: string; canonicalName?: string | null }) {
+  if (product.productType !== "GENERIC_PRODUCE") return false;
+  if (!/^(?:fruit\s*(?:&|and)\s*vegetables|fresh produce|produce)$/i.test(product.category?.trim() ?? "")) return false;
+  return genericImageIdentity(product.canonicalName ?? product.name) !== null;
+}
