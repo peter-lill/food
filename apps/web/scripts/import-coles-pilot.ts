@@ -4,6 +4,7 @@ import { ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { searchColesAndWoolworthsCatalogue, type RetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { scorePilotCandidate } from "./coles-pilot-matching";
 
 const apply = process.argv.includes("--apply");
 
@@ -42,19 +43,6 @@ export const pilotSelections = [
 
 type Selection = typeof pilotSelections[number];
 type Accepted = { selection: Selection; candidate: RetailerCatalogueCandidate; score: number };
-
-function tokens(value: string) {
-  return normaliseProductText(value).split(" ").filter((token) => token.length > 1);
-}
-
-export function scorePilotCandidate(query: string, candidate: RetailerCatalogueCandidate) {
-  if (candidate.retailer !== "Coles" || !candidate.externalId || !candidate.packSize || candidate.price === null || candidate.price <= 0) return -Infinity;
-  const expected = tokens(query);
-  const actual = new Set(tokens(candidate.productName));
-  const coverage = expected.filter((token) => actual.has(token)).length / expected.length;
-  if (coverage < 0.75) return -Infinity;
-  return coverage * 100 + (candidate.barcode ? 5 : 0) + (candidate.imageUrl ? 5 : 0);
-}
 
 async function resolveSelection(selection: Selection): Promise<Accepted> {
   const candidates = await searchColesAndWoolworthsCatalogue(selection.query, { retailers: ["Coles"] });
