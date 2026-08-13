@@ -95,6 +95,11 @@ assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exc
 assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
 assert.match(bridgeSource, /WOOLWORTHS_SEARCH_URL[\s\S]*method="POST"/, "Woolworths search uses the current structured POST contract rather than the retired GET query");
 assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
+assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");
+assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout\)/, "Woolworths read timeouts must be classified explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
+
+const genericImageSource = readFileSync(new URL("../src/lib/products/generic-image-generation.ts", import.meta.url), "utf8");
+assert.match(genericImageSource, /credit_balance_exhausted\|insufficient_quota\|no credits remaining/, "exhausted OpenAI credit must skip generation rather than retrying an impossible request");
 
 console.log("Retailer bridge metadata regressions passed.");

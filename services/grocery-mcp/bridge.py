@@ -1,7 +1,10 @@
 import json
 import os
 import re
+import socket
 import sys
+import threading
+import time
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, quote, urlparse
@@ -228,6 +231,10 @@ def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
 
 
 WOOLWORTHS_SEARCH_URL = "https://www.woolworths.com.au/apis/ui/Search/products"
+WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
+WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
+_woolworths_unavailable_until = 0.0
+_woolworths_circuit_lock = threading.Lock()
 
 
 def clean_search_query(query: str) -> str:
@@ -248,6 +255,11 @@ def woolworths_product_nodes(value: object) -> list[dict]:
 
 
 def search_woolworths(query: str, limit: int) -> list[dict]:
+    global _woolworths_unavailable_until
+    with _woolworths_circuit_lock:
+        unavailable_for = _woolworths_unavailable_until - time.monotonic()
+    if unavailable_for > 0:
+        raise RuntimeError(f"search temporarily unavailable after timeout; retry in {round(unavailable_for)}s")
     cleaned_query = clean_search_query(query)
     if not cleaned_query:
         return []
@@ -262,8 +274,15 @@ def search_woolworths(query: str, limit: int) -> list[dict]:
         "Referer": "https://www.woolworths.com.au/",
         "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
     }, method="POST")
-    with urlopen(request, timeout=15) as response:
-        payload = json.loads(response.read().decode("utf-8"))
+    try:
+        with urlopen(request, timeout=WOOLWORTHS_TIMEOUT_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (TimeoutError, socket.timeout):
+        with _woolworths_circuit_lock:
+            _woolworths_unavailable_until = time.monotonic() + WOOLWORTHS_CIRCUIT_SECONDS
+        raise RuntimeError(f"search timed out; circuit open for {WOOLWORTHS_CIRCUIT_SECONDS}s") from None
+    with _woolworths_circuit_lock:
+        _woolworths_unavailable_until = 0.0
     products = []
     for source in woolworths_product_nodes(payload):
         products.append({

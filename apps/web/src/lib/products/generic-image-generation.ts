@@ -32,7 +32,14 @@ export async function generateGenericProductImage(productId: string, identity: s
     }),
     signal: AbortSignal.timeout(180_000),
   });
-  if (!response.ok) throw new Error(`OpenAI image generation returned HTTP ${response.status}: ${(await response.text()).slice(0, 500)}`);
+  if (!response.ok) {
+    const errorBody = (await response.text()).slice(0, 500);
+    if (response.status === 429 && /(?:credit_balance_exhausted|insufficient_quota|no credits remaining)/i.test(errorBody)) {
+      console.warn("OpenAI generic image generation skipped because the configured account has no remaining credit.");
+      return null;
+    }
+    throw new Error(`OpenAI image generation returned HTTP ${response.status}: ${errorBody}`);
+  }
   const payload = await response.json() as { data?: Array<{ b64_json?: string }> };
   const encoded = payload.data?.[0]?.b64_json;
   if (!encoded) throw new Error("OpenAI image generation returned no image data");
