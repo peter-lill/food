@@ -46,6 +46,19 @@ function normaliseBarcode(value: string | null | undefined) {
   return digits || null;
 }
 
+const weakRetailerIdentities = new Set([
+  "food", "item", "mix", "product", "snack", "to serve", "uncategorised", "unknown",
+]);
+
+export function informativeRetailerIdentity(
+  product: Pick<ProductIdentity, "name" | "canonicalName">,
+) {
+  const canonical = normalise(product.canonicalName);
+  return canonical && !weakRetailerIdentities.has(canonical)
+    ? product.canonicalName!.trim()
+    : product.name.trim();
+}
+
 function normalisePackSize(value: string | null | undefined) {
   const match = normalise(value).match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml|pack|pk|capsules?|tablets?|cans?|bottles?|rolls?)/i);
   if (!match) return null;
@@ -64,7 +77,7 @@ export function identityScore(product: ProductIdentity, candidate: RetailerCatal
   if (productBarcode && candidateBarcode && productBarcode === candidateBarcode) return 20_000;
   if (productBarcode && candidateBarcode && productBarcode !== candidateBarcode) return Number.NEGATIVE_INFINITY;
 
-  const productName = normalise([product.brand, product.name, product.canonicalName].filter(Boolean).join(" "));
+  const productName = normalise([product.brand, informativeRetailerIdentity(product)].filter(Boolean).join(" "));
   const candidateName = normalise(candidate.productName);
   const requestedTokens = tokens(productName);
   const candidateTokens = new Set(tokens(candidateName));
@@ -93,7 +106,7 @@ export function retailerSearchQuery(
   product: Pick<ProductIdentity, "name" | "canonicalName" | "brand" | "barcode" | "packSize">,
 ) {
   if (product.barcode?.trim()) return product.barcode.trim();
-  return [product.brand, product.canonicalName ?? product.name, product.packSize]
+  return [product.brand, informativeRetailerIdentity(product), product.packSize]
     .filter(Boolean)
     .join(" ")
     || product.name;
@@ -112,7 +125,7 @@ export function authoritativeRetailerName(currentName: string, candidateName: st
 }
 
 async function searchRetailerCandidates(product: ProductIdentity) {
-  const descriptiveQuery = [product.brand, product.canonicalName ?? product.name, product.packSize]
+  const descriptiveQuery = [product.brand, informativeRetailerIdentity(product), product.packSize]
     .filter(Boolean)
     .join(" ") || product.name;
   const searches = requiredRetailers.flatMap((retailer) => (
@@ -238,6 +251,23 @@ export async function enrichProductRetailers(productId: string, options?: { forc
   });
 
   for (const candidate of accepted) await persistCandidate(product, candidate);
+
+  for (const retailer of requiredRetailers) {
+    const acceptedExternalIds = accepted
+      .filter((candidate) => candidate.retailer === retailer)
+      .map((candidate) => candidate.externalId)
+      .filter((externalId): externalId is string => Boolean(externalId));
+    if (!acceptedExternalIds.length) continue;
+    await prisma.storeProduct.updateMany({
+      where: {
+        productId: product.id,
+        retailer,
+        active: true,
+        OR: [{ externalId: null }, { externalId: { notIn: acceptedExternalIds } }],
+      },
+      data: { active: false },
+    });
+  }
 
   const authoritative = accepted
     .filter((candidate) => normaliseBarcode(candidate.barcode) === normaliseBarcode(product.barcode))

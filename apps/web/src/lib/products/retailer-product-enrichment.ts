@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { searchColesAndWoolworths, type RetailerPriceCandidate } from "@/lib/prices/coles-woolworths-provider";
+import { informativeRetailerIdentity } from "@/lib/retailers/retailer-intelligence.service";
 
 type ProductIdentity = {
   id: string;
@@ -25,7 +26,7 @@ function tokens(value: string) {
 }
 
 function candidateScore(product: ProductIdentity, candidate: RetailerPriceCandidate) {
-  const requested = product.canonicalName ?? product.name;
+  const requested = informativeRetailerIdentity(product);
   const expected = tokens(requested);
   const candidateValue = normalise(candidate.productName);
   const candidateTokens = new Set(tokens(candidate.productName));
@@ -50,7 +51,7 @@ async function availableBarcode(productId: string, barcode: string | null) {
 }
 
 export async function enrichProductFromRetailers(product: ProductIdentity) {
-  const query = product.canonicalName ?? product.name;
+  const query = informativeRetailerIdentity(product);
   const candidates = await searchColesAndWoolworths(query);
   const candidate = candidates
     .map((item) => ({ item, score: candidateScore(product, item) }))
