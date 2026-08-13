@@ -31,6 +31,7 @@ function requireString(payload: Record<string, unknown>, key: string) {
 export function providerForJob(job: BackgroundJob) {
   const payload = job.payload as Record<string, unknown>;
   const provider = typeof payload.provider === "string" ? payload.provider.toLowerCase() : "";
+  if (provider.includes("coles") && provider.includes("woolworths")) return "coles-woolworths";
   if (provider.includes("woolworths")) return "woolworths";
   if (provider.includes("coles")) return "coles";
   if (provider.includes("open food facts")) return "open-food-facts";

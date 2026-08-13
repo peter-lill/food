@@ -101,8 +101,11 @@ const retailerQueueSource = readFileSync(new URL("enqueue-product-retailer-enric
 assert.match(retailerQueueSource, /process\.argv\.includes\("--all"\)/, "the catalogue can be refreshed globally after an authority policy change");
 assert.match(retailerQueueSource, /productImageEnrichment/, "a whole-catalogue refresh must re-evaluate images as well as listings");
 const workerHandlerSource = readFileSync(new URL("../src/lib/jobs/worker-handlers.ts", import.meta.url), "utf8");
+assert.match(workerHandlerSource, /provider\.includes\("coles"\) && provider\.includes\("woolworths"\)/, "combined retailer jobs must not be misreported as Woolworths-only");
 assert.match(workerHandlerSource, /enrichProductFromRetailerLabels\(productId\)/, "every Coles and Woolworths retailer refresh must also populate published label details");
 assert.match(workerHandlerSource, /saveProductQuality\(productId\)/, "retailer refresh must recalculate quality after label details are populated");
+const workerSource = readFileSync(new URL("worker.ts", import.meta.url), "utf8");
+assert.match(workerSource, /job\.completed[\s\S]*result,/, "completed worker logs must expose Coles and Woolworths match counts from the job result");
 
 const missingPackQueueSource = readFileSync(new URL("enqueue-missing-retailer-pack-sizes.ts", import.meta.url), "utf8");
 assert.match(missingPackQueueSource, /packSize: null/, "missing package sizes must be found from retailer listings");

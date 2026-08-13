@@ -67,6 +67,7 @@ async function processJob(job: BackgroundJob) {
       jobId: job.id,
       type: job.type,
       provider,
+      result,
       durationMs: Date.now() - started,
     });
   } catch (error) {
