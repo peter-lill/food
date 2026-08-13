@@ -4,7 +4,7 @@ import { ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { searchColesAndWoolworthsCatalogue, type RetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
-import { scorePilotCandidate } from "./coles-pilot-matching";
+import { explainPilotCandidate } from "./coles-pilot-matching";
 
 const apply = process.argv.includes("--apply");
 
@@ -46,12 +46,17 @@ type Accepted = { selection: Selection; candidate: RetailerCatalogueCandidate; s
 
 async function resolveSelection(selection: Selection): Promise<Accepted> {
   const candidates = await searchColesAndWoolworthsCatalogue(selection.query, { retailers: ["Coles"] });
-  const ranked = candidates
-    .map((candidate) => ({ selection, candidate, score: scorePilotCandidate(selection.query, candidate) }))
+  const assessed = candidates.map((candidate) => ({ selection, candidate, ...explainPilotCandidate(selection.query, candidate) }));
+  const ranked = assessed
     .filter(({ score }) => Number.isFinite(score))
     .sort((left, right) => right.score - left.score);
   const winner = ranked[0];
-  if (!winner) throw new Error(`No authoritative Coles match for: ${selection.query}`);
+  if (!winner) {
+    const diagnostics = assessed.length
+      ? assessed.map(({ candidate, rejection }) => `- ${candidate.productName} | ${candidate.packSize ?? "no size"} | $${candidate.price ?? "no price"} | ${rejection ?? "rejected"}`).join("\n")
+      : "- Coles returned no candidates";
+    throw new Error(`No authoritative Coles match for: ${selection.query}\nCandidates inspected:\n${diagnostics}`);
+  }
   if (ranked[1] && winner.score - ranked[1].score < 5 && ranked[1].candidate.externalId !== winner.candidate.externalId) {
     throw new Error(`Ambiguous Coles match for: ${selection.query}`);
   }
