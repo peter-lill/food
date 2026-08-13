@@ -89,5 +89,8 @@ assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly 
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
 assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
 assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
+assert.match(bridgeSource, /WOOLWORTHS_SEARCH_URL[\s\S]*method="POST"/, "Woolworths search uses the current structured POST contract rather than the retired GET query");
+assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
+assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
 
 console.log("Retailer bridge metadata regressions passed.");

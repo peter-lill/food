@@ -1,5 +1,6 @@
 import json
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,7 +12,6 @@ sys.path.insert(0, "/opt/grocery-mcp/upstream")
 from src.supermarkets import (  # noqa: E402
     COLES_DEFAULT_STORE_ID,
     coles_search_products,
-    woolworths_search_products,
 )
 
 PORT = int(os.getenv("PORT", "8787"))
@@ -227,11 +227,57 @@ def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
     return normalise_products("Coles", coles_products(result), limit)
 
 
+WOOLWORTHS_SEARCH_URL = "https://www.woolworths.com.au/apis/ui/Search/products"
+
+
+def clean_search_query(query: str) -> str:
+    cleaned = re.sub(
+        r"\b(?:css|font|style|inherit|weight|webkit|text|decoration|display|flex|grid|margin|padding|border|background)\b",
+        " ", query, flags=re.IGNORECASE,
+    )
+    return " ".join(cleaned.split())[:120]
+
+
+def woolworths_product_nodes(value: object) -> list[dict]:
+    if isinstance(value, list):
+        return [product for item in value for product in woolworths_product_nodes(item)]
+    if not isinstance(value, dict):
+        return []
+    own = [value] if value.get("Stockcode") and (value.get("DisplayName") or value.get("Name")) else []
+    return own + [product for item in value.values() for product in woolworths_product_nodes(item)]
+
+
 def search_woolworths(query: str, limit: int) -> list[dict]:
-    result = woolworths_search_products(query=query)
-    if result.get("status") == "error":
-        raise RuntimeError(result.get("message") or "Woolworths search failed")
-    return normalise_products("Woolworths", result.get("products", []), limit)
+    cleaned_query = clean_search_query(query)
+    if not cleaned_query:
+        return []
+    body = json.dumps({
+        "Filters": [], "IsSpecial": False, "Location": "", "PageNumber": 1,
+        "PageSize": min(36, max(limit, 1)), "SearchTerm": cleaned_query,
+        "SortType": "TraderRelevance",
+    }).encode("utf-8")
+    request = Request(WOOLWORTHS_SEARCH_URL, data=body, headers={
+        "Accept": "application/json", "Content-Type": "application/json",
+        "Origin": "https://www.woolworths.com.au",
+        "Referer": "https://www.woolworths.com.au/",
+        "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124 Safari/537.36",
+    }, method="POST")
+    with urlopen(request, timeout=15) as response:
+        payload = json.loads(response.read().decode("utf-8"))
+    products = []
+    for source in woolworths_product_nodes(payload):
+        products.append({
+            "name": source.get("DisplayName") or source.get("Name"),
+            "price": source.get("Price") or source.get("InstorePrice") or source.get("WasPrice"),
+            "wasPrice": source.get("WasPrice"),
+            "promotion": source.get("Promotion") or source.get("CupString"),
+            "packSize": source.get("PackageSize"),
+            "unit": source.get("PackageSize") or source.get("Unit"),
+            "barcode": source.get("Barcode") or source.get("Gtin"),
+            "imageUrl": source.get("MediumImageFile") or source.get("LargeImageFile"),
+            "productId": source.get("Stockcode"),
+        })
+    return normalise_products("Woolworths", products, limit)
 
 
 WOOLWORTHS_STORE_LOCATOR_URL = (
