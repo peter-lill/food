@@ -1,0 +1,14 @@
+.page { display: grid; gap: 18px; max-width: 860px; padding-bottom: 40px; }
+.panel { display: grid; gap: 18px; padding: 28px; border: 1px solid rgba(8,113,82,.16); border-radius: 24px; background: #fff; }
+.panel h1, .panel p { margin: 0; }
+.form { display: grid; gap: 14px; }
+.form label { display: grid; gap: 6px; font-weight: 700; }
+.form input { min-height: 48px; padding: 0 14px; border: 1px solid rgba(8,113,82,.22); border-radius: 12px; font: inherit; }
+.status { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin: 0; }
+.status div { padding: 15px; border-radius: 14px; background: #eef8f3; }
+.status dt { color: #61736b; font-size: .78rem; font-weight: 800; text-transform: uppercase; }
+.status dd { margin: 5px 0 0; font-weight: 800; }
+.notice, .error { padding: 12px 14px; border-radius: 12px; font-weight: 700; }
+.notice { background: #e7f7ef; color: #07563e; }
+.error { background: #fff0ed; color: #8b2e20; }
+@media (max-width: 620px) { .status { grid-template-columns: 1fr; } .panel { padding: 20px; } }
