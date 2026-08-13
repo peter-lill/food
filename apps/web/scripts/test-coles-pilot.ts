@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { explainPilotCandidate, scorePilotCandidate } from "./coles-pilot-matching";
+import { explainPilotCandidate, pilotQueryVariants, scorePilotCandidate } from "./coles-pilot-matching";
 import type { RetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 
 const source = readFileSync(new URL("import-coles-pilot.ts", import.meta.url), "utf8");
@@ -10,6 +10,7 @@ assert.match(source, /candidate\.externalId/, "a retailer product ID must be req
 assert.match(source, /Ambiguous Coles match/, "ambiguous matches must fail rather than import");
 assert.match(source, /Candidates inspected:/, "failed production previews must expose actual candidate diagnostics");
 assert.match(source, /Competing candidates:/, "ambiguous production previews must expose every competing identity");
+assert.match(source, /Promise\.all\(pilotQueryVariants/, "retail synonym searches must be combined before ranking");
 assert.match(source, /retailer_externalId/, "existing retailer listings must prevent duplicates");
 assert.match(source, /productAlias\.findUnique/, "existing canonical aliases must prevent duplicates");
 assert.match(source, /Preview complete\. No database changes were made/, "preview must be the default mode");
@@ -20,6 +21,11 @@ const candidate = (productName: string, packSize: string): RetailerCatalogueCand
   imageUrl: null, sourceUrl: null, isSpecial: false,
 });
 assert.ok(Number.isFinite(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Light Milk 2L", "2L"))));
+assert.deepEqual(pilotQueryVariants("Coles Light Milk 2L"), [
+  "Coles Light Milk 2L", "Coles Lite Milk 2L", "Coles Reduced Fat Milk 2L", "Coles Low Fat Milk 2L",
+]);
+assert.ok(Number.isFinite(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Reduced Fat Milk 2L", "2L"))),
+  "retailer wording variants must share one matching identity");
 assert.ok(
   scorePilotCandidate("Coles Full Cream Milk 2L", candidate("Coles Full Cream Milk 2L", "2L"))
     > scorePilotCandidate("Coles Full Cream Milk 2L", candidate("Coles Full Cream Milk Homogenised 2L", "2L")),

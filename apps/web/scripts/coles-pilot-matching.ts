@@ -12,7 +12,26 @@ const identityGroups = [
 const requiredPhrases = ["lactose free", "free range", "extra virgin", "long grain", "double espresso"];
 
 function words(value: string) {
-  return normaliseProductText(value).split(" ").filter(Boolean);
+  return matchingText(value).split(" ").filter(Boolean);
+}
+
+function matchingText(value: string) {
+  return normaliseProductText(value)
+    .replace(/\b(?:lite|low fat|reduced fat)\b/g, "light")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function pilotQueryVariants(query: string) {
+  const variants = [query];
+  if (/\blight\b/i.test(query)) {
+    variants.push(
+      query.replace(/\blight\b/i, "Lite"),
+      query.replace(/\blight\b/i, "Reduced Fat"),
+      query.replace(/\blight\b/i, "Low Fat"),
+    );
+  }
+  return [...new Set(variants)];
 }
 
 function comparablePackSize(value: string) {
@@ -29,7 +48,7 @@ function comparablePackSize(value: string) {
 }
 
 function productIdentity(value: string) {
-  return normaliseProductText(value)
+  return matchingText(value)
     .replace(/\bcoles\b/g, " ")
     .replace(/\b\d+(?:\.\d+)?\s*(?:kg|g|l|ml|pack|pk|tablets?|rolls?)\b/g, " ")
     .replace(/\s+/g, " ")
@@ -42,8 +61,8 @@ export function explainPilotCandidate(query: string, candidate: RetailerCatalogu
   if (!candidate.packSize) return { score: -Infinity, rejection: "missing package size" };
   if (candidate.price === null || candidate.price <= 0) return { score: -Infinity, rejection: "missing positive price" };
 
-  const queryText = normaliseProductText(query);
-  const candidateText = normaliseProductText(candidate.productName);
+  const queryText = matchingText(query);
+  const candidateText = matchingText(candidate.productName);
   const expectedPack = comparablePackSize(queryText);
   const actualPack = comparablePackSize(candidate.packSize) ?? comparablePackSize(candidateText);
   if (!expectedPack) return { score: -Infinity, rejection: "query package size was not understood" };
