@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { parseAustralianNip } from "@/lib/product-intelligence/australian-nip-parser";
 import { colesProductLabelSource } from "@/lib/product-intelligence/coles-label-page";
 import { fetchRetailerPage } from "@/lib/product-intelligence/retailer-page-fetch";
+import { fetchOpenAiRetailerLabelSource } from "@/lib/product-intelligence/openai-retailer-label";
+import { fetchColesApiLabelSource } from "@/lib/product-intelligence/coles-api-label";
 
 export type RetailerLabel = {
   retailer: string;
@@ -74,9 +76,16 @@ async function fetchLabel(url: string, retailer: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 15_000);
   try {
+    if (retailer === "Coles") {
+      const apiSource = await fetchColesApiLabelSource(url).catch(() => null);
+      const apiLabel = apiSource ? parseLabel(apiSource, retailer, url) : null;
+      if (apiLabel) return apiLabel;
+    }
     const { response, html } = await fetchRetailerPage(url, controller.signal);
-    if (!response.ok) return null;
-    return parseLabel(html, retailer, url);
+    const direct = response.ok ? parseLabel(html, retailer, url) : null;
+    if (direct) return direct;
+    const fallback = await fetchOpenAiRetailerLabelSource(url, retailer);
+    return fallback ? parseLabel(fallback, retailer, url) : null;
   } catch {
     return null;
   } finally {
@@ -139,6 +148,13 @@ function mergeLabels(labels: RetailerLabel[]) {
 }
 
 export async function enrichProductFromRetailerLabels(productId: string) {
+  const [current] = await prisma.$queryRaw<Array<{ servingSize: string | null; calories: number | null; proteinGrams: number | null; carbsGrams: number | null; fatGrams: number | null; ingredientsText: string | null }>>(Prisma.sql`
+    SELECT "servingSize", "calories", "proteinGrams", "carbsGrams", "fatGrams", "ingredientsText"
+    FROM "Product" WHERE "id" = ${productId} LIMIT 1
+  `);
+  if (current?.servingSize && current.ingredientsText && [current.calories, current.proteinGrams, current.carbsGrams, current.fatGrams].every((value) => value !== null)) {
+    return { status: "already-complete" as const };
+  }
   const listings = await prisma.storeProduct.findMany({
     where: {
       productId,

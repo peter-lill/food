@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { parseAustralianNip, plausibleIngredients } from "../src/lib/product-intelligence/australian-nip-parser";
-import { colesProductLabelSource } from "../src/lib/product-intelligence/coles-label-page";
+import { colesProductLabelSource, colesProductLabelSourceFromData } from "../src/lib/product-intelligence/coles-label-page";
+import { validatedRetailerLabelText } from "../src/lib/product-intelligence/openai-retailer-response";
 
 const fixtures = [
   {
@@ -80,6 +81,34 @@ assert.equal(colesLabel.nutrients.energy.per100, 2220);
 assert.match(colesLabel.ingredientsText ?? "", /Sugar, Milk Solids/);
 assert.deepEqual(colesLabel.contains, ["Gluten", "Milk", "Soy", "Wheat"]);
 assert.deepEqual(colesLabel.mayContain, ["Hazelnut"]);
+
+const colesApiLabelSource = colesProductLabelSourceFromData({ result: { raw: { product: {
+  additionalInfo: [
+    { title: "Ingredients", description: "Wheat Flour, Dried Potatoes, Vegetable Oil, Kalamata Olives, Fetta Cheese (From Milk)." },
+    { title: "Allergen", description: "Contains Gluten, Milk, Wheat; May Contain Egg, Peanut, Sesame, Soy" },
+  ],
+  nutrition: {
+    servingSize: "20g",
+    servingsPerPackage: "6.5",
+    breakdown: [
+      { title: "Per Serving", nutrients: [{ nutrient: "Energy", value: "384 kJ" }, { nutrient: "Protein", value: "1.8 g" }] },
+      { title: "Per 100g/ml", nutrients: [{ nutrient: "Energy", value: "1920 kJ" }, { nutrient: "Protein", value: "9.1 g" }] },
+    ],
+  },
+} } } });
+assert(colesApiLabelSource);
+const colesApiLabel = parseAustralianNip(colesApiLabelSource);
+assert(colesApiLabel);
+assert.equal(colesApiLabel.servingQuantity, 20);
+assert.equal(colesApiLabel.nutrients.energy.per100, 1920);
+assert.match(colesApiLabel.ingredientsText ?? "", /Kalamata Olives/);
+
+const sourcedFallback = validatedRetailerLabelText({ output: [
+  { type: "web_search_call", action: { sources: [{ url: "https://www.coles.com.au/product/arnotts-flatbread-dippers-feta-and-olive-130g-5481620" }] } },
+  { type: "message", content: [{ type: "output_text", text: "Nutrition Information\nServing size: 20g\nEnergy: 384 kJ 1920 kJ\nIngredients: Wheat Flour, Dried Potatoes, Vegetable Oil." }] },
+] }, "https://www.coles.com.au/product/arnotts-flatbread-dippers-feta-and-olive-130g-5481620");
+assert.match(sourcedFallback ?? "", /1920 kJ/);
+assert.equal(validatedRetailerLabelText({ output: [{ type: "message", content: [{ type: "output_text", text: sourcedFallback ?? "" }] }] }, "https://www.coles.com.au/product/arnotts-flatbread-dippers-feta-and-olive-130g-5481620"), null, "unsourced model output must be rejected");
 
 for (const fixture of fixtures) {
   const result = parseAustralianNip(fixture.source);
