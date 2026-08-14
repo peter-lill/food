@@ -28,11 +28,14 @@ services:
       PORT: "8787"
       COLES_API_KEY: ${COLES_API_KEY:-}
       WOOLWORTHS_CATALOGUE_DB: /data/woolworths-catalogue.sqlite3
+      WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-}
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}
       COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
     volumes:
       - food_grocery_catalogue_data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8787:8787"
     healthcheck:
