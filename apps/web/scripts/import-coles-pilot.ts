@@ -14,7 +14,7 @@ export const pilotSelections = [
   { query: "Coles Lactose Free Full Cream Milk 1L", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles Greek Style Natural Yoghurt 1kg", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles Free Range Eggs 12 Pack 700g", category: "Dairy & eggs", type: ProductType.DAIRY },
-  { query: "Coles Tasty Cheddar Cheese Block 500g", category: "Dairy & eggs", type: ProductType.DAIRY },
+  { query: "Coles Simply Cheddar Cheese Block 1kg", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles White Sandwich Bread 700g", category: "Bakery", type: ProductType.BAKERY },
   { query: "Coles Wholemeal Sandwich Bread 700g", category: "Bakery", type: ProductType.BAKERY },
   { query: "Coles Rolled Oats 1kg", category: "Pantry", type: ProductType.PACKAGED },
@@ -144,12 +144,21 @@ async function importCandidate({ selection, candidate }: Accepted) {
 async function main() {
   if (pilotSelections.length !== 30) throw new Error(`Pilot must contain exactly 30 selections, found ${pilotSelections.length}.`);
   const accepted: Accepted[] = [];
+  const failures: string[] = [];
   for (const selection of pilotSelections) {
-    const match = await resolveSelection(selection);
-    accepted.push(match);
-    console.log(`${apply ? "Validated" : "Would import"}: ${match.candidate.productName} | $${match.candidate.price?.toFixed(2)} | ${match.candidate.externalId}`);
+    try {
+      const match = await resolveSelection(selection);
+      accepted.push(match);
+      console.log(`${apply ? "Validated" : "Would import"}: ${match.candidate.productName} | $${match.candidate.price?.toFixed(2)} | ${match.candidate.externalId}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      failures.push(message);
+      console.error(`FAILED: ${message}`);
+    }
   }
-  if (accepted.length !== 30) throw new Error("All 30 Coles selections must validate before the pilot can be applied.");
+  if (failures.length || accepted.length !== 30) {
+    throw new Error(`Coles pilot validation failed for ${failures.length} of 30 selections. No database changes were made.`);
+  }
   if (!apply) return console.log("Preview complete. No database changes were made.");
 
   let created = 0;

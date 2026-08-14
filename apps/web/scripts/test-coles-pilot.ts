@@ -14,6 +14,8 @@ assert.match(source, /Promise\.all\(pilotQueryVariants/, "retail synonym searche
 assert.match(source, /retailer_externalId/, "existing retailer listings must prevent duplicates");
 assert.match(source, /productAlias\.findUnique/, "existing canonical aliases must prevent duplicates");
 assert.match(source, /Preview complete\. No database changes were made/, "preview must be the default mode");
+assert.match(source, /failures\.push\(message\)/, "validation must collect every failure rather than stop at the first unavailable product");
+assert.match(source, /failed for \$\{failures\.length\} of 30 selections\. No database changes were made/, "a partial batch must remain fail-closed");
 assert.match(source, /source: "coles-pilot"/, "pilot provenance must be retained");
 
 const candidate = (productName: string, packSize: string): RetailerCatalogueCandidate => ({
