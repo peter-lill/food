@@ -15,6 +15,8 @@ const finishResponse = bridge.indexOf("response.finished()", retainResponse);
 const decodeResponse = bridge.indexOf("captured.append(response.json())", finishResponse);
 assert.ok(retainResponse >= 0 && finishResponse > retainResponse && decodeResponse > finishResponse, "category JSON must be decoded only after navigation and body completion");
 assert.match(bridge, /category API response was observed but could not be decoded/, "response decoding failures must not masquerade as missing network responses");
+assert.match(bridge, /browse_page = context\.new_page\(\)/, "every category refresh must use a fresh page so same-category application state cannot suppress the API request");
+assert.match(bridge, /finally:[\s\S]*browse_page\.close\(\)/, "the isolated category page must be closed without disturbing the user's verified tab");
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");
