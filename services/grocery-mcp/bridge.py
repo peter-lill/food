@@ -244,6 +244,18 @@ _woolworths_unavailable_until = 0.0
 _woolworths_circuit_lock = threading.Lock()
 
 
+def resolved_cdp_url(configured_url: str) -> str:
+    """Use an IP Host header accepted by Chromium's DevTools HTTP server."""
+    parsed = urlparse(configured_url)
+    if not parsed.hostname:
+        raise ValueError("WOOLWORTHS_CDP_URL must include a hostname")
+    if parsed.scheme != "http":
+        return configured_url
+    address = socket.gethostbyname(parsed.hostname)
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    return parsed._replace(netloc=f"{address}:{port}").geturl()
+
+
 class WoolworthsBrowserSession:
     """Run Woolworths UI requests inside a storefront browser session."""
 
@@ -291,7 +303,9 @@ class WoolworthsBrowserSession:
                 try:
                     if browser is None or not browser.is_connected():
                         if WOOLWORTHS_CDP_URL:
-                            browser = playwright.chromium.connect_over_cdp(WOOLWORTHS_CDP_URL)
+                            browser = playwright.chromium.connect_over_cdp(
+                                resolved_cdp_url(WOOLWORTHS_CDP_URL)
+                            )
                             owns_browser = False
                             if not browser.contexts:
                                 raise RuntimeError("verified browser has no active context")

@@ -17,7 +17,8 @@ assert.ok(cacheLookup >= 0 && cacheLookup < circuitLookup, "the local catalogue 
 assert.match(bridge, /stockcode = \? OR barcode = \?/, "stockcode and barcode searches must be exact");
 assert.match(bridge, /\/woolworths\/catalogue\/status/, "catalogue coverage must be observable");
 assert.match(bridge, /WOOLWORTHS_CDP_URL = os\.getenv/, "verified browser connection must be configurable");
-assert.match(bridge, /chromium\.connect_over_cdp\(WOOLWORTHS_CDP_URL\)/, "category ingestion must reuse a user-verified browser");
+assert.match(bridge, /chromium\.connect_over_cdp\([\s\S]*resolved_cdp_url\(WOOLWORTHS_CDP_URL\)/, "category ingestion must reuse a user-verified browser");
+assert.match(bridge, /socket\.gethostbyname\(parsed\.hostname\)/, "Docker's browser hostname must become an IP Host header accepted by Chromium");
 assert.match(bridge, /verified browser session is not configured/, "anonymous category refreshes must fail with an actionable reason");
 assert.match(bridge, /browser is not None and owns_browser/, "the bridge must never close the user's external browser");
 assert.match(compose, /WOOLWORTHS_CDP_URL: \$\{WOOLWORTHS_CDP_URL:-http:\/\/food-woolworths-browser:9223\}/);
