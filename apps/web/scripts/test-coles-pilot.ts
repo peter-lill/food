@@ -33,7 +33,7 @@ assert.ok(
 );
 assert.equal(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Simply Light Coconut Milk 400mL", "400mL")), -Infinity,
   "milk must not match coconut milk with a different pack size");
-assert.match(explainPilotCandidate("Coles Light Milk 2L", candidate("Coles Simply Light Coconut Milk 400mL", "400mL")).rejection ?? "", /package size/);
+assert.match(explainPilotCandidate("Coles Light Milk 2L", candidate("Coles Simply Light Coconut Milk 400mL", "400mL")).rejection ?? "", /package dimensions/);
 assert.equal(scorePilotCandidate("Coles Light Milk 2L", candidate("Coles Light Coconut Milk 2L", "2L")), -Infinity,
   "an unexpected product identity qualifier must be rejected even when the pack size matches");
 assert.ok(Number.isFinite(scorePilotCandidate("Coles Lactose Free Full Cream Milk 1L", candidate("Coles Lactose Free Full Cream Milk 1L", "1 L"))));
@@ -41,4 +41,8 @@ assert.equal(scorePilotCandidate("Coles Lactose Free Full Cream Milk 1L", candid
   "required dietary qualifiers must survive matching");
 assert.equal(scorePilotCandidate("Coles Lactose Free Full Cream Milk 1L", candidate("Coles Lactose Free Full Cream Milk 2L", "2L")), -Infinity,
   "different package sizes must not compete as ambiguous matches");
+assert.ok(Number.isFinite(scorePilotCandidate("Coles Free Range Eggs 12 Pack 700g", candidate("Coles Free Range Eggs 12 Pack 700g", "12 Pack"))),
+  "count and total weight may be combined from the retailer name and package field");
+assert.equal(scorePilotCandidate("Coles Free Range Eggs 12 Pack 700g", candidate("Coles Free Range Eggs 12 Pack 600g", "12 Pack")), -Infinity,
+  "an otherwise identical count pack with a different total weight must be rejected");
 console.log("Coles 30-product pilot safeguards passed.");

@@ -13,7 +13,7 @@ export const pilotSelections = [
   { query: "Coles Light Milk 2L", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles Lactose Free Full Cream Milk 1L", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles Greek Style Natural Yoghurt 1kg", category: "Dairy & eggs", type: ProductType.DAIRY },
-  { query: "Coles Free Range Eggs 12 Pack", category: "Dairy & eggs", type: ProductType.DAIRY },
+  { query: "Coles Free Range Eggs 12 Pack 700g", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles Tasty Cheddar Cheese Block 500g", category: "Dairy & eggs", type: ProductType.DAIRY },
   { query: "Coles White Sandwich Bread 700g", category: "Bakery", type: ProductType.BAKERY },
   { query: "Coles Wholemeal Sandwich Bread 700g", category: "Bakery", type: ProductType.BAKERY },
