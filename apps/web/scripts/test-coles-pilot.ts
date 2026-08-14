@@ -47,4 +47,12 @@ assert.ok(Number.isFinite(scorePilotCandidate("Coles Free Range Eggs 12 Pack 700
   "count and total weight may be combined from the retailer name and package field");
 assert.equal(scorePilotCandidate("Coles Free Range Eggs 12 Pack 700g", candidate("Coles Free Range Eggs 12 Pack 600g", "12 Pack")), -Infinity,
   "an otherwise identical count pack with a different total weight must be rejected");
+assert.notEqual(
+  explainPilotCandidate(
+    "Soothers Butter Menthol Liquid Centre Honey Lemon Throat Lozenges 10 Pack",
+    candidate("Soothers Butter Menthol Liquid Centre Honey Lemon Throat Lozenges 10 Pack", "10 Pack"),
+  ).rejection,
+  "conflicting identity: oat",
+  "identity terms must match whole words and never detect oat inside throat",
+);
 console.log("Coles 30-product pilot safeguards passed.");

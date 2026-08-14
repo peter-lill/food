@@ -11,6 +11,10 @@ const identityGroups = [
 ] as const;
 const requiredPhrases = ["lactose free", "free range", "extra virgin", "long grain", "double espresso"];
 
+function hasIdentityTerm(value: string, term: string) {
+  return new RegExp(`(?:^|\\s)${term.replace(/ /g, "\\s+")}(?:$|\\s)`).test(value);
+}
+
 function words(value: string) {
   return matchingText(value).split(" ").filter(Boolean);
 }
@@ -75,8 +79,8 @@ export function explainPilotCandidate(query: string, candidate: RetailerCatalogu
     if (queryText.includes(phrase) && !candidateText.includes(phrase)) return { score: -Infinity, rejection: `missing required phrase: ${phrase}` };
   }
   for (const group of identityGroups) {
-    const expected = group.filter((term) => queryText.includes(term));
-    const actual = group.filter((term) => candidateText.includes(term));
+    const expected = group.filter((term) => hasIdentityTerm(queryText, term));
+    const actual = group.filter((term) => hasIdentityTerm(candidateText, term));
     const missing = expected.find((term) => !actual.includes(term));
     if (missing) return { score: -Infinity, rejection: `missing required identity: ${missing}` };
     const conflict = actual.find((term) => !expected.includes(term));
