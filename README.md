@@ -64,6 +64,28 @@ The noVNC page is bound to host loopback on port `6081` by default. From another
 
 The catalogue status endpoint reports `acquisitionMode: "verified-browser"` when the connection is configured. Existing cached products remain searchable if verification later expires; refreshes will fail with an actionable reconnect message rather than clearing the catalogue.
 
+If Woolworths rejects the container browser but accepts Chromium running directly on the server, use the host-browser mode. Install `chromium-browser`, `xvfb`, `openbox`, `x11vnc`, `novnc` and `websockify`, then install and start the supplied service:
+
+```bash
+sudo install -m 0644 deploy/food-woolworths-browser.service /etc/systemd/system/food-woolworths-browser.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now food-woolworths-browser.service
+```
+
+The host browser keeps its profile under `~/snap/chromium/common/food-woolworths-profile`, exposes CDP only on host loopback port `9224`, and exposes noVNC only on host loopback port `6084`. Tunnel noVNC from another computer with `ssh -N -L 6084:127.0.0.1:6084 peter@Coffee`, then open `http://127.0.0.1:6084/vnc.html?autoconnect=1&resize=scale&path=websockify` to verify the session.
+
+Start the grocery bridge with the host-network override so it can reach the loopback-only CDP socket without publishing browser control:
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.host-browser.yml \
+  --profile prices \
+  up -d --build food-grocery-mcp
+```
+
+Do not start `food-woolworths-browser` in this mode. The catalogue database remains in the same `food_grocery_catalogue_data` volume, so existing cached results survive browser or provider failures.
+
 Food can run the GPL-licensed [Australian Grocery Price Database](https://github.com/tjhowse/aus_grocery_price_database) as a separate optional service. It collects Coles and Woolworths observations into InfluxDB. Food imports those observations into its own `StoreProduct` and `PriceObservation` records and resolves retailer names through Product Intelligence.
 
 Start the optional collector stack:

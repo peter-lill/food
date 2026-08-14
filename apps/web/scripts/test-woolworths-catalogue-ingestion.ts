@@ -3,7 +3,10 @@ import { readFileSync } from "node:fs";
 
 const bridge = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
 const compose = readFileSync(new URL("../../../docker-compose.yml", import.meta.url), "utf8");
+const hostBrowserCompose = readFileSync(new URL("../../../docker-compose.host-browser.yml", import.meta.url), "utf8");
 const browserSidecar = readFileSync(new URL("../../../services/grocery-mcp/woolworths_browser.py", import.meta.url), "utf8");
+const hostBrowser = readFileSync(new URL("../../../scripts/run-woolworths-host-browser.sh", import.meta.url), "utf8");
+const hostBrowserService = readFileSync(new URL("../../../deploy/food-woolworths-browser.service", import.meta.url), "utf8");
 
 assert.match(bridge, /WOOLWORTHS_CATEGORY_API_PATH = "\/apis\/ui\/browse\/category"/);
 assert.match(bridge, /response\.url[\s\S]*response\.json\(\)/, "category JSON must be captured from the real browser response");
@@ -29,6 +32,13 @@ assert.match(browserSidecar, /remote-debugging-address=0\.0\.0\.0/, "CDP must be
 assert.match(browserSidecar, /TCP-LISTEN:\{CDP_RELAY_PORT\}/, "the sidecar must relay Chromium's loopback CDP socket to the private Compose network");
 assert.match(browserSidecar, /TCP:127\.0\.0\.1:\{CDP_PORT\}/, "the CDP relay must terminate at Chromium's loopback socket");
 assert.match(browserSidecar, /websockify/, "the verified browser must be visible through noVNC");
+assert.match(hostBrowserCompose, /network_mode: host/, "the grocery bridge must reach host loopback without publishing CDP");
+assert.match(hostBrowserCompose, /ports: !reset \[\]/, "host mode must not retain redundant published ports");
+assert.match(hostBrowserCompose, /WOOLWORTHS_CDP_URL:.*http:\/\/127\.0\.0\.1:9224/, "host browser mode must use loopback CDP");
+assert.match(hostBrowser, /--remote-debugging-address=127\.0\.0\.1/, "host Chromium CDP must remain loopback-only");
+assert.match(hostBrowser, /food-woolworths-profile/, "host Chromium must retain its accepted profile");
+assert.match(hostBrowser, /127\.0\.0\.1:\$\{novnc_port\}/, "host noVNC must remain loopback-only");
+assert.match(hostBrowserService, /ExecStart=.*run-woolworths-host-browser\.sh/, "the accepted host browser must restart with the server");
 assert.match(bridge, /page\.evaluate\("window\.scrollTo/, "category discovery must load paginated or lazy product bundles");
 assert.match(compose, /WOOLWORTHS_CATALOGUE_DB: \/data\/woolworths-catalogue\.sqlite3/);
 assert.match(compose, /food_grocery_catalogue_data:\/data/);

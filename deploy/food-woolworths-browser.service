@@ -1,0 +1,16 @@
+[Unit]
+Description=Food verified Woolworths host browser
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=peter
+Environment=HOME=/home/peter
+WorkingDirectory=/home/peter/Development/food
+ExecStart=/home/peter/Development/food/scripts/run-woolworths-host-browser.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
