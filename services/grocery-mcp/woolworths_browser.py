@@ -14,6 +14,7 @@ DISPLAY = os.getenv("DISPLAY", ":99")
 PROFILE_DIR = os.getenv("WOOLWORTHS_BROWSER_PROFILE", "/browser-profile")
 START_URL = os.getenv("WOOLWORTHS_BROWSER_START_URL", "https://www.woolworths.com.au/")
 CDP_PORT = int(os.getenv("WOOLWORTHS_BROWSER_CDP_PORT", "9222"))
+CDP_RELAY_PORT = int(os.getenv("WOOLWORTHS_BROWSER_CDP_RELAY_PORT", "9223"))
 NOVNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_NOVNC_PORT", "6080"))
 VNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_VNC_PORT", "5900"))
 
@@ -62,6 +63,11 @@ def main() -> None:
             "websockify", "--web=/usr/share/novnc/", f"0.0.0.0:{NOVNC_PORT}",
             f"127.0.0.1:{VNC_PORT}",
         ], "noVNC"))
+        processes.append(start_process([
+            "socat",
+            f"TCP-LISTEN:{CDP_RELAY_PORT},fork,reuseaddr,bind=0.0.0.0",
+            f"TCP:127.0.0.1:{CDP_PORT}",
+        ], "private CDP relay"))
 
         with sync_playwright() as playwright:
             context = playwright.chromium.launch_persistent_context(
@@ -87,7 +93,8 @@ def main() -> None:
                 )
 
             print(
-                f"Woolworths browser ready: noVNC={NOVNC_PORT}, CDP={CDP_PORT}",
+                f"Woolworths browser ready: noVNC={NOVNC_PORT}, "
+                f"CDP relay={CDP_RELAY_PORT}",
                 flush=True,
             )
             while not stopping:

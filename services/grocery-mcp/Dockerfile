@@ -5,7 +5,7 @@ ARG MCP_REVISION=d8caf10985fd1dc1053b91fc3f3006e3100d974b
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    git ca-certificates novnc openbox websockify x11vnc xvfb \
+    git ca-certificates novnc openbox socat websockify x11vnc xvfb \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/grocery-mcp
