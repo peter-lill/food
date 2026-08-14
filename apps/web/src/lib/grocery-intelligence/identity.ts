@@ -89,6 +89,10 @@ function inferredFamily(value: string) {
   if (/\bbiscuits?\b|\bcookies?\b/.test(normalised)) return "Biscuits";
   if (/\bdips?\b/.test(normalised)) return "Dips";
   if (/\b(?:yoghurt|yogurt)\b/.test(normalised)) return "Yoghurt";
+  // Milk varieties are purchasable variants of one catalogue family. Match
+  // the product head only, so "milk chocolate" remains Chocolate rather than
+  // being collapsed into Milk.
+  if (/\bmilk$/.test(normalised)) return "Milk";
   if (/\bcapers?\b/.test(normalised)) return "Capers";
   if (/\b(?:vegetable|chicken|beef)\s+stock\s+cubes?\b/.test(normalised)) return "Stock Cubes";
   if (/\b(?:bread|loaf|loaves|roll|rolls|bun|buns|sourdough)\b/.test(normalised)) return "Bread";
