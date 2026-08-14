@@ -341,6 +341,7 @@ class WoolworthsBrowserSession:
                             )
                         if not category_path.startswith("/shop/browse/"):
                             raise ValueError("category must be a /shop/browse/ path")
+                        browse_page = context.new_page()
                         captured_responses: list[object] = []
                         def capture_category(response: object) -> None:
                             try:
@@ -348,38 +349,42 @@ class WoolworthsBrowserSession:
                                     captured_responses.append(response)
                             except Exception:
                                 return
-                        page.on("response", capture_category)
-                        page.goto(
-                            f"https://www.woolworths.com.au{category_path}",
-                            wait_until="domcontentloaded",
-                            timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
-                        )
-                        for _ in range(12):
-                            previous = len(captured_responses)
-                            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                            page.wait_for_timeout(750)
-                            if len(captured_responses) == previous and page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
-                                break
-                        page.remove_listener("response", capture_category)
-                        title = page.title().casefold()
-                        if "access denied" in title or "captcha" in title:
-                            raise RuntimeError("Woolworths requires browser verification")
-                        if not captured_responses:
-                            raise RuntimeError("category API response was not observed")
-                        captured: list[object] = []
-                        decode_errors: list[str] = []
-                        for response in captured_responses:
-                            try:
-                                response.finished()
-                                captured.append(response.json())
-                            except Exception as error:
-                                decode_errors.append(str(error))
-                        if not captured:
-                            detail = decode_errors[0] if decode_errors else "unknown response decoding error"
-                            raise RuntimeError(
-                                f"category API response was observed but could not be decoded: {detail}"
+                        browse_page.on("response", capture_category)
+                        try:
+                            browse_page.goto(
+                                f"https://www.woolworths.com.au{category_path}",
+                                wait_until="domcontentloaded",
+                                timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
                             )
-                        completed.put((True, captured))
+                            for _ in range(12):
+                                previous = len(captured_responses)
+                                browse_page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                                browse_page.wait_for_timeout(750)
+                                if len(captured_responses) == previous and browse_page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
+                                    break
+                            browse_page.remove_listener("response", capture_category)
+                            title = browse_page.title().casefold()
+                            if "access denied" in title or "captcha" in title:
+                                raise RuntimeError("Woolworths requires browser verification")
+                            if not captured_responses:
+                                raise RuntimeError("category API response was not observed")
+                            captured: list[object] = []
+                            decode_errors: list[str] = []
+                            for response in captured_responses:
+                                try:
+                                    response.finished()
+                                    captured.append(response.json())
+                                except Exception as error:
+                                    decode_errors.append(str(error))
+                            if not captured:
+                                detail = decode_errors[0] if decode_errors else "unknown response decoding error"
+                                raise RuntimeError(
+                                    f"category API response was observed but could not be decoded: {detail}"
+                                )
+                            completed.put((True, captured))
+                        finally:
+                            if not browse_page.is_closed():
+                                browse_page.close()
                         continue
 
                     search_path = f"/shop/search/products?searchTerm={quote(query)}"
