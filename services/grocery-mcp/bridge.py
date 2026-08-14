@@ -356,11 +356,15 @@ class WoolworthsBrowserSession:
                                 wait_until="domcontentloaded",
                                 timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
                             )
-                            for _ in range(12):
+                            # Woolworths loads the category data after the document and
+                            # application shell. Keep listening for the same 15-second
+                            # window proven by the production CDP diagnostic; being at
+                            # the bottom of an otherwise empty shell is not completion.
+                            for _ in range(20):
                                 previous = len(captured_responses)
                                 browse_page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                                 browse_page.wait_for_timeout(750)
-                                if len(captured_responses) == previous and browse_page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
+                                if captured_responses and len(captured_responses) == previous and browse_page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
                                     break
                             browse_page.remove_listener("response", capture_category)
                             title = browse_page.title().casefold()
