@@ -2,6 +2,7 @@ import json
 import os
 import re
 import socket
+import sqlite3
 import sys
 import threading
 import time
@@ -234,6 +235,8 @@ def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
 
 
 WOOLWORTHS_SEARCH_URL = "https://www.woolworths.com.au/apis/ui/Search/products"
+WOOLWORTHS_CATEGORY_API_PATH = "/apis/ui/browse/category"
+WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths-catalogue.sqlite3")
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
 WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
 _woolworths_unavailable_until = 0.0
@@ -259,12 +262,30 @@ class WoolworthsBrowserSession:
             raise RuntimeError(str(value))
         return value
 
+    def browse(self, category_path: str) -> object:
+        completed: Queue = Queue(maxsize=1)
+        self._requests.put(("browse", category_path, completed))
+        try:
+            success, value = completed.get(timeout=WOOLWORTHS_TIMEOUT_SECONDS + 45)
+        except Exception as error:
+            raise RuntimeError("browser category session did not return in time") from error
+        if not success:
+            raise RuntimeError(str(value))
+        return value
+
     def _run(self) -> None:
         with sync_playwright() as playwright:
             browser = None
             page = None
             while True:
-                query, limit, completed = self._requests.get()
+                request = self._requests.get()
+                if len(request) == 3 and request[0] == "browse":
+                    operation, category_path, completed = request
+                    query = None
+                    limit = 0
+                else:
+                    query, limit, completed = request
+                    operation = "search"
                 try:
                     if browser is None or not browser.is_connected():
                         browser = playwright.chromium.launch(
@@ -286,6 +307,37 @@ class WoolworthsBrowserSession:
                             wait_until="domcontentloaded",
                             timeout=WOOLWORTHS_TIMEOUT_SECONDS * 1000,
                         )
+                    if operation == "browse":
+                        if not category_path.startswith("/shop/browse/"):
+                            raise ValueError("category must be a /shop/browse/ path")
+                        captured: list[object] = []
+                        def capture_category(response: object) -> None:
+                            try:
+                                if WOOLWORTHS_CATEGORY_API_PATH in response.url and response.ok:
+                                    captured.append(response.json())
+                            except Exception:
+                                return
+                        page.on("response", capture_category)
+                        page.goto(
+                            f"https://www.woolworths.com.au{category_path}",
+                            wait_until="domcontentloaded",
+                            timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
+                        )
+                        for _ in range(12):
+                            previous = len(captured)
+                            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                            page.wait_for_timeout(750)
+                            if len(captured) == previous and page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
+                                break
+                        page.remove_listener("response", capture_category)
+                        title = page.title().casefold()
+                        if "access denied" in title or "captcha" in title:
+                            raise RuntimeError("Woolworths requires browser verification")
+                        if not captured:
+                            raise RuntimeError("category API response was not observed")
+                        completed.put((True, captured))
+                        continue
+
                     search_path = f"/shop/search/products?searchTerm={quote(query)}"
                     if not page.url.startswith("https://www.woolworths.com.au/shop/search"):
                         page.goto(
@@ -355,15 +407,87 @@ def woolworths_product_nodes(value: object) -> list[dict]:
     return own + [product for item in value.values() for product in woolworths_product_nodes(item)]
 
 
+def catalogue_connection() -> sqlite3.Connection:
+    directory = os.path.dirname(WOOLWORTHS_CATALOGUE_DB)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    connection = sqlite3.connect(WOOLWORTHS_CATALOGUE_DB)
+    connection.row_factory = sqlite3.Row
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS woolworths_products (
+          stockcode TEXT PRIMARY KEY, barcode TEXT, name TEXT NOT NULL, search_text TEXT NOT NULL,
+          price REAL, was_price REAL, pack_size TEXT, unit_price TEXT, image_url TEXT,
+          category_path TEXT NOT NULL, is_special INTEGER NOT NULL DEFAULT 0,
+          in_stock INTEGER NOT NULL DEFAULT 1, refreshed_at INTEGER NOT NULL
+        )
+    """)
+    connection.execute("CREATE INDEX IF NOT EXISTS woolworths_products_search ON woolworths_products(search_text)")
+    return connection
+
+
+def cache_woolworths_category(category_path: str, payload: object) -> int:
+    products = woolworths_product_nodes(payload)
+    refreshed_at = int(time.time())
+    cached = 0
+    with catalogue_connection() as connection:
+        for source in products:
+            stockcode = clean_identifier(source.get("Stockcode"))
+            name = first_text(source, ("DisplayName", "Name"))
+            if not stockcode or not name:
+                continue
+            connection.execute("""
+                INSERT INTO woolworths_products
+                  (stockcode, barcode, name, search_text, price, was_price, pack_size, unit_price,
+                   image_url, category_path, is_special, in_stock, refreshed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(stockcode) DO UPDATE SET
+                  barcode=excluded.barcode, name=excluded.name, search_text=excluded.search_text,
+                  price=excluded.price, was_price=excluded.was_price, pack_size=excluded.pack_size,
+                  unit_price=excluded.unit_price, image_url=excluded.image_url,
+                  category_path=excluded.category_path, is_special=excluded.is_special,
+                  in_stock=excluded.in_stock, refreshed_at=excluded.refreshed_at
+            """, (
+                stockcode, first_identifier(source, ("Barcode", "Gtin")), name, name.casefold(),
+                clean_price(source.get("Price") or source.get("InstorePrice")), clean_price(source.get("WasPrice")),
+                first_text(source, ("PackageSize", "Unit")), first_text(source, ("CupString", "InstoreCupString")),
+                first_text(source, ("LargeImageFile", "MediumImageFile")), category_path,
+                int(bool(source.get("IsOnSpecial") or source.get("InstoreIsOnSpecial"))),
+                int(source.get("IsInStock") is not False), refreshed_at,
+            ))
+            cached += 1
+    return cached
+
+
+def search_woolworths_cache(query: str, limit: int) -> list[dict]:
+    terms = [term.casefold() for term in re.findall(r"[a-zA-Z0-9]+", query) if len(term) > 1]
+    if not terms or not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
+        return []
+    identifier = clean_identifier(query)
+    where = "(stockcode = ? OR barcode = ?) OR (" + " AND ".join("search_text LIKE ?" for _ in terms) + ")"
+    with catalogue_connection() as connection:
+        rows = connection.execute(
+            f"SELECT * FROM woolworths_products WHERE {where} ORDER BY in_stock DESC, refreshed_at DESC LIMIT ?",
+            (identifier, identifier, *[f"%{term}%" for term in terms], limit),
+        ).fetchall()
+    return normalise_products("Woolworths", [{
+        "name": row["name"], "price": row["price"], "wasPrice": row["was_price"],
+        "promotion": row["unit_price"], "packSize": row["pack_size"], "unit": row["pack_size"],
+        "barcode": row["barcode"], "imageUrl": row["image_url"], "productId": row["stockcode"],
+    } for row in rows], limit)
+
+
 def search_woolworths(query: str, limit: int) -> list[dict]:
     global _woolworths_unavailable_until
+    cleaned_query = clean_search_query(query)
+    if not cleaned_query:
+        return []
+    cached = search_woolworths_cache(cleaned_query, limit)
+    if cached:
+        return cached
     with _woolworths_circuit_lock:
         unavailable_for = _woolworths_unavailable_until - time.monotonic()
     if unavailable_for > 0:
         raise RuntimeError(f"search temporarily unavailable after timeout; retry in {round(unavailable_for)}s")
-    cleaned_query = clean_search_query(query)
-    if not cleaned_query:
-        return []
     try:
         payload = woolworths_browser().search(cleaned_query, limit)
     except (TimeoutError, socket.timeout, RuntimeError) as error:
@@ -672,6 +796,19 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         params = parse_qs(parsed.query)
+        if parsed.path == "/woolworths/catalogue/status":
+            if not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
+                self.send_json(200, {"status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None})
+                return
+            with catalogue_connection() as connection:
+                row = connection.execute(
+                    "SELECT COUNT(*) products, COUNT(DISTINCT category_path) categories, MAX(refreshed_at) refreshed_at FROM woolworths_products"
+                ).fetchone()
+            self.send_json(200, {
+                "status": "success", "products": row["products"], "categories": row["categories"],
+                "lastRefreshedAt": row["refreshed_at"],
+            })
+            return
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
@@ -705,6 +842,16 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if parsed.path != "/search":
+            if parsed.path == "/woolworths/catalogue/refresh":
+                category = (params.get("category") or [""])[0].strip()
+                try:
+                    payload = woolworths_browser().browse(category)
+                    count = cache_woolworths_category(category, payload)
+                except Exception as error:  # noqa: BLE001
+                    self.send_json(502, {"status": "error", "error": f"Woolworths category refresh failed: {error}"})
+                    return
+                self.send_json(200, {"status": "success", "category": category, "products": count})
+                return
             self.send_json(404, {"status": "error", "error": "Not found"})
             return
 
