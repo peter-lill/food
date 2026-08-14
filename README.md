@@ -56,6 +56,12 @@ For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY
 
 ## Australian grocery price collector
 
+### Verified Woolworths browser
+
+Woolworths blocks anonymous headless category browsing. Catalogue refreshes therefore require a Chrome or Chromium session in which a person has already opened Woolworths and completed any browser verification. Start that browser with a persistent profile and the Chrome DevTools protocol enabled, then set `WOOLWORTHS_CDP_URL` to its DevTools endpoint before rebuilding `food-grocery-mcp`. Do not expose the DevTools port to an untrusted network: it grants control of that browser profile.
+
+The catalogue status endpoint reports `acquisitionMode: "verified-browser"` when the connection is configured. Existing cached products remain searchable if verification later expires; refreshes will fail with an actionable reconnect message rather than clearing the catalogue.
+
 Food can run the GPL-licensed [Australian Grocery Price Database](https://github.com/tjhowse/aus_grocery_price_database) as a separate optional service. It collects Coles and Woolworths observations into InfluxDB. Food imports those observations into its own `StoreProduct` and `PriceObservation` records and resolves retailer names through Product Intelligence.
 
 Start the optional collector stack:

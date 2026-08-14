@@ -237,6 +237,7 @@ def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
 WOOLWORTHS_SEARCH_URL = "https://www.woolworths.com.au/apis/ui/Search/products"
 WOOLWORTHS_CATEGORY_API_PATH = "/apis/ui/browse/category"
 WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths-catalogue.sqlite3")
+WOOLWORTHS_CDP_URL = os.getenv("WOOLWORTHS_CDP_URL", "").strip()
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
 WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
 _woolworths_unavailable_until = 0.0
@@ -277,6 +278,7 @@ class WoolworthsBrowserSession:
         with sync_playwright() as playwright:
             browser = None
             page = None
+            owns_browser = False
             while True:
                 request = self._requests.get()
                 if len(request) == 3 and request[0] == "browse":
@@ -288,26 +290,41 @@ class WoolworthsBrowserSession:
                     operation = "search"
                 try:
                     if browser is None or not browser.is_connected():
-                        browser = playwright.chromium.launch(
-                            headless=True,
-                            args=["--no-sandbox", "--disable-dev-shm-usage"],
-                        )
-                        context = browser.new_context(
-                            locale="en-AU",
-                            timezone_id="Australia/Brisbane",
-                            user_agent=(
-                                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                                "Chrome/143.0.0.0 Safari/537.36"
-                            ),
-                        )
-                        page = context.new_page()
-                        page.goto(
-                            "https://www.woolworths.com.au/",
-                            wait_until="domcontentloaded",
-                            timeout=WOOLWORTHS_TIMEOUT_SECONDS * 1000,
-                        )
+                        if WOOLWORTHS_CDP_URL:
+                            browser = playwright.chromium.connect_over_cdp(WOOLWORTHS_CDP_URL)
+                            owns_browser = False
+                            if not browser.contexts:
+                                raise RuntimeError("verified browser has no active context")
+                            context = browser.contexts[0]
+                            page = next((candidate for candidate in context.pages if "woolworths.com.au" in candidate.url), None)
+                            if page is None:
+                                page = context.new_page()
+                        else:
+                            browser = playwright.chromium.launch(
+                                headless=True,
+                                args=["--no-sandbox", "--disable-dev-shm-usage"],
+                            )
+                            owns_browser = True
+                            context = browser.new_context(
+                                locale="en-AU",
+                                timezone_id="Australia/Brisbane",
+                                user_agent=(
+                                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                                    "Chrome/143.0.0.0 Safari/537.36"
+                                ),
+                            )
+                            page = context.new_page()
+                            page.goto(
+                                "https://www.woolworths.com.au/",
+                                wait_until="domcontentloaded",
+                                timeout=WOOLWORTHS_TIMEOUT_SECONDS * 1000,
+                            )
                     if operation == "browse":
+                        if not WOOLWORTHS_CDP_URL:
+                            raise RuntimeError(
+                                "verified browser session is not configured; set WOOLWORTHS_CDP_URL"
+                            )
                         if not category_path.startswith("/shop/browse/"):
                             raise ValueError("category must be a /shop/browse/ path")
                         captured: list[object] = []
@@ -371,10 +388,11 @@ class WoolworthsBrowserSession:
                     )
                     completed.put((True, result))
                 except Exception as error:
-                    if browser is not None:
+                    if browser is not None and owns_browser:
                         browser.close()
                     browser = None
                     page = None
+                    owns_browser = False
                     completed.put((False, error))
 
 
@@ -797,8 +815,9 @@ class Handler(BaseHTTPRequestHandler):
 
         params = parse_qs(parsed.query)
         if parsed.path == "/woolworths/catalogue/status":
+            acquisition_mode = "verified-browser" if WOOLWORTHS_CDP_URL else "unconfigured"
             if not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
-                self.send_json(200, {"status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None})
+                self.send_json(200, {"status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None, "acquisitionMode": acquisition_mode})
                 return
             with catalogue_connection() as connection:
                 row = connection.execute(
@@ -806,7 +825,7 @@ class Handler(BaseHTTPRequestHandler):
                 ).fetchone()
             self.send_json(200, {
                 "status": "success", "products": row["products"], "categories": row["categories"],
-                "lastRefreshedAt": row["refreshed_at"],
+                "lastRefreshedAt": row["refreshed_at"], "acquisitionMode": acquisition_mode,
             })
             return
         if parsed.path == "/stores":
