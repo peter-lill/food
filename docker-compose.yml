@@ -28,7 +28,7 @@ services:
       PORT: "8787"
       COLES_API_KEY: ${COLES_API_KEY:-}
       WOOLWORTHS_CATALOGUE_DB: /data/woolworths-catalogue.sqlite3
-      WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://food-woolworths-browser:9222}
+      WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://food-woolworths-browser:9223}
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}
       COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
@@ -60,9 +60,9 @@ services:
     ports:
       - "127.0.0.1:${WOOLWORTHS_NOVNC_PORT:-6081}:6080"
     expose:
-      - "9222"
+      - "9223"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9222/json/version', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9223/json/version', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 20

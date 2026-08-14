@@ -20,11 +20,13 @@ assert.match(bridge, /WOOLWORTHS_CDP_URL = os\.getenv/, "verified browser connec
 assert.match(bridge, /chromium\.connect_over_cdp\(WOOLWORTHS_CDP_URL\)/, "category ingestion must reuse a user-verified browser");
 assert.match(bridge, /verified browser session is not configured/, "anonymous category refreshes must fail with an actionable reason");
 assert.match(bridge, /browser is not None and owns_browser/, "the bridge must never close the user's external browser");
-assert.match(compose, /WOOLWORTHS_CDP_URL: \$\{WOOLWORTHS_CDP_URL:-http:\/\/food-woolworths-browser:9222\}/);
+assert.match(compose, /WOOLWORTHS_CDP_URL: \$\{WOOLWORTHS_CDP_URL:-http:\/\/food-woolworths-browser:9223\}/);
 assert.match(compose, /127\.0\.0\.1:\$\{WOOLWORTHS_NOVNC_PORT:-6081\}:6080/, "noVNC must only bind to host loopback");
 assert.match(compose, /food_woolworths_browser_profile:\/browser-profile/, "the verified browser profile must survive container replacement");
 assert.match(browserSidecar, /launch_persistent_context/, "the sidecar must preserve the verified browser context");
 assert.match(browserSidecar, /remote-debugging-address=0\.0\.0\.0/, "CDP must be reachable inside the private Compose network");
+assert.match(browserSidecar, /TCP-LISTEN:\{CDP_RELAY_PORT\}/, "the sidecar must relay Chromium's loopback CDP socket to the private Compose network");
+assert.match(browserSidecar, /TCP:127\.0\.0\.1:\{CDP_PORT\}/, "the CDP relay must terminate at Chromium's loopback socket");
 assert.match(browserSidecar, /websockify/, "the verified browser must be visible through noVNC");
 assert.match(bridge, /page\.evaluate\("window\.scrollTo/, "category discovery must load paginated or lazy product bundles");
 assert.match(compose, /WOOLWORTHS_CATALOGUE_DB: \/data\/woolworths-catalogue\.sqlite3/);
