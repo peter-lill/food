@@ -17,6 +17,8 @@ assert.ok(retainResponse >= 0 && finishResponse > retainResponse && decodeRespon
 assert.match(bridge, /category API response was observed but could not be decoded/, "response decoding failures must not masquerade as missing network responses");
 assert.match(bridge, /browse_page = context\.new_page\(\)/, "every category refresh must use a fresh page so same-category application state cannot suppress the API request");
 assert.match(bridge, /finally:[\s\S]*browse_page\.close\(\)/, "the isolated category page must be closed without disturbing the user's verified tab");
+assert.match(bridge, /for _ in range\(20\):[\s\S]*wait_for_timeout\(750\)/, "category capture must retain the production-proven 15-second observation window");
+assert.match(bridge, /if captured_responses and len\(captured_responses\) == previous/, "an empty application shell must never be mistaken for a completed category response");
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");
