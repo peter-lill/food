@@ -58,7 +58,9 @@ For live Shopping-list searches, configure `SERPAPI_KEY` and optionally `GROCERY
 
 ### Verified Woolworths browser
 
-Woolworths blocks anonymous headless category browsing. Catalogue refreshes therefore require a Chrome or Chromium session in which a person has already opened Woolworths and completed any browser verification. Start that browser with a persistent profile and the Chrome DevTools protocol enabled, then set `WOOLWORTHS_CDP_URL` to its DevTools endpoint before rebuilding `food-grocery-mcp`. Do not expose the DevTools port to an untrusted network: it grants control of that browser profile.
+Woolworths blocks anonymous headless category browsing. Food therefore provides a persistent Playwright Chromium sidecar that can be verified by a person through noVNC and reused by the catalogue bridge over the private Compose network. Start both services with `docker compose --profile prices up -d --build food-woolworths-browser food-grocery-mcp`. The sidecar keeps its browser profile in the `food_woolworths_browser_profile` volume.
+
+The noVNC page is bound to host loopback on port `6081` by default. From another computer, create an SSH tunnel with `ssh -N -L 6081:127.0.0.1:6081 peter@Coffee`, then open `http://127.0.0.1:6081/vnc.html?autoconnect=1&resize=scale&path=websockify`. Complete any Woolworths verification in that window. `WOOLWORTHS_NOVNC_PORT` changes the host-side port. `WOOLWORTHS_CDP_URL` may still point the bridge at a different trusted browser, but its DevTools endpoint must never be exposed to an untrusted network because it grants control of that browser profile.
 
 The catalogue status endpoint reports `acquisitionMode: "verified-browser"` when the connection is configured. Existing cached products remain searchable if verification later expires; refreshes will fail with an actionable reconnect message rather than clearing the catalogue.
 
