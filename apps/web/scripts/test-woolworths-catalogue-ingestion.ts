@@ -9,7 +9,12 @@ const hostBrowser = readFileSync(new URL("../../../scripts/run-woolworths-host-b
 const hostBrowserService = readFileSync(new URL("../../../deploy/food-woolworths-browser.service", import.meta.url), "utf8");
 
 assert.match(bridge, /WOOLWORTHS_CATEGORY_API_PATH = "\/apis\/ui\/browse\/category"/);
-assert.match(bridge, /response\.url[\s\S]*response\.json\(\)/, "category JSON must be captured from the real browser response");
+assert.match(bridge, /response\.url[\s\S]*captured_responses\.append\(response\)/, "matching category responses must be retained immediately");
+const retainResponse = bridge.indexOf("captured_responses.append(response)");
+const finishResponse = bridge.indexOf("response.finished()", retainResponse);
+const decodeResponse = bridge.indexOf("captured.append(response.json())", finishResponse);
+assert.ok(retainResponse >= 0 && finishResponse > retainResponse && decodeResponse > finishResponse, "category JSON must be decoded only after navigation and body completion");
+assert.match(bridge, /category API response was observed but could not be decoded/, "response decoding failures must not masquerade as missing network responses");
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");
