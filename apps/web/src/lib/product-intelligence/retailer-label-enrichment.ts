@@ -71,6 +71,22 @@ function parseLabel(source: string, retailer: string, sourceUrl: string): Retail
   };
 }
 
+async function fetchCachedWoolworthsLabelSource(productUrl: string, signal: AbortSignal) {
+  const bridgeUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
+  const stockcode = productUrl.match(/\/shop\/productdetails\/(\d{4,12})/i)?.[1];
+  if (!bridgeUrl || !stockcode) return null;
+  const url = new URL("/woolworths/catalogue/product", bridgeUrl);
+  url.searchParams.set("stockcode", stockcode);
+  const response = await fetch(url, {
+    cache: "no-store",
+    signal,
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) return null;
+  const payload = await response.json() as { status?: unknown; product?: unknown };
+  return payload.status === "success" && payload.product ? JSON.stringify(payload.product) : null;
+}
+
 async function fetchLabel(url: string, retailer: string) {
   if (!/^(Coles|Woolworths)$/i.test(retailer)) return null;
   const controller = new AbortController();
@@ -80,6 +96,11 @@ async function fetchLabel(url: string, retailer: string) {
       const apiSource = await fetchColesApiLabelSource(url).catch(() => null);
       const apiLabel = apiSource ? parseLabel(apiSource, retailer, url) : null;
       if (apiLabel) return apiLabel;
+    }
+    if (retailer === "Woolworths") {
+      const cachedSource = await fetchCachedWoolworthsLabelSource(url, controller.signal).catch(() => null);
+      const cachedLabel = cachedSource ? parseLabel(cachedSource, retailer, url) : null;
+      if (cachedLabel) return cachedLabel;
     }
     const { response, html } = await fetchRetailerPage(url, controller.signal);
     const direct = response.ok ? parseLabel(html, retailer, url) : null;
