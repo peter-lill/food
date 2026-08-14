@@ -1,3 +1,4 @@
+import html
 import json
 import os
 import re
@@ -7,6 +8,7 @@ import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue
 from urllib.parse import parse_qs, quote, urlparse
@@ -236,6 +238,7 @@ def search_coles(query: str, limit: int, store_id: str | None) -> list[dict]:
 
 WOOLWORTHS_SEARCH_URL = "https://www.woolworths.com.au/apis/ui/Search/products"
 WOOLWORTHS_CATEGORY_API_PATH = "/apis/ui/browse/category"
+WOOLWORTHS_DETAIL_API_PATH = "/apis/ui/product/detail"
 WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths-catalogue.sqlite3")
 WOOLWORTHS_CDP_URL = os.getenv("WOOLWORTHS_CDP_URL", "").strip()
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
@@ -286,6 +289,17 @@ class WoolworthsBrowserSession:
             raise RuntimeError(str(value))
         return value
 
+    def details(self, stockcodes: list[str]) -> object:
+        completed: Queue = Queue(maxsize=1)
+        self._requests.put(("details", stockcodes, completed))
+        try:
+            success, value = completed.get(timeout=max(60, WOOLWORTHS_TIMEOUT_SECONDS * len(stockcodes)))
+        except Exception as error:
+            raise RuntimeError("browser product-detail session did not return in time") from error
+        if not success:
+            raise RuntimeError(str(value))
+        return value
+
     def _run(self) -> None:
         with sync_playwright() as playwright:
             browser = None
@@ -293,8 +307,10 @@ class WoolworthsBrowserSession:
             owns_browser = False
             while True:
                 request = self._requests.get()
-                if len(request) == 3 and request[0] == "browse":
-                    operation, category_path, completed = request
+                if len(request) == 3 and request[0] in ("browse", "details"):
+                    operation, operation_value, completed = request
+                    category_path = operation_value if operation == "browse" else None
+                    stockcodes = operation_value if operation == "details" else []
                     query = None
                     limit = 0
                 else:
@@ -391,6 +407,34 @@ class WoolworthsBrowserSession:
                                 browse_page.close()
                         continue
 
+                    if operation == "details":
+                        if not WOOLWORTHS_CDP_URL:
+                            raise RuntimeError(
+                                "verified browser session is not configured; set WOOLWORTHS_CDP_URL"
+                            )
+                        result = page.evaluate(
+                            """async ({basePath, stockcodes}) => {
+                              const details = [];
+                              for (const stockcode of stockcodes) {
+                                try {
+                                  const response = await fetch(`${basePath}/${encodeURIComponent(stockcode)}`, {
+                                    credentials: 'include',
+                                    headers: {'accept': 'application/json, text/plain, */*'}
+                                  });
+                                  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                                  details.push({stockcode, payload: await response.json()});
+                                } catch (error) {
+                                  details.push({stockcode, error: String(error)});
+                                }
+                                await new Promise((resolve) => setTimeout(resolve, 150));
+                              }
+                              return details;
+                            }""",
+                            {"basePath": WOOLWORTHS_DETAIL_API_PATH, "stockcodes": stockcodes},
+                        )
+                        completed.put((True, result))
+                        continue
+
                     search_path = f"/shop/search/products?searchTerm={quote(query)}"
                     if not page.url.startswith("https://www.woolworths.com.au/shop/search"):
                         page.goto(
@@ -472,18 +516,43 @@ def catalogue_connection() -> sqlite3.Connection:
           stockcode TEXT PRIMARY KEY, barcode TEXT, name TEXT NOT NULL, search_text TEXT NOT NULL,
           price REAL, was_price REAL, pack_size TEXT, unit_price TEXT, image_url TEXT,
           category_path TEXT NOT NULL, is_special INTEGER NOT NULL DEFAULT 0,
-          in_stock INTEGER NOT NULL DEFAULT 1, refreshed_at INTEGER NOT NULL
+          in_stock INTEGER NOT NULL DEFAULT 1, refreshed_at INTEGER NOT NULL,
+          brand TEXT, description TEXT, long_description TEXT, ingredients TEXT,
+          allergens TEXT, nutrition TEXT, dietary_claims TEXT, country_of_origin TEXT,
+          storage_instructions TEXT, preparation_instructions TEXT, additional_images TEXT,
+          detail_refreshed_at INTEGER, detail_error TEXT
         )
     """)
+    existing = {row[1] for row in connection.execute("PRAGMA table_info(woolworths_products)")}
+    detail_columns = {
+        "brand": "TEXT", "description": "TEXT", "long_description": "TEXT",
+        "ingredients": "TEXT", "allergens": "TEXT", "nutrition": "TEXT",
+        "dietary_claims": "TEXT", "country_of_origin": "TEXT",
+        "storage_instructions": "TEXT", "preparation_instructions": "TEXT",
+        "additional_images": "TEXT", "detail_refreshed_at": "INTEGER", "detail_error": "TEXT",
+    }
+    for name, column_type in detail_columns.items():
+        if name not in existing:
+            connection.execute(f"ALTER TABLE woolworths_products ADD COLUMN {name} {column_type}")
     connection.execute("CREATE INDEX IF NOT EXISTS woolworths_products_search ON woolworths_products(search_text)")
     return connection
+
+
+@contextmanager
+def catalogue_session():
+    connection = catalogue_connection()
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
 
 
 def cache_woolworths_category(category_path: str, payload: object) -> int:
     products = woolworths_product_nodes(payload)
     refreshed_at = int(time.time())
     cached = 0
-    with catalogue_connection() as connection:
+    with catalogue_session() as connection:
         for source in products:
             stockcode = clean_identifier(source.get("Stockcode"))
             name = first_text(source, ("DisplayName", "Name"))
@@ -512,13 +581,112 @@ def cache_woolworths_category(category_path: str, payload: object) -> int:
     return cached
 
 
+def clean_html(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    return clean_text(html.unescape(re.sub(r"<[^>]+>", " ", value)))
+
+
+def json_text(value: object) -> str | None:
+    if value in (None, "", [], {}):
+        return None
+    return json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+
+
+def detail_text(*values: object) -> str | None:
+    for value in values:
+        cleaned = clean_html(value)
+        if cleaned and cleaned.casefold() not in ("false", "null", "n/a"):
+            return cleaned
+    return None
+
+
+def cache_woolworths_details(results: object) -> tuple[int, int]:
+    if not isinstance(results, list):
+        return 0, 0
+    enriched = 0
+    failed = 0
+    refreshed_at = int(time.time())
+    with catalogue_session() as connection:
+        for result in results:
+            if not isinstance(result, dict):
+                continue
+            stockcode = clean_identifier(result.get("stockcode"))
+            payload = result.get("payload")
+            if not stockcode or not isinstance(payload, dict):
+                if stockcode:
+                    connection.execute(
+                        "UPDATE woolworths_products SET detail_error = ? WHERE stockcode = ?",
+                        (clean_text(result.get("error")) or "Product detail was not returned", stockcode),
+                    )
+                failed += 1
+                continue
+            product = payload.get("Product") if isinstance(payload.get("Product"), dict) else payload
+            attributes = product.get("AdditionalAttributes") if isinstance(product.get("AdditionalAttributes"), dict) else {}
+            root_attributes = payload.get("AdditionalAttributes") if isinstance(payload.get("AdditionalAttributes"), dict) else {}
+            attributes = {**root_attributes, **attributes}
+            tga = product.get("TgaAttributes") if isinstance(product.get("TgaAttributes"), dict) else {}
+            origin = payload.get("CountryOfOriginLabel") if isinstance(payload.get("CountryOfOriginLabel"), dict) else {}
+            images = payload.get("DetailsImagePaths") or product.get("DetailsImagePaths") or []
+            dietary = [
+                cleaned for value in (
+                    attributes.get("wool_dietaryclaim"), attributes.get("lifestyleclaim"),
+                    attributes.get("lifestyleanddietarystatement"), attributes.get("suitablefor"),
+                ) if (cleaned := detail_text(value))
+            ]
+            allergens = {
+                "contains": detail_text(attributes.get("allergencontains"), attributes.get("contains"), attributes.get("allergystatement")),
+                "mayContain": detail_text(attributes.get("allergenmaybepresent")),
+            }
+            nutrition = payload.get("Nutrition") or payload.get("NutritionalInformation") or product.get("NutritionalInformation") or attributes.get("nutritionalinformation")
+            connection.execute("""
+                UPDATE woolworths_products SET
+                  brand = COALESCE(?, brand), description = COALESCE(?, description),
+                  long_description = COALESCE(?, long_description), ingredients = COALESCE(?, ingredients),
+                  allergens = COALESCE(?, allergens), nutrition = COALESCE(?, nutrition),
+                  dietary_claims = COALESCE(?, dietary_claims), country_of_origin = COALESCE(?, country_of_origin),
+                  storage_instructions = COALESCE(?, storage_instructions),
+                  preparation_instructions = COALESCE(?, preparation_instructions),
+                  additional_images = COALESCE(?, additional_images), detail_refreshed_at = ?, detail_error = NULL
+                WHERE stockcode = ?
+            """, (
+                detail_text(product.get("Brand"), attributes.get("brand")),
+                detail_text(product.get("Description"), attributes.get("description")),
+                detail_text(product.get("RichDescription"), product.get("FullDescription"), attributes.get("ml_enriched_product_description")),
+                detail_text(attributes.get("ingredients")), json_text({key: value for key, value in allergens.items() if value}),
+                json_text(nutrition), json_text(dietary),
+                detail_text(origin.get("CountryOfOrigin"), origin.get("AltText"), attributes.get("countryoforigin")),
+                detail_text(attributes.get("storageinstructions"), tga.get("StorageInstructions")),
+                detail_text(attributes.get("usageinstructions"), tga.get("Directions")),
+                json_text(images), refreshed_at, stockcode,
+            ))
+            enriched += 1
+    return enriched, failed
+
+
+def woolworths_cached_detail(stockcode: str) -> dict | None:
+    with catalogue_session() as connection:
+        row = connection.execute(
+            "SELECT * FROM woolworths_products WHERE stockcode = ? LIMIT 1", (stockcode,),
+        ).fetchone()
+    if not row:
+        return None
+    result = dict(row)
+    for field in ("allergens", "nutrition", "dietary_claims", "additional_images"):
+        try:
+            result[field] = json.loads(result[field]) if result[field] else None
+        except json.JSONDecodeError:
+            result[field] = None
+    return result
+
+
 def search_woolworths_cache(query: str, limit: int) -> list[dict]:
     terms = [term.casefold() for term in re.findall(r"[a-zA-Z0-9]+", query) if len(term) > 1]
     if not terms or not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
         return []
     identifier = clean_identifier(query)
     where = "(stockcode = ? OR barcode = ?) OR (" + " AND ".join("search_text LIKE ?" for _ in terms) + ")"
-    with catalogue_connection() as connection:
+    with catalogue_session() as connection:
         rows = connection.execute(
             f"SELECT * FROM woolworths_products WHERE {where} ORDER BY in_stock DESC, refreshed_at DESC LIMIT ?",
             (identifier, identifier, *[f"%{term}%" for term in terms], limit),
@@ -853,15 +1021,26 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/woolworths/catalogue/status":
             acquisition_mode = "verified-browser" if WOOLWORTHS_CDP_URL else "unconfigured"
             if not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
-                self.send_json(200, {"status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None, "acquisitionMode": acquisition_mode})
+                self.send_json(200, {
+                    "status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None,
+                    "acquisitionMode": acquisition_mode, "detailedProducts": 0,
+                    "detailFailures": 0, "lastDetailRefreshedAt": None,
+                })
                 return
-            with catalogue_connection() as connection:
+            with catalogue_session() as connection:
                 row = connection.execute(
-                    "SELECT COUNT(*) products, COUNT(DISTINCT category_path) categories, MAX(refreshed_at) refreshed_at FROM woolworths_products"
+                    """SELECT COUNT(*) products, COUNT(DISTINCT category_path) categories,
+                              MAX(refreshed_at) refreshed_at,
+                              COUNT(*) FILTER (WHERE detail_refreshed_at IS NOT NULL) detailed_products,
+                              COUNT(*) FILTER (WHERE detail_error IS NOT NULL) detail_failures,
+                              MAX(detail_refreshed_at) detail_refreshed_at
+                       FROM woolworths_products"""
                 ).fetchone()
             self.send_json(200, {
                 "status": "success", "products": row["products"], "categories": row["categories"],
                 "lastRefreshedAt": row["refreshed_at"], "acquisitionMode": acquisition_mode,
+                "detailedProducts": row["detailed_products"], "detailFailures": row["detail_failures"],
+                "lastDetailRefreshedAt": row["detail_refreshed_at"],
             })
             return
         if parsed.path == "/stores":
@@ -902,10 +1081,36 @@ class Handler(BaseHTTPRequestHandler):
                 try:
                     payload = woolworths_browser().browse(category)
                     count = cache_woolworths_category(category, payload)
+                    stockcodes = [product["Stockcode"] for product in woolworths_product_nodes(payload) if clean_identifier(product.get("Stockcode"))]
                 except Exception as error:  # noqa: BLE001
                     self.send_json(502, {"status": "error", "error": f"Woolworths category refresh failed: {error}"})
                     return
-                self.send_json(200, {"status": "success", "category": category, "products": count})
+                detail_error = None
+                try:
+                    detail_results = woolworths_browser().details(list(dict.fromkeys(map(str, stockcodes))))
+                    details_enriched, details_failed = cache_woolworths_details(detail_results)
+                except Exception as error:  # noqa: BLE001
+                    # The authoritative category catalogue remains usable when a
+                    # detail request is temporarily unavailable. Expose the partial
+                    # result so a later refresh can retry enrichment safely.
+                    details_enriched, details_failed = 0, len(stockcodes)
+                    detail_error = str(error)
+                self.send_json(200, {
+                    "status": "success", "category": category, "products": count,
+                    "detailsEnriched": details_enriched, "detailsFailed": details_failed,
+                    "detailError": detail_error,
+                })
+                return
+            if parsed.path == "/woolworths/catalogue/product":
+                stockcode = clean_identifier((params.get("stockcode") or [""])[0])
+                if not stockcode:
+                    self.send_json(400, {"status": "error", "error": "Missing stockcode parameter"})
+                    return
+                product = woolworths_cached_detail(stockcode)
+                if not product:
+                    self.send_json(404, {"status": "error", "error": "Woolworths product is not cached"})
+                    return
+                self.send_json(200, {"status": "success", "product": product})
                 return
             self.send_json(404, {"status": "error", "error": "Not found"})
             return

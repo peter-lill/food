@@ -7,6 +7,7 @@ const hostBrowserCompose = readFileSync(new URL("../../../docker-compose.host-br
 const browserSidecar = readFileSync(new URL("../../../services/grocery-mcp/woolworths_browser.py", import.meta.url), "utf8");
 const hostBrowser = readFileSync(new URL("../../../scripts/run-woolworths-host-browser.sh", import.meta.url), "utf8");
 const hostBrowserService = readFileSync(new URL("../../../deploy/food-woolworths-browser.service", import.meta.url), "utf8");
+const labelEnrichment = readFileSync(new URL("../src/lib/product-intelligence/retailer-label-enrichment.ts", import.meta.url), "utf8");
 
 assert.match(bridge, /WOOLWORTHS_CATEGORY_API_PATH = "\/apis\/ui\/browse\/category"/);
 assert.match(bridge, /response\.url[\s\S]*captured_responses\.append\(response\)/, "matching category responses must be retained immediately");
@@ -22,6 +23,14 @@ assert.match(bridge, /if captured_responses and len\(captured_responses\) == pre
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");
+assert.match(bridge, /WOOLWORTHS_DETAIL_API_PATH = "\/apis\/ui\/product\/detail"/, "details must come from Woolworths's authoritative product endpoint");
+assert.match(bridge, /def cache_woolworths_details[\s\S]*brand[\s\S]*long_description[\s\S]*ingredients[\s\S]*allergens[\s\S]*nutrition[\s\S]*dietary_claims[\s\S]*country_of_origin[\s\S]*storage_instructions[\s\S]*preparation_instructions[\s\S]*additional_images/, "all requested detail fields must be persisted");
+assert.match(bridge, /detail_results = woolworths_browser\(\)\.details[\s\S]*cache_woolworths_details/, "category refresh must enrich each authoritative stockcode");
+assert.match(bridge, /detailsEnriched[\s\S]*detailsFailed/, "partial detail coverage must be observable");
+assert.match(bridge, /detail_error = None[\s\S]*except Exception as error:[\s\S]*details_failed = 0, len\(stockcodes\)/, "temporary detail failures must not discard a successful category refresh");
+assert.match(bridge, /\/woolworths\/catalogue\/product/, "cached rich product details must be readable without another live request");
+assert.match(bridge, /detailedProducts[\s\S]*detailFailures[\s\S]*lastDetailRefreshedAt/, "detail coverage and retry failures must be visible in catalogue status");
+assert.match(labelEnrichment, /fetchCachedWoolworthsLabelSource[\s\S]*\/woolworths\/catalogue\/product/, "Food label enrichment must consume the verified Woolworths detail cache");
 assert.match(bridge, /cached = search_woolworths_cache[\s\S]*if cached:[\s\S]*return cached/, "search must prefer the local catalogue");
 const cacheLookup = bridge.indexOf("cached = search_woolworths_cache");
 const circuitLookup = bridge.indexOf("unavailable_for = _woolworths_unavailable_until");
