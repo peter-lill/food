@@ -28,7 +28,7 @@ services:
       PORT: "8787"
       COLES_API_KEY: ${COLES_API_KEY:-}
       WOOLWORTHS_CATALOGUE_DB: /data/woolworths-catalogue.sqlite3
-      WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-}
+      WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://food-woolworths-browser:9222}
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}
       COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
@@ -43,6 +43,29 @@ services:
       interval: 15s
       timeout: 5s
       retries: 10
+
+  food-woolworths-browser:
+    build:
+      context: .
+      dockerfile: services/grocery-mcp/Dockerfile
+    container_name: food-woolworths-browser
+    profiles: ["prices"]
+    restart: unless-stopped
+    command: ["python", "/opt/grocery-mcp/woolworths_browser.py"]
+    environment:
+      DISPLAY: ":99"
+      WOOLWORTHS_BROWSER_PROFILE: /browser-profile
+    volumes:
+      - food_woolworths_browser_profile:/browser-profile
+    ports:
+      - "127.0.0.1:${WOOLWORTHS_NOVNC_PORT:-6081}:6080"
+    expose:
+      - "9222"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:9222/json/version', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
 
   food-price-influx:
     image: influxdb:2.7-alpine
@@ -95,3 +118,4 @@ volumes:
   food_price_influx_data:
   food_auscost_data:
   food_grocery_catalogue_data:
+  food_woolworths_browser_profile:

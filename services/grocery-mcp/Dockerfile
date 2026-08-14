@@ -4,7 +4,8 @@ ARG MCP_REPOSITORY=https://github.com/iflow-mcp/hung-ngm-coles-woolworths-mcp-se
 ARG MCP_REVISION=d8caf10985fd1dc1053b91fc3f3006e3100d974b
 
 RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates \
+  && apt-get install -y --no-install-recommends \
+    git ca-certificates novnc openbox websockify x11vnc xvfb \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/grocery-mcp
@@ -16,6 +17,7 @@ RUN pip install --no-cache-dir fastmcp requests python-dotenv playwright \
   && playwright install --with-deps chromium
 
 COPY services/grocery-mcp/bridge.py /opt/grocery-mcp/bridge.py
+COPY services/grocery-mcp/woolworths_browser.py /opt/grocery-mcp/woolworths_browser.py
 COPY services/grocery-mcp/THIRD_PARTY_NOTICES.md /opt/grocery-mcp/THIRD_PARTY_NOTICES.md
 
 ENV PYTHONUNBUFFERED=1
