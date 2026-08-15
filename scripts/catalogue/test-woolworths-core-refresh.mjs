@@ -8,7 +8,7 @@ const categories = JSON.parse(await readFile(manifestUrl, "utf8"));
 const runner = await readFile(runnerUrl, "utf8");
 
 assert.ok(Array.isArray(categories), "manifest must be an array");
-assert.equal(categories.length, 15, "core manifest should contain 15 verified categories");
+assert.equal(categories.length, 22, "core manifest should contain 22 verified categories");
 assert.equal(new Set(categories).size, categories.length, "categories must be unique");
 
 for (const category of categories) {
