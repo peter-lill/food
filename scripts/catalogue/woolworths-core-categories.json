@@ -13,5 +13,12 @@
   "/shop/browse/cleaning-maintenance/cleaning-goods",
   "/shop/browse/freezer/frozen-fruit",
   "/shop/browse/pantry/baking",
-  "/shop/browse/freezer/frozen-meals"
+  "/shop/browse/freezer/frozen-meals",
+  "/shop/browse/meat-seafood-deli/meat",
+  "/shop/browse/meat-seafood-deli/seafood",
+  "/shop/browse/pantry/herbs-spices",
+  "/shop/browse/dairy-eggs-fridge/eggs-butter-margarine/butter-margarine",
+  "/shop/browse/dairy-eggs-fridge/cream-custard-desserts/cream",
+  "/shop/browse/pantry/oil-vinegar",
+  "/shop/browse/pantry/cooking-sauces-recipe-bases"
 ]
