@@ -10,6 +10,13 @@ const hostBrowserService = readFileSync(new URL("../../../deploy/food-woolworths
 const labelEnrichment = readFileSync(new URL("../src/lib/product-intelligence/retailer-label-enrichment.ts", import.meta.url), "utf8");
 
 assert.match(bridge, /WOOLWORTHS_CATEGORY_API_PATH = "\/apis\/ui\/browse\/category"/);
+assert.match(bridge, /WOOLWORTHS_COLLECTION_CATEGORIES = tuple\(/, "the known catalogue plan must be configured independently of imports");
+assert.match(bridge, /CREATE TABLE IF NOT EXISTS woolworths_category_collection/, "collector progress must survive bridge restarts");
+assert.match(bridge, /state IN \('pending', 'running', 'completed', 'failed'\)/, "collection state must distinguish resumable, complete and retryable work");
+assert.match(bridge, /class WoolworthsCatalogueCollector[\s\S]*threading\.Thread/, "catalogue acquisition must be a background serial job");
+assert.match(bridge, /SET state = 'pending' WHERE state = 'running'/, "a restart must release interrupted categories for safe retry");
+assert.match(bridge, /\/woolworths\/catalogue\/collection\/start/, "collection must be startable without holding an HTTP request open");
+assert.match(bridge, /\/woolworths\/catalogue\/collection\/status/, "collection progress must be observable");
 assert.match(bridge, /response\.url[\s\S]*captured_responses\.append\(response\)/, "matching category responses must be retained immediately");
 const retainResponse = bridge.indexOf("captured_responses.append(response)");
 const finishResponse = bridge.indexOf("response.finished()", retainResponse);

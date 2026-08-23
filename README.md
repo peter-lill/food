@@ -64,6 +64,39 @@ The noVNC page is bound to host loopback on port `6081` by default. From another
 
 The catalogue status endpoint reports `acquisitionMode: "verified-browser"` when the connection is configured. Existing cached products remain searchable if verification later expires; refreshes will fail with an actionable reconnect message rather than clearing the catalogue.
 
+### Resumable Woolworths catalogue collection
+
+The canonical importer only processes products already present in the verified
+local cache. To grow that cache beyond manually refreshed categories, start the
+resumable collector after the browser has been verified. It walks the configured
+top-level Woolworths browse categories one at a time, persists the category
+state in the same SQLite volume, and enriches every acquired product with its
+authoritative detail before it can be imported:
+
+```bash
+curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start'
+```
+
+The request returns immediately. Follow its durable progress instead of
+guessing from browser logs:
+
+```bash
+watch -n 10 'curl -fsS http://127.0.0.1:8787/woolworths/catalogue/collection/status'
+```
+
+Completed categories are not reacquired on a restart. Failed categories remain
+visible with their error and can be retried deliberately once verification is
+healthy again:
+
+```bash
+curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?retryFailed=1'
+```
+
+Set `WOOLWORTHS_COLLECTION_CATEGORIES` to a comma-separated list of valid
+`/shop/browse/...` paths when expanding or narrowing the collection plan. Use
+`maxCategories=<number>` only for a small controlled run; omit it to process
+all pending categories in the saved plan.
+
 ### Controlled Woolworths canonical import
 
 The verified Woolworths cache is not automatically treated as Food's canonical
