@@ -103,8 +103,13 @@ npm --workspace apps/web run products:woolworths-import -- --all --apply
 ```
 
 Add `--verbose` to list retained records as well. Bulk mode reads cache pages
-of 100 records, prevents duplicate names and barcodes across the whole run,
-and leaves skipped records untouched.
+of 500 records by default (up to 1,000 with `--page-size=1000`), preloads
+retailer listings, barcode matches and aliases once per page, and commits each
+page in a single database transaction. It prevents duplicate names and
+barcodes across the whole run and leaves skipped records untouched. This is
+the reusable pattern for large retailer catalogue imports: listing identity is
+retailer-specific, while canonical products are created only for verified
+barcode identities.
 
 If Woolworths rejects the container browser but accepts Chromium running directly on the server, use the host-browser mode. Install `chromium-browser`, `xvfb`, `openbox`, `x11vnc`, `novnc` and `websockify`, then install and start the supplied service:
 
