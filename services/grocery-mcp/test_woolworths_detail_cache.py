@@ -83,6 +83,59 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(listed[0]["ingredients"], "Australian cow's milk.")
         self.assertEqual(listed[0]["allergens"], {"contains": "Milk", "mayContain": "Soy"})
 
+    def test_collection_plan_is_seeded_and_reports_restart_safe_progress(self) -> None:
+        self.bridge.seed_woolworths_category_collection()
+        before = self.bridge.woolworths_collection_status()
+        self.assertEqual(before["total"], len(self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES))
+        self.assertEqual(before["pending"], before["total"])
+
+        category = self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES[0]
+        with self.bridge.catalogue_session() as connection:
+            connection.execute("""
+                UPDATE woolworths_category_collection
+                SET state = 'running', attempts = 1, products_cached = 42
+                WHERE category_path = ?
+            """, (category,))
+
+        # Seeding after a bridge restart releases unfinished work without
+        # resetting successfully completed categories or their counters.
+        self.bridge.seed_woolworths_category_collection()
+        after = self.bridge.woolworths_collection_status()
+        category_status = next(item for item in after["categories"] if item["category_path"] == category)
+        self.assertEqual(category_status["state"], "pending")
+        self.assertEqual(category_status["attempts"], 1)
+        self.assertEqual(category_status["products_cached"], 42)
+
+    def test_collector_marks_a_completed_category_without_repeating_it(self) -> None:
+        category = "/shop/browse/dairy-eggs-fridge/milk"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
+        self.bridge.refresh_woolworths_category = lambda _: {
+            "category": category,
+            "products": 7,
+            "detailsEnriched": 7,
+            "detailsFailed": 0,
+            "detailError": None,
+        }
+        collector = self.bridge.WoolworthsCatalogueCollector()
+
+        self.assertTrue(collector.start(None, False))
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+        self.assertFalse(collector._thread.is_alive())
+
+        status = self.bridge.woolworths_collection_status()
+        result = next(item for item in status["categories"] if item["category_path"] == category)
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(result["attempts"], 1)
+        self.assertEqual(result["products_cached"], 7)
+
+        # Starting a second non-retry run finds no pending work, so no product
+        # is reacquired merely because the bridge remains alive.
+        self.assertTrue(collector.start(None, False))
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+        self.assertEqual(next(item for item in self.bridge.woolworths_collection_status()["categories"] if item["category_path"] == category)["attempts"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()
