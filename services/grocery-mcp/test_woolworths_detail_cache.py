@@ -77,6 +77,11 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(product["nutrition"][0]["Name"], "Protein")
         self.assertIsNotNone(product["detail_refreshed_at"])
         self.assertIsNone(product["detail_error"])
+        listed = self.bridge.woolworths_cached_products(10, 0)
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["stockcode"], "123456")
+        self.assertEqual(listed[0]["ingredients"], "Australian cow's milk.")
+        self.assertEqual(listed[0]["allergens"], {"contains": "Milk", "mayContain": "Soy"})
 
 
 if __name__ == "__main__":

@@ -29,6 +29,8 @@ assert.match(bridge, /detail_results = woolworths_browser\(\)\.details[\s\S]*cac
 assert.match(bridge, /detailsEnriched[\s\S]*detailsFailed/, "partial detail coverage must be observable");
 assert.match(bridge, /detail_error = None[\s\S]*except Exception as error:[\s\S]*details_failed = 0, len\(stockcodes\)/, "temporary detail failures must not discard a successful category refresh");
 assert.match(bridge, /\/woolworths\/catalogue\/product/, "cached rich product details must be readable without another live request");
+assert.match(bridge, /def woolworths_cached_products[\s\S]*locally verified cache only/, "controlled imports must enumerate only the verified local cache");
+assert.match(bridge, /\/woolworths\/catalogue\/products/, "controlled imports need a bounded cached catalogue endpoint");
 assert.match(bridge, /detailedProducts[\s\S]*detailFailures[\s\S]*lastDetailRefreshedAt/, "detail coverage and retry failures must be visible in catalogue status");
 assert.match(labelEnrichment, /fetchCachedWoolworthsLabelSource[\s\S]*\/woolworths\/catalogue\/product/, "Food label enrichment must consume the verified Woolworths detail cache");
 assert.match(bridge, /cached = search_woolworths_cache[\s\S]*if cached:[\s\S]*return cached/, "search must prefer the local catalogue");

@@ -680,6 +680,34 @@ def woolworths_cached_detail(stockcode: str) -> dict | None:
     return result
 
 
+def woolworths_cached_products(limit: int, offset: int, category_path: str | None = None) -> list[dict]:
+    """Return a bounded page of verified catalogue records for controlled import.
+
+    This endpoint deliberately returns the locally verified cache only. It must
+    never trigger a live Woolworths search while Food is deciding whether an
+    item is safe to attach to the canonical catalogue.
+    """
+    where = "WHERE category_path = ?" if category_path else ""
+    parameters: tuple[object, ...] = (category_path, limit, offset) if category_path else (limit, offset)
+    with catalogue_session() as connection:
+        rows = connection.execute(
+            f"""SELECT * FROM woolworths_products {where}
+                 ORDER BY category_path, name COLLATE NOCASE, stockcode
+                 LIMIT ? OFFSET ?""",
+            parameters,
+        ).fetchall()
+    products: list[dict] = []
+    for row in rows:
+        product = dict(row)
+        for field in ("allergens", "nutrition", "dietary_claims", "additional_images"):
+            try:
+                product[field] = json.loads(product[field]) if product[field] else None
+            except json.JSONDecodeError:
+                product[field] = None
+        products.append(product)
+    return products
+
+
 def search_woolworths_cache(query: str, limit: int) -> list[dict]:
     terms = [term.casefold() for term in re.findall(r"[a-zA-Z0-9]+", query) if len(term) > 1]
     if not terms or not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
@@ -1111,6 +1139,20 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(404, {"status": "error", "error": "Woolworths product is not cached"})
                     return
                 self.send_json(200, {"status": "success", "product": product})
+                return
+            if parsed.path == "/woolworths/catalogue/products":
+                try:
+                    limit = max(1, min(100, int((params.get("limit") or ["30"])[0])))
+                    offset = max(0, int((params.get("offset") or ["0"])[0]))
+                except ValueError:
+                    self.send_json(400, {"status": "error", "error": "limit and offset must be whole numbers"})
+                    return
+                category = (params.get("category") or [""])[0].strip() or None
+                products = woolworths_cached_products(limit, offset, category)
+                self.send_json(200, {
+                    "status": "success", "products": products, "limit": limit,
+                    "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None,
+                })
                 return
             self.send_json(404, {"status": "error", "error": "Not found"})
             return
