@@ -15,6 +15,7 @@ assert.match(bridge, /CREATE TABLE IF NOT EXISTS woolworths_category_collection/
 assert.match(bridge, /state IN \('pending', 'running', 'completed', 'failed'\)/, "collection state must distinguish resumable, complete and retryable work");
 assert.match(bridge, /class WoolworthsCatalogueCollector[\s\S]*threading\.Thread/, "catalogue acquisition must be a background serial job");
 assert.match(bridge, /SET state = 'pending' WHERE state = 'running'/, "a restart must release interrupted categories for safe retry");
+assert.match(bridge, /if __name__ == "__main__":[\s\S]*recover_woolworths_category_collection\(\)/, "only bridge startup, not status reads, may release interrupted work");
 assert.match(bridge, /\/woolworths\/catalogue\/collection\/start/, "collection must be startable without holding an HTTP request open");
 assert.match(bridge, /\/woolworths\/catalogue\/collection\/status/, "collection progress must be observable");
 assert.match(bridge, /response\.url[\s\S]*captured_responses\.append\(response\)/, "matching category responses must be retained immediately");
