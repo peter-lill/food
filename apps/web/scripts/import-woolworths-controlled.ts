@@ -156,8 +156,8 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
       "packSize" = source."packSize",
       "productUrl" = source."productUrl",
       "imageUrl" = source."imageUrl",
-      "active" = source."active",
-      "lastSeenAt" = source."lastSeenAt"
+      "active" = source."active"::boolean,
+      "lastSeenAt" = source."lastSeenAt"::timestamp
     FROM (VALUES ${Prisma.join(rows)}) AS source(
       "id", "retailerProductName", "brand", "packSize", "productUrl", "imageUrl", "active", "lastSeenAt"
     )

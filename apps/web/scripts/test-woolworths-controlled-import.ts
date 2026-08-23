@@ -28,5 +28,6 @@ assert.match(importerSource, /another record in this import has the same barcode
 assert.match(importerSource, /prisma\.storeProduct\.findMany/, "each bulk cache page must preload existing retailer listings");
 assert.match(importerSource, /tx\.priceObservation\.createMany/, "each bulk cache page must write price observations in one database batch");
 assert.match(importerSource, /UPDATE "StoreProduct" AS target/, "each bulk cache page must update retained retailer listings in one database statement");
+assert.match(importerSource, /source\."active"::boolean/, "the bulk listing update must cast boolean parameters for PostgreSQL");
 
 console.log("Woolworths controlled-import safeguards passed.");
