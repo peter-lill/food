@@ -6,6 +6,7 @@ export type CachedWoolworthsProduct = {
   barcode: string | null;
   name: string;
   price: number | null;
+  is_special: boolean;
   pack_size: string | null;
   image_url: string | null;
   category_path: string;

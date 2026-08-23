@@ -1,6 +1,7 @@
 import "dotenv/config";
 
-import { ProductLifecycle } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { Prisma, ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import {
@@ -18,7 +19,10 @@ const argument = (name: string) => process.argv.find((value) => value.startsWith
 const requestedLimit = Number(argument("--limit") ?? "30");
 const offset = Number(argument("--offset") ?? "0");
 const category = argument("--category");
-const limit = importAll ? 100 : Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 100 ? requestedLimit : 30;
+const requestedPageSize = Number(argument("--page-size") ?? "500");
+const limit = importAll
+  ? Number.isInteger(requestedPageSize) && requestedPageSize >= 1 && requestedPageSize <= 1000 ? requestedPageSize : 500
+  : Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 1000 ? requestedLimit : 30;
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
 type Plan = {
@@ -26,6 +30,7 @@ type Plan = {
   disposition: ImportDisposition;
   reason: string;
   productId: string | null;
+  storeProductId: string | null;
 };
 
 function text(value: unknown) {
@@ -45,7 +50,8 @@ function cachedProduct(value: unknown): CachedWoolworthsProduct | null {
   if (!stockcode || !name || !categoryPath) return null;
   return {
     stockcode, name, category_path: categoryPath,
-    barcode: text(input.barcode), price: number(input.price), pack_size: text(input.pack_size), image_url: text(input.image_url),
+    barcode: text(input.barcode), price: number(input.price), is_special: input.is_special === true || input.is_special === 1,
+    pack_size: text(input.pack_size), image_url: text(input.image_url),
     in_stock: input.in_stock === false || input.in_stock === 0 ? 0 : 1,
     brand: text(input.brand), description: text(input.description), long_description: text(input.long_description),
     allergens: input.allergens, dietary_claims: input.dietary_claims,
@@ -76,24 +82,8 @@ async function readCachedProductPage(pageOffset: number) {
   };
 }
 
-async function readCachedProducts() {
-  let pageOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
-  const firstPage = await readCachedProductPage(pageOffset);
-  if (!importAll) return firstPage.products;
-
-  const products = [...firstPage.products];
-  let nextOffset = firstPage.nextOffset;
-  while (nextOffset !== null) {
-    pageOffset = nextOffset;
-    const page = await readCachedProductPage(pageOffset);
-    products.push(...page.products);
-    nextOffset = page.nextOffset;
-  }
-  return products;
-}
-
-function planCounts(plans: Plan[]) {
-  return Object.fromEntries(["retain", "link-barcode", "link-name", "create", "skip"].map((key) => [key, plans.filter((plan) => plan.disposition === key).length]));
+function emptyCounts() {
+  return { retain: 0, "link-barcode": 0, "link-name": 0, create: 0, skip: 0 } as Record<ImportDisposition, number>;
 }
 
 function duplicatePlannedIdentity(product: CachedWoolworthsProduct, aliases: Set<string>, barcodes: Set<string>) {
@@ -106,103 +96,143 @@ function duplicatePlannedIdentity(product: CachedWoolworthsProduct, aliases: Set
   return null;
 }
 
-async function planFor(product: CachedWoolworthsProduct): Promise<Plan> {
-  const eligibility = importEligibility(product);
-  if (!eligibility.eligible) return { product, disposition: "skip", reason: eligibility.reason!, productId: null };
-  const existingListing = await prisma.storeProduct.findUnique({
-    where: { retailer_externalId: { retailer: "Woolworths", externalId: product.stockcode } }, select: { productId: true },
+async function plansForPage(products: CachedWoolworthsProduct[], plannedAliases: Set<string>, plannedBarcodes: Set<string>) {
+  const stockcodes = [...new Set(products.map((product) => product.stockcode))];
+  const barcodes = [...new Set(products.map((product) => cleanBarcode(product.barcode)).filter((value): value is string => Boolean(value)))];
+  const aliases = [...new Set(products.map((product) => normaliseProductText(product.name)))];
+  const [listings, barcodeProducts, aliasProducts] = await Promise.all([
+    prisma.storeProduct.findMany({
+      where: { retailer: "Woolworths", externalId: { in: stockcodes } }, select: { id: true, externalId: true, productId: true },
+    }),
+    barcodes.length ? prisma.product.findMany({ where: { barcode: { in: barcodes } }, select: { id: true, barcode: true } }) : [],
+    aliases.length ? prisma.productAlias.findMany({ where: { normalised: { in: aliases } }, select: { normalised: true, productId: true } }) : [],
+  ]);
+  const listingByStockcode = new Map(listings.flatMap((listing) => listing.externalId ? [[listing.externalId, listing] as const] : []));
+  const productByBarcode = new Map(barcodeProducts.flatMap((product) => product.barcode ? [[product.barcode, product.id] as const] : []));
+  const productByAlias = new Map(aliasProducts.map((alias) => [alias.normalised, alias.productId]));
+
+  return products.map<Plan>((product) => {
+    const eligibility = importEligibility(product);
+    if (!eligibility.eligible) return { product, disposition: "skip", reason: eligibility.reason!, productId: null, storeProductId: null };
+    const existingListing = listingByStockcode.get(product.stockcode);
+    if (existingListing) {
+      return { product, disposition: "retain", reason: "authoritative Woolworths listing already exists", productId: existingListing.productId, storeProductId: existingListing.id };
+    }
+    const barcode = cleanBarcode(product.barcode);
+    if (barcode) {
+      const productId = productByBarcode.get(barcode);
+      if (productId) return { product, disposition: "link-barcode", reason: "exact barcode matches an existing Food product", productId, storeProductId: randomUUID() };
+    }
+    const normalised = normaliseProductText(product.name);
+    const aliasProductId = productByAlias.get(normalised);
+    if (aliasProductId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId: aliasProductId, storeProductId: randomUUID() };
+    if (!barcode) return { product, disposition: "skip", reason: "no barcode; creation is intentionally withheld", productId: null, storeProductId: null };
+    const duplicateReason = duplicatePlannedIdentity(product, plannedAliases, plannedBarcodes);
+    if (duplicateReason) return { product, disposition: "skip", reason: duplicateReason, productId: null, storeProductId: null };
+    return { product, disposition: "create", reason: "verified detail and a unique barcode", productId: randomUUID(), storeProductId: randomUUID() };
   });
-  if (existingListing) return { product, disposition: "retain", reason: "authoritative Woolworths listing already exists", productId: existingListing.productId };
-  const barcode = cleanBarcode(product.barcode);
-  if (barcode) {
-    const existingBarcode = await prisma.product.findUnique({ where: { barcode }, select: { id: true } });
-    if (existingBarcode) return { product, disposition: "link-barcode", reason: "exact barcode matches an existing Food product", productId: existingBarcode.id };
-  }
-  const alias = await prisma.productAlias.findUnique({ where: { normalised: normaliseProductText(product.name) }, select: { productId: true } });
-  if (alias) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId: alias.productId };
-  if (!barcode) return { product, disposition: "skip", reason: "no barcode; creation is intentionally withheld", productId: null };
-  return { product, disposition: "create", reason: "verified detail and a unique barcode", productId: null };
 }
 
-async function attach(plan: Plan) {
+function listingData(plan: Plan) {
   const { product } = plan;
-  const mapped = categoryForWoolworthsPath(product.category_path);
-  const barcode = cleanBarcode(product.barcode);
-  return prisma.$transaction(async (tx) => {
-    let productId = plan.productId;
-    if (plan.disposition === "create") {
-      const created = await tx.product.create({
-        data: {
-          name: product.name, canonicalName: product.name,
-          slug: `${slugifyProductName(product.name)}-${product.stockcode}`,
-          barcode, brand: product.brand, category: mapped.category,
-          description: product.long_description ?? product.description,
-          imageUrl: product.image_url, packSize: product.pack_size,
-          productType: mapped.productType, lifecycle: ProductLifecycle.MATCHED, confidenceScore: 0.99,
-        }, select: { id: true },
-      });
-      productId = created.id;
-      await tx.productAlias.create({
-        data: { productId, alias: product.name, normalised: normaliseProductText(product.name), source: "woolworths-controlled-import" },
-      });
-    }
-    if (!productId) throw new Error(`No Food product selected for Woolworths stockcode ${product.stockcode}.`);
-    const listing = await tx.storeProduct.upsert({
-      where: { retailer_externalId: { retailer: "Woolworths", externalId: product.stockcode } },
-      create: {
-        productId, retailer: "Woolworths", externalId: product.stockcode, retailerProductName: product.name,
-        brand: product.brand, packSize: product.pack_size,
-        productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-        imageUrl: product.image_url, active: true, lastSeenAt: new Date(),
-      },
-      update: {
-        retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
-        productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-        imageUrl: product.image_url, active: true, lastSeenAt: new Date(),
-      }, select: { id: true },
-    });
-    if (product.price !== null) {
-      await tx.priceObservation.create({
-        data: {
-          productId, storeProductId: listing.id, retailer: "Woolworths", price: product.price,
-          isSpecial: false, source: "woolworths-controlled-import",
-          sourceUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-        },
-      });
-    }
-    return productId;
+  return {
+    retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
+    productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
+    imageUrl: product.image_url, active: true, lastSeenAt: new Date(),
+  };
+}
+
+async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[]) {
+  if (!plans.length) return;
+  const rows = plans.map((plan) => {
+    const data = listingData(plan);
+    return Prisma.sql`(${plan.storeProductId!}, ${data.retailerProductName}, ${data.brand}, ${data.packSize}, ${data.productUrl}, ${data.imageUrl}, ${data.active}, ${data.lastSeenAt})`;
   });
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "StoreProduct" AS target
+    SET
+      "retailerProductName" = source."retailerProductName",
+      "brand" = source."brand",
+      "packSize" = source."packSize",
+      "productUrl" = source."productUrl",
+      "imageUrl" = source."imageUrl",
+      "active" = source."active",
+      "lastSeenAt" = source."lastSeenAt"
+    FROM (VALUES ${Prisma.join(rows)}) AS source(
+      "id", "retailerProductName", "brand", "packSize", "productUrl", "imageUrl", "active", "lastSeenAt"
+    )
+    WHERE target."id" = source."id"
+  `);
+}
+
+async function attachPage(plans: Plan[]) {
+  const applicable = plans.filter((plan) => plan.disposition !== "skip");
+  const createdProducts = applicable.filter((plan) => plan.disposition === "create");
+  const createdListings = applicable.filter((plan) => plan.disposition !== "retain");
+  const existingListings = applicable.filter((plan) => plan.disposition === "retain");
+  return prisma.$transaction(async (tx) => {
+    if (createdProducts.length) {
+      await tx.product.createMany({
+        data: createdProducts.map((plan) => {
+          const mapped = categoryForWoolworthsPath(plan.product.category_path);
+          return {
+            id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name,
+            slug: `${slugifyProductName(plan.product.name)}-${plan.product.stockcode}`,
+            barcode: cleanBarcode(plan.product.barcode), brand: plan.product.brand, category: mapped.category,
+            description: plan.product.long_description ?? plan.product.description,
+            imageUrl: plan.product.image_url, packSize: plan.product.pack_size,
+            productType: mapped.productType, lifecycle: ProductLifecycle.MATCHED, confidenceScore: 0.99,
+          };
+        }),
+      });
+      await tx.productAlias.createMany({
+        data: createdProducts.map((plan) => ({ productId: plan.productId!, alias: plan.product.name, normalised: normaliseProductText(plan.product.name), source: "woolworths-controlled-import" })),
+      });
+    }
+    if (createdListings.length) {
+      await tx.storeProduct.createMany({
+        data: createdListings.map((plan) => ({ id: plan.storeProductId!, productId: plan.productId!, retailer: "Woolworths", externalId: plan.product.stockcode, ...listingData(plan) })),
+      });
+    }
+    await updateExistingListings(tx, existingListings);
+    const priceObservations = applicable.filter((plan) => plan.product.price !== null);
+    if (priceObservations.length) {
+      await tx.priceObservation.createMany({
+        data: priceObservations.map((plan) => ({
+          productId: plan.productId!, storeProductId: plan.storeProductId!, retailer: "Woolworths", price: plan.product.price!,
+          isSpecial: plan.product.is_special, source: "woolworths-controlled-import",
+          sourceUrl: `https://www.woolworths.com.au/shop/productdetails/${plan.product.stockcode}`,
+        })),
+      });
+    }
+  }, { maxWait: 5_000, timeout: 60_000 });
 }
 
 async function main() {
-  const products = await readCachedProducts();
-  if (!products.length) throw new Error("No verified Woolworths cache records were returned for this batch.");
-  const plans: Plan[] = [];
+  const counts = emptyCounts();
   const plannedAliases = new Set<string>();
   const plannedBarcodes = new Set<string>();
-  for (const product of products) {
-    const plan = await planFor(product);
-    if (plan.disposition === "create") {
-      const duplicateReason = duplicatePlannedIdentity(product, plannedAliases, plannedBarcodes);
-      if (duplicateReason) {
-        plans.push({ ...plan, disposition: "skip", reason: duplicateReason });
-        continue;
+  let pageOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+  let processed = 0;
+  let pages = 0;
+  while (true) {
+    const page = await readCachedProductPage(pageOffset);
+    if (!page.products.length && pages === 0) throw new Error("No verified Woolworths cache records were returned for this batch.");
+    const plans = await plansForPage(page.products, plannedAliases, plannedBarcodes);
+    for (const plan of plans) {
+      counts[plan.disposition] += 1;
+      if (!importAll || verbose || plan.disposition !== "retain") {
+        console.log(`${apply ? "Approved" : "Would"} ${plan.disposition}: ${plan.product.name} | ${plan.product.stockcode} | ${plan.reason}`);
       }
     }
-    plans.push(plan);
+    if (apply && plans.length) await attachPage(plans);
+    processed += plans.length;
+    pages += 1;
+    if (importAll && (processed % 1000 === 0 || page.nextOffset === null)) console.log(`Bulk progress: ${processed} records across ${pages} cache pages.`);
+    if (!importAll || page.nextOffset === null) break;
+    pageOffset = page.nextOffset;
   }
-  for (const plan of plans) {
-    if (!importAll || verbose || plan.disposition !== "retain") {
-      console.log(`${apply ? "Approved" : "Would"} ${plan.disposition}: ${plan.product.name} | ${plan.product.stockcode} | ${plan.reason}`);
-    }
-  }
-  const counts = planCounts(plans);
   if (!apply) return console.log(`${importAll ? "Bulk preview" : "Preview"} complete. ${JSON.stringify(counts)}. No database changes were made.`);
-  for (const plan of plans) {
-    // Retained listings still receive the current verified price and retailer
-    // metadata. Only explicitly unsafe candidates are left untouched.
-    if (plan.disposition !== "skip") await attach(plan);
-  }
   console.log(`${importAll ? "Woolworths bulk controlled import" : "Woolworths controlled import"} complete. ${JSON.stringify(counts)}.`);
 }
 

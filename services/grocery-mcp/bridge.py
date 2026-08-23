@@ -1142,7 +1142,10 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/woolworths/catalogue/products":
                 try:
-                    limit = max(1, min(100, int((params.get("limit") or ["30"])[0])))
+                    # The cache is local SQLite data. Larger bounded pages keep
+                    # canonical imports practical for full retailer catalogues
+                    # without making the browser acquire more data per request.
+                    limit = max(1, min(1000, int((params.get("limit") or ["30"])[0])))
                     offset = max(0, int((params.get("offset") or ["0"])[0]))
                 except ValueError:
                     self.send_json(400, {"status": "error", "error": "limit and offset must be whole numbers"})
