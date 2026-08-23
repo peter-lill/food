@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { ProductType } from "@prisma/client";
-import { categoryForWoolworthsPath, cleanBarcode, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
+import { categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
 
 const product: CachedWoolworthsProduct = {
   stockcode: "238473", barcode: "9300632064205", name: "Example Full Cream Milk 2L", price: 3.5,
@@ -14,6 +14,9 @@ assert.deepEqual(categoryForWoolworthsPath("/shop/browse/freezer/frozen-meals"),
 assert.deepEqual(importEligibility(product), { eligible: true, reason: null });
 assert.match(importEligibility({ ...product, detail_refreshed_at: null }).reason ?? "", /rich Woolworths detail/);
 assert.match(importEligibility({ ...product, in_stock: 0 }).reason ?? "", /out of stock/);
+assert.equal(hasSuspiciousLabelTail("Pauls Zymil Lactose Free Low Fat Long Life Milk UHT 1L"), false);
+assert.equal(hasSuspiciousLabelTail("PureHarvest Organic Almond Unsweetened Long Life Milk UH 1L"), true);
+assert.match(importEligibility({ ...product, name: "PureHarvest Organic Almond Unsweetened Long Life Milk UH 1L" }).reason ?? "", /suspicious truncated label/);
 assert.equal(cleanBarcode("93 00632 064205"), "9300632064205");
 assert.equal(cleanBarcode("not-a-barcode"), null);
 

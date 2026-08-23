@@ -20,6 +20,31 @@ export type CachedWoolworthsProduct = {
 
 export type ImportDisposition = "retain" | "link-barcode" | "link-name" | "create" | "skip";
 
+const recognisedShortTailTokens = new Set(["AU", "DF", "GF", "NZ", "UK", "US", "VG", "XL", "XXL"]);
+
+function terminalMeaningfulToken(name: string) {
+  const tokens = name.trim().split(/\s+/).filter(Boolean);
+  while (tokens.length) {
+    const token = tokens.at(-1)!;
+    if (/^(?:x\d+|\d+x|\d+(?:[.,]\d+)?(?:g|kg|ml|l)|\d+(?:pk|pack)|pack|each)$/i.test(token)) {
+      tokens.pop();
+      continue;
+    }
+    return token.replace(/[^A-Za-z]/g, "");
+  }
+  return "";
+}
+
+/**
+ * Reject labels that end in an unrecognised one- or two-letter uppercase fragment.
+ * This catches source truncation (for example `UH 1L` instead of `UHT 1L`) before
+ * a controlled import can overwrite an existing retailer listing.
+ */
+export function hasSuspiciousLabelTail(name: string) {
+  const token = terminalMeaningfulToken(name);
+  return /^[A-Z]{1,2}$/.test(token) && !recognisedShortTailTokens.has(token);
+}
+
 export function categoryForWoolworthsPath(path: string): { category: string; productType: ProductType } {
   const value = path.toLocaleLowerCase("en-AU");
   if (value.includes("fruit-veg")) return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
@@ -36,6 +61,7 @@ export function categoryForWoolworthsPath(path: string): { category: string; pro
 export function importEligibility(product: CachedWoolworthsProduct): { eligible: boolean; reason: string | null } {
   if (!/^\d{4,12}$/.test(product.stockcode)) return { eligible: false, reason: "missing authoritative Woolworths stockcode" };
   if (normaliseProductText(product.name).length < 3) return { eligible: false, reason: "missing usable product name" };
+  if (hasSuspiciousLabelTail(product.name)) return { eligible: false, reason: "product name ends with a suspicious truncated label fragment" };
   if (!product.detail_refreshed_at) return { eligible: false, reason: "rich Woolworths detail has not been verified" };
   if (product.in_stock === false || product.in_stock === 0) return { eligible: false, reason: "product is out of stock" };
   return { eligible: true, reason: null };
