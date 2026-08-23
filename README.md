@@ -64,6 +64,29 @@ The noVNC page is bound to host loopback on port `6081` by default. From another
 
 The catalogue status endpoint reports `acquisitionMode: "verified-browser"` when the connection is configured. Existing cached products remain searchable if verification later expires; refreshes will fail with an actionable reconnect message rather than clearing the catalogue.
 
+### Controlled Woolworths canonical import
+
+The verified Woolworths cache is not automatically treated as Food's canonical
+catalogue. Preview a bounded batch first:
+
+```bash
+npm --workspace apps/web run products:woolworths-import -- --limit=30
+```
+
+The preview is read-only. It retains existing authoritative Woolworths
+listings, links only exact barcode or exact normalised-name identities, creates
+only in-stock records with both a verified detail response and a barcode, and
+reports every skipped record. Apply the exact reviewed batch with:
+
+```bash
+npm --workspace apps/web run products:woolworths-import -- --limit=30 --apply
+```
+
+Use `--offset=<number>` for the next page, or
+`--category=/shop/browse/...` to constrain the batch to one cached Woolworths
+category. Re-running an applied batch is safe: the listing is retained and its
+current verified price is recorded again.
+
 If Woolworths rejects the container browser but accepts Chromium running directly on the server, use the host-browser mode. Install `chromium-browser`, `xvfb`, `openbox`, `x11vnc`, `novnc` and `websockify`, then install and start the supplied service:
 
 ```bash

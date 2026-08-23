@@ -1,0 +1,47 @@
+import { ProductType } from "@prisma/client";
+import { normaliseProductText } from "../src/lib/products/product-normalisation";
+
+export type CachedWoolworthsProduct = {
+  stockcode: string;
+  barcode: string | null;
+  name: string;
+  price: number | null;
+  pack_size: string | null;
+  image_url: string | null;
+  category_path: string;
+  in_stock: number | boolean;
+  brand: string | null;
+  description: string | null;
+  long_description: string | null;
+  allergens: unknown;
+  dietary_claims: unknown;
+  detail_refreshed_at: number | null;
+};
+
+export type ImportDisposition = "retain" | "link-barcode" | "link-name" | "create" | "skip";
+
+export function categoryForWoolworthsPath(path: string): { category: string; productType: ProductType } {
+  const value = path.toLocaleLowerCase("en-AU");
+  if (value.includes("fruit-veg")) return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
+  if (value.includes("meat-seafood-deli/meat")) return { category: "Meat", productType: ProductType.FRESH_MEAT };
+  if (value.includes("meat-seafood-deli/seafood")) return { category: "Seafood", productType: ProductType.SEAFOOD };
+  if (value.includes("dairy-eggs-fridge")) return { category: "Dairy & eggs", productType: ProductType.DAIRY };
+  if (value.includes("bakery")) return { category: "Bakery", productType: ProductType.BAKERY };
+  if (value.includes("freezer")) return { category: "Frozen", productType: ProductType.FROZEN };
+  if (value.includes("cleaning-maintenance")) return { category: "Household", productType: ProductType.HOUSEHOLD };
+  if (value.includes("drinks")) return { category: "Drinks", productType: ProductType.BEVERAGE };
+  return { category: "Pantry", productType: ProductType.PACKAGED };
+}
+
+export function importEligibility(product: CachedWoolworthsProduct): { eligible: boolean; reason: string | null } {
+  if (!/^\d{4,12}$/.test(product.stockcode)) return { eligible: false, reason: "missing authoritative Woolworths stockcode" };
+  if (normaliseProductText(product.name).length < 3) return { eligible: false, reason: "missing usable product name" };
+  if (!product.detail_refreshed_at) return { eligible: false, reason: "rich Woolworths detail has not been verified" };
+  if (product.in_stock === false || product.in_stock === 0) return { eligible: false, reason: "product is out of stock" };
+  return { eligible: true, reason: null };
+}
+
+export function cleanBarcode(value: string | null) {
+  const barcode = value?.replace(/\D/g, "") ?? "";
+  return /^\d{8,14}$/.test(barcode) ? barcode : null;
+}
