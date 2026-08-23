@@ -730,6 +730,12 @@ def seed_woolworths_category_collection() -> None:
                VALUES (?, 'pending') ON CONFLICT(category_path) DO NOTHING""",
             [(category,) for category in WOOLWORTHS_COLLECTION_CATEGORIES],
         )
+
+
+def recover_woolworths_category_collection() -> None:
+    """Release work interrupted by a bridge restart, never by a status read."""
+    seed_woolworths_category_collection()
+    with catalogue_session() as connection:
         # A process restart cannot leave a category permanently stuck in a
         # transient running state: it is safe to acquire it again.
         connection.execute(
@@ -1375,6 +1381,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
+    recover_woolworths_category_collection()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)
     print(f"Food grocery MCP bridge listening on {PORT}", flush=True)
     server.serve_forever()

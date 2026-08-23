@@ -97,14 +97,27 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                 WHERE category_path = ?
             """, (category,))
 
-        # Seeding after a bridge restart releases unfinished work without
+        # Recovery during a bridge restart releases unfinished work without
         # resetting successfully completed categories or their counters.
-        self.bridge.seed_woolworths_category_collection()
+        self.bridge.recover_woolworths_category_collection()
         after = self.bridge.woolworths_collection_status()
         category_status = next(item for item in after["categories"] if item["category_path"] == category)
         self.assertEqual(category_status["state"], "pending")
         self.assertEqual(category_status["attempts"], 1)
         self.assertEqual(category_status["products_cached"], 42)
+
+    def test_status_read_does_not_release_an_active_category(self) -> None:
+        category = self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES[0]
+        self.bridge.seed_woolworths_category_collection()
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                "UPDATE woolworths_category_collection SET state = 'running' WHERE category_path = ?",
+                (category,),
+            )
+
+        status = self.bridge.woolworths_collection_status()
+        category_status = next(item for item in status["categories"] if item["category_path"] == category)
+        self.assertEqual(category_status["state"], "running")
 
     def test_collector_marks_a_completed_category_without_repeating_it(self) -> None:
         category = "/shop/browse/dairy-eggs-fridge/milk"
