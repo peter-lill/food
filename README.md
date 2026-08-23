@@ -97,6 +97,15 @@ Set `WOOLWORTHS_COLLECTION_CATEGORIES` to a comma-separated list of valid
 `maxCategories=<number>` only for a small controlled run; omit it to process
 all pending categories in the saved plan.
 
+The collector discovers descendant browse paths while it processes each root
+category and queues them in the same durable run. If an earlier bridge version
+recorded only broad roots, revisit those roots once to seed their descendants
+without resetting already completed child categories:
+
+```bash
+curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?revisitCompletedRoots=1&retryFailed=1'
+```
+
 ### Controlled Woolworths canonical import
 
 The verified Woolworths cache is not automatically treated as Food's canonical

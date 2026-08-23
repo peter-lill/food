@@ -149,6 +149,56 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         collector._thread.join(timeout=2)
         self.assertEqual(next(item for item in self.bridge.woolworths_collection_status()["categories"] if item["category_path"] == category)["attempts"], 1)
 
+    def test_collector_enqueues_discovered_descendant_categories(self) -> None:
+        root = "/shop/browse/dairy-eggs-fridge"
+        child = "/shop/browse/dairy-eggs-fridge/milk"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (root,)
+        calls = []
+
+        def refresh(category: str) -> dict:
+            calls.append(category)
+            return {
+                "category": category,
+                "products": 3,
+                "detailsEnriched": 3,
+                "detailsFailed": 0,
+                "detailError": None,
+                "subcategories": [child] if category == root else [],
+            }
+
+        self.bridge.refresh_woolworths_category = refresh
+        collector = self.bridge.WoolworthsCatalogueCollector()
+        self.assertTrue(collector.start(None, False))
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+
+        self.assertEqual(calls, [root, child])
+        states = {item["category_path"]: item["state"] for item in self.bridge.woolworths_collection_status()["categories"]}
+        self.assertEqual(states, {root: "completed", child: "completed"})
+
+    def test_revisit_completed_roots_does_not_reset_completed_descendants(self) -> None:
+        root = "/shop/browse/dairy-eggs-fridge"
+        child = "/shop/browse/dairy-eggs-fridge/milk"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (root,)
+        self.bridge.enqueue_woolworths_collection_categories([root, child])
+        with self.bridge.catalogue_session() as connection:
+            connection.execute("UPDATE woolworths_category_collection SET state = 'completed'")
+
+        collector = self.bridge.WoolworthsCatalogueCollector()
+        self.bridge.refresh_woolworths_category = lambda _: {
+            "products": 0, "detailsEnriched": 0, "detailsFailed": 0,
+            "detailError": None, "subcategories": [],
+        }
+        self.assertTrue(collector.start(1, False, revisit_completed_roots=True))
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+
+        states = {item["category_path"]: item["state"] for item in self.bridge.woolworths_collection_status()["categories"]}
+        self.assertEqual(states, {root: "completed", child: "completed"})
+        attempts = {item["category_path"]: item["attempts"] for item in self.bridge.woolworths_collection_status()["categories"]}
+        self.assertEqual(attempts[root], 1)
+        self.assertEqual(attempts[child], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
