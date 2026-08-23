@@ -301,7 +301,7 @@ class WoolworthsBrowserSession:
         completed: Queue = Queue(maxsize=1)
         self._requests.put(("browse", category_path, completed))
         try:
-            success, value = completed.get(timeout=WOOLWORTHS_TIMEOUT_SECONDS + 45)
+            success, value = completed.get(timeout=WOOLWORTHS_TIMEOUT_SECONDS + 75)
         except Exception as error:
             raise RuntimeError("browser category session did not return in time") from error
         if not success:
@@ -391,15 +391,21 @@ class WoolworthsBrowserSession:
                                 wait_until="domcontentloaded",
                                 timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
                             )
-                            # Woolworths loads the category data after the document and
-                            # application shell. Keep listening for the same 15-second
-                            # window proven by the production CDP diagnostic; being at
-                            # the bottom of an otherwise empty shell is not completion.
-                            for _ in range(20):
+                            # Scroll long enough for lazy pages to request their next
+                            # category response. The first complete response is not an
+                            # indication that a broad category has finished loading.
+                            stable_rounds = 0
+                            previous_height = 0
+                            for _ in range(60):
                                 previous = len(captured_responses)
+                                current_height = browse_page.evaluate("document.body.scrollHeight")
                                 browse_page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                                 browse_page.wait_for_timeout(750)
-                                if captured_responses and len(captured_responses) == previous and browse_page.evaluate("window.scrollY + window.innerHeight >= document.body.scrollHeight - 20"):
+                                loaded_more = len(captured_responses) > previous
+                                grew = browse_page.evaluate("document.body.scrollHeight") > current_height or current_height > previous_height
+                                stable_rounds = 0 if loaded_more or grew else stable_rounds + 1
+                                previous_height = current_height
+                                if captured_responses and stable_rounds >= 4:
                                     break
                             browse_page.remove_listener("response", capture_category)
                             title = browse_page.title().casefold()
@@ -420,7 +426,21 @@ class WoolworthsBrowserSession:
                                 raise RuntimeError(
                                     f"category API response was observed but could not be decoded: {detail}"
                                 )
-                            completed.put((True, captured))
+                            descendants = browse_page.evaluate("""(parentPath) => {
+                              const base = parentPath.replace(/\\/+$/, '');
+                              return [...new Set([...document.querySelectorAll('a[href]')]
+                                .map((anchor) => {
+                                  try {
+                                    const url = new URL(anchor.href, window.location.origin);
+                                    return url.origin === window.location.origin ? url.pathname.replace(/\\/+$/, '') : null;
+                                  } catch { return null; }
+                                })
+                                .filter((path) => path && path.startsWith(`${base}/`)))];
+                            }""", category_path)
+                            completed.put((True, {
+                                "categoryResponses": captured,
+                                "subcategories": descendants,
+                            }))
                         finally:
                             if not browse_page.is_closed():
                                 browse_page.close()
@@ -720,16 +740,42 @@ def refresh_woolworths_category(category_path: str) -> dict:
         "detailsEnriched": details_enriched,
         "detailsFailed": details_failed,
         "detailError": detail_error,
+        "subcategories": woolworths_subcategory_paths(payload, category_path),
     }
 
 
-def seed_woolworths_category_collection() -> None:
+def woolworths_subcategory_paths(payload: object, parent_path: str) -> list[str]:
+    if not isinstance(payload, dict):
+        return []
+    candidates = payload.get("subcategories")
+    if not isinstance(candidates, list):
+        return []
+    base = parent_path.rstrip("/")
+    return list(dict.fromkeys(
+        candidate.rstrip("/")
+        for candidate in candidates
+        if isinstance(candidate, str) and candidate.startswith(f"{base}/")
+    ))
+
+
+def enqueue_woolworths_collection_categories(categories: list[str]) -> None:
+    valid = list(dict.fromkeys(
+        category.rstrip("/")
+        for category in categories
+        if category.startswith("/shop/browse/")
+    ))
+    if not valid:
+        return
     with catalogue_session() as connection:
         connection.executemany(
             """INSERT INTO woolworths_category_collection (category_path, state)
                VALUES (?, 'pending') ON CONFLICT(category_path) DO NOTHING""",
-            [(category,) for category in WOOLWORTHS_COLLECTION_CATEGORIES],
+            [(category,) for category in valid],
         )
+
+
+def seed_woolworths_category_collection() -> None:
+    enqueue_woolworths_collection_categories(list(WOOLWORTHS_COLLECTION_CATEGORIES))
 
 
 def recover_woolworths_category_collection() -> None:
@@ -773,30 +819,50 @@ class WoolworthsCatalogueCollector:
         self._lock = threading.Lock()
         self._thread: threading.Thread | None = None
 
-    def start(self, max_categories: int | None, retry_failed: bool) -> bool:
+    def start(
+        self,
+        max_categories: int | None,
+        retry_failed: bool,
+        revisit_completed_roots: bool = False,
+    ) -> bool:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 return False
+            if retry_failed or revisit_completed_roots:
+                with catalogue_session() as connection:
+                    if retry_failed:
+                        connection.execute(
+                            "UPDATE woolworths_category_collection SET state = 'pending' WHERE state = 'failed'"
+                        )
+                    if revisit_completed_roots and WOOLWORTHS_COLLECTION_CATEGORIES:
+                        placeholders = ", ".join("?" for _ in WOOLWORTHS_COLLECTION_CATEGORIES)
+                        connection.execute(
+                            f"""UPDATE woolworths_category_collection SET state = 'pending'
+                                WHERE state = 'completed' AND category_path IN ({placeholders})""",
+                            WOOLWORTHS_COLLECTION_CATEGORIES,
+                        )
             self._thread = threading.Thread(
                 target=self._collect,
-                args=(max_categories, retry_failed),
+                args=(max_categories,),
                 daemon=True,
                 name="woolworths-catalogue-collector",
             )
             self._thread.start()
             return True
 
-    def _collect(self, max_categories: int | None, retry_failed: bool) -> None:
+    def _collect(self, max_categories: int | None) -> None:
         seed_woolworths_category_collection()
-        states = "('pending', 'failed')" if retry_failed else "('pending')"
-        with catalogue_session() as connection:
-            rows = connection.execute(
-                f"""SELECT category_path FROM woolworths_category_collection
-                    WHERE state IN {states} ORDER BY category_path LIMIT ?""",
-                (max_categories or 2**31 - 1,),
-            ).fetchall()
-        for row in rows:
+        processed = 0
+        while max_categories is None or processed < max_categories:
+            with catalogue_session() as connection:
+                row = connection.execute("""
+                    SELECT category_path FROM woolworths_category_collection
+                    WHERE state = 'pending' ORDER BY category_path LIMIT 1
+                """).fetchone()
+            if row is None:
+                return
             category = row["category_path"]
+            processed += 1
             started_at = int(time.time())
             with catalogue_session() as connection:
                 connection.execute("""
@@ -814,6 +880,7 @@ class WoolworthsCatalogueCollector:
                         SET state = 'failed', last_error = ? WHERE category_path = ?
                     """, (str(error), category))
                 continue
+            enqueue_woolworths_collection_categories(outcome.get("subcategories", []))
             with catalogue_session() as connection:
                 connection.execute("""
                     UPDATE woolworths_category_collection
@@ -1282,15 +1349,17 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {"status": "error", "error": "maxCategories must be zero or a positive whole number"})
                     return
                 retry_failed = (params.get("retryFailed") or ["0"])[0].strip().lower() in ("1", "true", "yes")
+                revisit_completed_roots = (params.get("revisitCompletedRoots") or ["0"])[0].strip().lower() in ("1", "true", "yes")
                 started = _woolworths_catalogue_collector.start(
-                    requested_max or None, retry_failed,
+                    requested_max or None, retry_failed, revisit_completed_roots,
                 )
                 if not started:
                     self.send_json(409, {"status": "error", "error": "Woolworths catalogue collection is already running", "collection": woolworths_collection_status()})
                     return
                 self.send_json(202, {
                     "status": "accepted", "maxCategories": requested_max or None,
-                    "retryFailed": retry_failed, "collection": woolworths_collection_status(),
+                    "retryFailed": retry_failed, "revisitCompletedRoots": revisit_completed_roots,
+                    "collection": woolworths_collection_status(),
                 })
                 return
             if parsed.path == "/woolworths/catalogue/collection/status":
