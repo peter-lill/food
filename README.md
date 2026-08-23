@@ -87,6 +87,25 @@ Use `--offset=<number>` for the next page, or
 category. Re-running an applied batch is safe: the listing is retained and its
 current verified price is recorded again.
 
+Once a representative preview has been checked, use `--all` to preflight the
+entire verified cache in one run. It still imports only records that satisfy
+the same detail, stock, barcode, identity and label-fidelity safeguards; it
+prints non-retained records and an aggregate summary by default:
+
+```bash
+npm --workspace apps/web run products:woolworths-import -- --all
+```
+
+Apply that exact full-cache plan only after its summary has been reviewed:
+
+```bash
+npm --workspace apps/web run products:woolworths-import -- --all --apply
+```
+
+Add `--verbose` to list retained records as well. Bulk mode reads cache pages
+of 100 records, prevents duplicate names and barcodes across the whole run,
+and leaves skipped records untouched.
+
 If Woolworths rejects the container browser but accepts Chromium running directly on the server, use the host-browser mode. Install `chromium-browser`, `xvfb`, `openbox`, `x11vnc`, `novnc` and `websockify`, then install and start the supplied service:
 
 ```bash

@@ -12,13 +12,15 @@ import {
 } from "./woolworths-controlled-import-matching";
 
 const apply = process.argv.includes("--apply");
+const importAll = process.argv.includes("--all");
+const verbose = process.argv.includes("--verbose");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const requestedLimit = Number(argument("--limit") ?? "30");
 const offset = Number(argument("--offset") ?? "0");
 const category = argument("--category");
-const limit = Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 100 ? requestedLimit : 30;
+const limit = importAll ? 100 : Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 100 ? requestedLimit : 30;
 
-type CachedResponse = { status?: unknown; products?: unknown; error?: unknown };
+type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
 type Plan = {
   product: CachedWoolworthsProduct;
   disposition: ImportDisposition;
@@ -51,22 +53,57 @@ function cachedProduct(value: unknown): CachedWoolworthsProduct | null {
   };
 }
 
-async function readCachedProducts() {
+async function readCachedProductPage(pageOffset: number) {
   const bridgeUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
   if (!bridgeUrl) throw new Error("GROCERY_MCP_BRIDGE_URL is required for the verified Woolworths cache.");
   const url = new URL("/woolworths/catalogue/products", bridgeUrl);
   url.searchParams.set("limit", String(limit));
-  url.searchParams.set("offset", String(Number.isInteger(offset) && offset >= 0 ? offset : 0));
+  url.searchParams.set("offset", String(pageOffset));
   if (category) url.searchParams.set("category", category);
   const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
   const payload = await response.json().catch(() => ({})) as CachedResponse;
   if (!response.ok || payload.status !== "success" || !Array.isArray(payload.products)) {
     throw new Error(text(payload.error) ?? `Woolworths cache returned HTTP ${response.status}.`);
   }
-  return payload.products.flatMap((item) => {
-    const product = cachedProduct(item);
-    return product ? [product] : [];
-  });
+  return {
+    products: payload.products.flatMap((item) => {
+      const product = cachedProduct(item);
+      return product ? [product] : [];
+    }),
+    nextOffset: typeof payload.nextOffset === "number" && Number.isInteger(payload.nextOffset) && payload.nextOffset > pageOffset
+      ? payload.nextOffset
+      : null,
+  };
+}
+
+async function readCachedProducts() {
+  let pageOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
+  const firstPage = await readCachedProductPage(pageOffset);
+  if (!importAll) return firstPage.products;
+
+  const products = [...firstPage.products];
+  let nextOffset = firstPage.nextOffset;
+  while (nextOffset !== null) {
+    pageOffset = nextOffset;
+    const page = await readCachedProductPage(pageOffset);
+    products.push(...page.products);
+    nextOffset = page.nextOffset;
+  }
+  return products;
+}
+
+function planCounts(plans: Plan[]) {
+  return Object.fromEntries(["retain", "link-barcode", "link-name", "create", "skip"].map((key) => [key, plans.filter((plan) => plan.disposition === key).length]));
+}
+
+function duplicatePlannedIdentity(product: CachedWoolworthsProduct, aliases: Set<string>, barcodes: Set<string>) {
+  const alias = normaliseProductText(product.name);
+  const barcode = cleanBarcode(product.barcode);
+  if (aliases.has(alias)) return "another record in this import has the same normalised name";
+  if (barcode && barcodes.has(barcode)) return "another record in this import has the same barcode";
+  aliases.add(alias);
+  if (barcode) barcodes.add(barcode);
+  return null;
 }
 
 async function planFor(product: CachedWoolworthsProduct): Promise<Plan> {
@@ -142,25 +179,31 @@ async function main() {
   if (!products.length) throw new Error("No verified Woolworths cache records were returned for this batch.");
   const plans: Plan[] = [];
   const plannedAliases = new Set<string>();
+  const plannedBarcodes = new Set<string>();
   for (const product of products) {
     const plan = await planFor(product);
-    const alias = normaliseProductText(product.name);
-    if (plan.disposition === "create" && plannedAliases.has(alias)) {
-      plans.push({ ...plan, disposition: "skip", reason: "another record in this batch has the same normalised name" });
-      continue;
+    if (plan.disposition === "create") {
+      const duplicateReason = duplicatePlannedIdentity(product, plannedAliases, plannedBarcodes);
+      if (duplicateReason) {
+        plans.push({ ...plan, disposition: "skip", reason: duplicateReason });
+        continue;
+      }
     }
-    if (plan.disposition === "create") plannedAliases.add(alias);
     plans.push(plan);
   }
-  for (const plan of plans) console.log(`${apply ? "Approved" : "Would"} ${plan.disposition}: ${plan.product.name} | ${plan.product.stockcode} | ${plan.reason}`);
-  const counts = Object.fromEntries(["retain", "link-barcode", "link-name", "create", "skip"].map((key) => [key, plans.filter((plan) => plan.disposition === key).length]));
-  if (!apply) return console.log(`Preview complete. ${JSON.stringify(counts)}. No database changes were made.`);
+  for (const plan of plans) {
+    if (!importAll || verbose || plan.disposition !== "retain") {
+      console.log(`${apply ? "Approved" : "Would"} ${plan.disposition}: ${plan.product.name} | ${plan.product.stockcode} | ${plan.reason}`);
+    }
+  }
+  const counts = planCounts(plans);
+  if (!apply) return console.log(`${importAll ? "Bulk preview" : "Preview"} complete. ${JSON.stringify(counts)}. No database changes were made.`);
   for (const plan of plans) {
     // Retained listings still receive the current verified price and retailer
     // metadata. Only explicitly unsafe candidates are left untouched.
     if (plan.disposition !== "skip") await attach(plan);
   }
-  console.log(`Woolworths controlled import complete. ${JSON.stringify(counts)}.`);
+  console.log(`${importAll ? "Woolworths bulk controlled import" : "Woolworths controlled import"} complete. ${JSON.stringify(counts)}.`);
 }
 
 void main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());

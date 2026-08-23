@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { ProductType } from "@prisma/client";
 import { categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
 
@@ -19,5 +20,10 @@ assert.equal(hasSuspiciousLabelTail("PureHarvest Organic Almond Unsweetened Long
 assert.match(importEligibility({ ...product, name: "PureHarvest Organic Almond Unsweetened Long Life Milk UH 1L" }).reason ?? "", /suspicious truncated label/);
 assert.equal(cleanBarcode("93 00632 064205"), "9300632064205");
 assert.equal(cleanBarcode("not-a-barcode"), null);
+
+const importerSource = readFileSync(new URL("./import-woolworths-controlled.ts", import.meta.url), "utf8");
+assert.match(importerSource, /const importAll = process\.argv\.includes\("--all"\)/, "the importer must support a controlled full-cache run");
+assert.match(importerSource, /while \(nextOffset !== null\)/, "bulk mode must read every bounded cache page");
+assert.match(importerSource, /another record in this import has the same barcode/, "bulk mode must prevent duplicate barcode creation across pages");
 
 console.log("Woolworths controlled-import safeguards passed.");
