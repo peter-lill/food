@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { parseAustralianNip, plausibleIngredients } from "../src/lib/product-intelligence/australian-nip-parser";
+import { plainRetailerLabelText } from "../src/lib/product-intelligence/label-text";
 import { colesProductLabelSource, colesProductLabelSourceFromData } from "../src/lib/product-intelligence/coles-label-page";
 import { validatedRetailerLabelText } from "../src/lib/product-intelligence/openai-retailer-response";
 
@@ -126,5 +127,11 @@ assert.equal(
   "Sugar, milk solids, wheat flour, cocoa butter, vegetable oil, emulsifier (soy lecithin), salt.",
 );
 assert.equal(plausibleIngredients("Save $2.50 per 100g, new low price"), null);
+
+const aeroIngredients = String.raw`Ingredients: \<P>\<STRONG>Ingredients\</STRONG> Sugar, \<STRONG>Milk \</STRONG>Solids, Vegetable Fats Emulsifier (\<STRONG>Soy\</STRONG> Lecithin), Cocoa Butter^, \<STRONG>Wheat\</STRONG> Flour, Cocoa Mass^, Choc Paste (\<STRONG>Milk, Wheat, Soy\</STRONG>).\</P>`;
+const aeroLabel = parseAustralianNip(aeroIngredients);
+assert.match(aeroLabel?.ingredientsText ?? "", /Sugar, Milk Solids/);
+assert.doesNotMatch(aeroLabel?.ingredientsText ?? "", /[<>\\]/, "escaped retailer markup must not reach the label");
+assert.equal(plainRetailerLabelText(aeroIngredients), "Ingredients: Ingredients Sugar, Milk Solids, Vegetable Fats Emulsifier (Soy Lecithin), Cocoa Butter^, Wheat Flour, Cocoa Mass^, Choc Paste (Milk, Wheat, Soy).", "legacy stored markup must be cleaned at render time");
 
 console.log(`${fixtures.length} Australian NIP parser fixtures passed.`);

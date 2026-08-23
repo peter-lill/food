@@ -1,3 +1,5 @@
+import { plainRetailerLabelText } from "./label-text";
+
 export type AustralianNipNutrient = {
   perServing: number | null;
   per100: number | null;
@@ -44,7 +46,7 @@ function decode(value: string) {
 }
 
 function linesFromSource(source: string) {
-  const decoded = decode(source);
+  const decoded = decode(source).replace(/\\([<>])/g, "$1");
   const scripts = [...decoded.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
     .map((match) => match[1])
     .filter((value) => /serving|nutrition|ingredient|allergen|contains/i.test(value));
@@ -60,7 +62,7 @@ function linesFromSource(source: string) {
     .replace(/"\s*:\s*"/g, ": ")
     .replace(/"\s*:\s*/g, ": ")
     .split(/\r?\n/)
-    .map((line) => line.replace(/[",]+$/g, "").replace(/^\s*[",]+/g, "").replace(/\s+/g, " ").trim())
+    .map((line) => plainRetailerLabelText(line.replace(/[",]+$/g, "").replace(/^\s*[",]+/g, "")) ?? "")
     .filter(Boolean))];
 }
 
