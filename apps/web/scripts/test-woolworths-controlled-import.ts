@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ProductType } from "@prisma/client";
-import { categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
+import { canonicalWoolworthsDescription, categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
+import { heroProductDescription } from "../src/lib/products/product-description";
 
 const product: CachedWoolworthsProduct = {
   stockcode: "238473", barcode: "9300632064205", name: "Example Full Cream Milk 2L", price: 3.5, is_special: false,
@@ -20,8 +21,12 @@ assert.equal(hasSuspiciousLabelTail("PureHarvest Organic Almond Unsweetened Long
 assert.match(importEligibility({ ...product, name: "PureHarvest Organic Almond Unsweetened Long Life Milk UH 1L" }).reason ?? "", /suspicious truncated label/);
 assert.equal(cleanBarcode("93 00632 064205"), "9300632064205");
 assert.equal(cleanBarcode("not-a-barcode"), null);
+assert.equal(canonicalWoolworthsDescription({ ...product, brand: "Hans", description: "Hans", long_description: null }), null, "a brand-only retailer description must not be imported");
+assert.equal(canonicalWoolworthsDescription({ ...product, brand: "Hans", description: "Hans", long_description: "Sliced devon from the deli." }), "Sliced devon from the deli.");
+assert.equal(heroProductDescription("Hans", "Hans"), null, "legacy brand-only descriptions must not be rendered");
 
 const importerSource = readFileSync(new URL("./import-woolworths-controlled.ts", import.meta.url), "utf8");
+const productHubSource = readFileSync(new URL("../src/app/products/page.tsx", import.meta.url), "utf8");
 assert.match(importerSource, /const importAll = process\.argv\.includes\("--all"\)/, "the importer must support a controlled full-cache run");
 assert.match(importerSource, /while \(true\)[\s\S]*page\.nextOffset === null/, "bulk mode must read every bounded cache page");
 assert.match(importerSource, /another record in this import has the same barcode/, "bulk mode must prevent duplicate barcode creation across pages");
@@ -29,5 +34,8 @@ assert.match(importerSource, /prisma\.storeProduct\.findMany/, "each bulk cache 
 assert.match(importerSource, /tx\.priceObservation\.createMany/, "each bulk cache page must write price observations in one database batch");
 assert.match(importerSource, /UPDATE "StoreProduct" AS target/, "each bulk cache page must update retained retailer listings in one database statement");
 assert.match(importerSource, /source\."active"::boolean/, "the bulk listing update must cast boolean parameters for PostgreSQL");
+assert.match(importerSource, /canonicalWoolworthsDescription/, "the importer must exclude brand-only Woolworths descriptions");
+assert.match(importerSource, /UPDATE "Product" AS target/, "retained listings must repair blank or brand-only canonical descriptions");
+assert.match(productHubSource, /heroProductDescription\(product\.description, product\.brand\)/, "product cards must show a meaningful description rather than a brand fallback");
 
 console.log("Woolworths controlled-import safeguards passed.");
