@@ -6,6 +6,7 @@ import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import {
   categoryForWoolworthsPath,
+  canonicalWoolworthsDescription,
   cleanBarcode,
   importEligibility,
   type CachedWoolworthsProduct,
@@ -163,6 +164,18 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
     )
     WHERE target."id" = source."id"
   `);
+
+  const descriptionRows = plans.map((plan) => Prisma.sql`(${plan.productId!}, ${canonicalWoolworthsDescription(plan.product)})`);
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE "Product" AS target
+    SET "description" = source."description"
+    FROM (VALUES ${Prisma.join(descriptionRows)}) AS source("id", "description")
+    WHERE target."id" = source."id"
+      AND (
+        target."description" IS NULL
+        OR lower(regexp_replace(target."description", '[^a-z0-9]+', '', 'g')) = lower(regexp_replace(COALESCE(target."brand", ''), '[^a-z0-9]+', '', 'g'))
+      )
+  `);
 }
 
 async function attachPage(plans: Plan[]) {
@@ -179,7 +192,7 @@ async function attachPage(plans: Plan[]) {
             id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name,
             slug: `${slugifyProductName(plan.product.name)}-${plan.product.stockcode}`,
             barcode: cleanBarcode(plan.product.barcode), brand: plan.product.brand, category: mapped.category,
-            description: plan.product.long_description ?? plan.product.description,
+            description: canonicalWoolworthsDescription(plan.product),
             imageUrl: plan.product.image_url, packSize: plan.product.pack_size,
             productType: mapped.productType, lifecycle: ProductLifecycle.MATCHED, confidenceScore: 0.99,
           };

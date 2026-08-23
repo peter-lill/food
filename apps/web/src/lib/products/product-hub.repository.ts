@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
 import { genericImageIdentity } from "@/lib/products/generic-image-policy";
+import { heroProductDescription } from "@/lib/products/product-description";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
@@ -19,6 +20,7 @@ export type ProductHubListItem = {
   canonicalName: string | null;
   slug: string | null;
   brand: string | null;
+  description: string | null;
   category: string | null;
   productType: string;
   imageUrl: string | null;
@@ -313,6 +315,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         canonicalName: familyName,
         slug: product.slug,
         brand: product.brand,
+        description: heroProductDescription(product.description, product.brand),
         category: product.category,
         productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
@@ -356,6 +359,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         current.imageUrl = null;
       }
     }
+    current.description ??= heroProductDescription(product.description, product.brand);
     current.brand = null;
     current.barcode = null;
 

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
+import { plainRetailerLabelText } from "@/lib/product-intelligence/label-text";
 
 type ProductLabelSupplementProps = { productId: string };
 type Nutrition = {
@@ -117,6 +118,7 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
     ?? (payload.servingQuantity !== null && payload.servingUnit ? `${quantity(payload.servingQuantity)} ${payload.servingUnit}` : "Not recorded");
   const basis = payload.servingUnit === "mL" ? "100 mL" : "100 g";
   const checked = verifiedDate(payload.verifiedAt);
+  const ingredientsText = plainRetailerLabelText(payload.ingredientsText);
 
   return createPortal(
     <div className="product-label-complete">
@@ -137,7 +139,7 @@ export function ProductLabelSupplement({ productId }: ProductLabelSupplementProp
       <section className="product-label-section">
         <p className="eyebrow">INGREDIENTS</p>
         <h2>Ingredients</h2>
-        <p className="product-label-copy">{payload.ingredientsText ?? "Ingredient information has not been recorded for this product yet. Always check the product packaging."}</p>
+        <p className="product-label-copy">{ingredientsText ?? "Ingredient information has not been recorded for this product yet. Always check the product packaging."}</p>
       </section>
 
       <section className="product-label-section">

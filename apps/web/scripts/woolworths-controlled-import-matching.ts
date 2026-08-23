@@ -72,3 +72,23 @@ export function cleanBarcode(value: string | null) {
   const barcode = value?.replace(/\D/g, "") ?? "";
   return /^\d{8,14}$/.test(barcode) ? barcode : null;
 }
+
+function normaliseComparableText(value: string | null) {
+  return value?.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, "").trim() ?? "";
+}
+
+/**
+ * Woolworths sometimes supplies a brand as the only value in its short
+ * description field. A brand belongs in Product.brand, not Product.description.
+ */
+export function canonicalWoolworthsDescription(product: Pick<CachedWoolworthsProduct, "name" | "brand" | "description" | "long_description">) {
+  const brand = normaliseComparableText(product.brand);
+  const name = normaliseComparableText(product.name);
+  for (const candidate of [product.long_description, product.description]) {
+    const value = candidate?.replace(/\s+/g, " ").trim() ?? "";
+    const comparable = normaliseComparableText(value);
+    if (!comparable || comparable === brand || comparable === name) continue;
+    return value;
+  }
+  return null;
+}

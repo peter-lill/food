@@ -113,7 +113,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const knowledge: ProductKnowledge | null = generatedKnowledge
     ? { overview: generatedKnowledge.overview, uses: generatedKnowledge.uses, storage: generatedKnowledge.storage }
     : knowledgeFor(canonicalName ?? displayName);
-  const description = heroProductDescription(product.description) ?? knowledge?.overview ?? null;
+  const description = heroProductDescription(product.description, product.brand) ?? knowledge?.overview ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
   for (const observation of product.priceObservations) {
     if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
