@@ -99,33 +99,36 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   await enrichProductKnowledge(decodedProductId);
   const product = await getProductHubDetail(decodedProductId, { specific: specific === "1" });
   if (!product) notFound();
-  const generatedKnowledge = await getOrGenerateProductContent(product.id).catch(() => null);
-  const isGenericProduct = !product.brand && !product.barcode && product.storeProducts.length === 0;
+  const familyView = specific !== "1" && product.variants.length > 1;
+  const generatedKnowledge = familyView ? null : await getOrGenerateProductContent(product.id).catch(() => null);
+  const isGenericProduct = familyView || (!product.brand && !product.barcode && product.storeProducts.length === 0);
 
   const rawDisplayName = collapseRepeatedPhrase(product.name);
   const genericFamily = !product.brand && !product.barcode && product.canonicalName
     ? collapseRepeatedPhrase(product.canonicalName)
     : null;
-  const displayName = genericFamily ?? rawDisplayName;
+  const displayName = familyView ? collapseRepeatedPhrase(product.canonicalName ?? product.name) : genericFamily ?? rawDisplayName;
   const canonicalName = cleanFamilyName(product.canonicalName, displayName);
   const department = productDepartment(product.category, canonicalName ?? displayName);
   const barcodeRequired = !isGenericProduct && product.productType !== "GENERIC_PRODUCE";
   const knowledge: ProductKnowledge | null = generatedKnowledge
     ? { overview: generatedKnowledge.overview, uses: generatedKnowledge.uses, storage: generatedKnowledge.storage }
     : knowledgeFor(canonicalName ?? displayName);
-  const description = heroProductDescription(product.description, product.brand) ?? knowledge?.overview ?? null;
+  const description = familyView ? knowledge?.overview ?? null : heroProductDescription(product.description, product.brand) ?? knowledge?.overview ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
-  for (const observation of product.priceObservations) {
+  for (const observation of familyView ? [] : product.priceObservations) {
     if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
   }
   const currentRetailerPrices = [...latestPriceByRetailer.values()]
     .sort((left, right) => left.price - right.price);
   const bestPrice = currentRetailerPrices[0] ?? null;
   const pantryQuantity = pantryQuantityLabel(product.inventory);
-  const retailerCount = new Set([
-    ...product.storeProducts.map((listing) => listing.retailer),
-    ...product.priceObservations.map((observation) => observation.retailer),
-  ]).size;
+  const retailerCount = familyView
+    ? new Set(product.variants.flatMap((variant) => variant.latestRetailer ? [variant.latestRetailer] : [])).size
+    : new Set([
+        ...product.storeProducts.map((listing) => listing.retailer),
+        ...product.priceObservations.map((observation) => observation.retailer),
+      ]).size;
   const servingFactor = product.servingQuantity !== null && ["g", "mL"].includes(product.servingUnit ?? "")
     ? product.servingQuantity / 100
     : null;
@@ -150,7 +153,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         <div className={styles.identity}>
           <div className={styles.identityLayout}>
             <div className={styles.productVisual}>
-              <ProductImageWithFallback alt={displayName} imageVersion={product.imageUrl} productId={product.id} />
+              {familyView ? <span aria-hidden="true">&#9671;</span> : <ProductImageWithFallback alt={displayName} imageVersion={product.imageUrl} productId={product.id} />}
             </div>
             <div>
               <p className="eyebrow">{department ?? "PRODUCT"}</p>
@@ -163,6 +166,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
                 {product.barcode ? <span>Barcode {product.barcode}</span> : barcodeRequired ? <span>Barcode not known</span> : null}
                 {bestPrice?.isSpecial ? <span>On special at {bestPrice.retailer}</span> : null}
                 {product.recipes.length ? <span>{product.recipes.length} recipe link{product.recipes.length === 1 ? "" : "s"}</span> : null}
+                {familyView ? <span>{product.variants.length} variants</span> : null}
                 {retailerCount ? <span>{retailerCount} retailer{retailerCount === 1 ? "" : "s"}</span> : null}
               </div>
             </div>
@@ -180,7 +184,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
       </section>
 
       <section className={styles.sections}>
-        <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} showLabelDetails={!isGenericProduct} />
+        {!familyView ? <ProductImagePanel productId={product.id} productName={displayName} hasImage={Boolean(product.imageUrl)} showLabelDetails={!isGenericProduct} /> : null}
 
         {currentRetailerPrices.length ? <article className={`${styles.panel} ${styles.priceComparisonPanel}`}>
           <p className="eyebrow">PRICE COMPARISON</p>

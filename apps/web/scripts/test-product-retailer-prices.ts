@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, latestPricesByRetailer } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
@@ -34,5 +34,39 @@ assert.deepEqual(prices.map(({ retailer, price, isSpecial }) => ({ retailer, pri
   { retailer: "Coles", price: 3.75, isSpecial: true },
   { retailer: "Woolworths", price: 7.5, isSpecial: false },
 ]);
+
+const activiaFamily: ProductHubListItem = {
+  id: "activia-mixed-berries",
+  name: "Activia Probiotic Yoghurt No Added Sugar Mixed Berries 4 Pack",
+  canonicalName: "Yoghurt",
+  slug: "activia-probiotic-yoghurt",
+  brand: "Activia",
+  description: "Support your gut health with Activia Probiotic Yoghurt No Added Sugar.",
+  category: "Dairy & eggs",
+  productType: "DAIRY",
+  imageUrl: "https://cdn.example/activia.jpg",
+  barcode: "9300000000000",
+  aliasCount: 29,
+  recipeCount: 0,
+  pantryQuantity: 0,
+  retailerCount: 29,
+  variantCount: 1,
+  latestPrice: 7,
+  latestRetailer: "Woolworths",
+  latestPackSize: "4 pack",
+  latestObservedAt: observedAt,
+  latestIsSpecial: false,
+  priceNeedsSpecificVariant: false,
+};
+const yoghurtFamily = finaliseProductFamilyListItem(activiaFamily, 29, 1);
+assert.equal(yoghurtFamily.description, null, "a family card must not inherit one variant's marketing description");
+assert.equal(yoghurtFamily.imageUrl, null, "a family card must not present one variant's image as the whole family");
+assert.equal(yoghurtFamily.category, "Dairy & eggs", "a family card must retain its shared department");
+assert.equal(yoghurtFamily.retailerCount, 1, "retailer counts must be distinct across grouped variants");
+assert.equal(yoghurtFamily.variantCount, 29, "a family card must report the number of specific products it contains");
+assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must direct people to a specific variant");
+
+assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
+assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
 
 console.log("Product retailer price display regressions passed.");
