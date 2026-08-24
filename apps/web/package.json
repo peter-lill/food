@@ -29,6 +29,8 @@
     "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
     "products:retailer-authority": "tsx scripts/enqueue-product-retailer-enrichment.ts --all",
     "products:reconcile-categories": "tsx scripts/reconcile-product-catalogue.ts",
+    "products:reconcile-departments": "tsx scripts/reconcile-product-categories.ts",
+    "products:reconcile-departments:apply": "tsx scripts/reconcile-product-categories.ts --apply",
     "products:refresh-missing-pack-sizes": "tsx scripts/enqueue-missing-retailer-pack-sizes.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",

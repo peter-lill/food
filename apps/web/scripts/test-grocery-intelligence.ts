@@ -264,6 +264,21 @@ assert.equal(productDepartment("Fresh produce", "KitKat Milo Block"), "Confectio
 assert.equal(productDepartment("Fresh produce", "Kitkat Aero Mint Chocolate Block"), "Confectionery");
 assert.equal(productDepartment("Cleaning & Household", "Dishwashing Tablets"), "Household");
 assert.equal(
+  productDepartment("Pantry", "Heinz Baby Food Pumpkin, Sweetcorn & Chicken 120g"),
+  "Baby",
+  "explicit baby food must repair the legacy Pantry fallback",
+);
+assert.equal(
+  productDepartment("Pantry", "Aptamil Gold+ Infant Formula 1 900g"),
+  "Baby",
+  "explicit infant formula must repair the legacy Pantry fallback",
+);
+assert.equal(
+  productDepartment("Pantry", "Dutch Carrot Or Baby Carrot Lengthways"),
+  "Pantry",
+  "the word baby alone must not classify fresh produce as Baby",
+);
+assert.equal(
   productDepartment("Household", "Air Wick Essential Oil Vanilla And Shea Butter Plug In Refill"),
   "Household",
   "an authoritative stored department must not be displaced by an incidental product-name keyword",

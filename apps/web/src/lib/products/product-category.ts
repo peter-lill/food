@@ -165,12 +165,23 @@ function departmentFromText(value: string) {
   return rule?.department ?? null;
 }
 
+function nameHasExplicitBabyDepartment(value: string) {
+  const normalised = normaliseProductText(value);
+  return /\b(?:baby\s+(?:food|formula|snack|snacks|meal|meals|puree|purees)|infant\s+formula|toddler\s+(?:food|snack|snacks|meal|meals)|napp(?:y|ies))\b/i.test(normalised);
+}
+
 export function inferProductCategory(value: string) {
   return departmentFromText(value);
 }
 
 export function productDepartment(category: string | null | undefined, productName: string): SupermarketDepartment {
   const canonicalStoredDepartment = canonicalDepartments.get(normaliseProductText(category ?? ""));
+  // Pantry is the legacy fallback for many imports. Override it only when the
+  // name states an unambiguous Baby product; other stored departments retain
+  // their source authority.
+  if (canonicalStoredDepartment === "Pantry" && nameHasExplicitBabyDepartment(productName)) {
+    return "Baby";
+  }
   if (canonicalStoredDepartment) return canonicalStoredDepartment;
 
   const nameDepartment = departmentFromText(productName);
