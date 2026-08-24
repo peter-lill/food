@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
+import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
 const productHubStyles = readFileSync(new URL("../src/app/products/products-hub.module.css", import.meta.url), "utf8");
@@ -21,6 +22,9 @@ assert.equal(
   "stored://product-image",
   "a stored primary asset must keep a catalogue image visible when the legacy image URL is missing",
 );
+assert.equal(priceObservationKind("coles-pilot"), "Catalogue price", "internal Coles importer names must not reach customer-facing price history");
+assert.equal(priceObservationKind("woolworths-controlled-import"), "Catalogue price", "internal Woolworths importer names must not reach customer-facing price history");
+assert.equal(priceObservationKind("receipt:Coles"), "Receipt purchase", "receipt-backed history must have a customer-facing label");
 assert.equal(
   displayShelfLabel("/shop/browse/freezer/frozen-meals"),
   "Frozen Meals",
@@ -91,6 +95,8 @@ assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pag
 assert.match(productPageSource, /listing\.productUrl \? <a className=\{styles\.retailerPriceLink\}/, "retailer prices must link to their authoritative product page when available");
 assert.match(productPageSource, /price\.sourceUrl \?\? product\.storeProducts\.find/, "price comparison tiles must prefer each observation's authoritative retailer URL");
 assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retailer\} \/>/, "retailer price links must keep their retailer logo visible");
+assert.match(productPageSource, /priceObservationKind\(observation\.source\)/, "recent price history must translate internal ingestion identifiers before rendering");
+assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent price history must never render internal ingestion identifiers");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
