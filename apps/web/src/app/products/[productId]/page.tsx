@@ -5,6 +5,7 @@ import { ProductImagePanel } from "@/components/products/ProductImagePanel";
 import { ProductImageWithFallback } from "@/components/products/ProductImageWithFallback";
 import { ProductMergePanel } from "@/components/products/ProductMergePanel";
 import { heroProductDescription } from "@/lib/products/product-description";
+import { priceObservationKind } from "@/lib/products/price-observation-display";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
@@ -294,7 +295,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <div>{listing.productUrl ? <a className={styles.retailerPriceLink} href={listing.productUrl} rel="noopener noreferrer" target="_blank"><span className={styles.retailerPriceHeading}><RetailerLogo compact retailer={listing.retailer} /><span aria-label={`Open ${listing.retailer} product page`} role="img">↗</span></span><strong>{priceValue}</strong><small>{priceDetail} · View retailer product</small></a> : <><strong>{priceValue}</strong><small>{priceDetail}</small></>}</div>
           </li>;
         })}</ul></article> : null}
-        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
+        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{priceObservationKind(observation.source)}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><div className={styles.recipeGrid}>{product.recipes.map((recipe) => <a className={styles.recipeCard} href={recipe.sourceUrl ?? "/recipes"} key={recipe.id} rel={recipe.sourceUrl ? "noopener noreferrer" : undefined} target={recipe.sourceUrl ? "_blank" : undefined}>{recipe.imageUrl ? <img alt={`Finished ${recipe.name}`} src={recipe.imageUrl} /> : <span aria-hidden="true">&#9671;</span>}<div><h3>{recipe.name}</h3>{recipe.description ? <p>{recipe.description}</p> : null}<small>{[recipe.minutes ? `${recipe.minutes} min` : null, recipe.sourceName ?? "Food recipe"].filter(Boolean).join(" · ")}</small><strong>View recipe →</strong></div></a>)}</div></article> : null}
 
         {!isGenericProduct ? <article className={`${styles.panel} ${styles.nutritionPanel}`}>
