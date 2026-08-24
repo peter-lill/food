@@ -251,8 +251,11 @@ WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
     + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
     + 30
 )
+WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS = {
+    "/shop/browse/health-beauty": "/shop/browse/beauty",
+}
 WOOLWORTHS_COLLECTION_CATEGORIES = tuple(
-    path.strip()
+    WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS.get(path.strip(), path.strip())
     for path in os.getenv(
         "WOOLWORTHS_COLLECTION_CATEGORIES",
         "/shop/browse/fruit-veg,"
@@ -262,7 +265,7 @@ WOOLWORTHS_COLLECTION_CATEGORIES = tuple(
         "/shop/browse/freezer,"
         "/shop/browse/pantry,"
         "/shop/browse/drinks,"
-        "/shop/browse/health-beauty,"
+        "/shop/browse/beauty,"
         "/shop/browse/baby,"
         "/shop/browse/cleaning-maintenance,"
         "/shop/browse/pet,"
@@ -790,7 +793,9 @@ def woolworths_subcategory_paths(payload: object, parent_path: str) -> list[str]
 
 def enqueue_woolworths_collection_categories(categories: list[str]) -> None:
     valid = list(dict.fromkeys(
-        category.rstrip("/")
+        WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS.get(
+            category.rstrip("/"), category.rstrip("/")
+        )
         for category in categories
         if category.startswith("/shop/browse/")
     ))
@@ -804,7 +809,29 @@ def enqueue_woolworths_collection_categories(categories: list[str]) -> None:
         )
 
 
+def migrate_woolworths_collection_categories() -> None:
+    """Replace obsolete persisted roots without retaining permanent failures."""
+    with catalogue_session() as connection:
+        for legacy, current in WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS.items():
+            legacy_exists = connection.execute(
+                "SELECT 1 FROM woolworths_category_collection WHERE category_path = ?",
+                (legacy,),
+            ).fetchone()
+            if not legacy_exists:
+                continue
+            connection.execute(
+                """INSERT INTO woolworths_category_collection (category_path, state)
+                   VALUES (?, 'pending') ON CONFLICT(category_path) DO NOTHING""",
+                (current,),
+            )
+            connection.execute(
+                "DELETE FROM woolworths_category_collection WHERE category_path = ?",
+                (legacy,),
+            )
+
+
 def seed_woolworths_category_collection() -> None:
+    migrate_woolworths_collection_categories()
     enqueue_woolworths_collection_categories(list(WOOLWORTHS_COLLECTION_CATEGORIES))
 
 
