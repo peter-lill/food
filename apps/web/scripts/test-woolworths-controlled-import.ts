@@ -50,6 +50,12 @@ assert.match(importerSource, /source\."active"::boolean/, "the bulk listing upda
 assert.match(importerSource, /Skip reasons:/, "bulk previews must summarise why cached records were withheld");
 assert.match(importerSource, /canonicalWoolworthsDescription/, "the importer must exclude brand-only Woolworths descriptions");
 assert.match(importerSource, /UPDATE "Product" AS target/, "retained listings must repair blank or brand-only canonical descriptions");
+assert.match(importerSource, /updateExistingProductClassifications/, "bulk apply must repair categories on retained Woolworths products");
+assert.match(
+  importerSource,
+  /tx\.product\.updateMany\([\s\S]*data: \{ category: group\.category, productType: group\.productType \}/,
+  "retained product repairs must update both canonical category and product type",
+);
 assert.match(productHubSource, /heroProductDescription\(product\.description, product\.brand\)/, "product cards must show a meaningful description rather than a brand fallback");
 
 console.log("Woolworths controlled-import safeguards passed.");
