@@ -54,6 +54,15 @@ for (const department of supermarketDepartments) {
   departmentAliases.set(normaliseProductText(department), department);
 }
 
+const canonicalDepartments = new Map<
+  string,
+  Exclude<SupermarketDepartment, "Other">
+>(
+  supermarketDepartments
+    .filter((department): department is Exclude<SupermarketDepartment, "Other"> => department !== "Other")
+    .map((department) => [normaliseProductText(department), department]),
+);
+
 const departmentRules: Array<{ department: SupermarketDepartment; terms: string[] }> = [
   {
     department: "Confectionery",
@@ -161,6 +170,9 @@ export function inferProductCategory(value: string) {
 }
 
 export function productDepartment(category: string | null | undefined, productName: string): SupermarketDepartment {
+  const canonicalStoredDepartment = canonicalDepartments.get(normaliseProductText(category ?? ""));
+  if (canonicalStoredDepartment) return canonicalStoredDepartment;
+
   const nameDepartment = departmentFromText(productName);
   if (nameDepartment && nameDepartment !== "Other") return nameDepartment;
 
