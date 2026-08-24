@@ -64,6 +64,26 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             maximum_work_seconds,
         )
 
+    def test_obsolete_health_beauty_root_is_migrated_to_live_beauty_route(self) -> None:
+        legacy = "/shop/browse/health-beauty"
+        current = "/shop/browse/beauty"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 5, 'browser category session did not return in time')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
     def test_rich_detail_fields_are_cached_without_erasing_catalogue_identity(self) -> None:
         self.bridge.cache_woolworths_category("/shop/browse/dairy-eggs-fridge/milk", {
             "Products": [{
