@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "@/lib/prisma";
+import { fetchRemoteImage } from "@/lib/images/remote-image";
 
 export type ImageAssetRecord = {
   id: string;
@@ -15,11 +16,6 @@ export type ImageAssetRecord = {
   provider: string | null;
 };
 
-const browserHeaders = {
-  "Accept-Language": "en-AU,en;q=0.9",
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36",
-};
-
 function storageRoot() {
   return process.env.FOOD_IMAGE_STORAGE_DIR?.trim()
     || path.join(process.cwd(), "storage", "product-images");
@@ -31,62 +27,6 @@ function extensionForMime(mimeType: string) {
   if (mimeType.includes("avif")) return "avif";
   if (mimeType.includes("gif")) return "gif";
   return "jpg";
-}
-
-function woolworthsStockcode(url: string) {
-  try {
-    const parsed = new URL(url);
-    if (!/(?:^|\.)woolworths\.media$/i.test(parsed.hostname)) return null;
-    return parsed.pathname.match(/\/(\d{4,12})(?:_\d+)?\.(?:jpe?g|png|webp)$/i)?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function sessionCookies(response: Response) {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-  const values = headers.getSetCookie?.() ?? [];
-  const combined = response.headers.get("set-cookie");
-  if (!values.length && combined) values.push(combined);
-  return values
-    .map((cookie) => cookie.split(";", 1)[0]?.trim())
-    .filter((cookie): cookie is string => Boolean(cookie))
-    .join("; ");
-}
-
-async function fetchRemoteImage(url: string) {
-  const stockcode = woolworthsStockcode(url);
-  let cookie = "";
-  let referer = "";
-
-  if (stockcode) {
-    referer = `https://www.woolworths.com.au/shop/productdetails/${stockcode}`;
-    const bootstrap = await fetch(referer, {
-      cache: "no-store",
-      redirect: "follow",
-      headers: { ...browserHeaders, Accept: "text/html,application/xhtml+xml" },
-    }).catch(() => null);
-    if (bootstrap) cookie = sessionCookies(bootstrap);
-  }
-
-  const response = await fetch(url, {
-    cache: "no-store",
-    redirect: "follow",
-    headers: {
-      ...browserHeaders,
-      Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8",
-      ...(referer ? { Referer: referer } : {}),
-      ...(cookie ? { Cookie: cookie } : {}),
-    },
-  });
-
-  if (!response.ok) throw new Error(`Image returned HTTP ${response.status}`);
-  const mimeType = response.headers.get("content-type")?.split(";")[0]?.trim().toLowerCase() ?? "";
-  if (!mimeType.startsWith("image/")) throw new Error("Remote response was not an image");
-
-  const bytes = Buffer.from(await response.arrayBuffer());
-  if (!bytes.length) throw new Error("Remote image was empty");
-  return { bytes, mimeType };
 }
 
 async function writeAssetBytes(asset: ImageAssetRecord, bytes: Buffer) {

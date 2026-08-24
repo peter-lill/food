@@ -1,5 +1,6 @@
 import { backgroundJobTypes, type BackgroundJob } from "@/lib/jobs/background-jobs";
 import { importCandidateAsset } from "@/lib/images/image-asset.service";
+import { prisma } from "@/lib/prisma";
 import { recoverProductImage } from "@/lib/products/image-recovery";
 import { enrichProductRetailers } from "@/lib/retailers/retailer-intelligence.service";
 import { enrichProductFromRetailerLabels } from "@/lib/product-intelligence/retailer-label-enrichment";
@@ -50,12 +51,23 @@ export async function handleBackgroundJob(job: BackgroundJob) {
         provider: typeof payload.provider === "string" ? payload.provider : undefined,
       };
       const asset = await importCandidateAsset(typed.productId, typed.candidateId);
+      const primaryLinks = await prisma.$executeRaw`
+        UPDATE "Product" p
+        SET "primaryImageAssetId" = ${asset.id}, "updatedAt" = NOW()
+        FROM "ProductImageCandidate" c
+        WHERE p."id" = ${typed.productId}
+          AND c."id" = ${typed.candidateId}
+          AND c."productId" = p."id"
+          AND c."selected" = true
+          AND c."rejected" = false
+      `;
       return {
         productId: typed.productId,
         candidateId: typed.candidateId,
         assetId: asset.id,
         sha256: asset.sha256,
         bytes: asset.fileSizeBytes,
+        primaryLinked: Number(primaryLinks) > 0,
       };
     }
 

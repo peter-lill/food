@@ -10,6 +10,7 @@ import {
   produceMatchScore,
 } from "@/lib/products/image-intelligence";
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
+import { imageCandidateOverallScore } from "@/lib/products/image-candidate-score";
 import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
 import { isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
 import { makeCandidatePrimaryAsset } from "@/lib/images/image-asset.service";
@@ -406,11 +407,11 @@ export async function recoverProductImage(productId: string, options: { allowGen
       inspection.accepted = false;
       inspection.reason = "Wikimedia identity match was below the professional generic-image threshold";
     }
-    const overallScore = Math.round(
-      (inspection.assessment.score * 0.65)
-      + (candidate.providerScore * 0.25)
-      + ((candidate.identityScore ?? 50) * 0.10),
-    );
+    const overallScore = imageCandidateOverallScore({
+      qualityScore: inspection.assessment.score,
+      providerScore: candidate.providerScore,
+      identityScore: candidate.identityScore,
+    });
     await recordCandidateAssessment({
       candidateId,
       assessment: inspection.assessment,

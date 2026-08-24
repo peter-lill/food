@@ -74,7 +74,7 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
       : candidate.sourceLabel || candidate.source;
     const dimensions = candidate.width && candidate.height
       ? `${candidate.width} × ${candidate.height}`
-      : "Size pending";
+      : "Dimensions pending";
     const score = candidate.overallScore === null ? null : Math.round(candidate.overallScore);
 
     return (
