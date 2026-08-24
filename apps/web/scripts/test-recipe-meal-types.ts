@@ -57,4 +57,26 @@ const mainMeal = externalRecipes.find((recipe) => recipe.id === "rte-lentil-soup
 assert(mainMeal);
 assert.equal(getRecipeMealType(mainMeal), "Lunch & dinner");
 
+const redDuckCurry = externalRecipes.find((recipe) => recipe.id === "rte-thai-red-duck-curry");
+assert.deepEqual(redDuckCurry && {
+  name: redDuckCurry.name,
+  sourceName: redDuckCurry.sourceName,
+  sourceUrl: redDuckCurry.sourceUrl,
+  minutes: redDuckCurry.minutes,
+  servings: redDuckCurry.servings,
+  prepMinutes: redDuckCurry.prepMinutes,
+  cookMinutes: redDuckCurry.cookMinutes,
+  mealType: getRecipeMealType(redDuckCurry),
+}, {
+  name: "Thai Red Duck Curry",
+  sourceName: "RecipeTin Eats",
+  sourceUrl: "https://www.recipetineats.com/thai-red-duck-curry/",
+  minutes: 45,
+  servings: 5,
+  prepMinutes: 15,
+  cookMinutes: 30,
+  mealType: "Lunch & dinner",
+});
+assert.equal(externalRecipes.some((recipe) => recipe.id === "rte-cauliflower-soup"), false);
+
 console.log(`${hwqSnacks.length} Health and Wellbeing Queensland snacks classified with full recipe cards.`);
