@@ -1,3 +1,5 @@
+import { fetchRemoteImage } from "@/lib/images/remote-image";
+
 export type ProductImageAssessment = {
   url: string;
   reachable: boolean;
@@ -9,7 +11,7 @@ export type ProductImageAssessment = {
   issues: string[];
 };
 
-const timeoutMs = 8_000;
+const timeoutMs = 15_000;
 const minimumDimension = 320;
 const preferredDimension = 700;
 
@@ -105,27 +107,12 @@ function qualityScore(input: {
 }
 
 export async function assessProductImage(url: string): Promise<ProductImageAssessment> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, {
-      cache: "no-store",
-      redirect: "follow",
-      signal: controller.signal,
-      headers: {
-        Accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8",
-        "User-Agent": "FoodImageIntelligence/1.0 (+https://food.coffeehq.coffee)",
-      },
-    });
-    if (!response.ok) {
-      return { url, reachable: false, contentType: response.headers.get("content-type"), contentLength: null, width: null, height: null, score: 0, issues: [`Image returned HTTP ${response.status}`] };
-    }
-    const contentType = response.headers.get("content-type")?.split(";")[0]?.trim().toLocaleLowerCase("en-AU") ?? null;
-    const declaredLength = Number(response.headers.get("content-length"));
-    const arrayBuffer = await response.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
+    const downloaded = await fetchRemoteImage(url, timeoutMs);
+    const contentType = downloaded.mimeType;
+    const bytes = new Uint8Array(downloaded.bytes);
     const size = dimensions(bytes, contentType);
-    const contentLength = Number.isFinite(declaredLength) && declaredLength > 0 ? declaredLength : bytes.byteLength;
+    const contentLength = downloaded.declaredContentLength ?? bytes.byteLength;
     const result = qualityScore({ reachable: true, contentType, contentLength, width: size?.width ?? null, height: size?.height ?? null });
     return {
       url,
@@ -148,7 +135,5 @@ export async function assessProductImage(url: string): Promise<ProductImageAsses
       score: 0,
       issues: [error instanceof Error ? error.message : "Image assessment failed"],
     };
-  } finally {
-    clearTimeout(timer);
   }
 }

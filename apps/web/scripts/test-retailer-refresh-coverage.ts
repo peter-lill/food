@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { imageCandidateSourcePriority } from "../src/lib/products/image-intelligence";
+import {
+  imageCandidateSourcePriority,
+  packagedMatchScore,
+} from "../src/lib/products/image-intelligence";
+import { imageCandidateOverallScore } from "../src/lib/products/image-candidate-score";
 import {
   authoritativeRetailerName,
   identityScore,
@@ -85,6 +89,24 @@ assert.equal(
 assert.ok(imageCandidateSourcePriority("Coles") > imageCandidateSourcePriority("manufacturer"));
 assert.ok(imageCandidateSourcePriority("manufacturer") > imageCandidateSourcePriority("Open Food Facts"));
 assert.ok(imageCandidateSourcePriority("Open Food Facts") > imageCandidateSourcePriority("Current/manual image"));
+assert.equal(
+  packagedMatchScore(
+    "Aeroplane Jelly Lite Crystals Lime 9g x 2 pack",
+    "Aeroplane Jelly Lite Crystals Lime 9g x 2 pack",
+    "woolworths",
+  ),
+  99,
+  "the exact Woolworths Jelly Lite identity and pack must score as an authoritative match",
+);
+assert.equal(
+  imageCandidateOverallScore({ qualityScore: 0, providerScore: 100, identityScore: 100 }),
+  35,
+  "a 35 percent exact retailer candidate identifies a failed image download rather than a weak identity match",
+);
+assert.ok(
+  imageCandidateOverallScore({ qualityScore: 100, providerScore: 95, identityScore: 90 }) >= 95,
+  "a reachable exact retailer image should clear automatic promotion comfortably",
+);
 
 const imageRecoverySource = readFileSync(new URL("../src/lib/products/image-recovery.ts", import.meta.url), "utf8");
 assert.match(imageRecoverySource, /isGenericFoodImageEligible\(product\)/, "generic image generation must use the complete produce eligibility policy");
@@ -94,9 +116,16 @@ assert.match(imageRecoverySource, /candidateSelectionPriority\(right\.candidate\
 assert.match(imageRecoverySource, /await markSelectedCandidate\(product\.id, candidateId\);\s+await makeCandidatePrimaryAsset\(product\.id, candidateId\);/, "the selected image candidate should be stored and applied automatically");
 assert.match(imageRecoverySource, /isGeneric \|\| !product\.imageUrl\.startsWith\("generated:\/\/"\)/, "specific products must not recycle an old generated generic image during recovery");
 const imageQueueSource = readFileSync(new URL("./enqueue-selected-product-images.ts", import.meta.url), "utf8");
+assert.match(imageQueueSource, /assessProductImage\(candidate\.url\)/, "the backlog should reassess authoritative candidates whose original CDN check failed");
+assert.match(imageQueueSource, /COALESCE\(c\."qualityScore", 0\) = 0/, "the backlog reassessment should remain limited to failed or missing quality checks");
 assert.match(imageQueueSource, /c\."accepted" = true[\s\S]*?"overallScore"[\s\S]*?>= 75[\s\S]*?"identityScore"[\s\S]*?>= 90[\s\S]*?"providerScore"[\s\S]*?>= 90/, "the image backlog should promote only accepted, high-confidence authoritative candidates");
 assert.match(imageQueueSource, /NOT EXISTS \([\s\S]*?selected\."selected" = true/, "the image backlog must not replace an existing selected candidate");
 assert.match(imageQueueSource, /data: \{ imageUrl: candidate\.url, lifecycle: "READY" \}/, "a promoted backlog candidate should update the product image record");
+assert.match(imageQueueSource, /c\."assetId" IS NULL OR p\."primaryImageAssetId" IS DISTINCT FROM c\."assetId"/, "a candidate preview asset must still be eligible for primary-image reconciliation");
+const imageQualitySource = readFileSync(new URL("../src/lib/products/image-quality.ts", import.meta.url), "utf8");
+assert.match(imageQualitySource, /fetchRemoteImage\(url, timeoutMs\)/, "quality scoring and image import must use the same retailer-aware downloader");
+const remoteImageSource = readFileSync(new URL("../src/lib/images/remote-image.ts", import.meta.url), "utf8");
+assert.match(remoteImageSource, /woolworths\.com\.au\/shop\/productdetails/, "Woolworths CDN retries should carry the matching product-page context");
 const productImageRouteSource = readFileSync(new URL("../src/app/api/products/[productId]/image/route.ts", import.meta.url), "utf8");
 assert.match(productImageRouteSource, /isGenericFoodImageEligible\(product\)/, "the image endpoint must check full generic eligibility before serving a generated asset");
 assert.match(productImageRouteSource, /const genericFamily = allowGenericImage/, "specific unbranded retailer products must retain retailer image fallbacks");
@@ -109,6 +138,7 @@ const workerHandlerSource = readFileSync(new URL("../src/lib/jobs/worker-handler
 assert.match(workerHandlerSource, /provider\.includes\("coles"\) && provider\.includes\("woolworths"\)/, "combined retailer jobs must not be misreported as Woolworths-only");
 assert.match(workerHandlerSource, /enrichProductFromRetailerLabels\(productId\)/, "every Coles and Woolworths retailer refresh must also populate published label details");
 assert.match(workerHandlerSource, /saveProductQuality\(productId\)/, "retailer refresh must recalculate quality after label details are populated");
+assert.match(workerHandlerSource, /"primaryImageAssetId" = \$\{asset\.id\}[\s\S]*?c\."selected" = true/, "an imported selected candidate must be linked as the product primary asset");
 const workerSource = readFileSync(new URL("worker.ts", import.meta.url), "utf8");
 assert.match(workerSource, /job\.completed[\s\S]*result,/, "completed worker logs must expose Coles and Woolworths match counts from the job result");
 
