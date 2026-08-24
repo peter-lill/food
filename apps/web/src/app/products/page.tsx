@@ -121,12 +121,24 @@ function completionScore(product: CompletionProduct) {
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
+function CatalogueIcon({ name }: { name: "library" | "scan" | "receipt" | "manage" | "pantry" | "price" | "recipe" | "store" }) {
+  const common = { fill: "none", height: 20, stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 1.9, viewBox: "0 0 24 24", width: 20 };
+  if (name === "library") return <svg {...common}><path d="M4 6.5 12 3l8 3.5v11L12 21l-8-3.5v-11Z" /><path d="M4 6.5 12 10l8-3.5M12 10v11" /></svg>;
+  if (name === "scan") return <svg {...common}><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M8 9v6M11 9v6M14 9v6M16 9v6" /></svg>;
+  if (name === "receipt") return <svg {...common}><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" /><path d="M9 8h6M9 12h6" /></svg>;
+  if (name === "manage") return <svg {...common}><path d="M4 7h16M4 17h16M8 4v6M16 14v6" /><circle cx="8" cy="7" r="1.5" /><circle cx="16" cy="17" r="1.5" /></svg>;
+  if (name === "pantry") return <svg {...common}><path d="M5 9h14v11H5zM7 9V5h10v4M9 13h6" /></svg>;
+  if (name === "price") return <svg {...common}><path d="m4 4 11.5 0L20 8.5 8.5 20 4 15.5V4Z" /><circle cx="9" cy="9" r="1" /></svg>;
+  if (name === "recipe") return <svg {...common}><path d="M7 3h10v18H7zM10 3v4h4V3M10 12h4M10 16h4" /></svg>;
+  return <svg {...common}><path d="M4 10h16v10H4zM6 10V6h12v4M8 14h.01M12 14h.01M16 14h.01" /></svg>;
+}
+
 function ProductActions() {
   return (
     <div className={styles.heroActions}>
-      <Link className={styles.primaryAction} href="/scan">Scan barcode</Link>
-      <Link className={styles.secondaryAction} href="/receipts">Import receipt</Link>
-      <Link className={styles.secondaryAction} href="/admin/product-intelligence">Catalogue Manager</Link>
+      <Link className={styles.primaryAction} href="/scan"><CatalogueIcon name="scan" />Scan barcode</Link>
+      <Link className={styles.secondaryAction} href="/receipts"><CatalogueIcon name="receipt" />Import receipt</Link>
+      <Link className={styles.secondaryAction} href="/admin/product-intelligence"><CatalogueIcon name="manage" />Catalogue Manager</Link>
     </div>
   );
 }
@@ -176,7 +188,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <section className={styles.desktopHero}>
         <div className={styles.heroCopy}>
           <div className={styles.heroHeading}>
-            <span className={styles.heroMark} aria-hidden="true">P</span>
+            <span className={styles.heroMark} aria-hidden="true"><CatalogueIcon name="library" /></span>
             <div><p className="eyebrow">PRODUCT LIBRARY</p><h1 className="page-title">Your products</h1></div>
           </div>
           <ProductActions />
@@ -190,17 +202,17 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.mobileHero}>
         <div className={styles.mobileHeroHeading}>
-          <span className={styles.mobileHeroMark} aria-hidden="true">*</span>
+          <span className={styles.mobileHeroMark} aria-hidden="true"><CatalogueIcon name="library" /></span>
           <div><p className="eyebrow">PRODUCT LIBRARY</p><h1>Your products</h1></div>
         </div>
         <ProductActions />
       </section>
 
       <section className={styles.summaryGrid} aria-label="Product catalogue summary">
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>P</span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>$</span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>R</span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}>S</span><div><strong>{retailerCount}</strong><small>retailers tracked</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="pantry" /></span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="price" /></span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="recipe" /></span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="store" /></span><div><strong>{retailerCount}</strong><small>retailers tracked</small></div></article>
       </section>
 
       <section className={styles.cataloguePanel}>

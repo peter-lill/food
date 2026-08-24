@@ -296,7 +296,21 @@
   text-decoration: none;
 }
 
-.retailerPriceLink strong {
+.retailerPriceHeading {
+  align-items: center;
+  display: flex;
+  gap: 7px;
+  justify-content: space-between;
+  min-height: 28px;
+}
+
+.retailerPriceHeading > span:last-child {
+  color: #007a4d;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.retailerListing .retailerPriceLink strong {
   color: #007a4d;
   text-decoration: underline;
   text-decoration-thickness: 1px;

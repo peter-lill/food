@@ -191,14 +191,19 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           <h2>Current retailer prices</h2>
           <p className="subtle">The lowest current price is shown first. Prices are compared only for the same matched product and pack size.</p>
           <div className={styles.priceComparison}>
-            {currentRetailerPrices.map((price, index) => (
-              <div className={index === 0 ? styles.bestRetailerPrice : styles.retailerPriceOption} key={price.retailer}>
-                <div><RetailerLogo compact retailer={price.retailer} /></div>
+            {currentRetailerPrices.map((price, index) => {
+              const listingUrl = price.sourceUrl ?? product.storeProducts.find((listing) => listing.retailer === price.retailer)?.productUrl;
+              const content = <>
+                <div className={styles.retailerPriceHeading}><RetailerLogo compact retailer={price.retailer} />{listingUrl ? <span aria-label={`Open ${price.retailer} product page`} role="img">↗</span> : null}</div>
                 <strong>{money(price.price)}</strong>
                 <small>{price.isSpecial ? "On special" : "Current price"} · {date(price.observedAt)}</small>
                 {index === 0 ? <span>Best price</span> : null}
-              </div>
-            ))}
+              </>;
+              const className = index === 0 ? styles.bestRetailerPrice : styles.retailerPriceOption;
+              return listingUrl
+                ? <a className={`${className} ${styles.retailerPriceLink}`} href={listingUrl} key={price.retailer} rel="noopener noreferrer" target="_blank">{content}</a>
+                : <div className={className} key={price.retailer}>{content}</div>;
+            })}
           </div>
         </article> : null}
 
@@ -286,7 +291,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
           const priceDetail = price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt);
           return <li className={`${styles.listItem} ${styles.retailerListing}`} key={listing.id}>
             <div className={styles.listingIdentity}><div className={styles.listingImage}>{listing.imageUrl ? <img alt="" src={listing.imageUrl} /> : <span>◈</span>}</div><div><strong>{listing.retailer}</strong><small>{listing.retailerProductName}</small></div></div>
-            <div>{listing.productUrl ? <a className={styles.retailerPriceLink} href={listing.productUrl} rel="noopener noreferrer" target="_blank"><strong>{priceValue}</strong><small>{priceDetail} · View at {listing.retailer} ↗</small></a> : <><strong>{priceValue}</strong><small>{priceDetail}</small></>}</div>
+            <div>{listing.productUrl ? <a className={styles.retailerPriceLink} href={listing.productUrl} rel="noopener noreferrer" target="_blank"><span className={styles.retailerPriceHeading}><RetailerLogo compact retailer={listing.retailer} /><span aria-label={`Open ${listing.retailer} product page`} role="img">↗</span></span><strong>{priceValue}</strong><small>{priceDetail} · View retailer product</small></a> : <><strong>{priceValue}</strong><small>{priceDetail}</small></>}</div>
           </li>;
         })}</ul></article> : null}
         {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{observation.source}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}

@@ -10,3 +10,10 @@
   .cardBody .priceRow{height:107px;min-height:107px;margin-top:9px}
   .cardBody .meta{align-content:flex-start;height:34px;min-height:34px;overflow:hidden}
 }
+
+/* Product library visual system: descriptive icons, compact hero, clear action hierarchy. */
+.desktopHero{min-height:176px;padding:24px 26px}
+.heroMark,.mobileHeroMark{font-size:0}
+.heroMark svg,.mobileHeroMark svg,.summaryIcon svg{width:21px;height:21px}
+.primaryAction svg,.secondaryAction svg{width:18px;height:18px}
+.primaryAction{box-shadow:0 8px 18px rgba(21,128,61,.16)}
