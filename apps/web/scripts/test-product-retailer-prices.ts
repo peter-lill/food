@@ -44,6 +44,7 @@ const activiaFamily: ProductHubListItem = {
   brand: "Activia",
   description: "Support your gut health with Activia Probiotic Yoghurt No Added Sugar.",
   category: "Dairy & eggs",
+  shelfLabel: "Yoghurt",
   productType: "DAIRY",
   imageUrl: "https://cdn.example/activia.jpg",
   barcode: "9300000000000",

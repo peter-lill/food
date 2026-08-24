@@ -36,6 +36,7 @@ type CompletionProduct = {
   canonicalName: string | null;
   imageUrl: string | null;
   category: string | null;
+  shelfLabel: string | null;
   brand: string | null;
   barcode: string | null;
   productType: string;
@@ -233,8 +234,21 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <span className={departmentStyles.departmentHeading}><span className="eyebrow">DEPARTMENT</span><strong>{department}</strong></span>
                 <span className={departmentStyles.departmentCount}>{departmentProducts.length} {departmentProducts.length === 1 ? "family" : "families"}</span>
               </summary>
-              <div className={departmentStyles.departmentProducts}><div className={styles.grid}>
-              {departmentProducts.map((product) => {
+              <div className={departmentStyles.departmentProducts}>
+              {[...departmentProducts.reduce((groups, product) => {
+                const shelfGroup = product.shelfLabel
+                  ?? `Other ${department.toLocaleLowerCase("en-AU")} products`;
+                const current = groups.get(shelfGroup) ?? [];
+                current.push(product);
+                groups.set(shelfGroup, current);
+                return groups;
+              }, new Map<string, typeof departmentProducts>())]
+                .sort(([left], [right]) => left.startsWith("Other ") ? 1 : right.startsWith("Other ") ? -1 : left.localeCompare(right, "en-AU"))
+                .map(([shelfGroup, shelfProducts]) => (
+                <section className={departmentStyles.shelfGroup} key={shelfGroup}>
+                  <h3>{shelfGroup}</h3>
+                  <div className={styles.grid}>
+              {shelfProducts.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
             const { title, receiptName, category } = productDisplay(product);
             const latestPrice = money(product.latestPrice);
@@ -317,7 +331,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               </article>
             );
               })}
-              </div></div>
+                  </div>
+                </section>
+              ))}
+              </div>
             </details>
           )) : (
             <div className={styles.empty}>
