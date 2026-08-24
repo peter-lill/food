@@ -64,18 +64,19 @@ body {
 .wordmark-mark {
   display: block;
   flex: 0 0 auto;
-  width: 54px !important;
-  height: 54px !important;
-  border-radius: 0 !important;
-  background: transparent url('/brand/food-mark.svg') center / contain no-repeat !important;
-  box-shadow: none !important;
-  overflow: visible !important;
+  width: 64px !important;
+  height: 64px !important;
+  border-radius: 18px !important;
+  background: #f4eadb !important;
+  box-shadow: 0 9px 24px rgba(45, 84, 61, .16) !important;
+  overflow: hidden !important;
 }
-.wordmark-mark svg { display: none !important; }
-.wordmark-copy { display: block; min-width: 0; transition: opacity .15s ease; }
-.wordmark strong { color: var(--food-ink); font-size: 29px !important; letter-spacing: -.055em; line-height: .95; }
+.wordmark-mark img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.wordmark-copy { display: grid; gap: 3px; min-width: 0; transition: opacity .15s ease; }
+.wordmark strong { color: var(--food-ink); font-family: Fraunces, ui-serif, Georgia, "Times New Roman", serif; font-size: 24px !important; font-weight: 700; letter-spacing: .015em; line-height: .92; }
 .wordmark small { color: #728078; font-weight: 700; }
-.wordmark .wordmark-eyebrow { margin-bottom: 5px; color: var(--food-green); font-size: 9px; font-weight: 900; letter-spacing: .16em; }
+.wordmark .wordmark-eyebrow { margin-bottom: 4px; color: var(--food-green); font-size: 8px; font-weight: 900; letter-spacing: .16em; }
+.wordmark .wordmark-tagline { color: var(--food-green); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .side-nav {
   display: grid;
   align-content: start;
