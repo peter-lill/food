@@ -91,7 +91,12 @@ assert.match(imageRecoverySource, /isGenericFoodImageEligible\(product\)/, "gene
 assert.match(imageRecoverySource, /searchColesAndWoolworthsCatalogue\(barcode\)/, "known barcodes should search retailer catalogues directly");
 assert.match(imageRecoverySource, /linkedRetailerImages/, "existing retailer listings should provide replacement image candidates");
 assert.match(imageRecoverySource, /candidateSelectionPriority\(right\.candidate\)/, "all usable images should be ranked before selection");
+assert.match(imageRecoverySource, /await markSelectedCandidate\(product\.id, candidateId\);\s+await makeCandidatePrimaryAsset\(product\.id, candidateId\);/, "the selected image candidate should be stored and applied automatically");
 assert.match(imageRecoverySource, /isGeneric \|\| !product\.imageUrl\.startsWith\("generated:\/\/"\)/, "specific products must not recycle an old generated generic image during recovery");
+const imageQueueSource = readFileSync(new URL("./enqueue-selected-product-images.ts", import.meta.url), "utf8");
+assert.match(imageQueueSource, /c\."accepted" = true[\s\S]*?"overallScore"[\s\S]*?>= 75[\s\S]*?"identityScore"[\s\S]*?>= 90[\s\S]*?"providerScore"[\s\S]*?>= 90/, "the image backlog should promote only accepted, high-confidence authoritative candidates");
+assert.match(imageQueueSource, /NOT EXISTS \([\s\S]*?selected\."selected" = true/, "the image backlog must not replace an existing selected candidate");
+assert.match(imageQueueSource, /data: \{ imageUrl: candidate\.url, lifecycle: "READY" \}/, "a promoted backlog candidate should update the product image record");
 const productImageRouteSource = readFileSync(new URL("../src/app/api/products/[productId]/image/route.ts", import.meta.url), "utf8");
 assert.match(productImageRouteSource, /isGenericFoodImageEligible\(product\)/, "the image endpoint must check full generic eligibility before serving a generated asset");
 assert.match(productImageRouteSource, /const genericFamily = allowGenericImage/, "specific unbranded retailer products must retain retailer image fallbacks");
