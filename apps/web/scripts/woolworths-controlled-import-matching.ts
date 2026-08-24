@@ -54,7 +54,7 @@ function productDepartmentOverride(name: string): { category: string; productTyp
   if (/(?:ice cream|gelato|sorbet|frozen yoghurt|frozen yogurt)/.test(product)) {
     return { category: "Frozen", productType: ProductType.FROZEN };
   }
-  if (/(?:breakfast biscuit|cookie mix|cake mix|baking mix)/.test(product)) {
+  if (/(?:biscuit|cookie mix|cake mix|baking mix)/.test(product)) {
     return { category: "Pantry", productType: ProductType.PACKAGED };
   }
   return null;

@@ -21,6 +21,7 @@ assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli/
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli-meats"), { category: "Deli", productType: ProductType.PACKAGED });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/chocolate"), { category: "Confectionery", productType: ProductType.PACKAGED });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/biscuits", "Bakers Iced Zoo Biscuits"), { category: "Pantry", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery", "Bakers South African Lemon Cream Biscuits"), { category: "Pantry", productType: ProductType.PACKAGED });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/chocolate", "Baxters Oven Baked Dog Biscuits Treats"), { category: "Pet", productType: ProductType.PACKAGED });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/chocolate", "Ben And Jerry's Chocolate Chip Cookie Dough Ice Cream Tub"), { category: "Frozen", productType: ProductType.FROZEN });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/baking", "Betty Crocker Milk Chocolate Chunk Cookie Mix"), { category: "Pantry", productType: ProductType.PACKAGED });
