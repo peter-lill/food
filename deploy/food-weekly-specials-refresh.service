@@ -1,0 +1,11 @@
+[Unit]
+Description=Food weekly Woolworths specials refresh
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=peter
+Environment=HOME=/home/peter
+WorkingDirectory=/home/peter/Development/food
+ExecStart=/home/peter/Development/food/scripts/refresh-weekly-specials.sh

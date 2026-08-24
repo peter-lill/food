@@ -120,6 +120,33 @@ then run the full controlled import. The importer selects a deterministic,
 specific Woolworths source path for each stockcode and reindexes its canonical
 department and shelf accordingly.
 
+### Weekly specials refresh
+
+Food can revisit the verified Woolworths catalogue every Wednesday morning to
+publish current Woolworths prices and specials, then queue only retailer prices
+that are stale or missing. The job waits for the complete catalogue collection,
+refuses to import a partial run, and stops after eight hours by default.
+
+Install the timer once on Coffee (the `OnCalendar` value uses the server's
+local timezone):
+
+```bash
+sudo install -m 0755 scripts/refresh-weekly-specials.sh /home/peter/Development/food/scripts/refresh-weekly-specials.sh
+sudo install -m 0644 deploy/food-weekly-specials-refresh.service /etc/systemd/system/food-weekly-specials-refresh.service
+sudo install -m 0644 deploy/food-weekly-specials-refresh.timer /etc/systemd/system/food-weekly-specials-refresh.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now food-weekly-specials-refresh.timer
+systemctl list-timers food-weekly-specials-refresh.timer
+```
+
+Use `sudo systemctl start food-weekly-specials-refresh.service` for a deliberate
+manual run, and inspect its result with
+`journalctl -u food-weekly-specials-refresh.service -n 100 --no-pager`.
+The bridge's verified browser must be healthy before the timer starts. This
+sweep refreshes the authoritative Woolworths catalogue; Coles remains covered
+by the subsequent stale-listing queue rather than an unverified Coles catalogue
+scrape.
+
 ### Controlled Woolworths canonical import
 
 The verified Woolworths cache is not automatically treated as Food's canonical
