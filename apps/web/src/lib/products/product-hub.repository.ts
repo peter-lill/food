@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
 import { genericImageIdentity } from "@/lib/products/generic-image-policy";
 import { heroProductDescription } from "@/lib/products/product-description";
-import type { SupermarketDepartment } from "@/lib/products/product-category";
+import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
@@ -292,7 +292,30 @@ export function latestPricesByRetailer(observations: Array<{
   });
 }
 
-export async function getProductHubList(query?: string): Promise<ProductHubListItem[]> {
+export type ProductDepartmentCount = {
+  department: SupermarketDepartment;
+  productCount: number;
+};
+
+export async function getProductDepartmentCounts(): Promise<ProductDepartmentCount[]> {
+  const categories = await prisma.product.groupBy({
+    by: ["category"],
+    where: { lifecycle: { not: "ARCHIVED" } },
+    _count: { _all: true },
+  });
+  const counts = new Map<SupermarketDepartment, number>();
+
+  for (const category of categories) {
+    const department = productDepartment(category.category, "");
+    counts.set(department, (counts.get(department) ?? 0) + category._count._all);
+  }
+
+  return supermarketDepartments
+    .map((department) => ({ department, productCount: counts.get(department) ?? 0 }))
+    .filter(({ productCount }) => productCount > 0);
+}
+
+export async function getProductHubList(query?: string, department?: SupermarketDepartment): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({
     where: {
@@ -308,6 +331,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
             ],
           }
         : {}),
+      ...(department ? { category: { equals: department, mode: "insensitive" as const } } : {}),
     },
     include: {
       aliases: { select: { id: true } },
@@ -333,7 +357,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
       },
     },
     orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
-    take: 500,
+    take: department ? 2_000 : 500,
   });
   const storedImageProducts = new Set((await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT DISTINCT p."id"

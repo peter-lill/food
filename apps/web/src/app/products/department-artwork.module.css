@@ -13,6 +13,21 @@
   scroll-margin-top: 18px;
 }
 
+.departmentLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.departmentLink:hover {
+  border-color: rgba(47, 125, 91, .42);
+  box-shadow: 0 14px 32px rgba(28, 48, 38, .1);
+  transform: translateY(-2px);
+}
+
+.departmentLink .departmentSummary::after {
+  content: "→";
+}
+
 .department[open] {
   grid-column: 1 / -1;
 }
