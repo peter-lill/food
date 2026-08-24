@@ -263,6 +263,16 @@ assert.equal(productDepartment("Chocolate biscuity bars", "KitKat Milo Block"), 
 assert.equal(productDepartment("Fresh produce", "KitKat Milo Block"), "Confectionery");
 assert.equal(productDepartment("Fresh produce", "Kitkat Aero Mint Chocolate Block"), "Confectionery");
 assert.equal(productDepartment("Cleaning & Household", "Dishwashing Tablets"), "Household");
+assert.equal(
+  productDepartment("Household", "Air Wick Essential Oil Vanilla And Shea Butter Plug In Refill"),
+  "Household",
+  "an authoritative stored department must not be displaced by an incidental product-name keyword",
+);
+assert.equal(
+  productDepartment("Health & personal care", "Cocoa Butter Body Lotion"),
+  "Health & personal care",
+  "canonical non-food departments must remain authoritative over food words in their product names",
+);
 assert.equal(productDepartment("Other", "Basil"), "Fruit & vegetables");
 assert.equal(productDepartment("Other", "Broccolini"), "Fruit & vegetables");
 assert.equal(productDepartment("Other", "Basil Pesto"), "Pantry");
