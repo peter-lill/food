@@ -184,7 +184,7 @@ async function updateExistingProductClassifications(tx: Prisma.TransactionClient
   const groups = new Map<string, { category: string; productType: ReturnType<typeof categoryForWoolworthsPath>["productType"]; productIds: Set<string> }>();
   for (const plan of plans) {
     if (!plan.productId) continue;
-    const mapped = categoryForWoolworthsPath(plan.product.category_path);
+    const mapped = categoryForWoolworthsPath(plan.product.category_path, plan.product.name);
     if (mapped.category === "Other") continue;
     const key = `${mapped.category}\u0000${mapped.productType}`;
     const group = groups.get(key) ?? { ...mapped, productIds: new Set<string>() };
@@ -209,7 +209,7 @@ async function attachPage(plans: Plan[]) {
     if (createdProducts.length) {
       await tx.product.createMany({
         data: createdProducts.map((plan) => {
-          const mapped = categoryForWoolworthsPath(plan.product.category_path);
+          const mapped = categoryForWoolworthsPath(plan.product.category_path, plan.product.name);
           return {
             id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name,
             slug: `${slugifyProductName(plan.product.name)}-${plan.product.stockcode}`,

@@ -46,7 +46,21 @@ export function hasSuspiciousLabelTail(name: string) {
   return /^[A-Z]{1,2}$/.test(token) && !recognisedShortTailTokens.has(token);
 }
 
-export function categoryForWoolworthsPath(path: string): { category: string; productType: ProductType } {
+function productDepartmentOverride(name: string): { category: string; productType: ProductType } | null {
+  const product = normaliseProductText(name);
+  if (/(?:dog|cat|pet).*(?:treat|biscuit|food)|(?:treat|biscuit).*(?:dog|cat|pet)/.test(product)) {
+    return { category: "Pet", productType: ProductType.PACKAGED };
+  }
+  if (/(?:ice cream|gelato|sorbet|frozen yoghurt|frozen yogurt)/.test(product)) {
+    return { category: "Frozen", productType: ProductType.FROZEN };
+  }
+  if (/(?:breakfast biscuit|cookie mix|cake mix|baking mix)/.test(product)) {
+    return { category: "Pantry", productType: ProductType.PACKAGED };
+  }
+  return null;
+}
+
+export function categoryForWoolworthsPath(path: string, productName = ""): { category: string; productType: ProductType } {
   const segments = path
     .toLocaleLowerCase("en-AU")
     .split("/")
@@ -56,6 +70,8 @@ export function categoryForWoolworthsPath(path: string): { category: string; pro
   const categorySegments = browseIndex >= 0 ? segments.slice(browseIndex + 1) : segments;
   const [root] = categorySegments;
   const descendantSegments = categorySegments.slice(1);
+  const productOverride = productDepartmentOverride(productName);
+  if (productOverride) return productOverride;
 
   if (root === "fruit-veg") return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
   if (root === "meat-seafood-deli") {
@@ -67,7 +83,8 @@ export function categoryForWoolworthsPath(path: string): { category: string; pro
   if (root === "dairy-eggs-fridge") return { category: "Dairy & eggs", productType: ProductType.DAIRY };
   if (root === "freezer") return { category: "Frozen", productType: ProductType.FROZEN };
   if (root === "pantry") {
-    const confectionery = categorySegments.some((segment) => /(?:confectionery|chocolate|lollies)/.test(segment));
+    const pantryStaple = descendantSegments.some((segment) => /(?:biscuit|baking|cake-mix|cookie-mix|breakfast)/.test(segment));
+    const confectionery = !pantryStaple && descendantSegments.some((segment) => /(?:^|-)(?:confectionery|chocolate|lollies)(?:-|$)/.test(segment));
     return confectionery
       ? { category: "Confectionery", productType: ProductType.PACKAGED }
       : { category: "Pantry", productType: ProductType.PACKAGED };
