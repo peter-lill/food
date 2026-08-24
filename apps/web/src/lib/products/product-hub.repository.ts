@@ -385,7 +385,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         description: heroProductDescription(product.description, product.brand),
-        category: sourceDepartment ?? product.category,
+        category: product.category ?? sourceDepartment,
         shelfLabel: displayShelfLabel(woolworthsAisle),
         productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
@@ -413,7 +413,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount = familyRetailers.size;
     const woolworthsAisle = product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle;
-    current.category = departmentFromLegacyWoolworthsPath(woolworthsAisle) ?? current.category ?? product.category;
+    current.category = product.category ?? departmentFromLegacyWoolworthsPath(woolworthsAisle) ?? current.category;
     current.shelfLabel ??= displayShelfLabel(woolworthsAisle);
     if (isGeneric) {
       current.name = familyName;
