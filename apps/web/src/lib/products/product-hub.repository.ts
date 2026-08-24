@@ -29,6 +29,7 @@ export type ProductHubListItem = {
   recipeCount: number;
   pantryQuantity: number;
   retailerCount: number;
+  variantCount: number;
   latestPrice: number | null;
   latestRetailer: string | null;
   latestPackSize: string | null;
@@ -121,6 +122,25 @@ export function bestProductImage(
 function genericFamilyImage(familyName: string) {
   if (familyName === "Button Mushroom") return "/product-images/button-mushroom.svg";
   return null;
+}
+
+export function finaliseProductFamilyListItem(
+  item: ProductHubListItem,
+  variantCount: number,
+  retailerCount: number,
+): ProductHubListItem {
+  if (variantCount <= 1) return { ...item, variantCount, retailerCount };
+
+  return {
+    ...item,
+    brand: null,
+    barcode: null,
+    description: null,
+    imageUrl: genericFamilyImage(item.canonicalName ?? item.name),
+    retailerCount,
+    variantCount,
+    priceNeedsSpecificVariant: item.latestPrice !== null,
+  };
 }
 
 function titleCase(value: string) {
@@ -285,6 +305,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
 
   const grouped = new Map<string, ProductHubListItem>();
   const groupedProductIds = new Map<string, Set<string>>();
+  const groupedRetailers = new Map<string, Set<string>>();
   const groupedHasGenericImage = new Set<string>();
   const genericFamilies = genericFamilyNames(products);
 
@@ -304,6 +325,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     const productIds = groupedProductIds.get(familyKey) ?? new Set<string>();
     productIds.add(product.id);
     groupedProductIds.set(familyKey, productIds);
+    const familyRetailers = groupedRetailers.get(familyKey) ?? new Set<string>();
+    for (const retailer of retailers) familyRetailers.add(retailer);
+    groupedRetailers.set(familyKey, familyRetailers);
     const current = grouped.get(familyKey);
     const familyImage = genericFamilyImage(familyName);
     const isGeneric = !product.brand && !product.barcode && product.storeProducts.length === 0;
@@ -323,7 +347,8 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         aliasCount: product.aliases.length,
         recipeCount: recipeIds.size,
         pantryQuantity: product.inventoryItems.reduce((total, item) => total + item.quantity, 0),
-        retailerCount: retailers.size,
+        retailerCount: familyRetailers.size,
+        variantCount: 1,
         latestPrice: bestRetailerPrice?.price ?? null,
         latestRetailer: bestRetailerPrice?.retailer ?? null,
         latestPackSize: bestRetailerPrice ? bestRetailerPrice.packSize ?? "Size not recorded" : null,
@@ -340,7 +365,8 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.aliasCount += product.aliases.length + 1;
     current.recipeCount += recipeIds.size;
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
-    current.retailerCount += retailers.size;
+    current.retailerCount = familyRetailers.size;
+    current.category ??= product.category;
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;
@@ -373,7 +399,12 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
   }
 
   for (const [familyKey, item] of grouped) {
-    item.priceNeedsSpecificVariant = item.latestPrice !== null && (groupedProductIds.get(familyKey)?.size ?? 0) > 1;
+    const variantCount = groupedProductIds.get(familyKey)?.size ?? 1;
+    grouped.set(familyKey, finaliseProductFamilyListItem(
+      item,
+      variantCount,
+      groupedRetailers.get(familyKey)?.size ?? 0,
+    ));
   }
 
   return [...grouped.values()].sort((left, right) =>
