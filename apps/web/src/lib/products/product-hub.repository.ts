@@ -235,9 +235,16 @@ function canonicalProduceFamily(value: string) {
   return null;
 }
 
+function removeTrailingUnitQualifier(value: string) {
+  return value
+    .replace(/\bper(?:\s+\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l))?\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function productFamilyName(value: string) {
   const identity = identifyGrocery(value);
-  if (identity) return identity.family ?? identity.canonicalName;
+  if (identity) return removeTrailingUnitQualifier(identity.family ?? identity.canonicalName);
 
   const cleaned = value
     .replace(/^\s*(?:qty\s*)?\d+\s*[xÃ—]\s*/i, "")
@@ -245,7 +252,6 @@ export function productFamilyName(value: string) {
     .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/^\s*\d+\s*[xÃ—]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
-    .replace(/\bper\s*$/i, "")
     .replace(/\bcoles\b/gi, "")
     .replace(/\bslcd\b/gi, "sliced")
     .replace(/\s+/g, " ")
@@ -254,7 +260,7 @@ export function productFamilyName(value: string) {
   const produceFamily = canonicalProduceFamily(cleaned);
   if (produceFamily) return produceFamily;
 
-  return cleaned ? titleCase(cleaned) : titleCase(value.trim());
+  return cleaned ? titleCase(removeTrailingUnitQualifier(cleaned)) : titleCase(removeTrailingUnitQualifier(value));
 }
 
 function identityText(product: { name: string; canonicalName: string | null }) {

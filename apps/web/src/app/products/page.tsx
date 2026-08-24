@@ -267,7 +267,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               </span>
             </Link>;
           }) : products.length ? departmentGroups.map(([department, departmentProducts]) => (
-            <details className={departmentStyles.department} key={department}>
+            <details className={departmentStyles.department} key={department} open={Boolean(department)}>
               <summary className={departmentStyles.departmentSummary}>
                 <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
                 <span className={departmentStyles.departmentHeading}><span className="eyebrow">DEPARTMENT</span><strong>{department}</strong></span>
