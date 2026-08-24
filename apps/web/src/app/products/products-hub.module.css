@@ -2,10 +2,11 @@
 /* Keep the catalogue's data bands aligned, irrespective of missing product details. */
 @media(min-width:761px){
   .cardBody .cardTopline{min-height:25px}
-  .cardBody h2{min-height:2.5em}
-  .cardBody .identitySlot{min-height:36px}
-  .cardBody .completenessSlot{min-height:18px}
+  .cardBody h2{display:-webkit-box;height:2.5em;min-height:2.5em;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .cardBody .identitySlot{height:4.55rem;min-height:4.55rem;overflow:hidden}
+  .cardBody .identitySlot .brandLine{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:4}
+  .cardBody .completenessSlot{height:18px;min-height:18px}
   .cardBody .completeness{margin-top:6px}
-  .cardBody .priceRow{min-height:107px;margin-top:9px}
-  .cardBody .meta{align-content:flex-start;min-height:34px}
+  .cardBody .priceRow{height:107px;min-height:107px;margin-top:9px}
+  .cardBody .meta{align-content:flex-start;height:34px;min-height:34px;overflow:hidden}
 }

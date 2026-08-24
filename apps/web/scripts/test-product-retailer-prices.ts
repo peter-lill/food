@@ -5,6 +5,7 @@ import { bestProductImage, finaliseProductFamilyListItem, latestPricesByRetailer
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
+const productHubStyles = readFileSync(new URL("../src/app/products/products-hub.module.css", import.meta.url), "utf8");
 
 assert.doesNotMatch(
   productPageSource,
@@ -68,5 +69,9 @@ assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must
 
 assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
 assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
+assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
+assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:4\.55rem[^}]*overflow:hidden/, "desktop card descriptions must use a fixed-height band");
+assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:4/, "long card descriptions must be clamped instead of moving price rows");
+assert.match(productHubStyles, /\.cardBody \.priceRow\{height:107px/, "desktop price boxes must start from an aligned fixed-height band");
 
 console.log("Product retailer price display regressions passed.");
