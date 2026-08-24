@@ -235,7 +235,7 @@ function canonicalProduceFamily(value: string) {
   return null;
 }
 
-function productFamilyName(value: string) {
+export function productFamilyName(value: string) {
   const identity = identifyGrocery(value);
   if (identity) return identity.family ?? identity.canonicalName;
 
@@ -245,6 +245,7 @@ function productFamilyName(value: string) {
     .replace(/^\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/^\s*\d+\s*[xÃ—]\s*\d+(?:\.\d+)?\s*(?:g|kg|ml|l)\b\s*/i, "")
     .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
+    .replace(/\bper\s*$/i, "")
     .replace(/\bcoles\b/gi, "")
     .replace(/\bslcd\b/gi, "sliced")
     .replace(/\s+/g, " ")
