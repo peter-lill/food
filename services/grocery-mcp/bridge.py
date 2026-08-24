@@ -243,6 +243,14 @@ WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths
 WOOLWORTHS_CDP_URL = os.getenv("WOOLWORTHS_CDP_URL", "").strip()
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
 WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
+WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
+WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
+WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
+WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
+    WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
+    + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
+    + 30
+)
 WOOLWORTHS_COLLECTION_CATEGORIES = tuple(
     path.strip()
     for path in os.getenv(
@@ -303,6 +311,13 @@ def completed_woolworths_browse_payload(
     return {"categoryResponses": captured, "subcategories": descendants}
 
 
+def woolworths_browse_page_is_ready(
+    captured_responses: list[object], descendants: list[str], stable_rounds: int
+) -> bool:
+    """Stop a stable browse page once it has products or navigable children."""
+    return stable_rounds >= 4 and bool(captured_responses or descendants)
+
+
 class WoolworthsBrowserSession:
     """Run Woolworths UI requests inside a storefront browser session."""
 
@@ -326,7 +341,7 @@ class WoolworthsBrowserSession:
         completed: Queue = Queue(maxsize=1)
         self._requests.put(("browse", category_path, completed))
         try:
-            success, value = completed.get(timeout=WOOLWORTHS_TIMEOUT_SECONDS + 75)
+            success, value = completed.get(timeout=WOOLWORTHS_CATEGORY_SESSION_SECONDS)
         except Exception as error:
             raise RuntimeError("browser category session did not return in time") from error
         if not success:
@@ -414,29 +429,15 @@ class WoolworthsBrowserSession:
                             browse_page.goto(
                                 f"https://www.woolworths.com.au{category_path}",
                                 wait_until="domcontentloaded",
-                                timeout=(WOOLWORTHS_TIMEOUT_SECONDS + 30) * 1000,
+                                timeout=WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS * 1000,
                             )
                             # Scroll long enough for lazy pages to request their next
                             # category response. The first complete response is not an
                             # indication that a broad category has finished loading.
                             stable_rounds = 0
                             previous_height = 0
-                            for _ in range(60):
-                                previous = len(captured_responses)
-                                current_height = browse_page.evaluate("document.body.scrollHeight")
-                                browse_page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                                browse_page.wait_for_timeout(750)
-                                loaded_more = len(captured_responses) > previous
-                                grew = browse_page.evaluate("document.body.scrollHeight") > current_height or current_height > previous_height
-                                stable_rounds = 0 if loaded_more or grew else stable_rounds + 1
-                                previous_height = current_height
-                                if captured_responses and stable_rounds >= 4:
-                                    break
-                            browse_page.remove_listener("response", capture_category)
-                            title = browse_page.title().casefold()
-                            if "access denied" in title or "captcha" in title:
-                                raise RuntimeError("Woolworths requires browser verification")
-                            descendants = browse_page.evaluate("""(parentPath) => {
+                            descendants: list[str] = []
+                            descendant_paths_script = """(parentPath) => {
                               const base = parentPath.replace(/\\/+$/, '');
                               return [...new Set([...document.querySelectorAll('a[href]')]
                                 .map((anchor) => {
@@ -446,7 +447,27 @@ class WoolworthsBrowserSession:
                                   } catch { return null; }
                                 })
                                 .filter((path) => path && path.startsWith(`${base}/`)))];
-                            }""", category_path)
+                            }"""
+                            for _ in range(WOOLWORTHS_CATEGORY_SCROLL_ROUNDS):
+                                previous = len(captured_responses)
+                                current_height = browse_page.evaluate("document.body.scrollHeight")
+                                browse_page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                                browse_page.wait_for_timeout(WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS)
+                                loaded_more = len(captured_responses) > previous
+                                grew = browse_page.evaluate("document.body.scrollHeight") > current_height or current_height > previous_height
+                                stable_rounds = 0 if loaded_more or grew else stable_rounds + 1
+                                previous_height = current_height
+                                descendants = browse_page.evaluate(
+                                    descendant_paths_script, category_path
+                                )
+                                if woolworths_browse_page_is_ready(
+                                    captured_responses, descendants, stable_rounds
+                                ):
+                                    break
+                            browse_page.remove_listener("response", capture_category)
+                            title = browse_page.title().casefold()
+                            if "access denied" in title or "captcha" in title:
+                                raise RuntimeError("Woolworths requires browser verification")
                             completed.put((True, completed_woolworths_browse_payload(
                                 captured_responses, descendants
                             )))
