@@ -123,11 +123,49 @@
   margin-top: 28px;
 }
 
+.shelfGroup summary {
+  align-items: center;
+  border: 1px solid #dce7df;
+  border-radius: 14px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  list-style: none;
+  padding: 13px 16px;
+}
+
+.shelfGroup summary::-webkit-details-marker {
+  display: none;
+}
+
+.shelfGroup summary::after {
+  color: #007a4d;
+  content: "+";
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-left: 12px;
+  order: 3;
+}
+
+.shelfGroup[open] summary::after {
+  content: "−";
+}
+
 .shelfGroup h3 {
-  margin: 10px 0 12px;
+  margin: 0;
   color: #2c4738;
   font-size: 1rem;
   letter-spacing: -0.01em;
+}
+
+.shelfGroup summary span {
+  color: #778c81;
+  font-size: .86rem;
+  margin-left: auto;
+}
+
+.shelfGroup > div {
+  margin-top: 16px;
 }
 
 @media (max-width: 1100px) {
