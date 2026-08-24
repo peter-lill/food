@@ -76,6 +76,15 @@ function normaliseName(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+function shelfGroupForDepartment(shelfLabel: string | null, department: string) {
+  if (!shelfLabel) return `Other ${department.toLocaleLowerCase("en-AU")} products`;
+  const shelf = normaliseName(shelfLabel);
+  const parent = normaliseName(department);
+  return shelf === parent || shelf.endsWith(parent)
+    ? `Other ${department.toLocaleLowerCase("en-AU")} products`
+    : shelfLabel;
+}
+
 function collapseRepeatedPhrase(value: string) {
   const words = value.trim().split(/\s+/).filter(Boolean);
   for (let size = 1; size <= Math.floor(words.length / 2); size += 1) {
@@ -266,8 +275,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               </summary>
               <div className={departmentStyles.departmentProducts}>
               {[...departmentProducts.reduce((groups, product) => {
-                const shelfGroup = product.shelfLabel
-                  ?? `Other ${department.toLocaleLowerCase("en-AU")} products`;
+                const shelfGroup = shelfGroupForDepartment(product.shelfLabel, department);
                 const current = groups.get(shelfGroup) ?? [];
                 current.push(product);
                 groups.set(shelfGroup, current);
