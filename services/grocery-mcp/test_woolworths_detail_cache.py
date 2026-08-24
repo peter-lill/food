@@ -29,6 +29,24 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_navigation_only_category_can_seed_descendants_without_product_api(self) -> None:
+        root = "/shop/browse/health-beauty"
+        children = [
+            "/shop/browse/health-beauty/health",
+            "/shop/browse/health-beauty/beauty",
+        ]
+
+        payload = self.bridge.completed_woolworths_browse_payload([], children)
+
+        self.assertEqual(payload, {
+            "categoryResponses": [],
+            "subcategories": children,
+        })
+
+    def test_empty_category_without_api_or_descendants_still_fails(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "category API response was not observed"):
+            self.bridge.completed_woolworths_browse_payload([], [])
+
     def test_rich_detail_fields_are_cached_without_erasing_catalogue_identity(self) -> None:
         self.bridge.cache_woolworths_category("/shop/browse/dairy-eggs-fridge/milk", {
             "Products": [{

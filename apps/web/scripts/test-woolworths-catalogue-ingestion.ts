@@ -20,15 +20,16 @@ assert.match(bridge, /\/woolworths\/catalogue\/collection\/start/, "collection m
 assert.match(bridge, /\/woolworths\/catalogue\/collection\/status/, "collection progress must be observable");
 assert.match(bridge, /response\.url[\s\S]*captured_responses\.append\(response\)/, "matching category responses must be retained immediately");
 const retainResponse = bridge.indexOf("captured_responses.append(response)");
-const finishResponse = bridge.indexOf("response.finished()", retainResponse);
+const finishResponse = bridge.indexOf("response.finished()");
 const decodeResponse = bridge.indexOf("captured.append(response.json())", finishResponse);
-assert.ok(retainResponse >= 0 && finishResponse > retainResponse && decodeResponse > finishResponse, "category JSON must be decoded only after navigation and body completion");
+assert.ok(retainResponse >= 0 && finishResponse >= 0 && decodeResponse > finishResponse, "category responses must be retained immediately and decoded only after body completion");
 assert.match(bridge, /category API response was observed but could not be decoded/, "response decoding failures must not masquerade as missing network responses");
 assert.match(bridge, /browse_page = context\.new_page\(\)/, "every category refresh must use a fresh page so same-category application state cannot suppress the API request");
 assert.match(bridge, /finally:[\s\S]*browse_page\.close\(\)/, "the isolated category page must be closed without disturbing the user's verified tab");
 assert.match(bridge, /for _ in range\(60\):[\s\S]*wait_for_timeout\(750\)/, "category capture must allow lazy pages to request every observed response");
 assert.match(bridge, /stable_rounds >= 4/, "an empty application shell must never be mistaken for a completed category response");
 assert.match(bridge, /document\.querySelectorAll\('a\[href\]'\)[\s\S]*subcategories/, "category browsing must discover valid descendant browse paths");
+assert.match(bridge, /if not captured_responses:[\s\S]*if descendants:[\s\S]*categoryResponses["']:\s*\[\]/, "navigation-only category roots must seed their descendants without fabricating product responses");
 assert.match(bridge, /enqueue_woolworths_collection_categories\(outcome\.get\("subcategories", \[\]\)\)/, "the collector must enqueue discovered descendants during the same resumable run");
 assert.match(bridge, /revisitCompletedRoots/, "previously completed roots must be safely revisitible to seed descendants");
 assert.match(bridge, /WHERE state = 'completed' AND category_path IN/, "revisiting roots must not reset completed descendants");

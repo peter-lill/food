@@ -278,6 +278,31 @@ def resolved_cdp_url(configured_url: str) -> str:
     return parsed._replace(netloc=f"{address}:{port}").geturl()
 
 
+def completed_woolworths_browse_payload(
+    captured_responses: list[object], descendants: list[str]
+) -> dict:
+    """Accept product responses or a navigation-only category with descendants."""
+    if not captured_responses:
+        if descendants:
+            return {"categoryResponses": [], "subcategories": descendants}
+        raise RuntimeError("category API response was not observed")
+
+    captured: list[object] = []
+    decode_errors: list[str] = []
+    for response in captured_responses:
+        try:
+            response.finished()
+            captured.append(response.json())
+        except Exception as error:
+            decode_errors.append(str(error))
+    if not captured:
+        detail = decode_errors[0] if decode_errors else "unknown response decoding error"
+        raise RuntimeError(
+            f"category API response was observed but could not be decoded: {detail}"
+        )
+    return {"categoryResponses": captured, "subcategories": descendants}
+
+
 class WoolworthsBrowserSession:
     """Run Woolworths UI requests inside a storefront browser session."""
 
@@ -411,21 +436,6 @@ class WoolworthsBrowserSession:
                             title = browse_page.title().casefold()
                             if "access denied" in title or "captcha" in title:
                                 raise RuntimeError("Woolworths requires browser verification")
-                            if not captured_responses:
-                                raise RuntimeError("category API response was not observed")
-                            captured: list[object] = []
-                            decode_errors: list[str] = []
-                            for response in captured_responses:
-                                try:
-                                    response.finished()
-                                    captured.append(response.json())
-                                except Exception as error:
-                                    decode_errors.append(str(error))
-                            if not captured:
-                                detail = decode_errors[0] if decode_errors else "unknown response decoding error"
-                                raise RuntimeError(
-                                    f"category API response was observed but could not be decoded: {detail}"
-                                )
                             descendants = browse_page.evaluate("""(parentPath) => {
                               const base = parentPath.replace(/\\/+$/, '');
                               return [...new Set([...document.querySelectorAll('a[href]')]
@@ -437,10 +447,9 @@ class WoolworthsBrowserSession:
                                 })
                                 .filter((path) => path && path.startsWith(`${base}/`)))];
                             }""", category_path)
-                            completed.put((True, {
-                                "categoryResponses": captured,
-                                "subcategories": descendants,
-                            }))
+                            completed.put((True, completed_woolworths_browse_payload(
+                                captured_responses, descendants
+                            )))
                         finally:
                             if not browse_page.is_closed():
                                 browse_page.close()
