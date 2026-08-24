@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
@@ -30,6 +30,11 @@ assert.equal(
   displayShelfLabel("/shop/browse/freezer/frozen-meals"),
   "Frozen Meals",
   "legacy Woolworths browse paths must render as a human shelf label",
+);
+assert.equal(
+  preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
+  "Deli Meat",
+  "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",
 );
 assert.equal(
   departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
