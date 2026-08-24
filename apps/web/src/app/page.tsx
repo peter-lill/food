@@ -123,7 +123,7 @@ export default async function Dashboard() {
     <main className="home-v3">
       <section className="home-v3-hero">
         <div className="home-v3-intro">
-          <img alt="" aria-hidden="true" className="home-v3-logo" src="/brand/food-mark.svg?v=20260802d" />
+          <img alt="" aria-hidden="true" className="home-v3-logo" src="/brand/food-basket.webp?v=20260824-1" />
           <p className="home-v3-eyebrow">YOUR KITCHEN, TODAY</p>
           <h1>{greeting},<br /><span>{firstName}.</span></h1>
           <p className="home-v3-lead">Know what is in your kitchen, cook with confidence and make healthier choices every day.</p>
