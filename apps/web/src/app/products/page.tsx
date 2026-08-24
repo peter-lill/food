@@ -245,8 +245,11 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               }, new Map<string, typeof departmentProducts>())]
                 .sort(([left], [right]) => left.startsWith("Other ") ? 1 : right.startsWith("Other ") ? -1 : left.localeCompare(right, "en-AU"))
                 .map(([shelfGroup, shelfProducts]) => (
-                <section className={departmentStyles.shelfGroup} key={shelfGroup}>
-                  <h3>{shelfGroup}</h3>
+                <details className={departmentStyles.shelfGroup} key={shelfGroup}>
+                  <summary>
+                    <h3>{shelfGroup}</h3>
+                    <span>{shelfProducts.length} {shelfProducts.length === 1 ? "family" : "families"}</span>
+                  </summary>
                   <div className={styles.grid}>
               {shelfProducts.map((product) => {
             const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
@@ -332,7 +335,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             );
               })}
                   </div>
-                </section>
+                </details>
               ))}
               </div>
             </details>

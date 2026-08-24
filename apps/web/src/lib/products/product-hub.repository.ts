@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
 import { genericImageIdentity } from "@/lib/products/generic-image-policy";
 import { heroProductDescription } from "@/lib/products/product-description";
+import type { SupermarketDepartment } from "@/lib/products/product-category";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
 
@@ -108,6 +109,47 @@ export type ProductHubDetail = {
     latestRetailer: string | null;
   }>;
 };
+
+/**
+ * Older Woolworths imports stored the complete browse path in `aisle`.
+ * The catalogue must never render that implementation detail as a heading.
+ */
+export function displayShelfLabel(aisle: string | null | undefined) {
+  const value = aisle?.trim() ?? "";
+  if (!value) return null;
+  if (!value.includes("/")) return value;
+
+  const segments = value.split("/").map((segment) => segment.trim()).filter(Boolean);
+  const browseIndex = segments.findIndex((segment) => segment.toLocaleLowerCase("en-AU") === "browse");
+  const terminalSegment = browseIndex >= 0 ? segments.slice(browseIndex + 2).at(-1) : null;
+  if (!terminalSegment) return value;
+  return terminalSegment
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toLocaleUpperCase("en-AU"));
+}
+
+/**
+ * Prefer an authoritative legacy Woolworths browse path over a historical
+ * name-derived department until the controlled importer has persisted it.
+ */
+export function departmentFromLegacyWoolworthsPath(aisle: string | null | undefined): SupermarketDepartment | null {
+  const segments = (aisle?.trim() ?? "").split("/").map((segment) => segment.trim().toLocaleLowerCase("en-AU")).filter(Boolean);
+  const browseIndex = segments.indexOf("browse");
+  if (browseIndex < 0) return null;
+  const [root, ...descendants] = segments.slice(browseIndex + 1);
+  if (root === "fruit-veg") return "Fruit & vegetables";
+  if (root === "bakery") return "Bakery";
+  if (root === "dairy-eggs-fridge") return "Dairy & eggs";
+  if (root === "freezer") return "Frozen";
+  if (root === "pantry") return descendants.some((segment) => /(?:confectionery|chocolate|lollies)/.test(segment)) ? "Confectionery" : "Pantry";
+  if (root === "drinks" || root === "liquor") return "Drinks";
+  if (root === "beauty") return "Health & personal care";
+  if (root === "baby") return "Baby";
+  if (root === "cleaning-maintenance") return "Household";
+  if (root === "pet") return "Pet";
+  if (root === "meat-seafood-deli") return descendants.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment)) ? "Deli" : "Meat & seafood";
+  return null;
+}
 
 export function bestProductImage(
   productImageUrl: string | null,
@@ -334,6 +376,8 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     const isGeneric = !product.brand && !product.barcode && product.storeProducts.length === 0;
 
     if (!current) {
+      const woolworthsAisle = product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle;
+      const sourceDepartment = departmentFromLegacyWoolworthsPath(woolworthsAisle);
       grouped.set(familyKey, {
         id: product.id,
         name: product.name,
@@ -341,8 +385,8 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         slug: product.slug,
         brand: product.brand,
         description: heroProductDescription(product.description, product.brand),
-        category: product.category,
-        shelfLabel: product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle ?? null,
+        category: sourceDepartment ?? product.category,
+        shelfLabel: displayShelfLabel(woolworthsAisle),
         productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
         barcode: product.barcode,
@@ -368,8 +412,9 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.recipeCount += recipeIds.size;
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount = familyRetailers.size;
-    current.category ??= product.category;
-    current.shelfLabel ??= product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle ?? null;
+    const woolworthsAisle = product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle;
+    current.category = departmentFromLegacyWoolworthsPath(woolworthsAisle) ?? current.category ?? product.category;
+    current.shelfLabel ??= displayShelfLabel(woolworthsAisle);
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;

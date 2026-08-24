@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
@@ -17,6 +17,21 @@ assert.equal(
   bestProductImage(null, [], true),
   "stored://product-image",
   "a stored primary asset must keep a catalogue image visible when the legacy image URL is missing",
+);
+assert.equal(
+  displayShelfLabel("/shop/browse/freezer/frozen-meals"),
+  "Frozen Meals",
+  "legacy Woolworths browse paths must render as a human shelf label",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
+  "Pantry",
+  "a legacy Woolworths Pantry path must override a historical meat name match",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/freezer/frozen-meals"),
+  "Frozen",
+  "a legacy Woolworths freezer path must not appear in Pantry",
 );
 assert.equal(
   heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),
@@ -70,6 +85,7 @@ assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must
 
 assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
 assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
+assert.match(productPageSource, /listing\.productUrl \? <a className=\{styles\.retailerPriceLink\}/, "retailer prices must link to their authoritative product page when available");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");

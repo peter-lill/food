@@ -289,6 +289,24 @@
   text-align: right;
 }
 
+.retailerPriceLink {
+  color: inherit;
+  display: grid;
+  gap: 3px;
+  text-decoration: none;
+}
+
+.retailerPriceLink strong {
+  color: #007a4d;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.retailerPriceLink:hover small {
+  color: #007a4d;
+}
+
 @media (max-width: 620px) {
   .retailerListing > :last-child {
     flex-basis: 142px;
