@@ -13,6 +13,19 @@ const product: CachedWoolworthsProduct = {
 
 assert.deepEqual(categoryForWoolworthsPath(product.category_path), { category: "Dairy & eggs", productType: ProductType.DAIRY });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/freezer/frozen-meals"), { category: "Frozen", productType: ProductType.FROZEN });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/meat/beef"), { category: "Meat & seafood", productType: ProductType.FRESH_MEAT });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/seafood/fish"), { category: "Meat & seafood", productType: ProductType.SEAFOOD });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli/deli-meats"), { category: "Deli", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli-meats"), { category: "Deli", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/snacks-confectionery/chocolate"), { category: "Confectionery", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pantry/cooking-sauces"), { category: "Pantry", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/drinks/soft-drinks"), { category: "Drinks", productType: ProductType.BEVERAGE });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/liquor/beer"), { category: "Drinks", productType: ProductType.BEVERAGE });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/beauty/hair-care"), { category: "Health & personal care", productType: ProductType.PERSONAL_CARE });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/baby/nappies"), { category: "Baby", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/cleaning-maintenance/air-fresheners"), { category: "Household", productType: ProductType.HOUSEHOLD });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/pet/dog-food"), { category: "Pet", productType: ProductType.PACKAGED });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/future-department/example"), { category: "Other", productType: ProductType.OTHER });
 assert.deepEqual(importEligibility(product), { eligible: true, reason: null });
 assert.match(importEligibility({ ...product, detail_refreshed_at: null }).reason ?? "", /rich Woolworths detail/);
 assert.match(importEligibility({ ...product, in_stock: 0 }).reason ?? "", /out of stock/);
@@ -34,6 +47,7 @@ assert.match(importerSource, /prisma\.storeProduct\.findMany/, "each bulk cache 
 assert.match(importerSource, /tx\.priceObservation\.createMany/, "each bulk cache page must write price observations in one database batch");
 assert.match(importerSource, /UPDATE "StoreProduct" AS target/, "each bulk cache page must update retained retailer listings in one database statement");
 assert.match(importerSource, /source\."active"::boolean/, "the bulk listing update must cast boolean parameters for PostgreSQL");
+assert.match(importerSource, /Skip reasons:/, "bulk previews must summarise why cached records were withheld");
 assert.match(importerSource, /canonicalWoolworthsDescription/, "the importer must exclude brand-only Woolworths descriptions");
 assert.match(importerSource, /UPDATE "Product" AS target/, "retained listings must repair blank or brand-only canonical descriptions");
 assert.match(productHubSource, /heroProductDescription\(product\.description, product\.brand\)/, "product cards must show a meaningful description rather than a brand fallback");

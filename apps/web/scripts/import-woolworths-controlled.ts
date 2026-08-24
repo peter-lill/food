@@ -223,6 +223,7 @@ async function attachPage(plans: Plan[]) {
 
 async function main() {
   const counts = emptyCounts();
+  const skipReasons = new Map<string, number>();
   const plannedAliases = new Set<string>();
   const plannedBarcodes = new Set<string>();
   let pageOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
@@ -234,6 +235,7 @@ async function main() {
     const plans = await plansForPage(page.products, plannedAliases, plannedBarcodes);
     for (const plan of plans) {
       counts[plan.disposition] += 1;
+      if (plan.disposition === "skip") skipReasons.set(plan.reason, (skipReasons.get(plan.reason) ?? 0) + 1);
       if (!importAll || verbose || plan.disposition !== "retain") {
         console.log(`${apply ? "Approved" : "Would"} ${plan.disposition}: ${plan.product.name} | ${plan.product.stockcode} | ${plan.reason}`);
       }
@@ -244,6 +246,10 @@ async function main() {
     if (importAll && (processed % 1000 === 0 || page.nextOffset === null)) console.log(`Bulk progress: ${processed} records across ${pages} cache pages.`);
     if (!importAll || page.nextOffset === null) break;
     pageOffset = page.nextOffset;
+  }
+  if (skipReasons.size) {
+    const reasons = Object.fromEntries([...skipReasons].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0], "en-AU")));
+    console.log(`Skip reasons: ${JSON.stringify(reasons)}.`);
   }
   if (!apply) return console.log(`${importAll ? "Bulk preview" : "Preview"} complete. ${JSON.stringify(counts)}. No database changes were made.`);
   console.log(`${importAll ? "Woolworths bulk controlled import" : "Woolworths controlled import"} complete. ${JSON.stringify(counts)}.`);
