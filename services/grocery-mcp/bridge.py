@@ -583,6 +583,7 @@ def catalogue_connection() -> sqlite3.Connection:
         os.makedirs(directory, exist_ok=True)
     connection = sqlite3.connect(WOOLWORTHS_CATALOGUE_DB)
     connection.row_factory = sqlite3.Row
+    connection.create_function("woolworths_category_priority", 1, woolworths_category_priority)
     connection.execute("""
         CREATE TABLE IF NOT EXISTS woolworths_products (
           stockcode TEXT PRIMARY KEY, barcode TEXT, name TEXT NOT NULL, search_text TEXT NOT NULL,
@@ -652,7 +653,10 @@ def cache_woolworths_category(category_path: str, payload: object) -> int:
                   barcode=excluded.barcode, name=excluded.name, search_text=excluded.search_text,
                   price=excluded.price, was_price=excluded.was_price, pack_size=excluded.pack_size,
                   unit_price=excluded.unit_price, image_url=excluded.image_url,
-                  category_path=excluded.category_path, is_special=excluded.is_special,
+                  category_path=CASE
+                    WHEN woolworths_category_priority(excluded.category_path) >= woolworths_category_priority(woolworths_products.category_path)
+                    THEN excluded.category_path ELSE woolworths_products.category_path END,
+                  is_special=excluded.is_special,
                   in_stock=excluded.in_stock, refreshed_at=excluded.refreshed_at
             """, (
                 stockcode, first_identifier(source, ("Barcode", "Gtin")), name, name.casefold(),
@@ -664,6 +668,29 @@ def cache_woolworths_category(category_path: str, payload: object) -> int:
             ))
             cached += 1
     return cached
+
+
+def woolworths_category_priority(category_path: str) -> int:
+    """Keep a specific department when a SKU is returned by multiple browse pages."""
+    segments = [segment for segment in category_path.casefold().split("/") if segment]
+    try:
+        root = segments[segments.index("browse") + 1]
+    except (ValueError, IndexError):
+        return 0
+    return {
+        "pet": 100,
+        "baby": 90,
+        "freezer": 80,
+        "meat-seafood-deli": 70,
+        "fruit-veg": 70,
+        "dairy-eggs-fridge": 70,
+        "bakery": 70,
+        "cleaning-maintenance": 70,
+        "beauty": 70,
+        "drinks": 60,
+        "liquor": 60,
+        "pantry": 40,
+    }.get(root, 10)
 
 
 def clean_html(value: object) -> str | None:

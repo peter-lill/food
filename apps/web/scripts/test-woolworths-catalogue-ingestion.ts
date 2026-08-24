@@ -40,6 +40,8 @@ assert.match(bridge, /WHERE state = 'completed' AND category_path IN/, "revisiti
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");
+assert.match(bridge, /def woolworths_category_priority[\s\S]*"pet": 100[\s\S]*"freezer": 80/, "specific Woolworths departments must not be overwritten by a later pantry browse page");
+assert.match(bridge, /create_function\("woolworths_category_priority", 1, woolworths_category_priority\)/, "the category-priority function must be available to the SQLite upsert");
 assert.match(bridge, /WOOLWORTHS_DETAIL_API_PATH = "\/apis\/ui\/product\/detail"/, "details must come from Woolworths's authoritative product endpoint");
 assert.match(bridge, /def cache_woolworths_details[\s\S]*brand[\s\S]*long_description[\s\S]*ingredients[\s\S]*allergens[\s\S]*nutrition[\s\S]*dietary_claims[\s\S]*country_of_origin[\s\S]*storage_instructions[\s\S]*preparation_instructions[\s\S]*additional_images/, "all requested detail fields must be persisted");
 assert.match(bridge, /detail_results = woolworths_browser\(\)\.details[\s\S]*cache_woolworths_details/, "category refresh must enrich each authoritative stockcode");
