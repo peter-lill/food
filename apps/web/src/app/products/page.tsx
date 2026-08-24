@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getProductHubList } from "@/lib/products/product-hub.repository";
-import { productDepartment } from "@/lib/products/product-category";
+import { getProductDepartmentCounts, getProductHubList } from "@/lib/products/product-hub.repository";
+import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
 import departmentStyles from "./department-artwork.module.css";
@@ -8,7 +8,7 @@ import departmentStyles from "./department-artwork.module.css";
 export const dynamic = "force-dynamic";
 
 type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
-type ProductsPageProps = { searchParams: Promise<{ q?: string; view?: string }> };
+type ProductsPageProps = { searchParams: Promise<{ department?: string; q?: string; view?: string }> };
 
 const departmentArtwork: Record<string, string> = {
   "Fruit & vegetables": "fruit-vegetables.webp",
@@ -66,6 +66,10 @@ function imageVersion(value: string) {
 
 function normaliseView(value: string | undefined): ProductView {
   return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "") ? value as ProductView : "all";
+}
+
+function normaliseDepartment(value: string | undefined): SupermarketDepartment | null {
+  return supermarketDepartments.includes(value as SupermarketDepartment) ? value as SupermarketDepartment : null;
 }
 
 function normaliseName(value: string) {
@@ -144,9 +148,13 @@ function ProductActions() {
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { q = "", view: rawView } = await searchParams;
+  const { department: rawDepartment, q = "", view: rawView } = await searchParams;
   const view = normaliseView(rawView);
-  const allProducts = await getProductHubList(q);
+  const department = normaliseDepartment(rawDepartment);
+  const [allProducts, departmentCounts] = await Promise.all([
+    getProductHubList(q, department ?? undefined),
+    getProductDepartmentCounts(),
+  ]);
 
   const counts: Record<ProductView, number> = {
     all: allProducts.length,
@@ -172,6 +180,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     return groups;
   }, new Map<string, typeof products>())]
     .sort(([left], [right]) => left.localeCompare(right, "en-AU"));
+  const browseDepartments = !q && view === "all" && !department;
 
   const retailerCount = new Set(allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : [])).size;
   const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
@@ -219,8 +228,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <div className={styles.toolbar}>
           <div className={styles.toolbarTitle}>
             <p className="eyebrow">CATALOGUE</p>
-            <h2>{products.length} {products.length === 1 ? "product" : "products"}</h2>
-            {q ? <p>Results for &quot;{q}&quot;</p> : <p>Browse, clean up and open product records.</p>}
+            <h2>{browseDepartments ? "Browse departments" : `${products.length} ${products.length === 1 ? "product" : "products"}`}</h2>
+            {q ? <p>Results for &quot;{q}&quot;</p> : department ? <p>{department} products and shelves.</p> : <p>Choose a department, then browse its shelves and product families.</p>}
           </div>
           <form className={styles.search}>
             {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
@@ -239,7 +248,16 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         </nav>
 
         <div aria-label="Products by department" className={departmentStyles.departmentList}>
-          {products.length ? departmentGroups.map(([department, departmentProducts]) => (
+          {browseDepartments ? departmentCounts.map(({ department: departmentName, productCount }) => {
+            const params = new URLSearchParams({ department: departmentName });
+            return <Link className={`${departmentStyles.department} ${departmentStyles.departmentLink}`} href={`/products?${params.toString()}`} key={departmentName}>
+              <span className={departmentStyles.departmentSummary}>
+                <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(departmentName)} /></span>
+                <span className={departmentStyles.departmentHeading}><span className="eyebrow">DEPARTMENT</span><strong>{departmentName}</strong></span>
+                <span className={departmentStyles.departmentCount}>{productCount.toLocaleString("en-AU")} products</span>
+              </span>
+            </Link>;
+          }) : products.length ? departmentGroups.map(([department, departmentProducts]) => (
             <details className={departmentStyles.department} key={department}>
               <summary className={departmentStyles.departmentSummary}>
                 <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
