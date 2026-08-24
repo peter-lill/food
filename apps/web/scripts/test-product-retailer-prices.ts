@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
@@ -17,6 +17,21 @@ assert.equal(
   bestProductImage(null, [], true),
   "stored://product-image",
   "a stored primary asset must keep a catalogue image visible when the legacy image URL is missing",
+);
+assert.equal(
+  displayShelfLabel("/shop/browse/freezer/frozen-meals"),
+  "Frozen Meals",
+  "legacy Woolworths browse paths must render as a human shelf label",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
+  "Pantry",
+  "a legacy Woolworths Pantry path must override a historical meat name match",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/freezer/frozen-meals"),
+  "Frozen",
+  "a legacy Woolworths freezer path must not appear in Pantry",
 );
 assert.equal(
   heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),
