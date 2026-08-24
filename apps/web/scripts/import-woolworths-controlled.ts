@@ -5,8 +5,8 @@ import { Prisma, ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import {
-  categoryForWoolworthsPath,
-  shelfForWoolworthsPath,
+  categoryForWoolworthsPaths,
+  shelfForWoolworthsPaths,
   canonicalWoolworthsDescription,
   cleanBarcode,
   importEligibility,
@@ -50,8 +50,12 @@ function cachedProduct(value: unknown): CachedWoolworthsProduct | null {
   const name = text(input.name);
   const categoryPath = text(input.category_path);
   if (!stockcode || !name || !categoryPath) return null;
+  const categoryPaths = Array.isArray(input.category_paths)
+    ? input.category_paths.flatMap((path) => text(path) ? [text(path)!] : [])
+    : [];
+  if (!categoryPaths.includes(categoryPath)) categoryPaths.push(categoryPath);
   return {
-    stockcode, name, category_path: categoryPath,
+    stockcode, name, category_path: categoryPath, category_paths: categoryPaths,
     barcode: text(input.barcode), price: number(input.price), is_special: input.is_special === true || input.is_special === 1,
     pack_size: text(input.pack_size), image_url: text(input.image_url),
     in_stock: input.in_stock === false || input.in_stock === 0 ? 0 : 1,
@@ -140,7 +144,7 @@ function listingData(plan: Plan) {
   return {
     retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
     productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-    imageUrl: product.image_url, aisle: shelfForWoolworthsPath(product.category_path), active: true, lastSeenAt: new Date(),
+    imageUrl: product.image_url, aisle: shelfForWoolworthsPaths(product.category_paths), active: true, lastSeenAt: new Date(),
   };
 }
 
@@ -181,10 +185,10 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
 }
 
 async function updateExistingProductClassifications(tx: Prisma.TransactionClient, plans: Plan[]) {
-  const groups = new Map<string, { category: string; productType: ReturnType<typeof categoryForWoolworthsPath>["productType"]; productIds: Set<string> }>();
+  const groups = new Map<string, { category: string; productType: ReturnType<typeof categoryForWoolworthsPaths>["productType"]; productIds: Set<string> }>();
   for (const plan of plans) {
     if (!plan.productId) continue;
-    const mapped = categoryForWoolworthsPath(plan.product.category_path, plan.product.name);
+    const mapped = categoryForWoolworthsPaths(plan.product.category_paths, plan.product.name);
     if (mapped.category === "Other") continue;
     const key = `${mapped.category}\u0000${mapped.productType}`;
     const group = groups.get(key) ?? { ...mapped, productIds: new Set<string>() };
@@ -209,7 +213,7 @@ async function attachPage(plans: Plan[]) {
     if (createdProducts.length) {
       await tx.product.createMany({
         data: createdProducts.map((plan) => {
-          const mapped = categoryForWoolworthsPath(plan.product.category_path, plan.product.name);
+          const mapped = categoryForWoolworthsPaths(plan.product.category_paths, plan.product.name);
           return {
             id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name,
             slug: `${slugifyProductName(plan.product.name)}-${plan.product.stockcode}`,

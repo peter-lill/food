@@ -37,6 +37,12 @@ assert.match(bridge, /enqueue_woolworths_collection_categories\(outcome\.get\("s
 assert.match(bridge, /def migrate_woolworths_collection_categories[\s\S]*DELETE FROM woolworths_category_collection WHERE category_path = \?/, "persisted obsolete roots must not leave collection status permanently failed");
 assert.match(bridge, /revisitCompletedRoots/, "previously completed roots must be safely revisitible to seed descendants");
 assert.match(bridge, /WHERE state = 'completed' AND category_path IN/, "revisiting roots must not reset completed descendants");
+assert.match(bridge, /CREATE TABLE IF NOT EXISTS woolworths_product_categories/, "every observed Woolworths category path must be retained per stockcode");
+assert.match(bridge, /PRIMARY KEY \(stockcode, category_path\)/, "a stockcode may be associated with multiple source category paths without duplicates");
+assert.match(bridge, /INSERT INTO woolworths_product_categories[\s\S]*ON CONFLICT\(stockcode, category_path\)/, "category observations must be safely refreshable");
+assert.match(bridge, /product\["category_paths"\]/, "controlled imports must receive all source category paths for each stockcode");
+assert.match(bridge, /revisitAllCompleted/, "the collector must support a full completed-category rescan for source reindexing");
+assert.match(bridge, /WHERE state = 'completed'\n\s*"""/, "a full rescan must revisit every completed category, not only roots");
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");

@@ -10,6 +10,7 @@ export type CachedWoolworthsProduct = {
   pack_size: string | null;
   image_url: string | null;
   category_path: string;
+  category_paths: string[];
   in_stock: number | boolean;
   brand: string | null;
   description: string | null;
@@ -60,14 +61,43 @@ function productDepartmentOverride(name: string): { category: string; productTyp
   return null;
 }
 
-export function categoryForWoolworthsPath(path: string, productName = ""): { category: string; productType: ProductType } {
+function woolworthsCategorySegments(path: string) {
   const segments = path
     .toLocaleLowerCase("en-AU")
     .split("/")
     .map((segment) => segment.trim())
     .filter(Boolean);
   const browseIndex = segments.indexOf("browse");
-  const categorySegments = browseIndex >= 0 ? segments.slice(browseIndex + 1) : segments;
+  return browseIndex >= 0 ? segments.slice(browseIndex + 1) : segments;
+}
+
+/**
+ * A SKU can occur in more than one Woolworths browse page. Prefer the most
+ * specific source department rather than whichever page happened to refresh
+ * last. Product-name safeguards still resolve known cross-department leakage.
+ */
+export function canonicalWoolworthsCategoryPath(paths: readonly string[]): string | null {
+  const unique = [...new Set(paths.map((path) => path.trim()).filter(Boolean))];
+  if (!unique.length) return null;
+  return unique.sort((left, right) => {
+    const score = (path: string) => {
+      const segments = woolworthsCategorySegments(path);
+      const [root, ...descendants] = segments;
+      const base = {
+        pet: 1000, baby: 900, freezer: 800, "meat-seafood-deli": 700,
+        "fruit-veg": 700, "dairy-eggs-fridge": 700, bakery: 700,
+        "cleaning-maintenance": 700, beauty: 700, drinks: 600, liquor: 600,
+        pantry: 500,
+      }[root] ?? 0;
+      const confectioneryBoost = root === "pantry" && descendants.some((segment) => /(?:^|-)(?:confectionery|chocolate|lollies)(?:-|$)/.test(segment)) ? 70 : 0;
+      return base + confectioneryBoost + descendants.length;
+    };
+    return score(right) - score(left) || right.length - left.length || left.localeCompare(right, "en-AU");
+  })[0];
+}
+
+export function categoryForWoolworthsPath(path: string, productName = ""): { category: string; productType: ProductType } {
+  const categorySegments = woolworthsCategorySegments(path);
   const [root] = categorySegments;
   const descendantSegments = categorySegments.slice(1);
   const productOverride = productDepartmentOverride(productName);
@@ -97,6 +127,11 @@ export function categoryForWoolworthsPath(path: string, productName = ""): { cat
   return { category: "Other", productType: ProductType.OTHER };
 }
 
+export function categoryForWoolworthsPaths(paths: readonly string[], productName = "") {
+  const path = canonicalWoolworthsCategoryPath(paths);
+  return path ? categoryForWoolworthsPath(path, productName) : { category: "Other", productType: ProductType.OTHER };
+}
+
 export function shelfForWoolworthsPath(path: string) {
   const segments = path
     .toLocaleLowerCase("en-AU")
@@ -109,6 +144,11 @@ export function shelfForWoolworthsPath(path: string) {
   return sourceSubcategory
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (character) => character.toLocaleUpperCase("en-AU"));
+}
+
+export function shelfForWoolworthsPaths(paths: readonly string[]) {
+  const path = canonicalWoolworthsCategoryPath(paths);
+  return path ? shelfForWoolworthsPath(path) : null;
 }
 
 export function importEligibility(product: CachedWoolworthsProduct): { eligible: boolean; reason: string | null } {

@@ -609,6 +609,25 @@ def catalogue_connection() -> sqlite3.Connection:
             connection.execute(f"ALTER TABLE woolworths_products ADD COLUMN {name} {column_type}")
     connection.execute("CREATE INDEX IF NOT EXISTS woolworths_products_search ON woolworths_products(search_text)")
     connection.execute("""
+        CREATE TABLE IF NOT EXISTS woolworths_product_categories (
+          stockcode TEXT NOT NULL,
+          category_path TEXT NOT NULL,
+          first_seen_at INTEGER NOT NULL,
+          last_seen_at INTEGER NOT NULL,
+          PRIMARY KEY (stockcode, category_path)
+        )
+    """)
+    connection.execute("""
+        INSERT OR IGNORE INTO woolworths_product_categories
+          (stockcode, category_path, first_seen_at, last_seen_at)
+        SELECT stockcode, category_path, refreshed_at, refreshed_at
+        FROM woolworths_products
+    """)
+    connection.execute("""
+        CREATE INDEX IF NOT EXISTS woolworths_product_categories_category
+        ON woolworths_product_categories(category_path, stockcode)
+    """)
+    connection.execute("""
         CREATE TABLE IF NOT EXISTS woolworths_category_collection (
           category_path TEXT PRIMARY KEY,
           state TEXT NOT NULL CHECK(state IN ('pending', 'running', 'completed', 'failed')),
@@ -666,6 +685,13 @@ def cache_woolworths_category(category_path: str, payload: object) -> int:
                 int(bool(source.get("IsOnSpecial") or source.get("InstoreIsOnSpecial"))),
                 int(source.get("IsInStock") is not False), refreshed_at,
             ))
+            connection.execute("""
+                INSERT INTO woolworths_product_categories
+                  (stockcode, category_path, first_seen_at, last_seen_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(stockcode, category_path) DO UPDATE SET
+                  last_seen_at=excluded.last_seen_at
+            """, (stockcode, category_path, refreshed_at, refreshed_at))
             cached += 1
     return cached
 
@@ -908,11 +934,12 @@ class WoolworthsCatalogueCollector:
         max_categories: int | None,
         retry_failed: bool,
         revisit_completed_roots: bool = False,
+        revisit_all_completed: bool = False,
     ) -> bool:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 return False
-            if retry_failed or revisit_completed_roots:
+            if retry_failed or revisit_completed_roots or revisit_all_completed:
                 with catalogue_session() as connection:
                     if retry_failed:
                         connection.execute(
@@ -925,6 +952,12 @@ class WoolworthsCatalogueCollector:
                                 WHERE state = 'completed' AND category_path IN ({placeholders})""",
                             WOOLWORTHS_COLLECTION_CATEGORIES,
                         )
+                    if revisit_all_completed:
+                        connection.execute("""
+                            UPDATE woolworths_category_collection
+                            SET state = 'pending', last_error = NULL
+                            WHERE state = 'completed'
+                        """)
             self._thread = threading.Thread(
                 target=self._collect,
                 args=(max_categories,),
@@ -1003,7 +1036,11 @@ def woolworths_cached_products(limit: int, offset: int, category_path: str | Non
     never trigger a live Woolworths search while Food is deciding whether an
     item is safe to attach to the canonical catalogue.
     """
-    where = "WHERE category_path = ?" if category_path else ""
+    where = """WHERE EXISTS (
+        SELECT 1 FROM woolworths_product_categories AS category
+        WHERE category.stockcode = woolworths_products.stockcode
+          AND category.category_path = ?
+    )""" if category_path else ""
     parameters: tuple[object, ...] = (category_path, limit, offset) if category_path else (limit, offset)
     with catalogue_session() as connection:
         rows = connection.execute(
@@ -1012,9 +1049,21 @@ def woolworths_cached_products(limit: int, offset: int, category_path: str | Non
                  LIMIT ? OFFSET ?""",
             parameters,
         ).fetchall()
+        stockcodes = [row["stockcode"] for row in rows]
+        category_rows = connection.execute(
+            f"""SELECT stockcode, category_path
+                 FROM woolworths_product_categories
+                 WHERE stockcode IN ({", ".join("?" for _ in stockcodes)})
+                 ORDER BY category_path""",
+            stockcodes,
+        ).fetchall() if stockcodes else []
+    category_paths_by_stockcode: dict[str, list[str]] = {}
+    for category_row in category_rows:
+        category_paths_by_stockcode.setdefault(category_row["stockcode"], []).append(category_row["category_path"])
     products: list[dict] = []
     for row in rows:
         product = dict(row)
+        product["category_paths"] = category_paths_by_stockcode.get(product["stockcode"], [product["category_path"]])
         for field in ("allergens", "nutrition", "dietary_claims", "additional_images"):
             try:
                 product[field] = json.loads(product[field]) if product[field] else None
@@ -1434,8 +1483,9 @@ class Handler(BaseHTTPRequestHandler):
                     return
                 retry_failed = (params.get("retryFailed") or ["0"])[0].strip().lower() in ("1", "true", "yes")
                 revisit_completed_roots = (params.get("revisitCompletedRoots") or ["0"])[0].strip().lower() in ("1", "true", "yes")
+                revisit_all_completed = (params.get("revisitAllCompleted") or ["0"])[0].strip().lower() in ("1", "true", "yes")
                 started = _woolworths_catalogue_collector.start(
-                    requested_max or None, retry_failed, revisit_completed_roots,
+                    requested_max or None, retry_failed, revisit_completed_roots, revisit_all_completed,
                 )
                 if not started:
                     self.send_json(409, {"status": "error", "error": "Woolworths catalogue collection is already running", "collection": woolworths_collection_status()})
@@ -1443,6 +1493,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(202, {
                     "status": "accepted", "maxCategories": requested_max or None,
                     "retryFailed": retry_failed, "revisitCompletedRoots": revisit_completed_roots,
+                    "revisitAllCompleted": revisit_all_completed,
                     "collection": woolworths_collection_status(),
                 })
                 return
