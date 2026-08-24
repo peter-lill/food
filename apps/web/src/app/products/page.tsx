@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { getProductHubList } from "@/lib/products/product-hub.repository";
 import { productDepartment } from "@/lib/products/product-category";
-import { heroProductDescription } from "@/lib/products/product-description";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
 import departmentStyles from "./department-artwork.module.css";
@@ -243,7 +242,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             const observed = observedLabel(product.latestObservedAt);
             const family = product.variantCount > 1;
             const generic = isGenericFood(product);
-            const detailLine = family || generic ? null : heroProductDescription(product.description, product.brand);
+            const detailLine = family || generic ? null : product.brand;
             const productImage = !family && product.imageUrl
               ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
               : null;

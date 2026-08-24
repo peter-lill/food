@@ -56,6 +56,7 @@ assert.match(
   /tx\.product\.updateMany\([\s\S]*data: \{ category: group\.category, productType: group\.productType \}/,
   "retained product repairs must update both canonical category and product type",
 );
-assert.match(productHubSource, /heroProductDescription\(product\.description, product\.brand\)/, "product cards must show a meaningful description rather than a brand fallback");
+assert.doesNotMatch(productHubSource, /heroProductDescription/, "product cards must leave detailed retailer copy on the individual product page");
+assert.match(productHubSource, /const detailLine = family \|\| generic \? null : product\.brand;/, "specific product cards may show the brand without rendering detailed instructions");
 
 console.log("Woolworths controlled-import safeguards passed.");
