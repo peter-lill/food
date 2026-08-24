@@ -109,6 +109,9 @@ assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retai
 assert.match(productPageSource, /priceObservationKind\(observation\.source\)/, "recent price history must translate internal ingestion identifiers before rendering");
 assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent price history must never render internal ingestion identifiers");
 assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalogue must build a complete department index instead of relying on its first page of products");
+assert.match(productHubSource, /getProductHubRecordCount/, "the catalogue header must have an unpaged product-record count separate from its family view");
+assert.match(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the catalogue header must display the actual product-record count");
+assert.match(productCatalogueSource, /families in this view/, "the catalogue must distinguish the current collapsed-family result from the product-record count");
 assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected department must be browsable beyond the alphabetical default page");
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
 assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
