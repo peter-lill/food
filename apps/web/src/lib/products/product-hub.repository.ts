@@ -129,6 +129,36 @@ export function displayShelfLabel(aisle: string | null | undefined) {
 }
 
 /**
+ * A product family can have several retailer variants. Keep the most specific
+ * Woolworths shelf rather than whichever variant happens to sort first: for
+ * example, `Deli meat` must replace the intermediate `Deli` shelf.
+ */
+export function preferMoreSpecificShelfLabel(
+  current: string | null | undefined,
+  candidate: string | null | undefined,
+  department: string | null | undefined,
+) {
+  if (!candidate) return current ?? null;
+  if (!current) return candidate;
+
+  const normalise = (value: string) => value
+    .toLocaleLowerCase("en-AU")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const currentNormalised = normalise(current);
+  const candidateNormalised = normalise(candidate);
+  if (currentNormalised === candidateNormalised) return current;
+
+  const departmentNormalised = department ? normalise(department) : "";
+  const specificity = (value: string) => {
+    if (value === departmentNormalised) return 0;
+    return value.split(" ").filter(Boolean).length;
+  };
+  return specificity(candidateNormalised) > specificity(currentNormalised) ? candidate : current;
+}
+
+/**
  * Prefer an authoritative legacy Woolworths browse path over a historical
  * name-derived department until the controlled importer has persisted it.
  */
@@ -205,9 +235,16 @@ function canonicalProduceFamily(value: string) {
   return null;
 }
 
-function productFamilyName(value: string) {
+function removeTrailingUnitQualifier(value: string) {
+  return value
+    .replace(/\bper(?:\s+\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l))?\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+export function productFamilyName(value: string) {
   const identity = identifyGrocery(value);
-  if (identity) return identity.family ?? identity.canonicalName;
+  if (identity) return removeTrailingUnitQualifier(identity.family ?? identity.canonicalName);
 
   const cleaned = value
     .replace(/^\s*(?:qty\s*)?\d+\s*[xÃ—]\s*/i, "")
@@ -223,7 +260,7 @@ function productFamilyName(value: string) {
   const produceFamily = canonicalProduceFamily(cleaned);
   if (produceFamily) return produceFamily;
 
-  return cleaned ? titleCase(cleaned) : titleCase(value.trim());
+  return cleaned ? titleCase(removeTrailingUnitQualifier(cleaned)) : titleCase(removeTrailingUnitQualifier(value));
 }
 
 function identityText(product: { name: string; canonicalName: string | null }) {
@@ -438,7 +475,11 @@ export async function getProductHubList(query?: string, department?: Supermarket
     current.retailerCount = familyRetailers.size;
     const woolworthsAisle = product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle;
     current.category = product.category ?? departmentFromLegacyWoolworthsPath(woolworthsAisle) ?? current.category;
-    current.shelfLabel ??= displayShelfLabel(woolworthsAisle);
+    current.shelfLabel = preferMoreSpecificShelfLabel(
+      current.shelfLabel,
+      displayShelfLabel(woolworthsAisle),
+      current.category,
+    );
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
@@ -30,6 +30,16 @@ assert.equal(
   displayShelfLabel("/shop/browse/freezer/frozen-meals"),
   "Frozen Meals",
   "legacy Woolworths browse paths must render as a human shelf label",
+);
+assert.equal(
+  preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
+  "Deli Meat",
+  "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",
+);
+assert.equal(
+  productFamilyName("D'Orsogna Premium Ham The Bone Shaved From The Deli Per 100g"),
+  "Dorsogna Premium Ham The Bone Shaved From The Deli",
+  "removing a deli weight must not leave a dangling Per in the displayed family name",
 );
 assert.equal(
   departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
@@ -101,6 +111,7 @@ assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent
 assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalogue must build a complete department index instead of relying on its first page of products");
 assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected department must be browsable beyond the alphabetical default page");
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
+assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
