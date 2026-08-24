@@ -12,6 +12,7 @@ import {
 import { assessProductImage, type ProductImageAssessment } from "@/lib/products/image-quality";
 import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
 import { isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
+import { makeCandidatePrimaryAsset } from "@/lib/images/image-asset.service";
 import {
   markSelectedCandidate,
   recordCandidateAssessment,
@@ -442,6 +443,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
       },
     });
     await markSelectedCandidate(product.id, candidateId);
+    await makeCandidatePrimaryAsset(product.id, candidateId);
     diagnostics.selectedSource = candidate.source;
     return { imageUrl: candidate.url, status: "selected" as const, diagnostics };
   }
