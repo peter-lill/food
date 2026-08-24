@@ -178,11 +178,31 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
   `);
 }
 
+async function updateExistingProductClassifications(tx: Prisma.TransactionClient, plans: Plan[]) {
+  const groups = new Map<string, { category: string; productType: ReturnType<typeof categoryForWoolworthsPath>["productType"]; productIds: Set<string> }>();
+  for (const plan of plans) {
+    if (!plan.productId) continue;
+    const mapped = categoryForWoolworthsPath(plan.product.category_path);
+    if (mapped.category === "Other") continue;
+    const key = `${mapped.category}\u0000${mapped.productType}`;
+    const group = groups.get(key) ?? { ...mapped, productIds: new Set<string>() };
+    group.productIds.add(plan.productId);
+    groups.set(key, group);
+  }
+  for (const group of groups.values()) {
+    await tx.product.updateMany({
+      where: { id: { in: [...group.productIds] } },
+      data: { category: group.category, productType: group.productType },
+    });
+  }
+}
+
 async function attachPage(plans: Plan[]) {
   const applicable = plans.filter((plan) => plan.disposition !== "skip");
   const createdProducts = applicable.filter((plan) => plan.disposition === "create");
   const createdListings = applicable.filter((plan) => plan.disposition !== "retain");
   const existingListings = applicable.filter((plan) => plan.disposition === "retain");
+  const existingProducts = applicable.filter((plan) => plan.disposition !== "create");
   return prisma.$transaction(async (tx) => {
     if (createdProducts.length) {
       await tx.product.createMany({
@@ -208,6 +228,7 @@ async function attachPage(plans: Plan[]) {
       });
     }
     await updateExistingListings(tx, existingListings);
+    await updateExistingProductClassifications(tx, existingProducts);
     const priceObservations = applicable.filter((plan) => plan.product.price !== null);
     if (priceObservations.length) {
       await tx.priceObservation.createMany({
