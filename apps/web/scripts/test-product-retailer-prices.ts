@@ -6,12 +6,15 @@ import { heroProductDescription } from "../src/lib/products/product-description"
 
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
 const productHubStyles = readFileSync(new URL("../src/app/products/products-hub.module.css", import.meta.url), "utf8");
+const productHubSource = readFileSync(new URL("../src/lib/products/product-hub.repository.ts", import.meta.url), "utf8");
 
 assert.doesNotMatch(
   productPageSource,
   /Â|Ã|â€|â†/,
   "the product page must not contain mojibake artefacts",
 );
+assert.match(productHubSource, /category: product\.category \?\? sourceDepartment/, "a family must start from its canonical category, not an incidental retailer aisle");
+assert.match(productHubSource, /current\.category = product\.category \?\? departmentFromLegacyWoolworthsPath\(woolworthsAisle\) \?\? current\.category/, "every family variant must be able to replace an older incidental category with its canonical category");
 
 assert.equal(
   bestProductImage(null, [], true),
