@@ -6,6 +6,7 @@ import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import {
   categoryForWoolworthsPath,
+  shelfForWoolworthsPath,
   canonicalWoolworthsDescription,
   cleanBarcode,
   importEligibility,
@@ -139,7 +140,7 @@ function listingData(plan: Plan) {
   return {
     retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
     productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-    imageUrl: product.image_url, active: true, lastSeenAt: new Date(),
+    imageUrl: product.image_url, aisle: shelfForWoolworthsPath(product.category_path), active: true, lastSeenAt: new Date(),
   };
 }
 
@@ -147,7 +148,7 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
   if (!plans.length) return;
   const rows = plans.map((plan) => {
     const data = listingData(plan);
-    return Prisma.sql`(${plan.storeProductId!}, ${data.retailerProductName}, ${data.brand}, ${data.packSize}, ${data.productUrl}, ${data.imageUrl}, ${data.active}, ${data.lastSeenAt})`;
+    return Prisma.sql`(${plan.storeProductId!}, ${data.retailerProductName}, ${data.brand}, ${data.packSize}, ${data.productUrl}, ${data.imageUrl}, ${data.aisle}, ${data.active}, ${data.lastSeenAt})`;
   });
   await tx.$executeRaw(Prisma.sql`
     UPDATE "StoreProduct" AS target
@@ -157,10 +158,11 @@ async function updateExistingListings(tx: Prisma.TransactionClient, plans: Plan[
       "packSize" = source."packSize",
       "productUrl" = source."productUrl",
       "imageUrl" = source."imageUrl",
+      "aisle" = source."aisle",
       "active" = source."active"::boolean,
       "lastSeenAt" = source."lastSeenAt"::timestamp
     FROM (VALUES ${Prisma.join(rows)}) AS source(
-      "id", "retailerProductName", "brand", "packSize", "productUrl", "imageUrl", "active", "lastSeenAt"
+      "id", "retailerProductName", "brand", "packSize", "productUrl", "imageUrl", "aisle", "active", "lastSeenAt"
     )
     WHERE target."id" = source."id"
   `);

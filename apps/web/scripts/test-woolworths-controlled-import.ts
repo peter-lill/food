@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ProductType } from "@prisma/client";
-import { canonicalWoolworthsDescription, categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
+import { canonicalWoolworthsDescription, categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, shelfForWoolworthsPath, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const product: CachedWoolworthsProduct = {
@@ -12,6 +12,8 @@ const product: CachedWoolworthsProduct = {
 };
 
 assert.deepEqual(categoryForWoolworthsPath(product.category_path), { category: "Dairy & eggs", productType: ProductType.DAIRY });
+assert.equal(shelfForWoolworthsPath("/shop/browse/pantry/jelly"), "Jelly");
+assert.equal(shelfForWoolworthsPath("/shop/browse/pantry"), null);
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/freezer/frozen-meals"), { category: "Frozen", productType: ProductType.FROZEN });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/meat/beef"), { category: "Meat & seafood", productType: ProductType.FRESH_MEAT });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/seafood/fish"), { category: "Meat & seafood", productType: ProductType.SEAFOOD });

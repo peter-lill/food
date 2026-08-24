@@ -22,6 +22,7 @@ export type ProductHubListItem = {
   brand: string | null;
   description: string | null;
   category: string | null;
+  shelfLabel: string | null;
   productType: string;
   imageUrl: string | null;
   barcode: string | null;
@@ -276,7 +277,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
           },
         },
       },
-      storeProducts: { select: { retailer: true, imageUrl: true } },
+      storeProducts: { select: { retailer: true, imageUrl: true, aisle: true } },
       priceObservations: {
         orderBy: { observedAt: "desc" },
         take: 12,
@@ -341,6 +342,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
         brand: product.brand,
         description: heroProductDescription(product.description, product.brand),
         category: product.category,
+        shelfLabel: product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle ?? null,
         productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
         barcode: product.barcode,
@@ -367,6 +369,7 @@ export async function getProductHubList(query?: string): Promise<ProductHubListI
     current.pantryQuantity += product.inventoryItems.reduce((total, item) => total + item.quantity, 0);
     current.retailerCount = familyRetailers.size;
     current.category ??= product.category;
+    current.shelfLabel ??= product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle ?? null;
     if (isGeneric) {
       current.name = familyName;
       current.category = product.category;

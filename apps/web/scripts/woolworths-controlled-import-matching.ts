@@ -80,6 +80,20 @@ export function categoryForWoolworthsPath(path: string): { category: string; pro
   return { category: "Other", productType: ProductType.OTHER };
 }
 
+export function shelfForWoolworthsPath(path: string) {
+  const segments = path
+    .toLocaleLowerCase("en-AU")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const browseIndex = segments.indexOf("browse");
+  const sourceSubcategory = browseIndex >= 0 ? segments.slice(browseIndex + 2).at(-1) : null;
+  if (!sourceSubcategory) return null;
+  return sourceSubcategory
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (character) => character.toLocaleUpperCase("en-AU"));
+}
+
 export function importEligibility(product: CachedWoolworthsProduct): { eligible: boolean; reason: string | null } {
   if (!/^\d{4,12}$/.test(product.stockcode)) return { eligible: false, reason: "missing authoritative Woolworths stockcode" };
   if (normaliseProductText(product.name).length < 3) return { eligible: false, reason: "missing usable product name" };
