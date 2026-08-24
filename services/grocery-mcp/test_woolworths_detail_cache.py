@@ -47,6 +47,23 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "category API response was not observed"):
             self.bridge.completed_woolworths_browse_payload([], [])
 
+    def test_stable_navigation_only_category_finishes_before_session_timeout(self) -> None:
+        children = ["/shop/browse/health-beauty/health"]
+
+        self.assertFalse(self.bridge.woolworths_browse_page_is_ready([], children, 3))
+        self.assertTrue(self.bridge.woolworths_browse_page_is_ready([], children, 4))
+        self.assertFalse(self.bridge.woolworths_browse_page_is_ready([], [], 4))
+        maximum_work_seconds = (
+            self.bridge.WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
+            + self.bridge.WOOLWORTHS_CATEGORY_SCROLL_ROUNDS
+            * self.bridge.WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS
+            / 1000
+        )
+        self.assertGreater(
+            self.bridge.WOOLWORTHS_CATEGORY_SESSION_SECONDS,
+            maximum_work_seconds,
+        )
+
     def test_rich_detail_fields_are_cached_without_erasing_catalogue_identity(self) -> None:
         self.bridge.cache_woolworths_category("/shop/browse/dairy-eggs-fridge/milk", {
             "Products": [{

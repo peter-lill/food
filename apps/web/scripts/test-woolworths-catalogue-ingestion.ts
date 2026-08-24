@@ -26,8 +26,9 @@ assert.ok(retainResponse >= 0 && finishResponse >= 0 && decodeResponse > finishR
 assert.match(bridge, /category API response was observed but could not be decoded/, "response decoding failures must not masquerade as missing network responses");
 assert.match(bridge, /browse_page = context\.new_page\(\)/, "every category refresh must use a fresh page so same-category application state cannot suppress the API request");
 assert.match(bridge, /finally:[\s\S]*browse_page\.close\(\)/, "the isolated category page must be closed without disturbing the user's verified tab");
-assert.match(bridge, /for _ in range\(60\):[\s\S]*wait_for_timeout\(750\)/, "category capture must allow lazy pages to request every observed response");
-assert.match(bridge, /stable_rounds >= 4/, "an empty application shell must never be mistaken for a completed category response");
+assert.match(bridge, /WOOLWORTHS_CATEGORY_SESSION_SECONDS = \([\s\S]*WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS[\s\S]*WOOLWORTHS_CATEGORY_SCROLL_ROUNDS[\s\S]*\+ 30/, "the caller timeout must exceed the maximum navigation and scrolling work");
+assert.match(bridge, /for _ in range\(WOOLWORTHS_CATEGORY_SCROLL_ROUNDS\):[\s\S]*wait_for_timeout\(WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS\)/, "category capture must allow lazy pages to request every observed response");
+assert.match(bridge, /stable_rounds >= 4 and bool\(captured_responses or descendants\)/, "a stable navigation-only root must finish once descendant links are available");
 assert.match(bridge, /document\.querySelectorAll\('a\[href\]'\)[\s\S]*subcategories/, "category browsing must discover valid descendant browse paths");
 assert.match(bridge, /if not captured_responses:[\s\S]*if descendants:[\s\S]*categoryResponses["']:\s*\[\]/, "navigation-only category roots must seed their descendants without fabricating product responses");
 assert.match(bridge, /enqueue_woolworths_collection_categories\(outcome\.get\("subcategories", \[\]\)\)/, "the collector must enqueue discovered descendants during the same resumable run");
