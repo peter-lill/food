@@ -1,17 +1,22 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ProductType } from "@prisma/client";
-import { canonicalWoolworthsDescription, categoryForWoolworthsPath, cleanBarcode, hasSuspiciousLabelTail, importEligibility, shelfForWoolworthsPath, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
+import { canonicalWoolworthsCategoryPath, canonicalWoolworthsDescription, categoryForWoolworthsPath, categoryForWoolworthsPaths, cleanBarcode, hasSuspiciousLabelTail, importEligibility, shelfForWoolworthsPath, shelfForWoolworthsPaths, type CachedWoolworthsProduct } from "./woolworths-controlled-import-matching";
 import { heroProductDescription } from "../src/lib/products/product-description";
 
 const product: CachedWoolworthsProduct = {
   stockcode: "238473", barcode: "9300632064205", name: "Example Full Cream Milk 2L", price: 3.5, is_special: false,
   pack_size: "2L", image_url: "https://cdn.example/milk.jpg", category_path: "/shop/browse/dairy-eggs-fridge/milk",
+  category_paths: ["/shop/browse/dairy-eggs-fridge/milk"],
   in_stock: 1, brand: "Example", description: "Milk", long_description: null, allergens: null, dietary_claims: null,
   detail_refreshed_at: 123,
 };
 
 assert.deepEqual(categoryForWoolworthsPath(product.category_path), { category: "Dairy & eggs", productType: ProductType.DAIRY });
+assert.equal(canonicalWoolworthsCategoryPath(["/shop/browse/pantry/snacks-confectionery", "/shop/browse/pet/dog-treats"]), "/shop/browse/pet/dog-treats");
+assert.equal(canonicalWoolworthsCategoryPath(["/shop/browse/pantry", "/shop/browse/pantry/snacks-confectionery/chocolate"]), "/shop/browse/pantry/snacks-confectionery/chocolate");
+assert.deepEqual(categoryForWoolworthsPaths(["/shop/browse/pantry/snacks-confectionery", "/shop/browse/freezer/ice-cream"], "Example Dessert"), { category: "Frozen", productType: ProductType.FROZEN });
+assert.equal(shelfForWoolworthsPaths(["/shop/browse/pantry", "/shop/browse/pantry/jelly"]), "Jelly");
 assert.equal(shelfForWoolworthsPath("/shop/browse/pantry/jelly"), "Jelly");
 assert.equal(shelfForWoolworthsPath("/shop/browse/pantry"), null);
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/freezer/frozen-meals"), { category: "Frozen", productType: ProductType.FROZEN });
@@ -58,6 +63,8 @@ assert.match(importerSource, /Skip reasons:/, "bulk previews must summarise why 
 assert.match(importerSource, /canonicalWoolworthsDescription/, "the importer must exclude brand-only Woolworths descriptions");
 assert.match(importerSource, /UPDATE "Product" AS target/, "retained listings must repair blank or brand-only canonical descriptions");
 assert.match(importerSource, /updateExistingProductClassifications/, "bulk apply must repair categories on retained Woolworths products");
+assert.match(importerSource, /categoryForWoolworthsPaths\(plan\.product\.category_paths/, "category reindexing must use every observed Woolworths source path");
+assert.match(importerSource, /shelfForWoolworthsPaths\(product\.category_paths\)/, "retailer shelves must use the selected source path");
 assert.match(
   importerSource,
   /tx\.product\.updateMany\([\s\S]*data: \{ category: group\.category, productType: group\.productType \}/,

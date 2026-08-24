@@ -106,6 +106,20 @@ without resetting already completed child categories:
 curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?revisitCompletedRoots=1&retryFailed=1'
 ```
 
+Every browse response is retained against its Woolworths stockcode, not just
+the last path that happened to refresh. After changing source-category mapping,
+revisit every completed category to rebuild those source-path associations
+before running the controlled importer again:
+
+```bash
+curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?revisitAllCompleted=1&retryFailed=1'
+```
+
+Wait for collection status to report no pending, running or failed categories,
+then run the full controlled import. The importer selects a deterministic,
+specific Woolworths source path for each stockcode and reindexes its canonical
+department and shelf accordingly.
+
 ### Controlled Woolworths canonical import
 
 The verified Woolworths cache is not automatically treated as Food's canonical
