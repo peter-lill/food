@@ -23,9 +23,9 @@ function FoodMark() {
     <img
       alt=""
       aria-hidden="true"
-      height="46"
-      src="/brand/food-mark.svg?v=20260802-3"
-      width="46"
+      height="64"
+      src="/brand/food-basket.webp?v=20260824-1"
+      width="64"
     />
   );
 }
@@ -127,7 +127,7 @@ export function AppShell({
       <aside aria-label="Food navigation panel" className="sidebar">
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home" title={sidebarCollapsed ? "Food home" : undefined}>
           <span className="wordmark-mark"><FoodMark /></span>
-          <span className="wordmark-copy"><small className="wordmark-eyebrow">YOUR KITCHEN</small><strong>Food</strong><small>Plan. Shop. Cook.</small></span>
+          <span className="wordmark-copy"><small className="wordmark-eyebrow">YOUR KITCHEN</small><strong>FOOD</strong><small className="wordmark-tagline">PLAN · SHOP · COOK</small></span>
         </Link>
         <nav className="side-nav" aria-label="Primary navigation">
           {desktopSections.map((group) => (
