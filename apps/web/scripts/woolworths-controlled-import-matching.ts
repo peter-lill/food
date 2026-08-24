@@ -47,16 +47,37 @@ export function hasSuspiciousLabelTail(name: string) {
 }
 
 export function categoryForWoolworthsPath(path: string): { category: string; productType: ProductType } {
-  const value = path.toLocaleLowerCase("en-AU");
-  if (value.includes("fruit-veg")) return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
-  if (value.includes("meat-seafood-deli/meat")) return { category: "Meat", productType: ProductType.FRESH_MEAT };
-  if (value.includes("meat-seafood-deli/seafood")) return { category: "Seafood", productType: ProductType.SEAFOOD };
-  if (value.includes("dairy-eggs-fridge")) return { category: "Dairy & eggs", productType: ProductType.DAIRY };
-  if (value.includes("bakery")) return { category: "Bakery", productType: ProductType.BAKERY };
-  if (value.includes("freezer")) return { category: "Frozen", productType: ProductType.FROZEN };
-  if (value.includes("cleaning-maintenance")) return { category: "Household", productType: ProductType.HOUSEHOLD };
-  if (value.includes("drinks")) return { category: "Drinks", productType: ProductType.BEVERAGE };
-  return { category: "Pantry", productType: ProductType.PACKAGED };
+  const segments = path
+    .toLocaleLowerCase("en-AU")
+    .split("/")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+  const browseIndex = segments.indexOf("browse");
+  const categorySegments = browseIndex >= 0 ? segments.slice(browseIndex + 1) : segments;
+  const [root] = categorySegments;
+  const descendantSegments = categorySegments.slice(1);
+
+  if (root === "fruit-veg") return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
+  if (root === "meat-seafood-deli") {
+    if (descendantSegments.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment))) return { category: "Deli", productType: ProductType.PACKAGED };
+    if (descendantSegments.some((segment) => /(?:^|-)seafood(?:-|$)/.test(segment))) return { category: "Meat & seafood", productType: ProductType.SEAFOOD };
+    return { category: "Meat & seafood", productType: ProductType.FRESH_MEAT };
+  }
+  if (root === "bakery") return { category: "Bakery", productType: ProductType.BAKERY };
+  if (root === "dairy-eggs-fridge") return { category: "Dairy & eggs", productType: ProductType.DAIRY };
+  if (root === "freezer") return { category: "Frozen", productType: ProductType.FROZEN };
+  if (root === "pantry") {
+    const confectionery = categorySegments.some((segment) => /(?:confectionery|chocolate|lollies)/.test(segment));
+    return confectionery
+      ? { category: "Confectionery", productType: ProductType.PACKAGED }
+      : { category: "Pantry", productType: ProductType.PACKAGED };
+  }
+  if (root === "drinks" || root === "liquor") return { category: "Drinks", productType: ProductType.BEVERAGE };
+  if (root === "beauty") return { category: "Health & personal care", productType: ProductType.PERSONAL_CARE };
+  if (root === "baby") return { category: "Baby", productType: ProductType.PACKAGED };
+  if (root === "cleaning-maintenance") return { category: "Household", productType: ProductType.HOUSEHOLD };
+  if (root === "pet") return { category: "Pet", productType: ProductType.PACKAGED };
+  return { category: "Other", productType: ProductType.OTHER };
 }
 
 export function importEligibility(product: CachedWoolworthsProduct): { eligible: boolean; reason: string | null } {
