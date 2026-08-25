@@ -71,6 +71,17 @@ def parse_coles_browse_document(raw: str) -> dict[str, Any]:
     return result
 
 
+def coles_browser_verification_error(body_text: object) -> str | None:
+    """Recognise Coles' visible browser-verification page before parsing it."""
+    visible = text(body_text)
+    if not visible:
+        return None
+    lower = visible.lower()
+    if "pardon our interruption" in lower and "made us think you were a bot" in lower:
+        return "Coles requires browser verification"
+    return None
+
+
 def image_url(value: object) -> str | None:
     if isinstance(value, str):
         return text(value)
@@ -201,6 +212,11 @@ class ColesBrowserSession:
                     page = context.new_page()
                     try:
                         page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+                        verification_error = coles_browser_verification_error(
+                            page.locator("body").inner_text(timeout=5_000)
+                        )
+                        if verification_error:
+                            raise RuntimeError(verification_error)
                         return page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
                     finally:
                         page.close()
