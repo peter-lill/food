@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -11,6 +12,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         os.environ["WOOLWORTHS_CATALOGUE_DB"] = str(Path(self.temporary.name) / "catalogue.sqlite3")
+        os.environ["COLES_CATALOGUE_DB"] = str(Path(self.temporary.name) / "coles-catalogue.sqlite3")
         supermarkets = types.ModuleType("src.supermarkets")
         supermarkets.COLES_DEFAULT_STORE_ID = "520"
         supermarkets.coles_search_products = lambda **_: {"status": "success", "results": []}
@@ -42,6 +44,33 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "categoryResponses": [],
             "subcategories": children,
         })
+
+    def test_coles_ssr_page_is_cached_with_the_visible_catalogue_total(self) -> None:
+        raw = json.dumps({"props": {"pageProps": {"searchResults": {
+            "noOfResults": 492,
+            "pageSize": 48,
+            "start": 0,
+            "results": [{
+                "id": 8112449,
+                "name": "Australian No Added Hormones Beef Mince Lean",
+                "brand": "Coles",
+                "size": "500g",
+                "availability": True,
+                "pricing": {"now": 8.50, "was": 10.00, "promotion": "Special"},
+                "imageUris": ["https://example.test/mince.jpg"],
+                "onlineHeirs": [{"name": "Meat & Seafood"}],
+            }],
+        }}}})
+        result = self.bridge.parse_coles_browse_document(raw)
+        self.assertEqual(result["noOfResults"], 492)
+        self.assertEqual(self.bridge.ColesBrowserSession().browse(
+            "/browse/meat-seafood", lambda _url: raw
+        ), 1)
+        products = self.bridge.coles_cached_products(10, 0)
+        self.assertEqual(products[0]["external_id"], "8112449")
+        self.assertEqual(products[0]["price"], 8.5)
+        self.assertTrue(products[0]["is_special"])
+        self.assertEqual(products[0]["category_paths"], ["Meat & Seafood"])
 
     def test_empty_category_without_api_or_descendants_still_fails(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "category API response was not observed"):

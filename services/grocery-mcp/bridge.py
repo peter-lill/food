@@ -16,6 +16,13 @@ from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
 
+from coles_catalogue import (
+    ColesBrowserSession,
+    cached_products as coles_cached_products,
+    parse_coles_browse_document,
+    status as coles_catalogue_status,
+)
+
 sys.path.insert(0, "/opt/grocery-mcp/upstream")
 
 from src.supermarkets import (  # noqa: E402
@@ -1437,6 +1444,9 @@ class Handler(BaseHTTPRequestHandler):
                 "lastDetailRefreshedAt": row["detail_refreshed_at"], "collection": collection,
             })
             return
+        if parsed.path == "/coles/catalogue/status":
+            self.send_json(200, {"status": "success", **coles_catalogue_status()})
+            return
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
@@ -1470,6 +1480,28 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if parsed.path != "/search":
+            if parsed.path == "/coles/catalogue/refresh":
+                category = (params.get("category") or [""])[0].strip()
+                try:
+                    products = ColesBrowserSession().browse(category)
+                except (ValueError, RuntimeError) as error:
+                    self.send_json(502, {"status": "error", "error": f"Coles category refresh failed: {error}"})
+                    return
+                self.send_json(200, {"status": "success", "category": category, "products": products})
+                return
+            if parsed.path == "/coles/catalogue/products":
+                try:
+                    limit = max(1, min(1000, int((params.get("limit") or ["30"])[0])))
+                    offset = max(0, int((params.get("offset") or ["0"])[0]))
+                except ValueError:
+                    self.send_json(400, {"status": "error", "error": "limit and offset must be whole numbers"})
+                    return
+                products = coles_cached_products(limit, offset)
+                self.send_json(200, {
+                    "status": "success", "products": products, "limit": limit,
+                    "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None,
+                })
+                return
             if parsed.path == "/woolworths/catalogue/collection/start":
                 if not WOOLWORTHS_CDP_URL:
                     self.send_json(409, {"status": "error", "error": "verified browser session is not configured; set WOOLWORTHS_CDP_URL"})
