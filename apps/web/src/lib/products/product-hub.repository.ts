@@ -352,6 +352,12 @@ export async function getProductDepartmentCounts(): Promise<ProductDepartmentCou
     .filter(({ productCount }) => productCount > 0);
 }
 
+export async function getProductHubRecordCount(): Promise<number> {
+  return prisma.product.count({
+    where: { lifecycle: { not: "ARCHIVED" } },
+  });
+}
+
 export async function getProductHubList(query?: string, department?: SupermarketDepartment): Promise<ProductHubListItem[]> {
   const search = query?.trim();
   const products = await prisma.product.findMany({

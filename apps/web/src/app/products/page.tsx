@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList } from "@/lib/products/product-hub.repository";
+import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
@@ -160,9 +160,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const { department: rawDepartment, q = "", view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
-  const [allProducts, departmentCounts] = await Promise.all([
+  const [allProducts, departmentCounts, productRecordCount] = await Promise.all([
     getProductHubList(q, department ?? undefined),
     getProductDepartmentCounts(),
+    getProductHubRecordCount(),
   ]);
 
   const counts: Record<ProductView, number> = {
@@ -212,9 +213,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <ProductActions />
         </div>
         <div className={styles.heroMetric}>
-          <span>Library</span><strong>{allProducts.length}</strong><small>known products</small>
+          <span>Library</span><strong>{productRecordCount.toLocaleString("en-AU")}</strong><small>catalogue products</small>
           <div className={styles.heroProgress}><span style={{ width: `${allProducts.length ? ((allProducts.length - counts["needs-details"]) / allProducts.length) * 100 : 0}%` }} /></div>
-          <small>{counts["needs-details"]} need more details</small>
+          <small>{allProducts.length.toLocaleString("en-AU")} families in this view · {counts["needs-details"]} need more details</small>
         </div>
       </section>
 
