@@ -27,6 +27,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         assert spec and spec.loader
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
+        self.coles_catalogue = sys.modules["coles_catalogue"]
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -71,6 +72,19 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(products[0]["price"], 8.5)
         self.assertTrue(products[0]["is_special"])
         self.assertEqual(products[0]["category_paths"], ["Meat & Seafood"])
+
+    def test_coles_browser_verification_page_is_reported_before_catalogue_parsing(self) -> None:
+        body = """
+            Pardon Our Interruption
+            As you were browsing something about your browser made us think you were a bot.
+            Please stand by.
+        """
+
+        self.assertEqual(
+            self.coles_catalogue.coles_browser_verification_error(body),
+            "Coles requires browser verification",
+        )
+        self.assertIsNone(self.coles_catalogue.coles_browser_verification_error("Browse Meat & Seafood"))
 
     def test_empty_category_without_api_or_descendants_still_fails(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "category API response was not observed"):
