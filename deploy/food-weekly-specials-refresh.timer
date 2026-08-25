@@ -1,0 +1,10 @@
+[Unit]
+Description=Run Food weekly specials refresh each Wednesday
+
+[Timer]
+OnCalendar=Wed *-*-* 05:30:00
+Persistent=true
+Unit=food-weekly-specials-refresh.service
+
+[Install]
+WantedBy=timers.target
