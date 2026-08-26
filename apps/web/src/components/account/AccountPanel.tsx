@@ -7,6 +7,7 @@ import { HealthConnectDevices } from "./HealthConnectDevices";
 import { HealthConnectPairing } from "./HealthConnectPairing";
 import { LocationPreferences } from "./LocationPreferences";
 import { RetailerStorePreferences } from "./RetailerStorePreferences";
+import type { SupportedRetailer } from "@/lib/retailers/retailer-preferences";
 import styles from "./account.module.css";
 
 type AccountPanelProps = {
@@ -15,7 +16,7 @@ type AccountPanelProps = {
   homePostcode: string;
   lockToHomeLocation: boolean;
   isOwner: boolean;
-  enabledRetailers: ("Coles" | "Woolworths")[];
+  enabledRetailers: SupportedRetailer[];
   preferredStores: Array<{ retailer: string; storeId: string; name: string; address: string | null; postcode: string | null; latitude: number | null; longitude: number | null }>;
 };
 
@@ -93,7 +94,7 @@ export function AccountPanel({
         <RetailerStorePreferences
           homePostcode={homePostcode}
           initialEnabled={enabledRetailers}
-          initialStores={preferredStores.filter((store): store is typeof store & { retailer: "Coles" | "Woolworths" } => store.retailer === "Coles" || store.retailer === "Woolworths")}
+          initialStores={preferredStores.filter((store): store is typeof store & { retailer: SupportedRetailer } => store.retailer === "Coles" || store.retailer === "Woolworths" || store.retailer === "ALDI")}
         />
       </div>
     </div>

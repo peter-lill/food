@@ -8,7 +8,7 @@ import { getSupermarketComparisonData } from "@/lib/prices/supermarket-compariso
 import type { SupermarketComparisonData } from "@/lib/prices/supermarket-comparison.types";
 import { requireAuthSession } from "@/lib/auth-session";
 import { prisma } from "@/lib/prisma";
-import { enabledRetailers, retailerSetupStatus } from "@/lib/retailers/retailer-preferences";
+import { enabledRetailers, retailerSetupStatus, type SupportedRetailer } from "@/lib/retailers/retailer-preferences";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,7 @@ const emptyComparisonData: SupermarketComparisonData = {
   latestCheckedAt: null,
 };
 
-async function loadPricesPageData(retailers: readonly ("Coles" | "Woolworths")[]) {
+async function loadPricesPageData(retailers: readonly SupportedRetailer[]) {
   const [historyResult, comparisonResult] = await Promise.allSettled([
     getReceiptPriceHistory(retailers),
     getSupermarketComparisonData(retailers),
