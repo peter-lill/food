@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
 
   const retailer = request.nextUrl.searchParams.get("retailer") ?? "";
   if (!isSupportedRetailer(retailer)) {
-    return NextResponse.json({ error: "Choose Coles or Woolworths." }, { status: 400 });
+    return NextResponse.json({ error: "Choose a supported retailer." }, { status: 400 });
   }
 
   const preference = await prisma.userPreference.findUnique({

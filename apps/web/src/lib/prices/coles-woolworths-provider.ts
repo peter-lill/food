@@ -3,7 +3,7 @@ import type { GroceryProviderResult } from "./providers/types";
 import type { SupermarketRetailer } from "./supermarket-comparison.types";
 
 export type RetailerCatalogueCandidate = {
-  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI">;
+  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI" | "Drakes">;
   productName: string;
   price: number | null;
   packSize: string | null;
@@ -351,7 +351,7 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
 
 export function toRetailerCatalogueCandidate(result: GroceryProviderResult): RetailerCatalogueCandidate | null {
   if (
-    (result.retailer !== "Coles" && result.retailer !== "Woolworths" && result.retailer !== "ALDI")
+    (result.retailer !== "Coles" && result.retailer !== "Woolworths" && result.retailer !== "ALDI" && result.retailer !== "Drakes")
     || !result.name.trim()
   ) return null;
 
@@ -371,7 +371,7 @@ export function toRetailerCatalogueCandidate(result: GroceryProviderResult): Ret
 
 export async function searchColesAndWoolworthsCatalogue(
   query: string,
-  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> } = {},
+  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI" | "Drakes">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI" | "Drakes", string>> } = {},
 ): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
@@ -398,7 +398,7 @@ export async function searchColesAndWoolworthsCatalogue(
 
 export async function searchColesAndWoolworths(
   query: string,
-  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> } = {},
+  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI" | "Drakes">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI" | "Drakes", string>> } = {},
 ): Promise<RetailerPriceCandidate[]> {
   const results = await searchColesAndWoolworthsCatalogue(query, options);
 

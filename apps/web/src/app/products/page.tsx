@@ -284,7 +284,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
               }, new Map<string, typeof departmentProducts>())]
                 .sort(([left], [right]) => left.startsWith("Other ") ? 1 : right.startsWith("Other ") ? -1 : left.localeCompare(right, "en-AU"))
                 .map(([shelfGroup, shelfProducts]) => (
-                <details className={departmentStyles.shelfGroup} key={shelfGroup}>
+                <details className={departmentStyles.shelfGroup} key={shelfGroup} open={Boolean(q)}>
                   <summary>
                     <h3>{shelfGroup}</h3>
                     <span>{shelfProducts.length} {shelfProducts.length === 1 ? "family" : "families"}</span>

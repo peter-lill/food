@@ -73,6 +73,26 @@ const aldiCandidate = toRetailerCatalogueCandidate({
 assert.equal(aldiCandidate?.retailer, "ALDI");
 assert.equal(aldiCandidate?.sourceUrl, "https://www.aldi.com.au/product/moser-roth-dark-chocolate-125g-000000000000173130");
 
+const drakesCandidate = toRetailerCatalogueCandidate({
+  retailer: "Drakes",
+  name: "Norco Full Cream Fresh Milk 2L",
+  price: 5.2,
+  wasPrice: null,
+  isSpecial: false,
+  promotion: null,
+  packSize: "2L",
+  unit: null,
+  store: "Drakes store 087",
+  barcode: null,
+  imageUrl: null,
+  productId: "norco-full-cream-fresh-milk-2l",
+  productUrl: "https://087.drakes.com.au/lines/norco-full-cream-fresh-milk-2l",
+  storeSpecific: true,
+  source: "coles-woolworths-mcp",
+});
+assert.equal(drakesCandidate?.retailer, "Drakes");
+assert.equal(drakesCandidate?.sourceUrl, "https://087.drakes.com.au/lines/norco-full-cream-fresh-milk-2l");
+
 const kitKatScore = identityScore(
   {
     id: "kitkat-aero-mint",
@@ -130,10 +150,15 @@ assert.match(bridgeSource, /method: 'POST'[\s\S]*credentials: 'include'/, "Woolw
 assert.match(bridgeSource, /sync_playwright[\s\S]*page\.goto[\s\S]*page\.evaluate/, "Woolworths establishes and reuses real browser state before calling its UI API");
 assert.match(bridgeSource, /ExcludeSearchTypes[\s\S]*EnableAdReRanking/, "Woolworths receives the complete current search payload");
 assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
+assert.match(bridgeSource, /DRAKES_DIRECTORY_URL/, "Drakes store selection reads the official public directory");
+assert.match(bridgeSource, /def search_drakes[\s\S]*selected Drakes store/, "Drakes price lookup stays tied to the selected store");
+assert.match(bridgeSource, /"storeSpecific": True/, "Drakes results declare their selected-store scope");
 assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");
 assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout, RuntimeError\)/, "Woolworths browser failures must open the circuit explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
 assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\)/, "live searches only include retailers enabled in the account");
+assert.match(shoppingPriceSearchRouteSource, /retailer === "Drakes"/, "Drakes joins live price searches only when enabled in the account");
+assert.match(shoppingPriceSearchRouteSource, /Boolean\(storeIds\.Drakes\)/, "Drakes is excluded until the shopper has selected its store");
 assert.match(shoppingPriceSearchRouteSource, /retailerProductUrl\(sourceRetailer, listing\?\.retailerProductName/, "cached retailer prices inherit their canonical listing URL");
 assert.doesNotMatch(shoppingPriceSearchRouteSource, /\[\.\.\.enabledPrimaryRetailers, "ALDI"\]/, "ALDI must not appear in a live price search until it is selected and supported");
 assert.match(livePriceSearchSource, /target="_blank"/, "live retailer matches provide an external product-page link when available");

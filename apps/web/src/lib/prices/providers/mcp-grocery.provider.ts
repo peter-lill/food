@@ -55,7 +55,7 @@ export class McpGroceryProvider implements GroceryProvider {
     const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
     if (!baseUrl) return [];
 
-    const requestedRetailers: Array<"Coles" | "Woolworths" | "ALDI" | null> = options.retailers ?? [null];
+    const requestedRetailers: Array<"Coles" | "Woolworths" | "ALDI" | "Drakes" | null> = options.retailers ?? [null];
     const searches = requestedRetailers.map(async (retailer) => {
       const url = new URL("/search", baseUrl);
       url.searchParams.set("q", query);
@@ -86,7 +86,7 @@ export class McpGroceryProvider implements GroceryProvider {
         return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
           const resultRetailer = text(item.retailer);
           const name = text(item.name);
-          if ((resultRetailer !== "Coles" && resultRetailer !== "Woolworths" && resultRetailer !== "ALDI") || !name) return [];
+          if ((resultRetailer !== "Coles" && resultRetailer !== "Woolworths" && resultRetailer !== "ALDI" && resultRetailer !== "Drakes") || !name) return [];
           return [{
             retailer: resultRetailer,
             name,

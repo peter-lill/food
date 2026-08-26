@@ -4,6 +4,7 @@ export const supportedRetailers = [
   { id: "Coles", defaultEnabled: true, requiresStore: true },
   { id: "Woolworths", defaultEnabled: true, requiresStore: true },
   { id: "ALDI", defaultEnabled: false, requiresStore: false },
+  { id: "Drakes", defaultEnabled: false, requiresStore: true },
 ] as const;
 
 export type SupportedRetailer = (typeof supportedRetailers)[number]["id"];
@@ -51,7 +52,8 @@ export function retailerNameMatches(preference: SupportedRetailer, retailerName:
   const normalised = retailerName.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
   if (preference === "Coles") return normalised.includes("coles");
   if (preference === "Woolworths") return normalised.includes("woolworths");
-  return normalised.includes("aldi");
+  if (preference === "ALDI") return normalised.includes("aldi");
+  return normalised.includes("drakes");
 }
 
 export function retailerSetupStatus(input: {
