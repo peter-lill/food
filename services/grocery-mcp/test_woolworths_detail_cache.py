@@ -110,6 +110,15 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "Coles requires browser verification",
         )
 
+    def test_firefox_browser_reports_a_compact_page_diagnostic_when_markup_changes(self) -> None:
+        message = self.coles_browser.missing_catalogue_data_error(
+            "Coles | Meat & Seafood",
+            "Meat & Seafood  " + "Fresh products " * 100,
+        )
+        self.assertIn("title='Coles | Meat & Seafood'", message)
+        self.assertIn("body='Meat & Seafood Fresh products", message)
+        self.assertLess(len(message), 850)
+
     def test_firefox_catalogue_engine_requires_a_configured_browser_session(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "COLES_FIREFOX_FETCH_URL"):
             self.coles_catalogue.ColesBrowserSession(
