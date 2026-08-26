@@ -33,6 +33,16 @@ def coles_verification_error(body: str) -> str | None:
     return None
 
 
+def missing_catalogue_data_error(title: str, body: str) -> str:
+    """Return a compact public-page diagnostic when Coles changes its markup."""
+    compact_body = " ".join(body.split())[:600]
+    compact_title = " ".join(title.split())[:120]
+    return (
+        "Coles browse page did not expose its catalogue data "
+        f"(title={compact_title!r}, body={compact_body!r})"
+    )
+
+
 def stop(_signum: int, _frame: object) -> None:
     global stopping
     stopping = True
@@ -105,12 +115,16 @@ def fetch_page(context: object, url: str) -> str:
     page = context.new_page()
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        verification_error = coles_verification_error(page.locator("body").inner_text(timeout=5_000))
+        body = page.locator("body").inner_text(timeout=5_000)
+        verification_error = coles_verification_error(body)
         if verification_error:
             raise RuntimeError(verification_error)
-        next_data = page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
+        try:
+            next_data = page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
+        except PlaywrightTimeoutError as error:
+            raise RuntimeError(missing_catalogue_data_error(page.title(), body)) from error
         if not next_data:
-            raise RuntimeError("Coles browse page did not expose its catalogue data")
+            raise RuntimeError(missing_catalogue_data_error(page.title(), body))
         return next_data
     finally:
         page.close()
