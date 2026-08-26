@@ -7,7 +7,6 @@ import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { importSupermarketPrices } from "@/lib/prices/supermarket-comparison.actions";
 import {
   initialSupermarketPriceActionState,
-  supermarketRetailers,
   type SupermarketComparisonData,
   type SupermarketPriceActionState,
   type SupermarketPriceView,
@@ -48,11 +47,11 @@ function itemMultiplier(item: SupermarketShoppingItem) {
   if (!item.quantity || item.quantity <= 1 || !countUnits.has(unit)) return 1;
   return Math.ceil(item.quantity);
 }
-function buildProductComparisons(prices: SupermarketPriceView[]) {
+function buildProductComparisons(prices: SupermarketPriceView[], retailers: readonly SupermarketRetailer[]) {
   const grouped = new Map<string, SupermarketPriceView[]>();
   for (const price of prices) { const key = normaliseName(price.productName); grouped.set(key, [...(grouped.get(key) ?? []), price]); }
   return [...grouped.entries()].map(([key, entries]): ProductComparison => {
-    const retailerPrices = supermarketRetailers.map((retailer) => {
+    const retailerPrices = retailers.map((retailer) => {
       const candidates = entries.filter((entry) => entry.retailer === retailer).sort((left, right) => comparisonValue(left) - comparisonValue(right) || left.price - right.price);
       return candidates[0] ? { retailer, price: candidates[0] } : null;
     }).filter((entry): entry is { retailer: SupermarketRetailer; price: SupermarketPriceView } => entry !== null)
@@ -62,9 +61,9 @@ function buildProductComparisons(prices: SupermarketPriceView[]) {
     return { key, name: entries[0].productName, retailerPrices, bestPrice, savings: roundMoney(comparisonValue(highest) - comparisonValue(bestPrice)) };
   }).sort((left, right) => left.name.localeCompare(right.name));
 }
-function compareShoppingItem(item: SupermarketShoppingItem, prices: SupermarketPriceView[]): ShoppingItemComparison {
+function compareShoppingItem(item: SupermarketShoppingItem, prices: SupermarketPriceView[], retailers: readonly SupermarketRetailer[]): ShoppingItemComparison {
   const multiplier = itemMultiplier(item);
-  const matches = supermarketRetailers.map((retailer) => {
+  const matches = retailers.map((retailer) => {
     const candidates = prices.filter((price) => price.retailer === retailer).map((price) => ({ price, score: matchScore(item.name, price.productName) }))
       .filter((candidate) => candidate.score > 0).sort((left, right) => right.score - left.score || comparisonValue(left.price) - comparisonValue(right.price));
     const selected = candidates[0]?.price;
@@ -75,14 +74,15 @@ function compareShoppingItem(item: SupermarketShoppingItem, prices: SupermarketP
 function FieldError({ state, field }: { state: SupermarketPriceActionState; field: string }) { const error = state.fieldErrors?.[field]; return error ? <small className="field-error">{error}</small> : null; }
 function CaptureSubmitButton() { const { pending } = useFormStatus(); return <button className="primary-button" disabled={pending} type="submit">{pending ? "Saving prices…" : "Add prices"}</button>; }
 
-function PriceCaptureForm() {
+function PriceCaptureForm({ retailers }: { retailers: readonly SupermarketRetailer[] }) {
   const [state, action] = useActionState(importSupermarketPrices, initialSupermarketPriceActionState);
+  if (!retailers.length) return null;
   return (
     <details className={`card ${styles.capture}`}>
       <summary>Add catalogue or shelf prices</summary>
       <div className={styles.captureIntro}><div><p className="eyebrow">PRICE CAPTURE</p><h2>Paste one or many prices</h2><p className="subtle">Use pipe-separated lines: product | shelf price | pack size | unit price | brand | special.</p></div><code>Milk | 3.20 | 2 L | 1.60 | Dairy Farmers | special</code></div>
       <form action={action} className={styles.captureForm}>
-        <label className="field"><span>Retailer</span><select aria-invalid={Boolean(state.fieldErrors?.retailer)} defaultValue="Woolworths" name="retailer" required>{supermarketRetailers.map((retailer) => <option key={retailer} value={retailer}>{retailer}</option>)}</select><FieldError field="retailer" state={state} /></label>
+        <label className="field"><span>Retailer</span><select aria-invalid={Boolean(state.fieldErrors?.retailer)} defaultValue={retailers[0] ?? ""} name="retailer" required>{retailers.map((retailer) => <option key={retailer} value={retailer}>{retailer}</option>)}</select><FieldError field="retailer" state={state} /></label>
         <label className="field"><span>Checked date <small>(optional)</small></span><input aria-invalid={Boolean(state.fieldErrors?.checkedAt)} name="checkedAt" type="date" /><FieldError field="checkedAt" state={state} /></label>
         <label className={`field ${styles.linesField}`}><span>Price lines</span><textarea aria-invalid={Boolean(state.fieldErrors?.lines)} name="lines" placeholder={"Milk | 3.20 | 2 L | 1.60 | Dairy Farmers | special\nSalmon portions | 12.00 | 500 g | 2.40 |  |"} required rows={7} /><FieldError field="lines" state={state} /></label>
         {state.status !== "idle" ? <p className={`form-message ${state.status}`} role={state.status === "error" ? "alert" : "status"}>{state.message}</p> : null}
@@ -92,7 +92,7 @@ function PriceCaptureForm() {
   );
 }
 
-function ProductMode({ comparisons }: { comparisons: ProductComparison[] }) {
+function ProductMode({ comparisons, retailerCount }: { comparisons: ProductComparison[]; retailerCount: number }) {
   const [query, setQuery] = useState("");
   const filtered = comparisons.filter((comparison) => comparison.name.toLocaleLowerCase("en-AU").includes(query.trim().toLocaleLowerCase("en-AU")));
   return (
@@ -102,7 +102,7 @@ function ProductMode({ comparisons }: { comparisons: ProductComparison[] }) {
       : filtered.length === 0 ? <div className="pantry-empty"><strong>No products match this search.</strong><p>Try a broader product name.</p></div>
       : <div className={styles.productGrid}>{filtered.map((comparison) => (
         <article className={styles.productCard} key={comparison.key}>
-          <div className={styles.productTitle}><div><h3>{comparison.name}</h3><span>{comparison.retailerPrices.length} of {supermarketRetailers.length} retailers priced</span></div><span className="badge success"><span className="visually-hidden">Best retailer: {comparison.bestPrice.retailer}</span><RetailerLogo compact retailer={comparison.bestPrice.retailer} /></span></div>
+          <div className={styles.productTitle}><div><h3>{comparison.name}</h3><span>{comparison.retailerPrices.length} of {retailerCount} selected retailers priced</span></div><span className="badge success"><span className="visually-hidden">Best retailer: {comparison.bestPrice.retailer}</span><RetailerLogo compact retailer={comparison.bestPrice.retailer} /></span></div>
           <div className={styles.storeRows}>{comparison.retailerPrices.map(({ retailer, price }, index) => (
             <div className={index === 0 ? styles.bestStoreRow : styles.storeRow} key={`${comparison.key}-${retailer}`}>
               <div><strong><RetailerLogo compact retailer={retailer} /></strong><span>{price.brand || "Any brand"} · {price.packSize || "Pack size not recorded"}</span></div>
@@ -119,8 +119,8 @@ function ProductMode({ comparisons }: { comparisons: ProductComparison[] }) {
 function ShoppingListMode({ data }: { data: SupermarketComparisonData }) {
   const [selectedListId, setSelectedListId] = useState(data.shoppingLists[0]?.id ?? "");
   const selectedList = data.shoppingLists.find((list) => list.id === selectedListId) ?? data.shoppingLists[0];
-  const itemComparisons = useMemo(() => selectedList ? selectedList.items.map((item) => compareShoppingItem(item, data.prices)) : [], [data.prices, selectedList]);
-  const storeTotals = supermarketRetailers.map((retailer) => {
+  const itemComparisons = useMemo(() => selectedList ? selectedList.items.map((item) => compareShoppingItem(item, data.prices, data.retailers)) : [], [data.prices, data.retailers, selectedList]);
+  const storeTotals = data.retailers.map((retailer) => {
     const matches = itemComparisons.map((comparison) => comparison.matches.find((match) => match.retailer === retailer)).filter((match): match is ItemRetailerMatch => Boolean(match));
     return { retailer, total: roundMoney(matches.reduce((sum, match) => sum + match.estimate, 0)), matchedCount: matches.length, missingCount: itemComparisons.length - matches.length };
   });
@@ -151,12 +151,12 @@ function ShoppingListMode({ data }: { data: SupermarketComparisonData }) {
 
 export function SupermarketComparisonWorkspace({ data, loadError }: { data: SupermarketComparisonData; loadError: boolean }) {
   const [mode, setMode] = useState<ComparisonMode>("products");
-  const productComparisons = useMemo(() => buildProductComparisons(data.prices), [data.prices]);
+  const productComparisons = useMemo(() => buildProductComparisons(data.prices, data.retailers), [data.prices, data.retailers]);
   if (loadError) return <section className="pantry-error"><strong>Supermarket comparisons could not be loaded.</strong><p>Check the database connection and try again.</p></section>;
   return <div className={styles.workspace}>
     <section className={styles.summaryGrid}><article className="card"><p className="eyebrow">CURRENT PRICES</p><strong className={styles.summaryValue}>{data.priceCount}</strong><p>Latest retailer, product and pack observations.</p></article><article className="card"><p className="eyebrow">MATCHABLE PRODUCTS</p><strong className={styles.summaryValue}>{data.productCount}</strong><p>Normalised supermarket product names.</p></article><article className="card"><p className="eyebrow">SHOPPING LISTS</p><strong className={styles.summaryValue}>{data.shoppingLists.length}</strong><p>Lists available for whole-store estimates.</p></article><article className="card"><p className="eyebrow">LAST CHECKED</p><strong className={styles.summaryDate}>{checkedDate(data.latestCheckedAt)}</strong><p>Newest recorded supermarket observation.</p></article></section>
     <section className={`card ${styles.modeSwitch}`} aria-label="Comparison mode"><button className={mode === "products" ? styles.activeMode : ""} onClick={() => setMode("products")} type="button">Individual items</button><button className={mode === "list" ? styles.activeMode : ""} onClick={() => setMode("list")} type="button">Whole Shopping list</button></section>
-    {mode === "products" ? <ProductMode comparisons={productComparisons} /> : <ShoppingListMode data={data} />}
-    <PriceCaptureForm />
+    {mode === "products" ? <ProductMode comparisons={productComparisons} retailerCount={data.retailers.length} /> : <ShoppingListMode data={data} />}
+    <PriceCaptureForm retailers={data.retailers} />
   </div>;
 }

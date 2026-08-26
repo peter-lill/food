@@ -295,6 +295,21 @@
   line-height: 1.4;
 }
 
+.liveProductLink {
+  min-height: 34px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.4;
+  text-decoration: none;
+}
+
+.liveProductLink:hover {
+  color: var(--accent-dark);
+  text-decoration: underline;
+}
+
 .livePriceLine > strong {
   font-size: 18px;
   letter-spacing: -.025em;
@@ -322,6 +337,28 @@
 
 .liveMatchCard a:hover,
 .liveBestMatch a:hover {
+  text-decoration: underline;
+}
+
+.matchActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.matchActions button {
+  width: fit-content;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.matchActions button:hover {
   text-decoration: underline;
 }
 
