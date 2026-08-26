@@ -71,6 +71,7 @@ export async function getSupermarketComparisonData(
   const productNames = new Set(latestRows.map((price) => normaliseName(price.productName)));
 
   return {
+    retailers: [...enabledRetailers],
     prices: latestRows,
     shoppingLists: shoppingLists.map((list) => ({
       id: list.id,

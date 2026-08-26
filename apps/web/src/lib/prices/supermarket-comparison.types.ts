@@ -35,6 +35,7 @@ export type SupermarketShoppingList = {
 };
 
 export type SupermarketComparisonData = {
+  retailers: SupermarketRetailer[];
   prices: SupermarketPriceView[];
   shoppingLists: SupermarketShoppingList[];
   priceCount: number;

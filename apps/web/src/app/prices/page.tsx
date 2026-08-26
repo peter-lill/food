@@ -21,6 +21,7 @@ const emptyHistoryData: PriceHistoryData = {
 };
 
 const emptyComparisonData: SupermarketComparisonData = {
+  retailers: [],
   prices: [],
   shoppingLists: [],
   priceCount: 0,

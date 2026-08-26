@@ -465,9 +465,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     prisma.preferredRetailerStore.findMany({ where: { userId: session.user.id, isPreferred: true }, orderBy: { updatedAt: "desc" } }),
   ]);
   const enabledPrimaryRetailers = resolveEnabledRetailers(retailerPreferences);
-  // ALDI exposes its public catalogue, but not a complete selected-store
-  // availability feed. Include it in comparisons and label it accordingly.
-  const activePrimaryRetailers = new Set<SupermarketRetailer>([...enabledPrimaryRetailers, "ALDI"]);
+  const activePrimaryRetailers = new Set<SupermarketRetailer>(enabledPrimaryRetailers);
   const bridgeRetailers = [...activePrimaryRetailers].filter((retailer): retailer is "Coles" | "Woolworths" | "ALDI" => (
     retailer === "Coles" || retailer === "Woolworths" || retailer === "ALDI"
   ));
