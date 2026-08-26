@@ -27,6 +27,7 @@
     "products:coles-pilot": "tsx scripts/import-coles-pilot.ts",
     "products:woolworths-import": "tsx scripts/import-woolworths-controlled.ts",
     "products:aldi-import": "tsx scripts/import-aldi-controlled.ts",
+    "products:drakes-import": "tsx scripts/import-drakes-controlled.ts",
     "products:retailer-prices": "tsx scripts/enqueue-product-retailer-enrichment.ts",
     "products:retailer-authority": "tsx scripts/enqueue-product-retailer-enrichment.ts --all",
     "products:reconcile-categories": "tsx scripts/reconcile-product-catalogue.ts",
