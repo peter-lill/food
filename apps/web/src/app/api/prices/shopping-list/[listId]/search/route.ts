@@ -468,6 +468,9 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   // ALDI exposes its public catalogue, but not a complete selected-store
   // availability feed. Include it in comparisons and label it accordingly.
   const activePrimaryRetailers = new Set<SupermarketRetailer>([...enabledPrimaryRetailers, "ALDI"]);
+  const bridgeRetailers = [...activePrimaryRetailers].filter((retailer): retailer is "Coles" | "Woolworths" | "ALDI" => (
+    retailer === "Coles" || retailer === "Woolworths" || retailer === "ALDI"
+  ));
   const storeIds = preferredStoreIds(preferredStores);
 
   const list = await prisma.shoppingList.findUnique({
@@ -508,7 +511,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
       const queries = searchQueries(entry);
       const [openPrices, retailerPrices] = await Promise.all([
         entry.barcode ? openPricesCandidates(entry.barcode, query) : Promise.resolve([]),
-        retailerApiCandidates(queries, { retailers: [...activePrimaryRetailers], storeIds }),
+        retailerApiCandidates(queries, { retailers: bridgeRetailers, storeIds }),
       ]);
       candidates = [...candidates, ...openPrices, ...retailerPrices];
       await cacheRetailerCandidates(entry.productId, retailerPrices);
