@@ -5,7 +5,7 @@ import {
   type CurrentSearchLocation,
 } from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
-import { searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
+import { retailerProductUrl, searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
 import {
   supermarketRetailers,
   type SupermarketRetailer,
@@ -223,9 +223,31 @@ async function storedCandidates(searchItem: SearchableItem, query: string, enabl
     where: { AND: [where, { retailer: { in: [...enabled] } }] },
     orderBy: { checkedAt: "desc" }, take: 100,
   });
+  const productIds = [...new Set(prices.map((price) => price.productId).filter((productId): productId is string => Boolean(productId)))];
+  const listings = await prisma.storeProduct.findMany({
+    where: {
+      retailer: { in: [...enabled] },
+      active: true,
+      OR: [
+        ...(productIds.length ? [{ productId: { in: productIds } }] : []),
+        { retailerProductName: { contains: query, mode: "insensitive" as const } },
+      ],
+    },
+    select: {
+      productId: true,
+      retailer: true,
+      retailerProductName: true,
+      externalId: true,
+      productUrl: true,
+    },
+  });
+  const listingsByProductAndRetailer = new Map(listings.map((listing) => [`${listing.productId}:${listing.retailer}`, listing]));
+  const listingsByNameAndRetailer = new Map(listings.map((listing) => [`${normalise(listing.retailerProductName)}:${listing.retailer}`, listing]));
   return prices.flatMap((price): Candidate[] => {
     const sourceRetailer = retailer(price.retailer);
     if (!sourceRetailer || price.price <= 0) return [];
+    const listing = (price.productId ? listingsByProductAndRetailer.get(`${price.productId}:${price.retailer}`) : undefined)
+      ?? listingsByNameAndRetailer.get(`${normalise(price.productName)}:${price.retailer}`);
     return [{
       retailer: sourceRetailer,
       productName: price.productName,
@@ -233,7 +255,8 @@ async function storedCandidates(searchItem: SearchableItem, query: string, enabl
       packSize: price.packSize,
       barcode: null,
       isSpecial: price.isSpecial,
-      sourceUrl: null,
+      sourceUrl: listing?.productUrl
+        ?? retailerProductUrl(sourceRetailer, listing?.retailerProductName ?? price.productName, listing?.externalId ?? null),
       cached: true,
       source: "food",
       storeSpecific: false,

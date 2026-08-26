@@ -36,7 +36,7 @@ function slugify(value: string) {
     .slice(0, 120);
 }
 
-function retailerProductUrl(
+export function retailerProductUrl(
   retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI">,
   productName: string,
   externalId: string | null,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
+import { retailerProductUrl, toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { identityScore, retailerSearchQuery } from "../src/lib/retailers/retailer-intelligence.service";
 
 const candidate = toRetailerCatalogueCandidate({
@@ -28,6 +28,11 @@ assert.equal(candidate.packSize, "160g");
 assert.equal(candidate.isSpecial, true);
 assert.equal(candidate.externalId, "12345");
 assert.equal(candidate.sourceUrl, "https://www.coles.com.au/product/kit-kat-milk-chocolate-block-160g-12345");
+assert.equal(
+  retailerProductUrl("Woolworths", "Nestle Milkybar Nesquik Strawberry Block 170g", "114435"),
+  "https://www.woolworths.com.au/shop/productdetails/114435",
+  "cached Woolworths listings retain a direct canonical product page",
+);
 
 const colesPackCandidate = toRetailerCatalogueCandidate({
   retailer: "Coles",
@@ -129,10 +134,13 @@ assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavail
 assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout, RuntimeError\)/, "Woolworths browser failures must open the circuit explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
 assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\)/, "live searches only include retailers enabled in the account");
+assert.match(shoppingPriceSearchRouteSource, /retailerProductUrl\(sourceRetailer, listing\?\.retailerProductName/, "cached retailer prices inherit their canonical listing URL");
 assert.doesNotMatch(shoppingPriceSearchRouteSource, /\[\.\.\.enabledPrimaryRetailers, "ALDI"\]/, "ALDI must not appear in a live price search until it is selected and supported");
 assert.match(livePriceSearchSource, /target="_blank"/, "live retailer matches provide an external product-page link when available");
 assert.match(livePriceSearchSource, /Not a match/, "a shopper can exclude an incorrect live retailer match");
 assert.match(livePriceSearchSource, /setExcludedMatches/, "excluding a match must immediately recalculate the displayed comparison");
+assert.match(livePriceSearchSource, /food:shopping-price-exclusions/, "a rejected match remains excluded when current prices are refreshed");
+assert.match(livePriceSearchSource, /window\.localStorage\.setItem/, "rejected matches are persisted in the shopper's browser");
 assert.match(comparisonWorkspaceSource, /buildProductComparisons\(data\.prices, data\.retailers\)/, "saved comparisons are restricted to selected retailers");
 assert.match(aldiImporterSource, /const importAll = process\.argv\.includes\("--all"\)/, "ALDI must have a controlled full-cache importer");
 assert.match(aldiImporterSource, /\/aldi\/catalogue\/products/, "the importer must only read the cached public ALDI catalogue");
