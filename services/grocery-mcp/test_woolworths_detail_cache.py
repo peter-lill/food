@@ -5,7 +5,10 @@ import sys
 import tempfile
 import types
 import unittest
+from io import BytesIO
 from pathlib import Path
+from unittest.mock import patch
+from urllib.error import HTTPError
 
 
 class WoolworthsDetailCacheTest(unittest.TestCase):
@@ -112,6 +115,17 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             self.coles_catalogue.ColesBrowserSession(
                 browser_engine="firefox", firefox_fetch_url=""
             ).browse("/browse/meat-seafood")
+
+    def test_firefox_catalogue_engine_returns_proxy_error_detail(self) -> None:
+        proxy_error = HTTPError(
+            "http://firefox.test/fetch", 502, "Bad Gateway", {},
+            BytesIO(b'{"status":"error","error":"Coles requires browser verification"}'),
+        )
+        with patch.object(self.coles_catalogue, "urlopen", side_effect=proxy_error):
+            with self.assertRaisesRegex(RuntimeError, "Coles requires browser verification"):
+                self.coles_catalogue.ColesBrowserSession(
+                    browser_engine="firefox", firefox_fetch_url="http://firefox.test/fetch"
+                ).browse("/browse/meat-seafood")
 
     def test_public_aldi_listing_keeps_product_identity_price_and_catalogue_path(self) -> None:
         listing = '''

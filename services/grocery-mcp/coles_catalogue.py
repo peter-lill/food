@@ -16,6 +16,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
@@ -249,8 +250,20 @@ class ColesBrowserSession:
 
             def read_firefox(url: str) -> str:
                 request_url = f"{self.firefox_fetch_url}?{urlencode({'url': url})}"
-                with urlopen(request_url, timeout=90) as response:
-                    payload = json.loads(response.read())
+                try:
+                    with urlopen(request_url, timeout=90) as response:
+                        payload = json.loads(response.read())
+                except HTTPError as error:
+                    try:
+                        detail = json.loads(error.read())
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        detail = {}
+                    message = detail.get("error") if isinstance(detail, dict) else None
+                    raise RuntimeError(message or f"Firefox browser session returned HTTP {error.code}") from error
+                except URLError as error:
+                    raise RuntimeError(f"Firefox browser session is unavailable: {error.reason}") from error
+                except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                    raise RuntimeError("Firefox browser session returned an invalid response") from error
                 if payload.get("status") != "success":
                     raise RuntimeError(payload.get("error") or "Firefox browser session did not return catalogue data")
                 next_data = payload.get("nextData")
