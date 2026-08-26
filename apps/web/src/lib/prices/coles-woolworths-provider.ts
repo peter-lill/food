@@ -37,7 +37,7 @@ function slugify(value: string) {
 }
 
 export function retailerProductUrl(
-  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI">,
+  retailer: SupermarketRetailer,
   productName: string,
   externalId: string | null,
 ) {
@@ -45,7 +45,7 @@ export function retailerProductUrl(
   if (retailer === "Woolworths") {
     return `https://www.woolworths.com.au/shop/productdetails/${encodeURIComponent(externalId)}`;
   }
-  if (retailer === "ALDI") return null;
+  if (retailer !== "Coles") return null;
   const slug = slugify(productName) || "product";
   return `https://www.coles.com.au/product/${slug}-${encodeURIComponent(externalId)}`;
 }
