@@ -1,14 +1,19 @@
 import type { PreferredRetailerStore, RetailerPreference } from "@prisma/client";
 
 export const supportedRetailers = [
-  { id: "Coles", defaultEnabled: true },
-  { id: "Woolworths", defaultEnabled: true },
+  { id: "Coles", defaultEnabled: true, requiresStore: true },
+  { id: "Woolworths", defaultEnabled: true, requiresStore: true },
+  { id: "ALDI", defaultEnabled: false, requiresStore: false },
 ] as const;
 
 export type SupportedRetailer = (typeof supportedRetailers)[number]["id"];
 
 export function isSupportedRetailer(value: string): value is SupportedRetailer {
   return supportedRetailers.some((retailer) => retailer.id === value);
+}
+
+export function retailerRequiresStore(retailer: SupportedRetailer) {
+  return supportedRetailers.find((candidate) => candidate.id === retailer)?.requiresStore ?? false;
 }
 
 export function enabledRetailers(
@@ -27,7 +32,7 @@ export function missingStoreRetailers(
   const configured = new Set(
     stores.filter((store) => store.isPreferred).map((store) => store.retailer),
   );
-  return enabled.filter((retailer) => !configured.has(retailer));
+  return enabled.filter((retailer) => retailerRequiresStore(retailer) && !configured.has(retailer));
 }
 
 export function preferredStoreIds(
@@ -44,9 +49,9 @@ export function preferredStoreIds(
 
 export function retailerNameMatches(preference: SupportedRetailer, retailerName: string) {
   const normalised = retailerName.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").trim();
-  return preference === "Coles"
-    ? normalised.includes("coles")
-    : normalised.includes("woolworths");
+  if (preference === "Coles") return normalised.includes("coles");
+  if (preference === "Woolworths") return normalised.includes("woolworths");
+  return normalised.includes("aldi");
 }
 
 export function retailerSetupStatus(input: {
@@ -55,9 +60,10 @@ export function retailerSetupStatus(input: {
   stores: Pick<PreferredRetailerStore, "retailer" | "isPreferred">[];
 }) {
   const missingStores = missingStoreRetailers(input.enabled, input.stores);
+  const needsLocation = input.enabled.some(retailerRequiresStore) && !input.homePostcode;
   return {
-    ready: Boolean(input.homePostcode) && input.enabled.length > 0 && missingStores.length === 0,
-    needsLocation: !input.homePostcode,
+    ready: !needsLocation && input.enabled.length > 0 && missingStores.length === 0,
+    needsLocation,
     needsRetailers: input.enabled.length === 0,
     missingStores,
   };

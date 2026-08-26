@@ -3,9 +3,10 @@
 import { useState } from "react";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { getCurrentLocation } from "@/lib/current-location";
+import { retailerRequiresStore, supportedRetailers, type SupportedRetailer } from "@/lib/retailers/retailer-preferences";
 import styles from "./account.module.css";
 
-type RetailerName = "Coles" | "Woolworths";
+type RetailerName = SupportedRetailer;
 type Store = {
   retailer: RetailerName;
   storeId: string;
@@ -23,7 +24,7 @@ type Props = {
   initialStores: Store[];
 };
 
-const retailers: RetailerName[] = ["Coles", "Woolworths"];
+const retailers: RetailerName[] = supportedRetailers.map((retailer) => retailer.id);
 
 function directionsUrl(store: Store) {
   const query = store.latitude !== null && store.longitude !== null
@@ -112,6 +113,7 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
           const preferred = savedStores.filter((store) => store.retailer === retailer);
           const nearby = results[retailer] ?? [];
           const hasSearched = results[retailer] !== undefined;
+          const requiresStore = retailerRequiresStore(retailer);
           return (
             <article className={styles.retailerPanel} key={retailer}>
               <div className={styles.retailerHeading}>
@@ -124,20 +126,20 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
 
               {isEnabled ? (
                 <>
-                  {preferred.length ? (
+                  {!requiresStore ? <p className={styles.storePrompt}>ALDI catalogue prices are national listings. They are not live store stock or store-specific prices.</p> : preferred.length ? (
                     <div className={styles.savedStores}>
                       {preferred.map((store) => <StoreRow action="remove" key={store.storeId} onAction={() => void removeStore(store)} pending={pending.includes(store.storeId)} store={store} />)}
                     </div>
                   ) : <p className={styles.storePrompt}>No preferred {retailer} store selected. Prices may not reflect your local store.</p>}
-                  <div className={styles.storeFinderActions}>
+                  {requiresStore ? <div className={styles.storeFinderActions}>
                     <button className={styles.secondaryButton} disabled={!homePostcode || pending.startsWith("find-")} onClick={() => void findStores(retailer, "home")} type="button">
                       {pending === `find-home-${retailer}` ? "Finding stores..." : `Find near ${homePostcode || "home"}`}
                     </button>
                     <button className={styles.secondaryButton} disabled={pending.startsWith("find-")} onClick={() => void findStores(retailer, "current")} type="button">
                       {pending === `find-current-${retailer}` ? "Finding location..." : "Use current location"}
                     </button>
-                  </div>
-                  {nearby.length ? (
+                  </div> : null}
+                  {requiresStore && nearby.length ? (
                     <div className={styles.storeResults}>
                       <small>Nearby suggestions - choose any store you prefer</small>
                       <div className={styles.storeResultsList}>
@@ -147,7 +149,7 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                         })}
                       </div>
                     </div>
-                  ) : hasSearched ? <p className={styles.storePrompt}>No nearby {retailer} stores were found for that location.</p> : null}
+                  ) : requiresStore && hasSearched ? <p className={styles.storePrompt}>No nearby {retailer} stores were found for that location.</p> : null}
                 </>
               ) : null}
             </article>

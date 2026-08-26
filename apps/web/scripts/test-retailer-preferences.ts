@@ -9,11 +9,21 @@ import {
 } from "../src/lib/retailers/retailer-preferences";
 import { formatHomeLocation } from "../src/lib/location-preferences";
 
-assert.deepEqual(enabledRetailers([]), ["Coles", "Woolworths"], "current retailers remain enabled for existing users");
+assert.deepEqual(enabledRetailers([]), ["Coles", "Woolworths"], "ALDI remains opt-in until the shopper selects its catalogue prices");
 assert.deepEqual(
   enabledRetailers([{ retailer: "Coles", enabled: false }, { retailer: "Woolworths", enabled: true }]),
   ["Woolworths"],
   "saved opt-outs override defaults",
+);
+assert.deepEqual(
+  missingStoreRetailers(["ALDI"], []),
+  [],
+  "ALDI catalogue pricing must not require a selected local store",
+);
+assert.deepEqual(
+  retailerSetupStatus({ homePostcode: null, enabled: ["ALDI"], stores: [] }),
+  { ready: true, needsLocation: false, needsRetailers: false, missingStores: [] },
+  "ALDI catalogue comparison is available without a postcode or unsupported store lookup",
 );
 assert.deepEqual(
   missingStoreRetailers(["Coles", "Woolworths"], [{ retailer: "Coles", isPreferred: true }]),
@@ -46,6 +56,7 @@ assert.deepEqual(
 assert.equal(retailerNameMatches("Coles", "Coles Supermarkets"), true);
 assert.equal(retailerNameMatches("Woolworths", "Woolworths Springwood"), true);
 assert.equal(retailerNameMatches("Coles", "Woolworths"), false);
+assert.equal(retailerNameMatches("ALDI", "ALDI Rochedale"), true);
 assert.equal(formatHomeLocation({ homeLocation: null, homePostcode: "4114" }), "4114");
 
 const retailerLogoSource = readFileSync(
@@ -90,6 +101,7 @@ const storePreferencesSource = readFileSync(
 );
 assert.match(storePreferencesSource, /RetailerLogo retailer={retailer}/);
 assert.match(storePreferencesSource, /getCurrentLocation\(\)/);
+assert.match(storePreferencesSource, /catalogue prices are national listings/, "ALDI must be visibly labelled as catalogue pricing rather than local stock");
 assert.doesNotMatch(storePreferencesSource, /coles-store-query/);
 
 const accountStylesSource = readFileSync(
