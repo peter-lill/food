@@ -21,6 +21,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         sys.modules["src.supermarkets"] = supermarkets
         playwright = types.ModuleType("playwright.sync_api")
         playwright.sync_playwright = lambda: None
+        playwright.TimeoutError = TimeoutError
         sys.modules["playwright"] = types.ModuleType("playwright")
         sys.modules["playwright.sync_api"] = playwright
         path = Path(__file__).with_name("bridge.py")
@@ -29,6 +30,11 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
         self.coles_catalogue = sys.modules["coles_catalogue"]
+        browser_path = Path(__file__).with_name("coles_browser.py")
+        browser_spec = importlib.util.spec_from_file_location("food_coles_firefox_browser_test", browser_path)
+        assert browser_spec and browser_spec.loader
+        self.coles_browser = importlib.util.module_from_spec(browser_spec)
+        browser_spec.loader.exec_module(self.coles_browser)
         self.aldi_catalogue = sys.modules["aldi_catalogue"]
 
     def tearDown(self) -> None:
@@ -87,6 +93,25 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "Coles requires browser verification",
         )
         self.assertIsNone(self.coles_catalogue.coles_browser_verification_error("Browse Meat & Seafood"))
+
+    def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
+        self.assertTrue(self.coles_browser.valid_coles_browse_url(
+            "https://www.coles.com.au/browse/meat-seafood?sortBy=recommendedDescending"
+        ))
+        self.assertFalse(self.coles_browser.valid_coles_browse_url("https://www.coles.com.au/product/example"))
+        self.assertFalse(self.coles_browser.valid_coles_browse_url("https://example.test/browse/meat-seafood"))
+        self.assertEqual(
+            self.coles_browser.coles_verification_error(
+                "Pardon Our Interruption. Your browser made us think you were a bot."
+            ),
+            "Coles requires browser verification",
+        )
+
+    def test_firefox_catalogue_engine_requires_a_configured_browser_session(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "COLES_FIREFOX_FETCH_URL"):
+            self.coles_catalogue.ColesBrowserSession(
+                browser_engine="firefox", firefox_fetch_url=""
+            ).browse("/browse/meat-seafood")
 
     def test_public_aldi_listing_keeps_product_identity_price_and_catalogue_path(self) -> None:
         listing = '''
