@@ -227,6 +227,7 @@
 
 .storeRow a,
 .storeRow button,
+.mapButton,
 .preferredBadge {
   flex: 0 0 auto;
   color: var(--accent-dark);
@@ -240,6 +241,39 @@
   border-radius: 9px;
   background: white;
   cursor: pointer;
+}
+
+.mapButton {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: white;
+  cursor: pointer;
+}
+
+.storeMap {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.storeMap > div {
+  display: grid;
+  gap: 2px;
+}
+
+.storeMap small {
+  color: var(--muted);
+}
+
+.storeMap iframe {
+  width: 100%;
+  min-height: 260px;
+  border: 0;
+  border-radius: 9px;
 }
 
 .preferredBadge {

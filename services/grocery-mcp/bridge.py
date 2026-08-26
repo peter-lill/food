@@ -1170,6 +1170,104 @@ def search_aldi(query: str, limit: int) -> list[dict]:
     } for product in products]
 
 
+DRAKES_DIRECTORY_URL = "https://online.drakes.com.au/"
+
+
+def strip_html(value: str) -> str:
+    return " ".join(html.unescape(re.sub(r"<[^>]+>", " ", value)).split())
+
+
+def drakes_store_records() -> list[dict]:
+    """Read Drakes' public directory so selections match catalogue hosts."""
+    request = Request(DRAKES_DIRECTORY_URL, headers={
+        "Accept": "text/html,application/xhtml+xml",
+        "User-Agent": "Food price location resolver/1.0",
+    })
+    with urlopen(request, timeout=12) as response:
+        document = response.read().decode("utf-8", errors="replace")
+
+    records: list[dict] = []
+    for card in re.split(r'<div class="StoreCard(?:\s|\")', document)[1:]:
+        catalogue = re.search(r'href="https?://([a-z0-9-]+)\.drakes\.com\.au/catalogues"', card, re.I)
+        name = re.search(r'StoreCard__Name">(.*?)</span>', card, re.S)
+        details = re.search(r'StoreCard__Details">(.*?)</span>', card, re.S)
+        if not catalogue or not name:
+            continue
+        address = strip_html(details.group(1)) if details else ""
+        postcode_match = re.search(r'\b(\d{4})\b', address)
+        store_name = strip_html(name.group(1))
+        if not store_name or not postcode_match:
+            continue
+        records.append({
+            "retailer": "Drakes",
+            "storeId": catalogue.group(1).lower(),
+            "name": store_name,
+            "address": address,
+            "postcode": postcode_match.group(1),
+            "latitude": None,
+            "longitude": None,
+            "distanceKm": None,
+        })
+    return records
+
+
+def drakes_stores(postcode: str, limit: int) -> list[dict]:
+    if not postcode.isdigit() or len(postcode) != 4:
+        raise ValueError("postcode must be a four-digit Australian postcode")
+    # The directory does not publish distances; retain only exact-postcode
+    # stores rather than claiming an unsupported proximity ordering.
+    return [store for store in drakes_store_records() if store["postcode"] == postcode][:limit]
+
+
+def search_drakes(query: str, limit: int, store_id: str | None) -> list[dict]:
+    """Search the public catalogue for the user's selected Drakes store."""
+    store = (store_id or "").strip().lower()
+    if not re.fullmatch(r"[a-z0-9-]{1,64}", store):
+        raise ValueError("Select a Drakes store before searching its catalogue")
+    base_url = f"https://{store}.drakes.com.au"
+    request = Request(
+        f"{base_url}/search?q={quote(clean_search_query(query))}",
+        headers={"Accept": "text/html,application/xhtml+xml", "User-Agent": "Food price catalogue/1.0"},
+    )
+    with urlopen(request, timeout=15) as response:
+        document = response.read().decode("utf-8", errors="replace")
+
+    results: list[dict] = []
+    pattern = re.compile(
+        r'<a href="(?P<href>/lines/[^"]+)">(?P<image>.*?)</a>.*?'
+        r'talker__product-name">(?P<name>.*?)</span>(?P<details>.*?)'
+        r'<strong class="price__sell"[^>]*>(?P<price>.*?)</strong>',
+        re.S,
+    )
+    for match in pattern.finditer(document):
+        name = strip_html(match.group("name"))
+        price = clean_price(strip_html(match.group("price")))
+        if not name or price is None:
+            continue
+        size = re.search(r'talker__name__size">(.*?)</span>', match.group("details"), re.S)
+        image = re.findall(r'<img[^>]+src="([^"]+)"', match.group("image"), re.I)
+        results.append({
+            "retailer": "Drakes",
+            "name": name,
+            "price": price,
+            "wasPrice": None,
+            "isSpecial": False,
+            "promotion": None,
+            "unit": None,
+            "packSize": strip_html(size.group(1)) if size else None,
+            "store": f"Drakes store {store}",
+            "barcode": None,
+            "imageUrl": html.unescape(image[-1]) if image else None,
+            "productId": match.group("href").rsplit("/", 1)[-1],
+            "productUrl": f"{base_url}{html.unescape(match.group('href'))}",
+            "source": "selected-store-catalogue",
+            "storeSpecific": True,
+        })
+        if len(results) >= limit:
+            break
+    return results
+
+
 WOOLWORTHS_STORE_LOCATOR_URL = (
     "https://contact.woolworths.com.au/storelocator/service"
 )
@@ -1487,8 +1585,8 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
-            if retailer not in ("coles", "woolworths"):
-                self.send_json(400, {"status": "error", "error": "Supported retailers are Coles and Woolworths."})
+            if retailer not in ("coles", "woolworths", "drakes"):
+                self.send_json(400, {"status": "error", "error": "Supported retailers are Coles, Woolworths and Drakes."})
                 return
             try:
                 limit = max(1, min(10, int((params.get("limit") or ["3"])[0])))
@@ -1502,11 +1600,14 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError("latitude is outside the valid range")
                 if longitude is not None and not -180 <= longitude <= 180:
                     raise ValueError("longitude is outside the valid range")
-                stores = (
-                    coles_stores(postcode, limit, latitude, longitude)
-                    if retailer == "coles"
-                    else woolworths_stores(postcode, limit, latitude, longitude)
-                )
+                if retailer == "coles":
+                    stores = coles_stores(postcode, limit, latitude, longitude)
+                elif retailer == "woolworths":
+                    stores = woolworths_stores(postcode, limit, latitude, longitude)
+                else:
+                    if latitude is not None:
+                        raise ValueError("Drakes store lookup currently uses your saved postcode")
+                    stores = drakes_stores(postcode, limit)
             except ValueError as error:
                 self.send_json(400, {"status": "error", "error": str(error)})
                 return
@@ -1649,7 +1750,7 @@ class Handler(BaseHTTPRequestHandler):
         if not query:
             self.send_json(400, {"status": "error", "error": "Missing q parameter"})
             return
-        if retailer not in ("all", "coles", "woolworths", "aldi"):
+        if retailer not in ("all", "coles", "woolworths", "aldi", "drakes"):
             self.send_json(400, {"status": "error", "error": "Unsupported retailer"})
             return
 
@@ -1673,6 +1774,12 @@ class Handler(BaseHTTPRequestHandler):
                 results.extend(search_aldi(query, limit))
             except Exception as error:  # noqa: BLE001
                 errors.append(f"ALDI: {error}")
+
+        if retailer in ("all", "drakes"):
+            try:
+                results.extend(search_drakes(query, limit, store_id))
+            except Exception as error:  # noqa: BLE001
+                errors.append(f"Drakes: {error}")
 
         self.send_json(
             200,

@@ -57,6 +57,12 @@ assert.equal(retailerNameMatches("Coles", "Coles Supermarkets"), true);
 assert.equal(retailerNameMatches("Woolworths", "Woolworths Springwood"), true);
 assert.equal(retailerNameMatches("Coles", "Woolworths"), false);
 assert.equal(retailerNameMatches("ALDI", "ALDI Rochedale"), true);
+assert.equal(retailerNameMatches("Drakes", "Drakes Online McDowall"), true);
+assert.deepEqual(
+  missingStoreRetailers(["Drakes"], []),
+  ["Drakes"],
+  "Drakes uses a selected store because its catalogue is store-specific",
+);
 assert.equal(formatHomeLocation({ homeLocation: null, homePostcode: "4114" }), "4114");
 
 const retailerLogoSource = readFileSync(
@@ -102,6 +108,8 @@ const storePreferencesSource = readFileSync(
 assert.match(storePreferencesSource, /RetailerLogo retailer={retailer}/);
 assert.match(storePreferencesSource, /getCurrentLocation\(\)/);
 assert.match(storePreferencesSource, /catalogue prices are national listings/, "ALDI must be visibly labelled as catalogue pricing rather than local stock");
+assert.match(storePreferencesSource, /Interactive map/, "store selection must show an embedded interactive map instead of only an outbound map link");
+assert.match(storePreferencesSource, /output=embed/, "the map remains inside Food while selecting a store");
 assert.doesNotMatch(storePreferencesSource, /coles-store-query/);
 
 const accountStylesSource = readFileSync(

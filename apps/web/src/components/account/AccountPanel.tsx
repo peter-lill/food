@@ -94,7 +94,7 @@ export function AccountPanel({
         <RetailerStorePreferences
           homePostcode={homePostcode}
           initialEnabled={enabledRetailers}
-          initialStores={preferredStores.filter((store): store is typeof store & { retailer: SupportedRetailer } => store.retailer === "Coles" || store.retailer === "Woolworths" || store.retailer === "ALDI")}
+          initialStores={preferredStores.filter((store): store is typeof store & { retailer: SupportedRetailer } => store.retailer === "Coles" || store.retailer === "Woolworths" || store.retailer === "ALDI" || store.retailer === "Drakes")}
         />
       </div>
     </div>

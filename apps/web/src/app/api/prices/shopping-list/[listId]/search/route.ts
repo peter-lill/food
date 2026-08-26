@@ -27,7 +27,7 @@ const requestTimeoutMs = 5_500;
 const searchConcurrency = 4;
 const serpCircuitBreakerMs = 12 * 60 * 60 * 1000;
 
-type CandidateSource = "food" | "open-prices" | "retailer-api" | "aldi-catalogue" | "serpapi";
+type CandidateSource = "food" | "open-prices" | "retailer-api" | "aldi-catalogue" | "drakes-catalogue" | "serpapi";
 type Candidate = {
   retailer: SupermarketRetailer;
   productName: string;
@@ -308,7 +308,7 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
 
 async function retailerApiCandidates(
   queries: string[],
-  options: { retailers: Array<"Coles" | "Woolworths" | "ALDI">; storeIds: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> },
+  options: { retailers: Array<"Coles" | "Woolworths" | "ALDI" | "Drakes">; storeIds: Partial<Record<"Coles" | "Woolworths" | "ALDI" | "Drakes", string>> },
 ): Promise<Candidate[]> {
   const batches = await Promise.all(queries.map((query) => searchColesAndWoolworths(query, options).catch(() => [])));
   const seen = new Set<string>();
@@ -326,14 +326,14 @@ async function retailerApiCandidates(
       isSpecial: result.isSpecial,
       sourceUrl: result.sourceUrl,
       cached: false,
-      source: result.retailer === "ALDI" ? "aldi-catalogue" : "retailer-api",
+      source: result.retailer === "ALDI" ? "aldi-catalogue" : result.retailer === "Drakes" ? "drakes-catalogue" : "retailer-api",
       storeSpecific: result.retailer !== "ALDI",
     }];
   });
 }
 
 async function cacheRetailerCandidates(productId: string | null, candidates: Candidate[]) {
-  const live = candidates.filter((candidate) => candidate.source === "retailer-api");
+  const live = candidates.filter((candidate) => candidate.source === "retailer-api" || candidate.source === "drakes-catalogue");
   if (!live.length) return;
   await prisma.supermarketPrice.createMany({
     data: live.map((candidate) => ({
@@ -466,6 +466,7 @@ function providerLabel(sources: Set<CandidateSource>): GroceryPriceProvider {
   if (sources.has("open-prices")) labels.push("Open Prices");
   if (sources.has("retailer-api")) labels.push("Coles and Woolworths");
   if (sources.has("aldi-catalogue")) labels.push("ALDI public catalogue");
+  if (sources.has("drakes-catalogue")) labels.push("Drakes selected-store catalogue");
   if (sources.has("serpapi")) labels.push("SerpApi");
   return (labels.join(" + ") || "Food Price Engine") as GroceryPriceProvider;
 }
@@ -488,11 +489,15 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     prisma.preferredRetailerStore.findMany({ where: { userId: session.user.id, isPreferred: true }, orderBy: { updatedAt: "desc" } }),
   ]);
   const enabledPrimaryRetailers = resolveEnabledRetailers(retailerPreferences);
-  const activePrimaryRetailers = new Set<SupermarketRetailer>(enabledPrimaryRetailers);
-  const bridgeRetailers = [...activePrimaryRetailers].filter((retailer): retailer is "Coles" | "Woolworths" | "ALDI" => (
-    retailer === "Coles" || retailer === "Woolworths" || retailer === "ALDI"
-  ));
   const storeIds = preferredStoreIds(preferredStores);
+  // Drakes prices are read from the chosen store's own catalogue.  Do not
+  // silently replace that choice with an arbitrary store or generic result.
+  const activePrimaryRetailers = new Set<SupermarketRetailer>(enabledPrimaryRetailers.filter((retailer) => (
+    retailer !== "Drakes" || Boolean(storeIds.Drakes)
+  )));
+  const bridgeRetailers = [...activePrimaryRetailers].filter((retailer): retailer is "Coles" | "Woolworths" | "ALDI" | "Drakes" => (
+    retailer === "Coles" || retailer === "Woolworths" || retailer === "ALDI" || retailer === "Drakes"
+  ));
 
   const list = await prisma.shoppingList.findUnique({
     where: { id: listId },

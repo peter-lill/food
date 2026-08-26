@@ -24,8 +24,8 @@ export type GroceryProviderResult = {
 export type GroceryProviderSearchOptions = {
   limit?: number;
   storeId?: string | null;
-  retailers?: Array<"Coles" | "Woolworths" | "ALDI">;
-  storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>>;
+  retailers?: Array<"Coles" | "Woolworths" | "ALDI" | "Drakes">;
+  storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI" | "Drakes", string>>;
 };
 
 export interface GroceryProvider {

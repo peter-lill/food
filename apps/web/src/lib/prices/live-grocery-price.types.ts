@@ -10,6 +10,7 @@ export type GroceryPriceProvider =
   | "Food Price Engine"
   | "Open Prices"
   | "Coles and Woolworths"
+  | "Drakes selected-store catalogue"
   | "SerpApi"
   | "SerpApi Google Shopping"
   | "Food Price Engine + Open Prices + SerpApi"
