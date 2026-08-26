@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { getCurrentLocation, type SearchLocationSource } from "@/lib/current-location";
 import { formatProductName, formatProductQuantity, formatRetailProductName, formatSearchQuery } from "@/lib/products/product-formatter";
@@ -32,6 +32,25 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
   const [error, setError] = useState("");
   const [result, setResult] = useState<LiveGroceryPriceSearchResponse | null>(null);
   const [excludedMatches, setExcludedMatches] = useState<Set<string>>(new Set());
+  const exclusionStorageKey = `food:shopping-price-exclusions:${list.id}`;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(exclusionStorageKey);
+      const keys = stored ? JSON.parse(stored) : [];
+      setExcludedMatches(Array.isArray(keys) && keys.every((key) => typeof key === "string") ? new Set(keys) : new Set());
+    } catch {
+      // A price search remains usable if the browser has unavailable or malformed local storage.
+    }
+  }, [exclusionStorageKey]);
+
+  function excludeMatch(key: string) {
+    setExcludedMatches((current) => {
+      const next = new Set(current).add(key);
+      try { window.localStorage.setItem(exclusionStorageKey, JSON.stringify([...next])); } catch { /* Storage is optional. */ }
+      return next;
+    });
+  }
 
   async function requestPrices(currentLocation: Awaited<ReturnType<typeof getCurrentLocation>> | null) {
     const response = await fetch(`/api/prices/shopping-list/${encodeURIComponent(list.id)}/search`, { method: "POST", cache: "no-store", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ allowSubstitutes, currentLocation }) });
@@ -48,7 +67,6 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
       setLocating(false);
       let payload = await requestPrices(currentLocation);
       if (hasTransientSearchFailure(payload)) { await wait(750); payload = await requestPrices(currentLocation); }
-      setExcludedMatches(new Set());
       setResult(payload);
     } catch (searchError) {
       setError(searchError instanceof Error ? searchError.message : "Current grocery prices could not be searched.");
@@ -85,7 +103,7 @@ export function LiveShoppingPriceSearch({ list }: { list: SupermarketShoppingLis
           const quantity = formatProductQuantity(itemResult.item.quantity ?? 1, itemResult.item.unit ?? "item");
           return <article className={styles.liveItem} key={itemResult.item.id}><header><div><strong>{formatProductName(itemResult.item.name)}</strong><span>{quantity} · searched “{formatSearchQuery(itemResult.query)}”</span></div>{itemResult.best ? <span className="badge success">Best {money(itemResult.best.estimatedTotal)}</span> : <span className="badge neutral">No suitable price</span>}</header>
           {itemResult.error ? <p className={styles.liveItemError}>{itemResult.error}</p> : null}
-          {itemResult.matches.length > 0 ? <div className={styles.liveMatchGrid}>{itemResult.matches.map((match, index) => <div className={index === 0 ? styles.liveBestMatch : styles.liveMatchCard} key={matchKey(itemResult.item.id, match.retailer, match.sourceUrl, match.productName)}><div className={styles.liveMatchTopline}><strong><RetailerLogo compact retailer={match.retailer} /></strong><span className={match.matchKind === "exact" ? styles.exactBadge : styles.substituteBadge}>{match.matchKind === "exact" ? "Exact" : "Substitute"}</span></div>{match.sourceUrl ? <a className={styles.liveProductLink} href={match.sourceUrl} rel="noreferrer" target="_blank">{formatRetailProductName(match.productName)} <span aria-hidden="true">↗</span></a> : <span className={styles.liveProductName}>{formatRetailProductName(match.productName)}</span>}<div className={styles.livePriceLine}><strong>{money(match.estimatedTotal)}</strong><span>{money(match.price)} shelf{match.packSize ? ` · ${formatRetailProductName(match.packSize)}` : ""}</span></div><small>{match.unitPrice !== null && match.unitLabel ? `${money(match.unitPrice)}${match.unitLabel} · ` : ""}{match.isSpecial ? "Special · " : ""}{match.cached ? "cached" : "live"}{match.storeSpecific ? "" : " · catalogue price, check your store"}</small><p>{match.matchReason}</p><div className={styles.matchActions}>{match.sourceUrl ? <a href={match.sourceUrl} rel="noreferrer" target="_blank">Open {match.retailer}</a> : null}<button onClick={() => setExcludedMatches((current) => new Set(current).add(matchKey(itemResult.item.id, match.retailer, match.sourceUrl, match.productName)))} type="button">Not a match</button></div></div>)}</div> : <p className={styles.liveNoMatch}>No exact product or safe substitute was found. Keep the item on the list and check it manually rather than using an unsuitable replacement.</p>}</article>;
+          {itemResult.matches.length > 0 ? <div className={styles.liveMatchGrid}>{itemResult.matches.map((match, index) => <div className={index === 0 ? styles.liveBestMatch : styles.liveMatchCard} key={matchKey(itemResult.item.id, match.retailer, match.sourceUrl, match.productName)}><div className={styles.liveMatchTopline}><strong><RetailerLogo compact retailer={match.retailer} /></strong><span className={match.matchKind === "exact" ? styles.exactBadge : styles.substituteBadge}>{match.matchKind === "exact" ? "Exact" : "Substitute"}</span></div>{match.sourceUrl ? <a className={styles.liveProductLink} href={match.sourceUrl} rel="noreferrer" target="_blank">{formatRetailProductName(match.productName)} <span aria-hidden="true">↗</span></a> : <span className={styles.liveProductName}>{formatRetailProductName(match.productName)}</span>}<div className={styles.livePriceLine}><strong>{money(match.estimatedTotal)}</strong><span>{money(match.price)} shelf{match.packSize ? ` · ${formatRetailProductName(match.packSize)}` : ""}</span></div><small>{match.unitPrice !== null && match.unitLabel ? `${money(match.unitPrice)}${match.unitLabel} · ` : ""}{match.isSpecial ? "Special · " : ""}{match.cached ? "cached" : "live"}{match.storeSpecific ? "" : " · catalogue price, check your store"}</small><p>{match.matchReason}</p><div className={styles.matchActions}>{match.sourceUrl ? <a href={match.sourceUrl} rel="noreferrer" target="_blank">Open {match.retailer}</a> : null}<button onClick={() => excludeMatch(matchKey(itemResult.item.id, match.retailer, match.sourceUrl, match.productName))} type="button">Not a match</button></div></div>)}</div> : <p className={styles.liveNoMatch}>No exact product or safe substitute was found. Keep the item on the list and check it manually rather than using an unsuitable replacement.</p>}</article>;
         })}</div>
         <p className={styles.estimateNote}>Results come from Google Shopping through SerpApi and may vary by store, postcode, stock and promotion timing. Substitutes are suggestions, not silent replacements; check allergens, ingredients and pack labels before buying.</p>
       </div> : <p className={styles.liveSearchNote}>Exact matches are preferred. A substitute is only considered when product type and stated requirements remain compatible, and Food calculates how many packs are needed for the requested quantity.</p>}
