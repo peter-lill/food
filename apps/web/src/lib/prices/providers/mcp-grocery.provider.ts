@@ -19,6 +19,8 @@ type BridgeResponse = {
     wasPrice?: unknown;
     isSpecial?: unknown;
     promotion?: unknown;
+    productUrl?: unknown;
+    storeSpecific?: unknown;
   }>;
   errors?: unknown;
   error?: unknown;
@@ -53,7 +55,7 @@ export class McpGroceryProvider implements GroceryProvider {
     const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
     if (!baseUrl) return [];
 
-    const requestedRetailers: Array<"Coles" | "Woolworths" | null> = options.retailers ?? [null];
+    const requestedRetailers: Array<"Coles" | "Woolworths" | "ALDI" | null> = options.retailers ?? [null];
     const searches = requestedRetailers.map(async (retailer) => {
       const url = new URL("/search", baseUrl);
       url.searchParams.set("q", query);
@@ -84,7 +86,7 @@ export class McpGroceryProvider implements GroceryProvider {
         return (payload.results ?? []).flatMap((item): GroceryProviderResult[] => {
           const resultRetailer = text(item.retailer);
           const name = text(item.name);
-          if ((resultRetailer !== "Coles" && resultRetailer !== "Woolworths") || !name) return [];
+          if ((resultRetailer !== "Coles" && resultRetailer !== "Woolworths" && resultRetailer !== "ALDI") || !name) return [];
           return [{
             retailer: resultRetailer,
             name,
@@ -98,6 +100,8 @@ export class McpGroceryProvider implements GroceryProvider {
             wasPrice: money(item.wasPrice),
             isSpecial: boolean(item.isSpecial),
             promotion: text(item.promotion),
+            productUrl: text(item.productUrl),
+            storeSpecific: boolean(item.storeSpecific),
             source: this.id,
           }];
         });

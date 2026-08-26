@@ -3,7 +3,7 @@ import type { GroceryProviderResult } from "./providers/types";
 import type { SupermarketRetailer } from "./supermarket-comparison.types";
 
 export type RetailerCatalogueCandidate = {
-  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths">;
+  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI">;
   productName: string;
   price: number | null;
   packSize: string | null;
@@ -37,7 +37,7 @@ function slugify(value: string) {
 }
 
 function retailerProductUrl(
-  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths">,
+  retailer: Extract<SupermarketRetailer, "Coles" | "Woolworths" | "ALDI">,
   productName: string,
   externalId: string | null,
 ) {
@@ -45,6 +45,7 @@ function retailerProductUrl(
   if (retailer === "Woolworths") {
     return `https://www.woolworths.com.au/shop/productdetails/${encodeURIComponent(externalId)}`;
   }
+  if (retailer === "ALDI") return null;
   const slug = slugify(productName) || "product";
   return `https://www.coles.com.au/product/${slug}-${encodeURIComponent(externalId)}`;
 }
@@ -350,7 +351,7 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
 
 export function toRetailerCatalogueCandidate(result: GroceryProviderResult): RetailerCatalogueCandidate | null {
   if (
-    (result.retailer !== "Coles" && result.retailer !== "Woolworths")
+    (result.retailer !== "Coles" && result.retailer !== "Woolworths" && result.retailer !== "ALDI")
     || !result.name.trim()
   ) return null;
 
@@ -361,7 +362,7 @@ export function toRetailerCatalogueCandidate(result: GroceryProviderResult): Ret
     price: result.price,
     packSize: detectPackSize(result.packSize, result.name, result.unit),
     isSpecial: result.isSpecial,
-    sourceUrl: retailerProductUrl(result.retailer, result.name.trim(), externalId),
+    sourceUrl: result.productUrl ?? retailerProductUrl(result.retailer, result.name.trim(), externalId),
     externalId,
     barcode: clean(result.barcode) || null,
     imageUrl: clean(result.imageUrl) || null,
@@ -370,7 +371,7 @@ export function toRetailerCatalogueCandidate(result: GroceryProviderResult): Ret
 
 export async function searchColesAndWoolworthsCatalogue(
   query: string,
-  options: { retailers?: Array<"Coles" | "Woolworths">; storeIds?: Partial<Record<"Coles" | "Woolworths", string>> } = {},
+  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> } = {},
 ): Promise<RetailerCatalogueCandidate[]> {
   const { results, errors } = await searchGroceryProviders(query, {
     limit: 15,
@@ -397,7 +398,7 @@ export async function searchColesAndWoolworthsCatalogue(
 
 export async function searchColesAndWoolworths(
   query: string,
-  options: { retailers?: Array<"Coles" | "Woolworths">; storeIds?: Partial<Record<"Coles" | "Woolworths", string>> } = {},
+  options: { retailers?: Array<"Coles" | "Woolworths" | "ALDI">; storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> } = {},
 ): Promise<RetailerPriceCandidate[]> {
   const results = await searchColesAndWoolworthsCatalogue(query, options);
 

@@ -27,7 +27,7 @@ const requestTimeoutMs = 5_500;
 const searchConcurrency = 4;
 const serpCircuitBreakerMs = 12 * 60 * 60 * 1000;
 
-type CandidateSource = "food" | "open-prices" | "retailer-api" | "serpapi";
+type CandidateSource = "food" | "open-prices" | "retailer-api" | "aldi-catalogue" | "serpapi";
 type Candidate = {
   retailer: SupermarketRetailer;
   productName: string;
@@ -38,6 +38,7 @@ type Candidate = {
   sourceUrl: string | null;
   cached: boolean;
   source: CandidateSource;
+  storeSpecific: boolean;
 };
 type SearchableItem = {
   item: SupermarketShoppingItem;
@@ -235,6 +236,7 @@ async function storedCandidates(searchItem: SearchableItem, query: string, enabl
       sourceUrl: null,
       cached: true,
       source: "food",
+      storeSpecific: false,
     }];
   });
 }
@@ -271,6 +273,7 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
         sourceUrl: null,
         cached: false,
         source: "open-prices",
+        storeSpecific: false,
       }];
     });
   } catch {
@@ -282,7 +285,7 @@ async function openPricesCandidates(barcode: string, query: string): Promise<Can
 
 async function retailerApiCandidates(
   queries: string[],
-  options: { retailers: Array<"Coles" | "Woolworths">; storeIds: Partial<Record<"Coles" | "Woolworths", string>> },
+  options: { retailers: Array<"Coles" | "Woolworths" | "ALDI">; storeIds: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>> },
 ): Promise<Candidate[]> {
   const batches = await Promise.all(queries.map((query) => searchColesAndWoolworths(query, options).catch(() => [])));
   const seen = new Set<string>();
@@ -300,7 +303,8 @@ async function retailerApiCandidates(
       isSpecial: result.isSpecial,
       sourceUrl: result.sourceUrl,
       cached: false,
-      source: "retailer-api",
+      source: result.retailer === "ALDI" ? "aldi-catalogue" : "retailer-api",
+      storeSpecific: result.retailer !== "ALDI",
     }];
   });
 }
@@ -371,6 +375,7 @@ async function serpCandidates(query: string): Promise<Candidate[]> {
         sourceUrl: typeof rawUrl === "string" && rawUrl.trim() ? rawUrl.trim() : null,
         cached: false,
         source: "serpapi",
+        storeSpecific: false,
       }];
     });
   } catch {
@@ -405,6 +410,7 @@ function buildMatches(
         matchReason: assessment.reason,
         sourceUrl: candidate.sourceUrl,
         cached: candidate.cached,
+        storeSpecific: candidate.storeSpecific,
       };
       return { match, score: assessment.score };
     })
@@ -436,6 +442,7 @@ function providerLabel(sources: Set<CandidateSource>): GroceryPriceProvider {
   if (sources.has("food")) labels.push("Food Price Engine");
   if (sources.has("open-prices")) labels.push("Open Prices");
   if (sources.has("retailer-api")) labels.push("Coles and Woolworths");
+  if (sources.has("aldi-catalogue")) labels.push("ALDI public catalogue");
   if (sources.has("serpapi")) labels.push("SerpApi");
   return (labels.join(" + ") || "Food Price Engine") as GroceryPriceProvider;
 }
@@ -458,7 +465,12 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     prisma.preferredRetailerStore.findMany({ where: { userId: session.user.id, isPreferred: true }, orderBy: { updatedAt: "desc" } }),
   ]);
   const enabledPrimaryRetailers = resolveEnabledRetailers(retailerPreferences);
-  const activePrimaryRetailers = new Set<SupermarketRetailer>(enabledPrimaryRetailers);
+  // ALDI exposes its public catalogue, but not a complete selected-store
+  // availability feed. Include it in comparisons and label it accordingly.
+  const activePrimaryRetailers = new Set<SupermarketRetailer>([...enabledPrimaryRetailers, "ALDI"]);
+  const bridgeRetailers = [...activePrimaryRetailers].filter((retailer): retailer is "Coles" | "Woolworths" | "ALDI" => (
+    retailer === "Coles" || retailer === "Woolworths" || retailer === "ALDI"
+  ));
   const storeIds = preferredStoreIds(preferredStores);
 
   const list = await prisma.shoppingList.findUnique({
@@ -499,7 +511,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
       const queries = searchQueries(entry);
       const [openPrices, retailerPrices] = await Promise.all([
         entry.barcode ? openPricesCandidates(entry.barcode, query) : Promise.resolve([]),
-        retailerApiCandidates(queries, { retailers: enabledPrimaryRetailers, storeIds }),
+        retailerApiCandidates(queries, { retailers: bridgeRetailers, storeIds }),
       ]);
       candidates = [...candidates, ...openPrices, ...retailerPrices];
       await cacheRetailerCandidates(entry.productId, retailerPrices);

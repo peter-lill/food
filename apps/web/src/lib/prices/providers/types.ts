@@ -14,14 +14,18 @@ export type GroceryProviderResult = {
   wasPrice: number | null;
   isSpecial: boolean;
   promotion: string | null;
+  /** Public product page supplied by the retailer, where available. */
+  productUrl: string | null;
+  /** Whether the observation was obtained for the user's selected store. */
+  storeSpecific: boolean;
   source: string;
 };
 
 export type GroceryProviderSearchOptions = {
   limit?: number;
   storeId?: string | null;
-  retailers?: Array<"Coles" | "Woolworths">;
-  storeIds?: Partial<Record<"Coles" | "Woolworths", string>>;
+  retailers?: Array<"Coles" | "Woolworths" | "ALDI">;
+  storeIds?: Partial<Record<"Coles" | "Woolworths" | "ALDI", string>>;
 };
 
 export interface GroceryProvider {
