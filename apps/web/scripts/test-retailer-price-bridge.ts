@@ -111,6 +111,7 @@ const catalogueSource = readFileSync(new URL("../src/lib/prices/coles-woolworths
 const livePriceSearchSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.tsx", import.meta.url), "utf8");
 const shoppingPriceSearchRouteSource = readFileSync(new URL("../src/app/api/prices/shopping-list/[listId]/search/route.ts", import.meta.url), "utf8");
 const comparisonWorkspaceSource = readFileSync(new URL("../src/components/prices/SupermarketComparisonWorkspace.tsx", import.meta.url), "utf8");
+const aldiImporterSource = readFileSync(new URL("./import-aldi-controlled.ts", import.meta.url), "utf8");
 assert.match(providerSource, /GROCERY_MCP_TIMEOUT_MS \?\? 30_000/, "the local retailer bridge gets enough time to complete a live Woolworths request");
 assert.match(catalogueSource, /!results\.length && errors\.length[\s\S]*throw new Error/, "an all-provider timeout must fail the job so the queue retries it");
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
@@ -133,6 +134,12 @@ assert.match(livePriceSearchSource, /target="_blank"/, "live retailer matches pr
 assert.match(livePriceSearchSource, /Not a match/, "a shopper can exclude an incorrect live retailer match");
 assert.match(livePriceSearchSource, /setExcludedMatches/, "excluding a match must immediately recalculate the displayed comparison");
 assert.match(comparisonWorkspaceSource, /buildProductComparisons\(data\.prices, data\.retailers\)/, "saved comparisons are restricted to selected retailers");
+assert.match(aldiImporterSource, /const importAll = process\.argv\.includes\("--all"\)/, "ALDI must have a controlled full-cache importer");
+assert.match(aldiImporterSource, /\/aldi\/catalogue\/products/, "the importer must only read the cached public ALDI catalogue");
+assert.match(aldiImporterSource, /another record in this import has the same normalised name/, "ALDI creation must not duplicate a planned product identity");
+assert.match(aldiImporterSource, /ProductLifecycle\.REVIEW_REQUIRED/, "unbarcoded ALDI catalogue creations must remain reviewable");
+assert.match(aldiImporterSource, /tx\.storeProduct\.createMany/, "ALDI imports must create canonical retailer listings");
+assert.match(aldiImporterSource, /tx\.priceObservation\.createMany/, "ALDI imports must preserve the source price observation");
 
 const genericImageSource = readFileSync(new URL("../src/lib/products/generic-image-generation.ts", import.meta.url), "utf8");
 assert.match(genericImageSource, /credit_balance_exhausted\|insufficient_quota\|no credits remaining/, "exhausted OpenAI credit must skip generation rather than retrying an impossible request");
