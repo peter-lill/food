@@ -29,6 +29,11 @@ from aldi_catalogue import (
     search_cached_products as search_aldi_cached_products,
     status as aldi_catalogue_status,
 )
+from drakes_catalogue import (
+    DrakesCatalogueSession,
+    cached_products as drakes_cached_products,
+    status as drakes_catalogue_status,
+)
 
 sys.path.insert(0, "/opt/grocery-mcp/upstream")
 
@@ -1582,6 +1587,10 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/aldi/catalogue/status":
             self.send_json(200, {"status": "success", **aldi_catalogue_status()})
             return
+        if parsed.path == "/drakes/catalogue/status":
+            store_id = (params.get("storeId") or [None])[0]
+            self.send_json(200, {"status": "success", **drakes_catalogue_status(store_id)})
+            return
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
@@ -1698,6 +1707,27 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if parsed.path == "/woolworths/catalogue/collection/status":
                 self.send_json(200, {"status": "success", "collection": woolworths_collection_status()})
+                return
+            if parsed.path == "/drakes/catalogue/refresh":
+                store_id = (params.get("storeId") or [""])[0].strip()
+                try:
+                    maximum = max(1, min(500, int((params.get("maxPages") or ["500"])[0])))
+                    outcome = DrakesCatalogueSession().refresh(store_id, maximum)
+                except Exception as error:  # noqa: BLE001
+                    self.send_json(502, {"status": "error", "error": f"Drakes catalogue refresh failed: {error}"})
+                    return
+                self.send_json(200, {"status": "success", **outcome})
+                return
+            if parsed.path == "/drakes/catalogue/products":
+                store_id = (params.get("storeId") or [""])[0].strip()
+                try:
+                    limit = max(1, min(1000, int((params.get("limit") or ["500"])[0])))
+                    offset = max(0, int((params.get("offset") or ["0"])[0]))
+                    products = drakes_cached_products(store_id, limit, offset)
+                except ValueError as error:
+                    self.send_json(400, {"status": "error", "error": str(error)})
+                    return
+                self.send_json(200, {"status": "success", "storeId": store_id, "products": products, "limit": limit, "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None})
                 return
             if parsed.path == "/woolworths/catalogue/refresh":
                 category = (params.get("category") or [""])[0].strip()

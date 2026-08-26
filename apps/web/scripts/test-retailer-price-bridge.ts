@@ -137,6 +137,7 @@ const livePriceSearchSource = readFileSync(new URL("../src/components/prices/Liv
 const shoppingPriceSearchRouteSource = readFileSync(new URL("../src/app/api/prices/shopping-list/[listId]/search/route.ts", import.meta.url), "utf8");
 const comparisonWorkspaceSource = readFileSync(new URL("../src/components/prices/SupermarketComparisonWorkspace.tsx", import.meta.url), "utf8");
 const aldiImporterSource = readFileSync(new URL("./import-aldi-controlled.ts", import.meta.url), "utf8");
+const drakesImporterSource = readFileSync(new URL("./import-drakes-controlled.ts", import.meta.url), "utf8");
 assert.match(providerSource, /GROCERY_MCP_TIMEOUT_MS \?\? 30_000/, "the local retailer bridge gets enough time to complete a live Woolworths request");
 assert.match(catalogueSource, /!results\.length && errors\.length[\s\S]*throw new Error/, "an all-provider timeout must fail the job so the queue retries it");
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
@@ -173,6 +174,13 @@ assert.match(aldiImporterSource, /another record in this import has the same nor
 assert.match(aldiImporterSource, /ProductLifecycle\.REVIEW_REQUIRED/, "unbarcoded ALDI catalogue creations must remain reviewable");
 assert.match(aldiImporterSource, /tx\.storeProduct\.createMany/, "ALDI imports must create canonical retailer listings");
 assert.match(aldiImporterSource, /tx\.priceObservation\.createMany/, "ALDI imports must preserve the source price observation");
+assert.match(bridgeSource, /\/drakes\/catalogue\/refresh/, "Drakes exposes an explicit selected-store catalogue refresh endpoint");
+assert.match(bridgeSource, /\/drakes\/catalogue\/products/, "Drakes exposes cached selected-store catalogue pages for controlled imports");
+assert.match(drakesImporterSource, /--store=087/, "Drakes imports require an explicit selected store");
+assert.match(drakesImporterSource, /\/drakes\/catalogue\/products/, "Drakes imports read only from the selected-store cache");
+assert.match(drakesImporterSource, /externalId: listingExternalId\(plan\.product\)/, "Drakes listing identities are scoped to their selected store");
+assert.match(drakesImporterSource, /source: `drakes-controlled-import:\$\{storeId\}`/, "Drakes observations retain their selected-store provenance");
+assert.match(drakesImporterSource, /ProductLifecycle\.REVIEW_REQUIRED/, "new Drakes catalogue products remain reviewable");
 
 const genericImageSource = readFileSync(new URL("../src/lib/products/generic-image-generation.ts", import.meta.url), "utf8");
 assert.match(genericImageSource, /credit_balance_exhausted\|insufficient_quota\|no credits remaining/, "exhausted OpenAI credit must skip generation rather than retrying an impossible request");

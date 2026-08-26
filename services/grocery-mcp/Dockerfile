@@ -18,6 +18,7 @@ RUN pip install --no-cache-dir fastmcp requests python-dotenv playwright \
 
 COPY services/grocery-mcp/bridge.py /opt/grocery-mcp/bridge.py
 COPY services/grocery-mcp/aldi_catalogue.py /opt/grocery-mcp/aldi_catalogue.py
+COPY services/grocery-mcp/drakes_catalogue.py /opt/grocery-mcp/drakes_catalogue.py
 COPY services/grocery-mcp/coles_catalogue.py /opt/grocery-mcp/coles_catalogue.py
 COPY services/grocery-mcp/coles_browser.py /opt/grocery-mcp/coles_browser.py
 COPY services/grocery-mcp/woolworths_browser.py /opt/grocery-mcp/woolworths_browser.py
