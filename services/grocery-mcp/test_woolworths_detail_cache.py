@@ -13,6 +13,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         os.environ["WOOLWORTHS_CATALOGUE_DB"] = str(Path(self.temporary.name) / "catalogue.sqlite3")
         os.environ["COLES_CATALOGUE_DB"] = str(Path(self.temporary.name) / "coles-catalogue.sqlite3")
+        os.environ["ALDI_CATALOGUE_DB"] = str(Path(self.temporary.name) / "aldi-catalogue.sqlite3")
         supermarkets = types.ModuleType("src.supermarkets")
         supermarkets.COLES_DEFAULT_STORE_ID = "520"
         supermarkets.coles_search_products = lambda **_: {"status": "success", "results": []}
@@ -28,6 +29,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
         self.coles_catalogue = sys.modules["coles_catalogue"]
+        self.aldi_catalogue = sys.modules["aldi_catalogue"]
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -85,6 +87,29 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "Coles requires browser verification",
         )
         self.assertIsNone(self.coles_catalogue.coles_browser_verification_error("Browse Meat & Seafood"))
+
+    def test_public_aldi_listing_keeps_product_identity_price_and_catalogue_path(self) -> None:
+        listing = '''
+          <div id="product-tile-000000000000173130"><div class="product-tile">
+          <a href="/product/haribo-mega-roulette-45g-000000000000173130" class="product-tile__link">
+          <img class="base-image" src="https://images.example/roulette.jpg">
+          <div class="product-tile__brandname"><p>HARIBO</p></div>
+          <div class="product-tile__name"><p>Mega Roulette 45g</p></div>
+          <div class="product-tile__unit-of-measurement"><p>45 g</p></div>
+          <div class="product-tile__comparison-price"><p>($2.20 per 100 g)</p></div>
+          <div data-test="product-tile__price"><span>$0.99</span></div></a></div></div>
+          <a href="/products?page=2">2</a><a href="/products?page=5">5</a>
+        '''
+        products, pages = self.aldi_catalogue.parse_aldi_listing(listing, "/products/pantry/confectionery/k/1111111181")
+
+        self.assertEqual(pages, 5)
+        self.assertEqual(products, [{
+            "external_id": "173130", "name": "Mega Roulette 45g", "brand": "HARIBO",
+            "pack_size": "45 g", "unit_price": "($2.20 per 100 g)", "price": 0.99,
+            "image_url": "https://images.example/roulette.jpg",
+            "product_url": "https://www.aldi.com.au/product/haribo-mega-roulette-45g-000000000000173130",
+            "category_path": "/products/pantry/confectionery/k/1111111181",
+        }])
 
     def test_empty_category_without_api_or_descendants_still_fails(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "category API response was not observed"):

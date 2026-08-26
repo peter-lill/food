@@ -22,6 +22,12 @@ from coles_catalogue import (
     parse_coles_browse_document,
     status as coles_catalogue_status,
 )
+from aldi_catalogue import (
+    AldiCatalogueSession,
+    cached_products as aldi_cached_products,
+    parse_aldi_listing,
+    status as aldi_catalogue_status,
+)
 
 sys.path.insert(0, "/opt/grocery-mcp/upstream")
 
@@ -1447,6 +1453,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/coles/catalogue/status":
             self.send_json(200, {"status": "success", **coles_catalogue_status()})
             return
+        if parsed.path == "/aldi/catalogue/status":
+            self.send_json(200, {"status": "success", **aldi_catalogue_status()})
+            return
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
@@ -1497,6 +1506,35 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {"status": "error", "error": "limit and offset must be whole numbers"})
                     return
                 products = coles_cached_products(limit, offset)
+                self.send_json(200, {
+                    "status": "success", "products": products, "limit": limit,
+                    "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None,
+                })
+                return
+            if parsed.path == "/aldi/catalogue/refresh":
+                category = (params.get("category") or ["/products"])[0].strip() or "/products"
+                try:
+                    requested_pages = int((params.get("maxPages") or ["0"])[0])
+                    if requested_pages < 0:
+                        raise ValueError
+                except ValueError:
+                    self.send_json(400, {"status": "error", "error": "maxPages must be zero or a positive whole number"})
+                    return
+                try:
+                    outcome = AldiCatalogueSession().refresh(category, requested_pages or None)
+                except (ValueError, RuntimeError, OSError) as error:
+                    self.send_json(502, {"status": "error", "error": f"ALDI catalogue refresh failed: {error}"})
+                    return
+                self.send_json(200, {"status": "success", **outcome})
+                return
+            if parsed.path == "/aldi/catalogue/products":
+                try:
+                    limit = max(1, min(1000, int((params.get("limit") or ["30"])[0])))
+                    offset = max(0, int((params.get("offset") or ["0"])[0]))
+                except ValueError:
+                    self.send_json(400, {"status": "error", "error": "limit and offset must be whole numbers"})
+                    return
+                products = aldi_cached_products(limit, offset)
                 self.send_json(200, {
                     "status": "success", "products": products, "limit": limit,
                     "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None,
