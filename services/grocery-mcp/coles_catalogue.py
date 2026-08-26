@@ -17,12 +17,15 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.parse import urlencode
+from urllib.request import urlopen
 
 from playwright.sync_api import sync_playwright
 
 
 COLES_CATALOGUE_DB = os.getenv("COLES_CATALOGUE_DB", "/data/coles-catalogue.sqlite3")
 COLES_CDP_URL = os.getenv("COLES_CDP_URL", os.getenv("WOOLWORTHS_CDP_URL", "")).strip()
+COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "chromium-cdp").strip().lower()
+COLES_FIREFOX_FETCH_URL = os.getenv("COLES_FIREFOX_FETCH_URL", "").strip()
 COLES_PAGE_SIZE = 48
 COLES_ROOT_CATEGORIES = (
     "/browse/meat-seafood", "/browse/fruit-vegetables", "/browse/dairy-eggs-fridge",
@@ -195,47 +198,75 @@ def cache_page(category_path: str, result: dict[str, Any]) -> set[str]:
 @dataclass
 class ColesBrowserSession:
     cdp_url: str = COLES_CDP_URL
+    browser_engine: str = COLES_BROWSER_ENGINE
+    firefox_fetch_url: str = COLES_FIREFOX_FETCH_URL
 
     def browse(self, category_path: str, fetch_page: Callable[[str], str] | None = None) -> int:
         if not category_path.startswith("/browse/"):
             raise ValueError("category must be a /browse/ path")
-        if fetch_page is None and not self.cdp_url:
+        if self.browser_engine not in ("chromium-cdp", "firefox"):
+            raise RuntimeError("unsupported Coles browser engine; use chromium-cdp or firefox")
+        if fetch_page is None and self.browser_engine == "chromium-cdp" and not self.cdp_url:
             raise RuntimeError("verified browser session is not configured; set COLES_CDP_URL")
 
-        def read(url: str) -> str:
-            if fetch_page:
-                return fetch_page(url)
-            with sync_playwright() as playwright:
-                browser = playwright.chromium.connect_over_cdp(self.cdp_url)
-                try:
-                    context = browser.contexts[0]
-                    page = context.new_page()
-                    try:
-                        page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-                        verification_error = coles_browser_verification_error(
-                            page.locator("body").inner_text(timeout=5_000)
-                        )
-                        if verification_error:
-                            raise RuntimeError(verification_error)
-                        return page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
-                    finally:
-                        page.close()
-                finally:
-                    browser.close()
+        def read_page(context: Any, url: str) -> str:
+            page = context.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+                verification_error = coles_browser_verification_error(
+                    page.locator("body").inner_text(timeout=5_000)
+                )
+                if verification_error:
+                    raise RuntimeError(verification_error)
+                payload = page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
+                if not payload:
+                    raise RuntimeError("Coles browse page did not expose its catalogue data")
+                return payload
+            finally:
+                page.close()
 
-        cached_ids: set[str] = set()
-        offset = 0
-        page_number = 1
-        while True:
-            query = urlencode({"sortBy": "recommendedDescending", "start": offset, "page": page_number})
-            result = parse_coles_browse_document(read(f"https://www.coles.com.au{category_path}?{query}"))
-            cached_ids.update(cache_page(category_path, result))
-            total = int(result.get("noOfResults") or 0)
-            page_size = int(result.get("pageSize") or COLES_PAGE_SIZE)
-            offset += page_size
-            page_number += 1
-            if not result["results"] or offset >= total:
-                return len(cached_ids)
+        def collect(read: Callable[[str], str]) -> int:
+            cached_ids: set[str] = set()
+            offset = 0
+            page_number = 1
+            while True:
+                query = urlencode({"sortBy": "recommendedDescending", "start": offset, "page": page_number})
+                result = parse_coles_browse_document(read(f"https://www.coles.com.au{category_path}?{query}"))
+                cached_ids.update(cache_page(category_path, result))
+                total = int(result.get("noOfResults") or 0)
+                page_size = int(result.get("pageSize") or COLES_PAGE_SIZE)
+                offset += page_size
+                page_number += 1
+                if not result["results"] or offset >= total:
+                    return len(cached_ids)
+
+        if fetch_page:
+            return collect(fetch_page)
+
+        if self.browser_engine == "firefox":
+            if not self.firefox_fetch_url:
+                raise RuntimeError("Firefox browser session is not configured; set COLES_FIREFOX_FETCH_URL")
+
+            def read_firefox(url: str) -> str:
+                request_url = f"{self.firefox_fetch_url}?{urlencode({'url': url})}"
+                with urlopen(request_url, timeout=90) as response:
+                    payload = json.loads(response.read())
+                if payload.get("status") != "success":
+                    raise RuntimeError(payload.get("error") or "Firefox browser session did not return catalogue data")
+                next_data = payload.get("nextData")
+                if not isinstance(next_data, str) or not next_data:
+                    raise RuntimeError("Firefox browser session did not return catalogue data")
+                return next_data
+
+            return collect(read_firefox)
+
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(self.cdp_url)
+            try:
+                context = browser.contexts[0]
+                return collect(lambda url: read_page(context, url))
+            finally:
+                browser.close()
 
 
 def seed_collection() -> None:
@@ -257,7 +288,9 @@ def status() -> dict[str, Any]:
             FROM coles_category_collection
         """).fetchone()
         product_summary = connection.execute("SELECT COUNT(*) products, MAX(refreshed_at) refreshed_at FROM coles_products").fetchone()
-    return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": "verified-browser" if COLES_CDP_URL else "unconfigured"}
+    configured = bool(COLES_FIREFOX_FETCH_URL) if COLES_BROWSER_ENGINE == "firefox" else bool(COLES_CDP_URL)
+    mode = "verified-firefox" if COLES_BROWSER_ENGINE == "firefox" else "verified-browser"
+    return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:
