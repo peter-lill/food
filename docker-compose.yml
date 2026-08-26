@@ -84,6 +84,7 @@ services:
       - food_coles_firefox_profile:/browser-profile
     ports:
       - "127.0.0.1:${COLES_NOVNC_PORT:-6082}:6080"
+      - "127.0.0.1:${COLES_FIREFOX_FETCH_PORT:-8788}:8788"
     expose:
       - "8788"
     healthcheck:
