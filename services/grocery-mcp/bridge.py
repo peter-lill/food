@@ -26,6 +26,7 @@ from aldi_catalogue import (
     AldiCatalogueSession,
     cached_products as aldi_cached_products,
     parse_aldi_listing,
+    search_cached_products as search_aldi_cached_products,
     status as aldi_catalogue_status,
 )
 
@@ -1142,6 +1143,33 @@ def search_woolworths(query: str, limit: int) -> list[dict]:
     return normalise_products("Woolworths", products, limit)
 
 
+def search_aldi(query: str, limit: int) -> list[dict]:
+    """Search the existing ALDI public-catalogue cache only.
+
+    ALDI's published product finder is not a selected-store availability API,
+    so this deliberately returns a catalogue source rather than pretending to
+    confirm local stock or price.
+    """
+    products = search_aldi_cached_products(query, limit)
+    return [{
+        "retailer": "ALDI",
+        "name": product["name"],
+        "price": product["price"],
+        "wasPrice": None,
+        "isSpecial": False,
+        "promotion": None,
+        "unit": product["unit_price"],
+        "packSize": product["pack_size"],
+        "store": "ALDI public catalogue",
+        "barcode": None,
+        "imageUrl": product["image_url"],
+        "productId": product["external_id"],
+        "productUrl": product["product_url"],
+        "source": "public-catalogue",
+        "storeSpecific": False,
+    } for product in products]
+
+
 WOOLWORTHS_STORE_LOCATOR_URL = (
     "https://contact.woolworths.com.au/storelocator/service"
 )
@@ -1621,7 +1649,7 @@ class Handler(BaseHTTPRequestHandler):
         if not query:
             self.send_json(400, {"status": "error", "error": "Missing q parameter"})
             return
-        if retailer not in ("all", "coles", "woolworths"):
+        if retailer not in ("all", "coles", "woolworths", "aldi"):
             self.send_json(400, {"status": "error", "error": "Unsupported retailer"})
             return
 
@@ -1639,6 +1667,12 @@ class Handler(BaseHTTPRequestHandler):
                 results.extend(search_woolworths(query, limit))
             except Exception as error:  # noqa: BLE001
                 errors.append(f"Woolworths: {error}")
+
+        if retailer in ("all", "aldi"):
+            try:
+                results.extend(search_aldi(query, limit))
+            except Exception as error:  # noqa: BLE001
+                errors.append(f"ALDI: {error}")
 
         self.send_json(
             200,

@@ -17,6 +17,8 @@ const candidate = toRetailerCatalogueCandidate({
   barcode: "9300605075753",
   imageUrl: null,
   productId: "12345",
+  productUrl: null,
+  storeSpecific: true,
   source: "coles-woolworths-mcp",
 });
 
@@ -40,9 +42,31 @@ const colesPackCandidate = toRetailerCatalogueCandidate({
   barcode: "9300000000000",
   imageUrl: null,
   productId: "cumin-30g",
+  productUrl: null,
+  storeSpecific: true,
   source: "coles-woolworths-mcp",
 });
 assert.equal(colesPackCandidate?.packSize, "30 g", "Coles package size must survive independently of the product name or unit price");
+
+const aldiCandidate = toRetailerCatalogueCandidate({
+  retailer: "ALDI",
+  name: "Moser Roth Dark Chocolate 125g",
+  price: 3.99,
+  wasPrice: null,
+  isSpecial: false,
+  promotion: null,
+  packSize: "125 g",
+  unit: "$3.19 per 100 g",
+  store: "ALDI public catalogue",
+  barcode: null,
+  imageUrl: "https://images.example/aldi-chocolate.jpg",
+  productId: "173130",
+  productUrl: "https://www.aldi.com.au/product/moser-roth-dark-chocolate-125g-000000000000173130",
+  storeSpecific: false,
+  source: "aldi-public-catalogue",
+});
+assert.equal(aldiCandidate?.retailer, "ALDI");
+assert.equal(aldiCandidate?.sourceUrl, "https://www.aldi.com.au/product/moser-roth-dark-chocolate-125g-000000000000173130");
 
 const kitKatScore = identityScore(
   {

@@ -28,6 +28,8 @@ export type LiveGroceryPriceMatch = {
   matchReason: string;
   sourceUrl: string | null;
   cached: boolean;
+  /** False when this is a public catalogue price rather than a selected-store result. */
+  storeSpecific: boolean;
 };
 
 export type LiveGroceryPriceItemResult = {

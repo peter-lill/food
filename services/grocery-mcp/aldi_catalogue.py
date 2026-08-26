@@ -164,3 +164,18 @@ def cached_products(limit: int, offset: int) -> list[dict]:
     with cache_session() as connection:
         rows = connection.execute("SELECT * FROM aldi_products ORDER BY category_path, name COLLATE NOCASE, external_id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
     return [dict(row) for row in rows]
+
+
+def search_cached_products(query: str, limit: int) -> list[dict]:
+    """Search the local public-catalogue snapshot without reacquiring ALDI pages."""
+    words = [word for word in re.findall(r"[a-z0-9]+", query.casefold()) if len(word) > 1]
+    if not words:
+        return []
+    clauses = " AND ".join("LOWER(name || ' ' || COALESCE(brand, '')) LIKE ?" for _ in words)
+    parameters = [f"%{word}%" for word in words] + [limit]
+    with cache_session() as connection:
+        rows = connection.execute(
+            f"SELECT * FROM aldi_products WHERE {clauses} ORDER BY refreshed_at DESC, name COLLATE NOCASE LIMIT ?",
+            parameters,
+        ).fetchall()
+    return [dict(row) for row in rows]
