@@ -42,7 +42,7 @@ assert.match(bridge, /PRIMARY KEY \(stockcode, category_path\)/, "a stockcode ma
 assert.match(bridge, /INSERT INTO woolworths_product_categories[\s\S]*ON CONFLICT\(stockcode, category_path\)/, "category observations must be safely refreshable");
 assert.match(bridge, /product\["category_paths"\]/, "controlled imports must receive all source category paths for each stockcode");
 assert.match(bridge, /revisitAllCompleted/, "the collector must support a full completed-category rescan for source reindexing");
-assert.match(bridge, /WHERE state = 'completed'\n\s*"""/, "a full rescan must revisit every completed category, not only roots");
+assert.match(bridge, /WHERE state = 'completed'\r?\n\s*"""/, "a full rescan must revisit every completed category, not only roots");
 assert.match(bridge, /woolworths_product_nodes\(payload\)/, "nested Bundles and Products must be flattened");
 assert.match(bridge, /stockcode TEXT PRIMARY KEY, barcode TEXT/, "stock codes and barcodes must remain exact text");
 assert.match(bridge, /ON CONFLICT\(stockcode\) DO UPDATE/, "category refreshes must be resumable and idempotent");

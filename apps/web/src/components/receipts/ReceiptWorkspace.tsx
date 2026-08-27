@@ -154,6 +154,14 @@ export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }
     setImageUrl(URL.createObjectURL(file)); setOcrBusy(true); setOcrError(null); setOcrProgress(2); setOcrStatus("Preparing the receipt image…");
     let worker: Awaited<ReturnType<typeof import("tesseract.js")["createWorker"]>> | null = null;
     try {
+      const visionForm = new FormData();
+      visionForm.set("receipt", file);
+      const visionPromise = fetch("/api/receipts/recognise", { method: "POST", body: visionForm })
+        .then(async (response) => response.ok ? response.json() as Promise<{ text: string; confidence: number } | null> : null)
+        .catch((error) => {
+          console.warn("Server receipt recognition unavailable", error);
+          return null;
+        });
       const prepared = await prepareReceiptImage(file);
       setOcrProgress(10); setOcrStatus("Loading receipt recognition…");
       const { createWorker, PSM } = await import("tesseract.js");
@@ -207,6 +215,19 @@ export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }
       currentBest = chooseReceiptCandidate(candidates);
       if (!currentBest || needsReceiptFallback(currentBest)) {
         await recognise(prepared, "sparse", PSM.SPARSE_TEXT, "Checking faint and separated receipt lines…", 68, 30);
+      }
+
+      const vision = await visionPromise;
+      if (vision?.text) {
+        const lines = receiptLineCandidatesFromOcr(undefined, vision.text)[0] ?? [];
+        const text = receiptLinesText(lines).trim();
+        if (text) candidates.push({
+          ocrConfidence: vision.confidence,
+          parsed: parseReceipt(text, lines),
+          pass: "vision",
+          text,
+          lines,
+        });
       }
 
       const best = chooseReceiptCandidate(candidates);

@@ -157,7 +157,7 @@ assert.match(bridgeSource, /"storeSpecific": True/, "Drakes results declare thei
 assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");
 assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout, RuntimeError\)/, "Woolworths browser failures must open the circuit explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
-assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\)/, "live searches only include retailers enabled in the account");
+assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\.filter/, "live searches only include retailers enabled in the account");
 assert.match(shoppingPriceSearchRouteSource, /retailer === "Drakes"/, "Drakes joins live price searches only when enabled in the account");
 assert.match(shoppingPriceSearchRouteSource, /Boolean\(storeIds\.Drakes\)/, "Drakes is excluded until the shopper has selected its store");
 assert.match(shoppingPriceSearchRouteSource, /retailerProductUrl\(sourceRetailer, listing\?\.retailerProductName/, "cached retailer prices inherit their canonical listing URL");
