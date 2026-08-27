@@ -152,14 +152,17 @@ assert.match(bridgeSource, /sync_playwright[\s\S]*page\.goto[\s\S]*page\.evaluat
 assert.match(bridgeSource, /ExcludeSearchTypes[\s\S]*EnableAdReRanking/, "Woolworths receives the complete current search payload");
 assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
 assert.match(bridgeSource, /DRAKES_DIRECTORY_URL/, "Drakes store selection reads the official public directory");
+assert.match(bridgeSource, /DRAKES_STORE_LOCATOR_URL/, "Drakes nearby lookup uses the official store locator");
+assert.match(bridgeSource, /def drakes_nearby_stores[\s\S]*action": "store_search"/, "Drakes nearby lookup uses the locator's coordinate search");
 assert.match(bridgeSource, /def search_drakes[\s\S]*selected Drakes store/, "Drakes price lookup stays tied to the selected store");
 assert.match(bridgeSource, /"storeSpecific": True/, "Drakes results declare their selected-store scope");
 assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");
 assert.match(bridgeSource, /except \(TimeoutError, socket\.timeout, RuntimeError\)/, "Woolworths browser failures must open the circuit explicitly");
 assert.doesNotMatch(bridgeSource, /woolworths_search_products\(query=query\)/, "the obsolete upstream Woolworths GET client must not be called");
-assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\)/, "live searches only include retailers enabled in the account");
+assert.match(shoppingPriceSearchRouteSource, /new Set<SupermarketRetailer>\(enabledPrimaryRetailers\.filter/, "live searches only include retailers enabled in the account");
 assert.match(shoppingPriceSearchRouteSource, /retailer === "Drakes"/, "Drakes joins live price searches only when enabled in the account");
 assert.match(shoppingPriceSearchRouteSource, /Boolean\(storeIds\.Drakes\)/, "Drakes is excluded until the shopper has selected its store");
+assert.match(shoppingPriceSearchRouteSource, /storedCandidates\(entry, query, \[\.\.\.activePrimaryRetailers\]\)/, "cached prices honour the same enabled-retailer and selected-store guard");
 assert.match(shoppingPriceSearchRouteSource, /retailerProductUrl\(sourceRetailer, listing\?\.retailerProductName/, "cached retailer prices inherit their canonical listing URL");
 assert.doesNotMatch(shoppingPriceSearchRouteSource, /\[\.\.\.enabledPrimaryRetailers, "ALDI"\]/, "ALDI must not appear in a live price search until it is selected and supported");
 assert.match(livePriceSearchSource, /target="_blank"/, "live retailer matches provide an external product-page link when available");

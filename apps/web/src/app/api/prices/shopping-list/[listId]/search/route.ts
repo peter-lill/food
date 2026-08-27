@@ -529,7 +529,10 @@ export async function POST(request: Request, context: { params: Promise<{ listId
 
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
     const query = titleCase(entry.item.name);
-    let candidates = await storedCandidates(entry, query, enabledPrimaryRetailers);
+    // Cached prices must honour the same selected-store guard as live results.
+    // In particular, do not show a previous Drakes price before the shopper has
+    // chosen the Drakes store whose catalogue it came from.
+    let candidates = await storedCandidates(entry, query, [...activePrimaryRetailers]);
     let matches = buildMatches(entry, query, candidates, allowSubstitutes, activePrimaryRetailers);
     const cachedPrimaryRetailers = new Set(matches.filter((match) => activePrimaryRetailers.has(match.retailer)).map((match) => match.retailer));
 
