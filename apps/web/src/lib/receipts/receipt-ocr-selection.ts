@@ -5,7 +5,7 @@ import { receiptStructureScore, type ReceiptOcrLine } from "./receipt-structure"
 export interface ReceiptOcrCandidate {
   ocrConfidence: number;
   parsed: ParsedReceipt;
-  pass: "structured" | "sparse";
+  pass: "structured" | "sparse" | "vision";
   text: string;
   lines?: ReceiptOcrLine[];
 }

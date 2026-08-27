@@ -39,6 +39,7 @@ Thumbs.db
 
 # Generated archives and backups
 *.zip
+*.tsbuildinfo
 .food-hotfix-backups/
 .food-backups/
 apps/web/.data/
