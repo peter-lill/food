@@ -17,9 +17,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "A receipt image is required." }, { status: 400 });
     }
     const result = await recogniseReceiptWithVision(file);
+    if (!result) {
+      return NextResponse.json({ error: "Server receipt recognition is unavailable." }, { status: 503 });
+    }
     return NextResponse.json(result);
   } catch (error) {
     console.warn("Optional server receipt recognition failed", error);
-    return NextResponse.json(null);
+    return NextResponse.json({ error: "Server receipt recognition failed." }, { status: 502 });
   }
 }
