@@ -1,4 +1,5 @@
 type OpenAiResponse = {
+  choices?: Array<{ message?: { content?: string } }>;
   output?: Array<{ content?: Array<{ type?: string; text?: string }> }>;
   output_text?: string;
 };
@@ -6,15 +7,18 @@ type OpenAiResponse = {
 export type ReceiptVisionResult = { text: string; confidence: number };
 
 export function parseReceiptVisionOutput(payload: OpenAiResponse): ReceiptVisionResult | null {
-  const output = payload.output_text
-    ?? (payload.output ?? []).flatMap((item) => item.content ?? [])
-      .filter((item) => item.type === "output_text")
-      .map((item) => item.text ?? "")
-      .join("\n");
+  const responsesText = payload.output_text ?? (payload.output ?? [])
+    .flatMap((item) => item.content ?? [])
+    .filter((item) => item.type === "output_text")
+    .map((item) => item.text ?? "")
+    .join("\n");
+  const output = responsesText || payload.choices?.[0]?.message?.content || "";
   if (!output.trim()) return null;
 
   let parsed: unknown;
-  try { parsed = JSON.parse(output); } catch { return null; }
+  try {
+    parsed = JSON.parse(output.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, ""));
+  } catch { return null; }
   if (!parsed || typeof parsed !== "object") return null;
 
   const value = parsed as { lines?: unknown; confidence?: unknown };

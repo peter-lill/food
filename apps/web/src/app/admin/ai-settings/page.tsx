@@ -8,8 +8,8 @@ import styles from "./settings.module.css";
 
 export const metadata = { title: "AI providers | Food Admin" };
 const providers = {
-  aicompute: { title: "AI Compute", purpose: "Product-page summaries and usage ideas", baseUrl: "https://api.aicompute.au/v1", host: "api.aicompute.au", model: "gemma-4-31b-it" },
-  openai: { title: "OpenAI", purpose: "Generic product image generation", baseUrl: "https://api.openai.com/v1", host: "api.openai.com", model: "gpt-image-2" },
+  aicompute: { title: "AI Compute", purpose: "Receipt recognition, product summaries and usage ideas", baseUrl: "https://api.aicompute.au/v1", host: "api.aicompute.au", model: "gemma-4-31b-it" },
+  openai: { title: "OpenAI", purpose: "Receipt recognition and generic product imagery", baseUrl: "https://api.openai.com/v1", host: "api.openai.com", model: "gpt-image-2" },
 } as const;
 type Provider = keyof typeof providers;
 

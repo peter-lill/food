@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { parseReceiptVisionOutput } from "../src/lib/receipts/receipt-vision-output";
+import { receiptVisionRequest } from "../src/lib/receipts/receipt-vision-request";
 import { parseReceipt } from "../src/lib/receipts/engine/parser";
 import { canPopulateReceiptCandidate, chooseReceiptCandidate } from "../src/lib/receipts/receipt-ocr-selection";
 import { receiptLineCandidatesFromOcr, receiptLinesText } from "../src/lib/receipts/receipt-structure";
@@ -12,6 +13,18 @@ const valid = parseReceiptVisionOutput({ output: [{ content: [{ type: "output_te
 assert.deepEqual(valid, { text: "Coles\nCOLES MILK 2L 4.50\nBREAD 3.20\nEGGS 5.00\nTotal $12.70", confidence: 88 });
 assert.equal(parseReceiptVisionOutput({ output_text: "not json" }), null);
 assert.equal(parseReceiptVisionOutput({ output_text: JSON.stringify({ lines: ["Coles"], confidence: 90 }) }), null);
+assert.deepEqual(parseReceiptVisionOutput({ choices: [{ message: { content: `\`\`\`json\n${JSON.stringify({ lines: ["Coles", "MILK 4.00", "Total $4.00"], confidence: 84 })}\n\`\`\`` } }] }), {
+  text: "Coles\nMILK 4.00\nTotal $4.00",
+  confidence: 84,
+}, "OpenAI-compatible chat completions and fenced JSON must be accepted");
+const aiComputeRequest = receiptVisionRequest("aicompute", "gemma-4-31b-it", "data:image/jpeg;base64,receipt");
+assert.equal(aiComputeRequest.endpoint, "chat/completions");
+assert.equal(aiComputeRequest.body.model, "gemma-4-31b-it");
+assert.ok(aiComputeRequest.body.messages);
+assert.deepEqual(aiComputeRequest.body.messages[0].content[1], {
+  type: "image_url",
+  image_url: { url: "data:image/jpeg;base64,receipt", detail: "high" },
+});
 
 const yamantoVision = parseReceiptVisionOutput({ output_text: JSON.stringify({
   lines: [
@@ -53,9 +66,14 @@ assert.equal(visionCandidate.parsed.items.reduce((sum, item) => sum + item.quant
 assert.equal(visionCandidate.parsed.items.some((item) => /EFT|GST|Total for/i.test(item.description)), false);
 
 const routeSource = readFileSync(new URL("../src/app/api/receipts/recognise/route.ts", import.meta.url), "utf8");
+const visionSource = readFileSync(new URL("../src/lib/receipts/receipt-vision.ts", import.meta.url), "utf8");
 const workspaceSource = readFileSync(new URL("../src/components/receipts/ReceiptWorkspace.tsx", import.meta.url), "utf8");
 assert.match(routeSource, /isOwnerEmail\(session\.user\.email\)/, "server receipt OCR must require the owner session");
+assert.match(routeSource, /status: 503/, "a missing provider must not be reported to the browser as a successful empty recognition");
+assert.match(routeSource, /status: 502/, "an upstream vision failure must not be reported as a successful empty recognition");
+assert.match(visionSource, /configuredProvider\("aicompute"\)/, "receipt vision must use the already configured AI Compute provider when OpenAI is absent");
 assert.match(workspaceSource, /fetch\("\/api\/receipts\/recognise"/, "the receipt workspace must request optional server recognition");
 assert.match(workspaceSource, /pass:\s*"vision"/, "vision output must enter the same deterministic candidate selector");
+assert.match(workspaceSource, /Server recognition failed; check AI provider status/, "the review UI must explain a failed server fallback instead of silently returning no receipt");
 
 console.log("Receipt vision fallback checks passed.");

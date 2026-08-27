@@ -157,10 +157,12 @@ export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }
       const visionForm = new FormData();
       visionForm.set("receipt", file);
       const visionPromise = fetch("/api/receipts/recognise", { method: "POST", body: visionForm })
-        .then(async (response) => response.ok ? response.json() as Promise<{ text: string; confidence: number } | null> : null)
+        .then(async (response) => response.ok
+          ? { result: await response.json() as { text: string; confidence: number }, failed: false }
+          : { result: null, failed: true })
         .catch((error) => {
           console.warn("Server receipt recognition unavailable", error);
-          return null;
+          return { result: null, failed: true };
         });
       const prepared = await prepareReceiptImage(file);
       setOcrProgress(10); setOcrStatus("Loading receipt recognition…");
@@ -217,7 +219,8 @@ export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }
         await recognise(prepared, "sparse", PSM.SPARSE_TEXT, "Checking faint and separated receipt lines…", 68, 30);
       }
 
-      const vision = await visionPromise;
+      const visionAttempt = await visionPromise;
+      const vision = visionAttempt.result;
       if (vision?.text) {
         const lines = receiptLineCandidatesFromOcr(undefined, vision.text)[0] ?? [];
         const text = receiptLinesText(lines).trim();
@@ -231,7 +234,9 @@ export function ReceiptWorkspace({ receipts, loadError, stagedCaptureId = null }
       }
 
       const best = chooseReceiptCandidate(candidates);
-      if (!best) throw new Error("No readable text was detected. Try a clearer saved image or retake the photo closer and without glare.");
+      if (!best) throw new Error(visionAttempt.failed
+        ? "Neither server nor on-device recognition could read a complete receipt. Server recognition failed; check AI provider status, then retry the original image."
+        : "No structurally complete receipt was detected. Try a clearer saved image or retake the photo closer and without glare.");
       const parsed = best.parsed;
       const safeToPopulate = canPopulateReceiptCandidate(best);
       console.info("Receipt OCR candidate selection", candidates.map((candidate) => ({
