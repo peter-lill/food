@@ -107,6 +107,7 @@ const storePreferencesSource = readFileSync(
 );
 assert.match(storePreferencesSource, /RetailerLogo retailer={retailer}/);
 assert.match(storePreferencesSource, /getCurrentLocation\(\)/);
+assert.doesNotMatch(storePreferencesSource, /retailer !== "Drakes"/, "Drakes must offer the official nearby-store lookup when current location is available");
 assert.match(storePreferencesSource, /catalogue prices are national listings/, "ALDI must be visibly labelled as catalogue pricing rather than local stock");
 assert.match(storePreferencesSource, /Interactive map/, "store selection must show an embedded interactive map instead of only an outbound map link");
 assert.match(storePreferencesSource, /output=embed/, "the map remains inside Food while selecting a store");

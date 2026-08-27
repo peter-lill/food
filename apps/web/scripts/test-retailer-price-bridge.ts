@@ -152,6 +152,8 @@ assert.match(bridgeSource, /sync_playwright[\s\S]*page\.goto[\s\S]*page\.evaluat
 assert.match(bridgeSource, /ExcludeSearchTypes[\s\S]*EnableAdReRanking/, "Woolworths receives the complete current search payload");
 assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer queries remove browser artefacts and enforce a safe length limit");
 assert.match(bridgeSource, /DRAKES_DIRECTORY_URL/, "Drakes store selection reads the official public directory");
+assert.match(bridgeSource, /DRAKES_STORE_LOCATOR_URL/, "Drakes nearby lookup uses the official store locator");
+assert.match(bridgeSource, /def drakes_nearby_stores[\s\S]*action": "store_search"/, "Drakes nearby lookup uses the locator's coordinate search");
 assert.match(bridgeSource, /def search_drakes[\s\S]*selected Drakes store/, "Drakes price lookup stays tied to the selected store");
 assert.match(bridgeSource, /"storeSpecific": True/, "Drakes results declare their selected-store scope");
 assert.match(bridgeSource, /WOOLWORTHS_CIRCUIT_SECONDS[\s\S]*_woolworths_unavailable_until/, "one Woolworths read timeout must temporarily open a circuit instead of delaying every queued query");

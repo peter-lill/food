@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue
-from urllib.parse import parse_qs, quote, urlparse
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
@@ -1176,6 +1176,7 @@ def search_aldi(query: str, limit: int) -> list[dict]:
 
 
 DRAKES_DIRECTORY_URL = "https://online.drakes.com.au/"
+DRAKES_STORE_LOCATOR_URL = "https://drakes.com.au/wp-admin/admin-ajax.php"
 
 
 def strip_html(value: str) -> str:
@@ -1216,11 +1217,78 @@ def drakes_store_records() -> list[dict]:
     return records
 
 
-def drakes_stores(postcode: str, limit: int) -> list[dict]:
+def normalise_drakes_store_name(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", value.lower().replace("online", ""))
+
+
+def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[dict]:
+    """Read nearby stores from Drakes' public store-locator endpoint.
+
+    The official locator resolves a suburb or postcode to coordinates in the
+    browser, then sends those coordinates to this endpoint.  We do the same
+    only after the shopper explicitly supplies their current location.
+    """
+    query = urlencode({
+        "action": "store_search",
+        "lat": latitude,
+        "lng": longitude,
+        "max_results": limit,
+        "search_radius": 50,
+    })
+    request = Request(f"{DRAKES_STORE_LOCATOR_URL}?{query}", headers={
+        "Accept": "application/json",
+        "User-Agent": "Food price location resolver/1.0",
+    })
+    with urlopen(request, timeout=12) as response:
+        payload = json.loads(response.read())
+    if not isinstance(payload, list):
+        raise RuntimeError("Drakes store locator returned an unexpected response")
+
+    catalogue_by_name = {
+        normalise_drakes_store_name(record["name"]): record
+        for record in drakes_store_records()
+    }
+    stores: list[dict] = []
+    for item in payload:
+        if not isinstance(item, dict):
+            continue
+        name = clean_text(item.get("store"))
+        if not name:
+            continue
+        catalogue = catalogue_by_name.get(normalise_drakes_store_name(name))
+        # Food pricing requires a catalogue host. Skip locator-only Drakes
+        # locations rather than offering a store whose prices cannot be read.
+        if not catalogue:
+            continue
+        stores.append({
+            "retailer": "Drakes",
+            "storeId": catalogue["storeId"],
+            "name": name,
+            "address": ", ".join(part for part in (
+                clean_text(item.get("address")), clean_text(item.get("address2")),
+                clean_text(item.get("city")), clean_text(item.get("state")), clean_text(item.get("zip")),
+            ) if part),
+            "postcode": clean_text(item.get("zip")),
+            "latitude": clean_coordinate(item.get("lat")),
+            "longitude": clean_coordinate(item.get("lng")),
+            "distanceKm": clean_price(item.get("distance")),
+        })
+    return stores
+
+
+def drakes_stores(
+    postcode: str,
+    limit: int,
+    latitude: float | None = None,
+    longitude: float | None = None,
+) -> list[dict]:
+    if latitude is not None and longitude is not None:
+        return drakes_nearby_stores(latitude, longitude, limit)
     if not postcode.isdigit() or len(postcode) != 4:
         raise ValueError("postcode must be a four-digit Australian postcode")
     # The directory does not publish distances; retain only exact-postcode
-    # stores rather than claiming an unsupported proximity ordering.
+    # stores rather than claiming an unsupported proximity ordering. The
+    # Account page also offers the official nearby locator via current location.
     return [store for store in drakes_store_records() if store["postcode"] == postcode][:limit]
 
 
@@ -1614,9 +1682,7 @@ class Handler(BaseHTTPRequestHandler):
                 elif retailer == "woolworths":
                     stores = woolworths_stores(postcode, limit, latitude, longitude)
                 else:
-                    if latitude is not None:
-                        raise ValueError("Drakes store lookup currently uses your saved postcode")
-                    stores = drakes_stores(postcode, limit)
+                    stores = drakes_stores(postcode, limit, latitude, longitude)
             except ValueError as error:
                 self.send_json(400, {"status": "error", "error": str(error)})
                 return

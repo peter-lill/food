@@ -139,9 +139,9 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                     <button className={styles.secondaryButton} disabled={!homePostcode || pending.startsWith("find-")} onClick={() => void findStores(retailer, "home")} type="button">
                       {pending === `find-home-${retailer}` ? "Finding stores..." : `Find near ${homePostcode || "home"}`}
                     </button>
-                    {retailer !== "Drakes" ? <button className={styles.secondaryButton} disabled={pending.startsWith("find-")} onClick={() => void findStores(retailer, "current")} type="button">
+                    <button className={styles.secondaryButton} disabled={pending.startsWith("find-")} onClick={() => void findStores(retailer, "current")} type="button">
                       {pending === `find-current-${retailer}` ? "Finding location..." : "Use current location"}
-                    </button> : null}
+                    </button>
                   </div> : null}
                   {requiresStore && nearby.length ? (
                     <div className={styles.storeResults}>
