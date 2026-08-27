@@ -1,8 +1,8 @@
 export type ReceiptVisionProviderKind = "openai" | "aicompute";
 
-const transcriptionPrompt = "Transcribe this Australian supermarket receipt exactly, from top to bottom. Preserve every merchandise row, quantity row, promotion/discount, item-count total, tender, GST, date and footer as separate lines. Do not correct product names, infer missing products, calculate prices, or omit unreadable rows. Return JSON with lines (a string array) and confidence (a number from 0 to 100).";
+const transcriptionPrompt = "Transcribe this Australian supermarket receipt exactly, from top to bottom. The first image is the complete receipt; any following images are overlapping top-to-bottom close-ups of that same receipt. Use close-ups to read small print, but emit each physical row only once. Preserve every merchandise row, quantity row, promotion/discount, item-count total, tender, GST, date and footer as separate lines. Do not correct product names, infer missing products, calculate prices, or omit unreadable rows. Return JSON with lines (a string array) and confidence (a number from 0 to 100).";
 
-export function receiptVisionRequest(kind: ReceiptVisionProviderKind, model: string, imageUrl: string) {
+export function receiptVisionRequest(kind: ReceiptVisionProviderKind, model: string, imageUrls: string[]) {
   if (kind === "aicompute") {
     return {
       endpoint: "chat/completions",
@@ -12,7 +12,7 @@ export function receiptVisionRequest(kind: ReceiptVisionProviderKind, model: str
           role: "user",
           content: [
             { type: "text", text: transcriptionPrompt },
-            { type: "image_url", image_url: { url: imageUrl, detail: "high" } },
+            ...imageUrls.map((url) => ({ type: "image_url", image_url: { url, detail: "high" } })),
           ],
         }],
         temperature: 0,
@@ -30,7 +30,7 @@ export function receiptVisionRequest(kind: ReceiptVisionProviderKind, model: str
         role: "user",
         content: [
           { type: "input_text", text: transcriptionPrompt },
-          { type: "input_image", image_url: imageUrl, detail: "high" },
+          ...imageUrls.map((image_url) => ({ type: "input_image", image_url, detail: "high" })),
         ],
       }],
       text: {

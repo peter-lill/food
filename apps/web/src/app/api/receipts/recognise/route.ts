@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getAuthSession, isOwnerEmail } from "@/lib/auth-session";
 import { recogniseReceiptWithVision } from "@/lib/receipts/receipt-vision";
+import { parseReceipt } from "@/lib/receipts/engine/parser";
+import { receiptLineCandidatesFromOcr, receiptLinesText } from "@/lib/receipts/receipt-structure";
 
 export const runtime = "nodejs";
 
@@ -20,6 +22,17 @@ export async function POST(request: Request) {
     if (!result) {
       return NextResponse.json({ error: "Server receipt recognition is unavailable." }, { status: 503 });
     }
+    const lines = receiptLineCandidatesFromOcr(undefined, result.text)[0] ?? [];
+    const parsed = parseReceipt(receiptLinesText(lines), lines);
+    console.info("Receipt vision structural summary", {
+      transcriptionLines: result.text.split(/\r?\n/).filter(Boolean).length,
+      retailer: parsed.retailer,
+      hasDate: Boolean(parsed.purchasedAt),
+      total: parsed.total,
+      productLines: parsed.items.length,
+      units: parsed.items.reduce((sum, item) => sum + item.quantity, 0),
+      warningCount: parsed.warnings.length,
+    });
     return NextResponse.json(result);
   } catch (error) {
     console.warn("Optional server receipt recognition failed", error);
