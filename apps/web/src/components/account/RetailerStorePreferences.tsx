@@ -40,7 +40,6 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
   const [pending, setPending] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [mapStore, setMapStore] = useState<Store | null>(initialStores[0] ?? null);
 
   async function toggleRetailer(retailer: RetailerName, nextEnabled: boolean) {
     const previous = new Set(enabled);
@@ -80,7 +79,6 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
     if (!response.ok) { setError(body.error ?? `Unable to find ${retailer} stores.`); return; }
     const stores = body.stores ?? [];
     setResults((current) => ({ ...current, [retailer]: stores }));
-    setMapStore(stores[0] ?? null);
   }
 
   async function saveStore(store: Store) {
@@ -92,7 +90,6 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
     setPending("");
     if (!response.ok || !body.store) { setError(body.error ?? "Unable to save that store."); return; }
     setSavedStores((current) => [...current.filter((item) => !(item.retailer === store.retailer && item.storeId === store.storeId)), body.store!]);
-    setMapStore(body.store);
     setMessage(`${store.name} added to your preferred stores.`);
   }
 
@@ -132,7 +129,7 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                 <>
                   {!requiresStore ? <p className={styles.storePrompt}>ALDI catalogue prices are national listings. They are not live store stock or store-specific prices.</p> : preferred.length ? (
                     <div className={styles.savedStores}>
-                      {preferred.map((store) => <StoreRow action="remove" key={store.storeId} onAction={() => void removeStore(store)} onMap={() => setMapStore(store)} pending={pending.includes(store.storeId)} store={store} />)}
+                      {preferred.map((store) => <StoreRow action="remove" key={store.storeId} onAction={() => void removeStore(store)} pending={pending.includes(store.storeId)} store={store} />)}
                     </div>
                   ) : <p className={styles.storePrompt}>No preferred {retailer} store selected. Prices may not reflect your local store.</p>}
                   {requiresStore ? <div className={styles.storeFinderActions}>
@@ -149,12 +146,12 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                       <div className={styles.storeResultsList}>
                         {nearby.map((store) => {
                           const saved = preferred.some((item) => item.storeId === store.storeId);
-                          return <StoreRow action={saved ? "saved" : "add"} key={store.storeId} onAction={() => void saveStore(store)} onMap={() => setMapStore(store)} pending={pending.includes(store.storeId)} store={store} />;
+                          return <StoreRow action={saved ? "saved" : "add"} key={store.storeId} onAction={() => void saveStore(store)} pending={pending.includes(store.storeId)} store={store} />;
                         })}
                       </div>
                     </div>
                   ) : requiresStore && hasSearched ? <p className={styles.storePrompt}>No nearby {retailer} stores were found for that location.</p> : null}
-                  {requiresStore && mapStore?.retailer === retailer ? <StoreMap store={mapStore} /> : null}
+                  {requiresStore ? preferred.map((store) => <StoreMap key={`map-${store.storeId}`} store={store} />) : null}
                 </>
               ) : null}
             </article>
@@ -167,14 +164,13 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
   );
 }
 
-function StoreRow({ store, action, pending, onAction, onMap }: { store: Store; action: "add" | "remove" | "saved"; pending: boolean; onAction: () => void; onMap?: () => void }) {
+function StoreRow({ store, action, pending, onAction }: { store: Store; action: "add" | "remove" | "saved"; pending: boolean; onAction: () => void }) {
   return (
     <div className={styles.storeRow}>
       <div>
         <strong>{store.name}</strong>
         <small>{store.address || store.postcode || "Address unavailable"}{typeof store.distanceKm === "number" ? ` - ${store.distanceKm.toFixed(1)} km` : ""}</small>
       </div>
-      {onMap ? <button className={styles.mapButton} onClick={onMap} type="button">View map</button> : null}
       {action === "saved" ? <span className={styles.preferredBadge}>Preferred</span> : (
         <button disabled={pending} onClick={onAction} type="button">{pending ? "Saving..." : action === "add" ? "Choose" : "Remove"}</button>
       )}
