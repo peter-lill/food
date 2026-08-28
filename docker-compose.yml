@@ -29,7 +29,9 @@ services:
       COLES_API_KEY: ${COLES_API_KEY:-}
       WOOLWORTHS_CATALOGUE_DB: /data/woolworths-catalogue.sqlite3
       WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://food-woolworths-browser:9223}
-      COLES_BROWSER_ENGINE: ${COLES_BROWSER_ENGINE:-chromium-cdp}
+      # Coles verification is completed in the persistent Firefox sidecar.
+      # Keep catalogue requests in that same verified profile by default.
+      COLES_BROWSER_ENGINE: ${COLES_BROWSER_ENGINE:-firefox}
       COLES_FIREFOX_FETCH_URL: ${COLES_FIREFOX_FETCH_URL:-http://food-coles-browser:8788/fetch}
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}

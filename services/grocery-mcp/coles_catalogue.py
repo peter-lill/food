@@ -25,7 +25,9 @@ from playwright.sync_api import sync_playwright
 
 COLES_CATALOGUE_DB = os.getenv("COLES_CATALOGUE_DB", "/data/coles-catalogue.sqlite3")
 COLES_CDP_URL = os.getenv("COLES_CDP_URL", os.getenv("WOOLWORTHS_CDP_URL", "")).strip()
-COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "chromium-cdp").strip().lower()
+# The human-verifiable Firefox sidecar owns Coles' persistent session. Chromium
+# remains an explicit opt-in for installations that provide their own CDP URL.
+COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "firefox").strip().lower()
 COLES_FIREFOX_FETCH_URL = os.getenv("COLES_FIREFOX_FETCH_URL", "").strip()
 COLES_PAGE_SIZE = 48
 COLES_ROOT_CATEGORIES = (
