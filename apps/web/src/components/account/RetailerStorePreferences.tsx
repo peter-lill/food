@@ -16,6 +16,7 @@ type Store = {
   latitude: number | null;
   longitude: number | null;
   distanceKm?: number | null;
+  priceCatalogAvailable?: boolean;
 };
 
 type Props = {
@@ -142,7 +143,9 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
                   </div> : null}
                   {requiresStore && nearby.length ? (
                     <div className={styles.storeResults}>
-                      <small>Nearby suggestions - choose any store you prefer</small>
+                      <small>{retailer === "Drakes"
+                        ? "Nearby stores - select a location with an online price catalogue for price checks"
+                        : "Nearby suggestions - choose any store you prefer"}</small>
                       <div className={styles.storeResultsList}>
                         {nearby.map((store) => {
                           const saved = preferred.some((item) => item.storeId === store.storeId);
@@ -165,13 +168,16 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
 }
 
 function StoreRow({ store, action, pending, onAction }: { store: Store; action: "add" | "remove" | "saved"; pending: boolean; onAction: () => void }) {
+  const unavailableForPrices = action === "add" && store.priceCatalogAvailable === false;
   return (
     <div className={styles.storeRow}>
       <div>
         <strong>{store.name}</strong>
         <small>{store.address || store.postcode || "Address unavailable"}{typeof store.distanceKm === "number" ? ` - ${store.distanceKm.toFixed(1)} km` : ""}</small>
       </div>
-      {action === "saved" ? <span className={styles.preferredBadge}>Preferred</span> : (
+      {action === "saved" ? <span className={styles.preferredBadge}>Preferred</span> : unavailableForPrices ? (
+        <span className={styles.catalogueUnavailable}>No online price catalogue</span>
+      ) : (
         <button disabled={pending} onClick={onAction} type="button">{pending ? "Saving..." : action === "add" ? "Choose" : "Remove"}</button>
       )}
     </div>
@@ -181,6 +187,9 @@ function StoreRow({ store, action, pending, onAction }: { store: Store; action: 
 function StoreMap({ store }: { store: Store }) {
   return <div className={styles.storeMap}>
     <div><strong>{store.name}</strong><small>Interactive map</small></div>
-    <iframe allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={mapUrl(store)} title={`Map for ${store.name}`} />
+    <div className={styles.storeMapFrame}>
+      <iframe allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={mapUrl(store)} title={`Map for ${store.name}`} />
+      <span aria-label={`${store.retailer} store location`} className={styles.storeMapMarker} role="img"><RetailerLogo compact retailer={store.retailer} /></span>
+    </div>
   </div>;
 }
