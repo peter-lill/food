@@ -7,7 +7,7 @@ import types
 import unittest
 from io import BytesIO
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
 
 
@@ -96,6 +96,25 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "Coles requires browser verification",
         )
         self.assertIsNone(self.coles_catalogue.coles_browser_verification_error("Browse Meat & Seafood"))
+
+    def test_coles_category_api_uses_the_configured_gateway_key_and_store(self) -> None:
+        response = MagicMock()
+        response.read.return_value = b'{"categories":[{"id":"meat"}]}'
+        response.__enter__.return_value = response
+        with patch.object(self.coles_catalogue, "COLES_API_KEY", "test-key"), patch.object(
+            self.coles_catalogue, "COLES_STORE_ID", "0584"
+        ), patch.object(self.coles_catalogue, "urlopen", return_value=response) as open_request:
+            payload = self.coles_catalogue.coles_category_api()
+
+        self.assertEqual(payload, {"categories": [{"id": "meat"}]})
+        request = open_request.call_args.args[0]
+        self.assertEqual(request.full_url, "https://apigw.coles.com.au/digital/colesappbff/v2/products/category?storeId=0584")
+        self.assertEqual(request.get_header("Ocp-apim-subscription-key"), "test-key")
+
+    def test_coles_category_api_requires_the_existing_api_configuration(self) -> None:
+        with patch.object(self.coles_catalogue, "COLES_API_KEY", ""):
+            with self.assertRaisesRegex(RuntimeError, "COLES_API_KEY"):
+                self.coles_catalogue.coles_category_api()
 
     def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
         self.assertTrue(self.coles_browser.valid_coles_browse_url(
