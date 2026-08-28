@@ -126,6 +126,8 @@ const accountStylesSource = readFileSync(
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*252px/);
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
 assert.match(accountStylesSource, /\.storeMapMarker\s*{[\s\S]*?pointer-events:\s*none/, "the branded location marker does not block map interaction");
+assert.match(accountStylesSource, /\[data-retailer-logo="coles"\][\s\S]*?border-radius:\s*50%/, "Coles maps use a compact circular location badge instead of its wide wordmark");
+assert.match(accountStylesSource, /\[data-retailer-logo="drakes"\][\s\S]*?content:\s*"D"/, "Drakes maps use its compact D location badge instead of the wide storefront wordmark");
 assert.match(accountStylesSource, /\.retailerHeading\s*>\s*div\s*>\s*strong\s*{[\s\S]*?height:\s*48px/);
 
 const healthConnectStylesSource = readFileSync(
