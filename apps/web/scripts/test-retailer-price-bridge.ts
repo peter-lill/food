@@ -154,6 +154,8 @@ assert.match(bridgeSource, /def clean_search_query[\s\S]*\[:120\]/, "retailer qu
 assert.match(bridgeSource, /DRAKES_DIRECTORY_URL/, "Drakes store selection reads the official public directory");
 assert.match(bridgeSource, /DRAKES_STORE_LOCATOR_URL/, "Drakes nearby lookup uses the official store locator");
 assert.match(bridgeSource, /def drakes_nearby_stores[\s\S]*action": "store_search"/, "Drakes nearby lookup uses the locator's coordinate search");
+assert.match(bridgeSource, /"max_results": max\(25, limit\)/, "Drakes nearby lookup inspects a complete standard locator result page before selecting stores");
+assert.match(bridgeSource, /stores\.sort\(key=lambda store:[\s\S]*store\["distanceKm"\]/, "Drakes nearby results are ordered by actual reported distance");
 assert.match(bridgeSource, /NOMINATIM_SEARCH_URL/, "Drakes home-postcode search can resolve a location before asking the official nearby locator");
 assert.match(bridgeSource, /def australian_postcode_coordinates[\s\S]*postalcode": postcode/, "postcode lookup remains limited to the shopper's saved Australian postcode");
 assert.match(bridgeSource, /home_latitude, home_longitude = australian_postcode_coordinates\(postcode\)[\s\S]*drakes_nearby_stores\(home_latitude, home_longitude, limit\)/, "Drakes home-postcode searches use the same nearby locator as current location");
