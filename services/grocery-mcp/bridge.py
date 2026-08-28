@@ -1177,6 +1177,9 @@ def search_aldi(query: str, limit: int) -> list[dict]:
 
 DRAKES_DIRECTORY_URL = "https://online.drakes.com.au/"
 DRAKES_STORE_LOCATOR_URL = "https://drakes.com.au/wp-admin/admin-ajax.php"
+NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
+POSTCODE_COORDINATE_CACHE_SECONDS = 24 * 60 * 60
+_postcode_coordinate_cache: dict[str, tuple[float, float, float]] = {}
 
 
 def strip_html(value: str) -> str:
@@ -1219,6 +1222,40 @@ def drakes_store_records() -> list[dict]:
 
 def normalise_drakes_store_name(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", value.lower().replace("online", ""))
+
+
+def australian_postcode_coordinates(postcode: str) -> tuple[float, float]:
+    """Resolve a shopper-supplied Australian postcode to an approximate point.
+
+    This is only used by the Account-page "Find near home" action. Results are
+    cached in-process so repeated searches do not repeatedly send the postcode
+    to the public OpenStreetMap Nominatim geocoder.
+    """
+    cached = _postcode_coordinate_cache.get(postcode)
+    now = time.monotonic()
+    if cached and now - cached[0] < POSTCODE_COORDINATE_CACHE_SECONDS:
+        return cached[1], cached[2]
+
+    query = urlencode({
+        "format": "jsonv2",
+        "limit": 1,
+        "countrycodes": "au",
+        "postalcode": postcode,
+    })
+    request = Request(f"{NOMINATIM_SEARCH_URL}?{query}", headers={
+        "Accept": "application/json",
+        "User-Agent": "Food store location resolver/1.0",
+    })
+    with urlopen(request, timeout=12) as response:
+        payload = json.loads(response.read())
+    if not isinstance(payload, list) or not payload or not isinstance(payload[0], dict):
+        raise RuntimeError("postcode could not be resolved to a location")
+    latitude = clean_coordinate(payload[0].get("lat"))
+    longitude = clean_coordinate(payload[0].get("lon"))
+    if latitude is None or longitude is None:
+        raise RuntimeError("postcode geocoder returned invalid coordinates")
+    _postcode_coordinate_cache[postcode] = (now, latitude, longitude)
+    return latitude, longitude
 
 
 def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[dict]:
@@ -1286,10 +1323,13 @@ def drakes_stores(
         return drakes_nearby_stores(latitude, longitude, limit)
     if not postcode.isdigit() or len(postcode) != 4:
         raise ValueError("postcode must be a four-digit Australian postcode")
-    # The directory does not publish distances; retain only exact-postcode
-    # stores rather than claiming an unsupported proximity ordering. The
-    # Account page also offers the official nearby locator via current location.
-    return [store for store in drakes_store_records() if store["postcode"] == postcode][:limit]
+    try:
+        home_latitude, home_longitude = australian_postcode_coordinates(postcode)
+        return drakes_nearby_stores(home_latitude, home_longitude, limit)
+    except (OSError, RuntimeError, ValueError):
+        # Retain an exact-postcode fallback if the external geocoder is
+        # temporarily unavailable; do not claim that this is a proximity order.
+        return [store for store in drakes_store_records() if store["postcode"] == postcode][:limit]
 
 
 def search_drakes(query: str, limit: int, store_id: str | None) -> list[dict]:
