@@ -111,6 +111,9 @@ assert.doesNotMatch(storePreferencesSource, /retailer !== "Drakes"/, "Drakes mus
 assert.match(storePreferencesSource, /catalogue prices are national listings/, "ALDI must be visibly labelled as catalogue pricing rather than local stock");
 assert.match(storePreferencesSource, /Interactive map/, "store selection must show an embedded interactive map instead of only an outbound map link");
 assert.match(storePreferencesSource, /output=embed/, "the map remains inside Food while selecting a store");
+assert.match(storePreferencesSource, /preferred\.map\(\(store\) => <StoreMap/, "every saved retailer store renders its own embedded map");
+assert.doesNotMatch(storePreferencesSource, /mapStore/, "one retailer's map must not replace another retailer's map");
+assert.doesNotMatch(storePreferencesSource, /View map/, "each saved store shows its map directly instead of requiring an inconsistent map button");
 assert.doesNotMatch(storePreferencesSource, /coles-store-query/);
 
 const accountStylesSource = readFileSync(

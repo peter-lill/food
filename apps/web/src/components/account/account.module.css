@@ -227,7 +227,6 @@
 
 .storeRow a,
 .storeRow button,
-.mapButton,
 .preferredBadge {
   flex: 0 0 auto;
   color: var(--accent-dark);
@@ -236,14 +235,6 @@
 }
 
 .storeRow button {
-  padding: 7px 9px;
-  border: 1px solid var(--line);
-  border-radius: 9px;
-  background: white;
-  cursor: pointer;
-}
-
-.mapButton {
   padding: 7px 9px;
   border: 1px solid var(--line);
   border-radius: 9px;
