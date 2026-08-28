@@ -1296,13 +1296,13 @@ def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[
         if not name:
             continue
         catalogue = catalogue_by_name.get(normalise_drakes_store_name(name))
-        # Food pricing requires a catalogue host. Skip locator-only Drakes
-        # locations rather than offering a store whose prices cannot be read.
-        if not catalogue:
-            continue
         stores.append({
             "retailer": "Drakes",
-            "storeId": catalogue["storeId"],
+            # Keep the official nearby-store result visible even when Drakes
+            # does not publish an online catalogue for that location. Such a
+            # result cannot be selected for price checks, but hiding it makes
+            # the store finder falsely claim that a more distant store is near.
+            "storeId": catalogue["storeId"] if catalogue else f"locator-{normalise_drakes_store_name(name)}",
             "name": name,
             "address": ", ".join(part for part in (
                 clean_text(item.get("address")), clean_text(item.get("address2")),
@@ -1312,6 +1312,7 @@ def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[
             "latitude": clean_coordinate(item.get("lat")),
             "longitude": clean_coordinate(item.get("lng")),
             "distanceKm": clean_price(item.get("distance")),
+            "priceCatalogAvailable": bool(catalogue),
         })
     stores.sort(key=lambda store: (
         store["distanceKm"] is None,

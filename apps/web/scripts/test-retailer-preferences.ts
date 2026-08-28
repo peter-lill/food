@@ -111,9 +111,12 @@ assert.doesNotMatch(storePreferencesSource, /retailer !== "Drakes"/, "Drakes mus
 assert.match(storePreferencesSource, /catalogue prices are national listings/, "ALDI must be visibly labelled as catalogue pricing rather than local stock");
 assert.match(storePreferencesSource, /Interactive map/, "store selection must show an embedded interactive map instead of only an outbound map link");
 assert.match(storePreferencesSource, /output=embed/, "the map remains inside Food while selecting a store");
+assert.match(storePreferencesSource, /storeMapMarker[\s\S]*RetailerLogo compact retailer={store\.retailer}/, "each saved-store map marks the location with its retailer logo");
 assert.match(storePreferencesSource, /preferred\.map\(\(store\) => <StoreMap/, "every saved retailer store renders its own embedded map");
 assert.doesNotMatch(storePreferencesSource, /mapStore/, "one retailer's map must not replace another retailer's map");
 assert.doesNotMatch(storePreferencesSource, /View map/, "each saved store shows its map directly instead of requiring an inconsistent map button");
+assert.match(storePreferencesSource, /No online price catalogue/, "nearby stores without a usable price catalogue are disclosed instead of being silently hidden");
+assert.match(storePreferencesSource, /select a location with an online price catalogue/, "Drakes nearby-store helper text distinguishes store finding from price availability");
 assert.doesNotMatch(storePreferencesSource, /coles-store-query/);
 
 const accountStylesSource = readFileSync(
@@ -122,6 +125,7 @@ const accountStylesSource = readFileSync(
 );
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*252px/);
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
+assert.match(accountStylesSource, /\.storeMapMarker\s*{[\s\S]*?pointer-events:\s*none/, "the branded location marker does not block map interaction");
 assert.match(accountStylesSource, /\.retailerHeading\s*>\s*div\s*>\s*strong\s*{[\s\S]*?height:\s*48px/);
 
 const healthConnectStylesSource = readFileSync(

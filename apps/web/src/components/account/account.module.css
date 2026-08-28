@@ -227,7 +227,8 @@
 
 .storeRow a,
 .storeRow button,
-.preferredBadge {
+.preferredBadge,
+.catalogueUnavailable {
   flex: 0 0 auto;
   color: var(--accent-dark);
   font-size: 12px;
@@ -267,10 +268,54 @@
   border-radius: 9px;
 }
 
+.storeMapFrame {
+  position: relative;
+}
+
+.storeMapMarker {
+  position: absolute;
+  z-index: 1;
+  top: 50%;
+  left: 50%;
+  display: grid;
+  width: 54px;
+  height: 54px;
+  place-items: center;
+  transform: translate(-50%, -100%);
+  border: 3px solid white;
+  border-radius: 50% 50% 50% 0;
+  background: white;
+  box-shadow: 0 5px 16px rgb(12 70 49 / 32%);
+  pointer-events: none;
+}
+
+.storeMapMarker::after {
+  position: absolute;
+  z-index: -1;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  content: "";
+  transform: rotate(-45deg);
+  background: white;
+}
+
+.storeMapMarker img {
+  max-width: 38px;
+  max-height: 30px;
+}
+
 .preferredBadge {
   padding: 6px 8px;
   border-radius: 999px;
   background: var(--accent-pale);
+}
+
+.catalogueUnavailable {
+  padding: 6px 8px;
+  border-radius: 999px;
+  background: #fff1e3;
+  color: #9a4f0a;
 }
 
 .accountCard,

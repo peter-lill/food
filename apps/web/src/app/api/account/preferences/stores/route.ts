@@ -13,6 +13,7 @@ type StoreCandidate = {
   latitude?: unknown;
   longitude?: unknown;
   distanceKm?: unknown;
+  priceCatalogAvailable?: unknown;
 };
 
 function cleanText(value: unknown, max = 200) {
