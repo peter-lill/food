@@ -136,6 +136,7 @@ const composeSource = readFileSync(new URL("../../../docker-compose.yml", import
 const providerSource = readFileSync(new URL("../src/lib/prices/providers/mcp-grocery.provider.ts", import.meta.url), "utf8");
 const catalogueSource = readFileSync(new URL("../src/lib/prices/coles-woolworths-provider.ts", import.meta.url), "utf8");
 const livePriceSearchSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.tsx", import.meta.url), "utf8");
+const livePriceSearchStylesSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.module.css", import.meta.url), "utf8");
 const shoppingPriceSearchRouteSource = readFileSync(new URL("../src/app/api/prices/shopping-list/[listId]/search/route.ts", import.meta.url), "utf8");
 const comparisonWorkspaceSource = readFileSync(new URL("../src/components/prices/SupermarketComparisonWorkspace.tsx", import.meta.url), "utf8");
 const aldiImporterSource = readFileSync(new URL("./import-aldi-controlled.ts", import.meta.url), "utf8");
@@ -177,9 +178,12 @@ assert.match(shoppingPriceSearchRouteSource, /retailerProductUrl\(sourceRetailer
 assert.doesNotMatch(shoppingPriceSearchRouteSource, /\[\.\.\.enabledPrimaryRetailers, "ALDI"\]/, "ALDI must not appear in a live price search until it is selected and supported");
 assert.match(livePriceSearchSource, /target="_blank"/, "live retailer matches provide an external product-page link when available");
 assert.match(livePriceSearchSource, /Not a match/, "a shopper can exclude an incorrect live retailer match");
+assert.match(livePriceSearchSource, /aria-label=\{`Exclude \$\{match\.retailer\} result/, "an incorrect retailer match has an accessible compact rejection control");
 assert.match(livePriceSearchSource, /setExcludedMatches/, "excluding a match must immediately recalculate the displayed comparison");
 assert.match(livePriceSearchSource, /food:shopping-price-exclusions/, "a rejected match remains excluded when current prices are refreshed");
 assert.match(livePriceSearchSource, /window\.localStorage\.setItem/, "rejected matches are persisted in the shopper's browser");
+assert.match(livePriceSearchStylesSource, /grid-template-columns: repeat\(auto-fit, minmax\(250px, 1fr\)\)/, "live retailer matches use available horizontal space instead of reserving a mostly empty row");
+assert.match(livePriceSearchStylesSource, /-webkit-line-clamp: 2/, "long retailer product names remain compact without hiding a match entirely");
 assert.match(comparisonWorkspaceSource, /buildProductComparisons\(data\.prices, data\.retailers\)/, "saved comparisons are restricted to selected retailers");
 assert.match(aldiImporterSource, /const importAll = process\.argv\.includes\("--all"\)/, "ALDI must have a controlled full-cache importer");
 assert.match(aldiImporterSource, /\/aldi\/catalogue\/products/, "the importer must only read the cached public ALDI catalogue");
