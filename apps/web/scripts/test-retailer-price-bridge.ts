@@ -131,6 +131,8 @@ assert.equal(
 );
 
 const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
+const colesCatalogueSource = readFileSync(new URL("../../../services/grocery-mcp/coles_catalogue.py", import.meta.url), "utf8");
+const composeSource = readFileSync(new URL("../../../docker-compose.yml", import.meta.url), "utf8");
 const providerSource = readFileSync(new URL("../src/lib/prices/providers/mcp-grocery.provider.ts", import.meta.url), "utf8");
 const catalogueSource = readFileSync(new URL("../src/lib/prices/coles-woolworths-provider.ts", import.meta.url), "utf8");
 const livePriceSearchSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.tsx", import.meta.url), "utf8");
@@ -145,6 +147,8 @@ assert.match(bridgeSource, /nested_text\(source, \("brand", "brandName", "manufa
 assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths XML namespaces remain supported");
 assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
+assert.match(colesCatalogueSource, /COLES_BROWSER_ENGINE = os\.getenv\("COLES_BROWSER_ENGINE", "firefox"\)/, "Coles catalogue reads its verified Firefox session by default");
+assert.match(composeSource, /COLES_BROWSER_ENGINE: \$\{COLES_BROWSER_ENGINE:-firefox\}/, "the bridge container defaults to the Firefox session that a person verifies in noVNC");
 assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
 assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
 assert.match(bridgeSource, /method: 'POST'[\s\S]*credentials: 'include'/, "Woolworths search runs in an established storefront session rather than the retired anonymous client");
