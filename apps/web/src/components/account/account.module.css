@@ -305,6 +305,44 @@
   max-height: 30px;
 }
 
+/* Use the compact circular map badges customers recognise, rather than
+   squeezing the wide wordmarks into a location pin. Woolworths already has
+   a compact Wapple asset and deliberately keeps the shared treatment above. */
+.storeMapMarker [data-retailer-logo="coles"] {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 50%;
+  background: #e30613 !important;
+}
+
+.storeMapMarker [data-retailer-logo="coles"] img {
+  width: 30px !important;
+  height: auto !important;
+  max-width: 30px;
+  filter: brightness(0) invert(1);
+}
+
+.storeMapMarker [data-retailer-logo="drakes"] {
+  width: 36px !important;
+  height: 36px !important;
+  border: 3px solid #17191d;
+  border-radius: 50%;
+  background: white !important;
+  color: #17191d;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.storeMapMarker [data-retailer-logo="drakes"]::after {
+  content: "D";
+}
+
+.storeMapMarker [data-retailer-logo="drakes"] img {
+  display: none;
+}
+
 .preferredBadge {
   padding: 6px 8px;
   border-radius: 999px;
