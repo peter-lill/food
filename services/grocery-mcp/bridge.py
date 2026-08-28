@@ -1269,7 +1269,10 @@ def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[
         "action": "store_search",
         "lat": latitude,
         "lng": longitude,
-        "max_results": limit,
+        # The locator's first results are not guaranteed to be distance-ordered.
+        # Read its full standard result page, then sort supported catalogue
+        # stores ourselves before showing the requested number to the shopper.
+        "max_results": max(25, limit),
         "search_radius": 50,
     })
     request = Request(f"{DRAKES_STORE_LOCATOR_URL}?{query}", headers={
@@ -1310,7 +1313,12 @@ def drakes_nearby_stores(latitude: float, longitude: float, limit: int) -> list[
             "longitude": clean_coordinate(item.get("lng")),
             "distanceKm": clean_price(item.get("distance")),
         })
-    return stores
+    stores.sort(key=lambda store: (
+        store["distanceKm"] is None,
+        store["distanceKm"] if store["distanceKm"] is not None else float("inf"),
+        store["name"],
+    ))
+    return stores[:limit]
 
 
 def drakes_stores(
