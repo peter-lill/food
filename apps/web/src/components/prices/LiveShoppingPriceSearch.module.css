@@ -237,19 +237,19 @@
 
 .liveMatchGrid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 6px;
 }
 
 .liveMatchCard,
 .liveBestMatch {
   display: grid;
   align-content: start;
-  gap: 7px;
+  gap: 4px;
   min-width: 0;
-  padding: 11px;
+  padding: 8px 9px;
   border: 1px solid var(--line);
-  border-radius: 13px;
+  border-radius: 12px;
   background: var(--surface-soft);
 }
 
@@ -264,6 +264,12 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+}
+
+.liveMatchControls {
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 
 .exactBadge,
@@ -287,22 +293,26 @@
 }
 
 .liveProductName {
-  min-height: 34px;
+  display: -webkit-box;
   overflow: hidden;
   color: var(--ink);
   font-size: 11px;
   font-weight: 750;
-  line-height: 1.4;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .liveProductLink {
-  min-height: 34px;
+  display: -webkit-box;
   overflow: hidden;
   color: var(--ink);
   font-size: 11px;
   font-weight: 750;
-  line-height: 1.4;
+  line-height: 1.3;
   text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .liveProductLink:hover {
@@ -311,7 +321,7 @@
 }
 
 .livePriceLine > strong {
-  font-size: 18px;
+  font-size: 16px;
   letter-spacing: -.025em;
 }
 
@@ -343,23 +353,29 @@
 .matchActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 6px;
+  line-height: 1.2;
 }
 
-.matchActions button {
-  width: fit-content;
-  padding: 0;
+.rejectMatchButton {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  padding: 0 0 1px;
   border: 0;
   background: transparent;
   color: var(--danger);
   cursor: pointer;
   font: inherit;
-  font-size: 10px;
+  font-size: 17px;
+  line-height: 1;
   font-weight: 900;
 }
 
-.matchActions button:hover {
-  text-decoration: underline;
+.rejectMatchButton:hover {
+  color: #a92924;
+  transform: scale(1.12);
 }
 
 .liveNoMatch,
