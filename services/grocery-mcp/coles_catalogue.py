@@ -227,6 +227,7 @@ def coles_html_diagnostic_signals(content_type: str, body: bytes) -> list[str]:
         "verification": "pardon our interruption",
         "captcha": "captcha",
         "imperva": "imperva",
+        "incapsula": "incapsula",
         "cloudflare": "cloudflare",
         "not-found": "not found",
     }
