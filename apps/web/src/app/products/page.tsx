@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount } from "@/lib/products/product-hub.repository";
+import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import styles from "./products-hub.module.css";
@@ -156,6 +156,57 @@ function ProductActions() {
   );
 }
 
+function ProductCard({ product }: { product: ProductHubListItem }) {
+  const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
+  const { title, receiptName, category } = productDisplay(product);
+  const latestPrice = money(product.latestPrice);
+  const completeness = completionScore(product);
+  const observed = observedLabel(product.latestObservedAt);
+  const family = product.variantCount > 1;
+  const generic = isGenericFood(product);
+  const detailLine = family || generic ? null : product.brand;
+  const productImage = !family && product.imageUrl
+    ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
+    : null;
+
+  return (
+    <article className={styles.card} key={product.id}>
+      <div className={styles.thumb}>
+        {productImage ? (
+          <img alt={title} loading="lazy" src={productImage} style={{ display: "block", width: "112px", height: "112px", maxWidth: "calc(100% - 36px)", maxHeight: "calc(100% - 36px)", objectFit: "contain", objectPosition: "center", padding: "8px", borderRadius: "18px", background: "#fff", boxSizing: "border-box" }} />
+        ) : <div className={styles.imageFallback} aria-hidden="true"><span>+</span><small>{family ? "Product family" : generic ? "Fresh produce" : "Image pending"}</small></div>}
+        <div className={styles.badges}>
+          {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
+          {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
+        </div>
+      </div>
+      <div className={styles.cardBody}>
+        <div className={styles.cardTopline}>
+          <span>{category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised")}</span>
+          {completeness < 100 ? <span>{completeness}% complete</span> : null}
+        </div>
+        <h2>{title}</h2>
+        {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
+        <div className={styles.identitySlot}>{detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}</div>
+        <div className={styles.completenessSlot}>{completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}</div>
+        <div className={styles.priceRow}>
+          <div><small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `Best price · ${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ? `Best price · ${product.latestRetailer}` : "Best price"}</small><strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>{product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}</div>
+          <div><small>{observed ? `Checked ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
+        </div>
+        <div className={styles.meta}>
+          {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
+          {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
+          {family ? <span>{product.variantCount} variants</span> : product.aliasCount > 0 ? <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span> : null}
+          {!family && !generic && !product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
+          {!family && !generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
+        </div>
+        <span className={styles.openLabel}>View product <span aria-hidden="true">-&gt;</span></span>
+      </div>
+      <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />
+    </article>
+  );
+}
+
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
   const { department: rawDepartment, q = "", view: rawView } = await searchParams;
   const view = normaliseView(rawView);
@@ -191,6 +242,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   }, new Map<string, typeof products>())]
     .sort(([left], [right]) => left.localeCompare(right, "en-AU"));
   const browseDepartments = !q && view === "all" && !department;
+  const showProductCardsDirectly = Boolean(q || department || view !== "all");
 
   const retailerCount = new Set(allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : [])).size;
   const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
@@ -239,7 +291,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           <div className={styles.toolbarTitle}>
             <p className="eyebrow">CATALOGUE</p>
             <h2>{browseDepartments ? "Browse departments" : `${products.length} ${products.length === 1 ? "product" : "products"}`}</h2>
-            {q ? <p>Results for &quot;{q}&quot;</p> : department ? <p>{department} products and shelves.</p> : <p>Choose a department, then browse its shelves and product families.</p>}
+            {q ? <p>Results for &quot;{q}&quot;.</p> : department ? <p>All {department.toLocaleLowerCase("en-AU")} product families.</p> : <p>Choose a department, or search for a product directly.</p>}
           </div>
           <form className={styles.search}>
             {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
@@ -267,7 +319,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <span className={departmentStyles.departmentCount}>{productCount.toLocaleString("en-AU")} products</span>
               </span>
             </Link>;
-          }) : products.length ? departmentGroups.map(([department, departmentProducts]) => (
+          }) : products.length && showProductCardsDirectly ? <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
             <details className={departmentStyles.department} key={department} open={Boolean(department)}>
               <summary className={departmentStyles.departmentSummary}>
                 <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
@@ -290,89 +342,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                     <span>{shelfProducts.length} {shelfProducts.length === 1 ? "family" : "families"}</span>
                   </summary>
                   <div className={styles.grid}>
-              {shelfProducts.map((product) => {
-            const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
-            const { title, receiptName, category } = productDisplay(product);
-            const latestPrice = money(product.latestPrice);
-            const completeness = completionScore(product);
-            const observed = observedLabel(product.latestObservedAt);
-            const family = product.variantCount > 1;
-            const generic = isGenericFood(product);
-            const detailLine = family || generic ? null : product.brand;
-            const productImage = !family && product.imageUrl
-              ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
-              : null;
-
-            return (
-              <article className={styles.card} key={product.id}>
-                <div className={styles.thumb}>
-                  {productImage ? (
-                    <img
-                      alt={title}
-                      loading="lazy"
-                      src={productImage}
-                      style={{
-                        display: "block",
-                        width: "112px",
-                        height: "112px",
-                        maxWidth: "calc(100% - 36px)",
-                        maxHeight: "calc(100% - 36px)",
-                        objectFit: "contain",
-                        objectPosition: "center",
-                        padding: "8px",
-                        borderRadius: "18px",
-                        background: "#fff",
-                        boxSizing: "border-box",
-                      }}
-                    />
-                  ) : <div className={styles.imageFallback} aria-hidden="true"><span>+</span><small>{family ? "Product family" : generic ? "Fresh produce" : "Image pending"}</small></div>}
-                  <div className={styles.badges}>
-                    {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
-                    {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
-                  </div>
-                </div>
-                <div className={styles.cardBody}>
-                  <div className={styles.cardTopline}>
-                    <span>{category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised")}</span>
-                    {completeness < 100 ? <span>{completeness}% complete</span> : null}
-                  </div>
-                  <h2>{title}</h2>
-                  {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
-                  <div className={styles.identitySlot}>
-                    {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
-                  </div>
-                  <div className={styles.completenessSlot}>
-                    {completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}
-                  </div>
-                  <div className={styles.priceRow}>
-                    <div>
-                      <small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `Best price · ${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ? `Best price · ${product.latestRetailer}` : "Best price"}</small>
-                      <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
-                      {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? (
-                        <span className={styles.specialBadge}>
-                          <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>
-                          On special
-                        </span>
-                      ) : null}
-                    </div>
-                    <div>
-                      <small>{observed ? `Checked ${observed}` : "Retailer"}</small>
-                      <strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong>
-                    </div>
-                  </div>
-                  <div className={styles.meta}>
-                    {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
-                    {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
-                    {family ? <span>{product.variantCount} variants</span> : product.aliasCount > 0 ? <span>{product.aliasCount} alias{product.aliasCount === 1 ? "" : "es"}</span> : null}
-                    {!family && !generic && !product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
-                    {!family && !generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
-                  </div>
-                  <span className={styles.openLabel}>View product <span aria-hidden="true">-&gt;</span></span>
-                </div>
-                <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />
-              </article>
-            );
-              })}
+              {shelfProducts.map((product) => <ProductCard key={product.id} product={product} />)}
                   </div>
                 </details>
               ))}
