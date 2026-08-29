@@ -36,6 +36,7 @@ services:
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}
       COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
+      COLES_LEGACY_CATEGORY_API_URL: ${COLES_LEGACY_CATEGORY_API_URL:-https://www.coles.com.au/api/bff/products/categories}
     volumes:
       - food_grocery_catalogue_data:/data
     extra_hosts:
