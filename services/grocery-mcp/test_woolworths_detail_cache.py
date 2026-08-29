@@ -133,6 +133,35 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         )
         self.assertIsNone(request.get_header("Ocp-apim-subscription-key"))
 
+    def test_coles_legacy_category_diagnostic_reports_html_without_exposing_it(self) -> None:
+        response = MagicMock()
+        response.status = 403
+        response.headers.get_content_type.return_value = "text/html"
+        response.read.return_value = b"<html><title>Access Denied</title></html>"
+        response.__enter__.return_value = response
+        with patch.object(self.coles_catalogue, "COLES_API_KEY", "test-key"), patch.object(
+            self.coles_catalogue, "COLES_STORE_ID", "0584"
+        ), patch.object(self.coles_catalogue, "urlopen", return_value=response):
+            diagnostic = self.coles_catalogue.coles_legacy_category_api_diagnostic("3498509")
+
+        self.assertEqual(diagnostic, {
+            "upstreamStatus": 403,
+            "contentType": "text/html",
+            "responseBytes": 41,
+            "classification": "access-denied",
+        })
+
+    def test_coles_response_diagnostic_reports_valid_json(self) -> None:
+        self.assertEqual(
+            self.coles_catalogue.coles_response_diagnostic(200, "application/json", b'{"categories":[]}'),
+            {
+                "upstreamStatus": 200,
+                "contentType": "application/json",
+                "responseBytes": 17,
+                "classification": "json",
+            },
+        )
+
     def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
         self.assertTrue(self.coles_browser.valid_coles_browse_url(
             "https://www.coles.com.au/browse/meat-seafood?sortBy=recommendedDescending"

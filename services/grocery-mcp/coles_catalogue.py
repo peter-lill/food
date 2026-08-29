@@ -151,6 +151,71 @@ def coles_legacy_category_api(category_id: str | None = None) -> dict[str, Any]:
     return payload
 
 
+def coles_legacy_category_api_diagnostic(category_id: str | None = None) -> dict[str, Any]:
+    """Classify the legacy endpoint response without exposing credentials or body text."""
+    if not COLES_API_KEY:
+        raise RuntimeError("Coles legacy category API is not configured; set COLES_API_KEY")
+    if not COLES_STORE_ID:
+        raise RuntimeError("Coles legacy category API is not configured; set COLES_STORE_ID")
+
+    query: dict[str, str] = {
+        "storeId": COLES_STORE_ID,
+        "subscription-key": COLES_API_KEY,
+    }
+    if category_id:
+        query["id"] = category_id
+    request = Request(
+        f"{COLES_LEGACY_CATEGORY_API_URL}?{urlencode(query)}",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            body = response.read()
+            return coles_response_diagnostic(response.status, response.headers.get_content_type(), body)
+    except HTTPError as error:
+        return coles_response_diagnostic(
+            error.code,
+            error.headers.get_content_type() if error.headers else None,
+            error.read(),
+        )
+    except URLError:
+        return {
+            "upstreamStatus": None,
+            "contentType": None,
+            "responseBytes": 0,
+            "classification": "network-error",
+        }
+
+
+def coles_response_diagnostic(status: int, content_type: str | None, body: bytes) -> dict[str, Any]:
+    """Return a compact, non-sensitive description of an upstream response."""
+    content = (content_type or "").lower()
+    preview = body[:4_096].decode("utf-8", errors="replace").lower()
+    if "json" in content:
+        try:
+            json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            classification = "invalid-json"
+        else:
+            classification = "json"
+    elif "access denied" in preview or "forbidden" in preview:
+        classification = "access-denied"
+    elif "captcha" in preview or "verification" in preview or "pardon our interruption" in preview:
+        classification = "verification-page"
+    elif status == 404:
+        classification = "not-found"
+    elif "html" in content or "<!doctype html" in preview or "<html" in preview:
+        classification = "unexpected-html"
+    else:
+        classification = "unexpected-response"
+    return {
+        "upstreamStatus": status,
+        "contentType": content_type or None,
+        "responseBytes": len(body),
+        "classification": classification,
+    }
+
+
 def coles_browser_verification_error(body_text: object) -> str | None:
     """Recognise Coles' visible browser-verification page before parsing it."""
     visible = text(body_text)
