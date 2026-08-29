@@ -116,6 +116,23 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "COLES_API_KEY"):
                 self.coles_catalogue.coles_category_api()
 
+    def test_coles_legacy_category_api_uses_the_configured_key_in_its_legacy_format(self) -> None:
+        response = MagicMock()
+        response.read.return_value = b'{"categories":[{"id":"3498509"}]}'
+        response.__enter__.return_value = response
+        with patch.object(self.coles_catalogue, "COLES_API_KEY", "test-key"), patch.object(
+            self.coles_catalogue, "COLES_STORE_ID", "0584"
+        ), patch.object(self.coles_catalogue, "urlopen", return_value=response) as open_request:
+            payload = self.coles_catalogue.coles_legacy_category_api("3498509")
+
+        self.assertEqual(payload, {"categories": [{"id": "3498509"}]})
+        request = open_request.call_args.args[0]
+        self.assertEqual(
+            request.full_url,
+            "https://www.coles.com.au/api/bff/products/categories?storeId=0584&subscription-key=test-key&id=3498509",
+        )
+        self.assertIsNone(request.get_header("Ocp-apim-subscription-key"))
+
     def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
         self.assertTrue(self.coles_browser.valid_coles_browse_url(
             "https://www.coles.com.au/browse/meat-seafood?sortBy=recommendedDescending"
