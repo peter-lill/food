@@ -213,7 +213,24 @@ def coles_response_diagnostic(status: int, content_type: str | None, body: bytes
         "contentType": content_type or None,
         "responseBytes": len(body),
         "classification": classification,
+        "pageSignals": coles_html_diagnostic_signals(content, body),
     }
+
+
+def coles_html_diagnostic_signals(content_type: str, body: bytes) -> list[str]:
+    """Return only recognised, non-sensitive HTML page markers."""
+    if "html" not in content_type.lower():
+        return []
+    preview = body[:4_096].decode("utf-8", errors="replace").lower()
+    markers = {
+        "access-denied": "access denied",
+        "verification": "pardon our interruption",
+        "captcha": "captcha",
+        "imperva": "imperva",
+        "cloudflare": "cloudflare",
+        "not-found": "not found",
+    }
+    return [name for name, marker in markers.items() if marker in preview]
 
 
 def coles_browser_verification_error(body_text: object) -> str | None:
