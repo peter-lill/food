@@ -20,6 +20,7 @@ from coles_catalogue import (
     ColesBrowserSession,
     cached_products as coles_cached_products,
     coles_category_api,
+    coles_legacy_category_api,
     parse_coles_browse_document,
     status as coles_catalogue_status,
 )
@@ -1709,6 +1710,15 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_json(502, {"status": "error", "error": str(error)})
                 return
             self.send_json(200, {"status": "success", "source": "coles-category-api", "categories": payload})
+            return
+        if parsed.path == "/coles/catalogue/categories/legacy":
+            category_id = (params.get("id") or [""])[0].strip() or None
+            try:
+                payload = coles_legacy_category_api(category_id)
+            except RuntimeError as error:
+                self.send_json(502, {"status": "error", "error": str(error)})
+                return
+            self.send_json(200, {"status": "success", "source": "coles-legacy-category-api", "categories": payload})
             return
         if parsed.path == "/aldi/catalogue/status":
             self.send_json(200, {"status": "success", **aldi_catalogue_status()})

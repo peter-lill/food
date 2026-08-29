@@ -32,6 +32,9 @@ COLES_FIREFOX_FETCH_URL = os.getenv("COLES_FIREFOX_FETCH_URL", "").strip()
 COLES_API_BASE_URL = os.getenv(
     "COLES_API_BASE_URL", "https://apigw.coles.com.au/digital/colesappbff"
 ).rstrip("/")
+COLES_LEGACY_CATEGORY_API_URL = os.getenv(
+    "COLES_LEGACY_CATEGORY_API_URL", "https://www.coles.com.au/api/bff/products/categories"
+).strip()
 COLES_API_KEY = os.getenv("COLES_API_KEY", "").strip()
 COLES_STORE_ID = os.getenv("COLES_STORE_ID", "").strip()
 COLES_PAGE_SIZE = 48
@@ -111,6 +114,40 @@ def coles_category_api() -> dict[str, Any]:
         raise RuntimeError("Coles category API did not return valid JSON") from error
     if not isinstance(payload, dict):
         raise RuntimeError("Coles category API returned an invalid response")
+    return payload
+
+
+def coles_legacy_category_api(category_id: str | None = None) -> dict[str, Any]:
+    """Read the legacy public category route using the configured server key.
+
+    The subscription key stays in-process and is never included in the bridge
+    response.  This is a read-only compatibility probe; it does not replace the
+    verified-browser collector unless Coles returns a usable, authorised result.
+    """
+    if not COLES_API_KEY:
+        raise RuntimeError("Coles legacy category API is not configured; set COLES_API_KEY")
+    if not COLES_STORE_ID:
+        raise RuntimeError("Coles legacy category API is not configured; set COLES_STORE_ID")
+
+    query: dict[str, str] = {
+        "storeId": COLES_STORE_ID,
+        "subscription-key": COLES_API_KEY,
+    }
+    if category_id:
+        query["id"] = category_id
+    request = Request(
+        f"{COLES_LEGACY_CATEGORY_API_URL}?{urlencode(query)}",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise RuntimeError(f"Coles legacy category API returned HTTP {error.code}") from error
+    except (URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("Coles legacy category API did not return valid JSON") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("Coles legacy category API returned an invalid response")
     return payload
 
 
