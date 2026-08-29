@@ -149,6 +149,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "contentType": "text/html",
             "responseBytes": 41,
             "classification": "access-denied",
+            "pageSignals": ["access-denied"],
         })
 
     def test_coles_response_diagnostic_reports_valid_json(self) -> None:
@@ -159,7 +160,16 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                 "contentType": "application/json",
                 "responseBytes": 17,
                 "classification": "json",
+                "pageSignals": [],
             },
+        )
+
+    def test_coles_html_diagnostic_only_returns_allowlisted_markers(self) -> None:
+        self.assertEqual(
+            self.coles_catalogue.coles_html_diagnostic_signals(
+                "text/html", b"<html>Imperva Access Denied https://example.test/private</html>"
+            ),
+            ["access-denied", "imperva"],
         )
 
     def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
