@@ -19,6 +19,7 @@ from playwright.sync_api import sync_playwright
 from coles_catalogue import (
     ColesBrowserSession,
     cached_products as coles_cached_products,
+    coles_category_api,
     parse_coles_browse_document,
     status as coles_catalogue_status,
 )
@@ -1700,6 +1701,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/coles/catalogue/status":
             self.send_json(200, {"status": "success", **coles_catalogue_status()})
+            return
+        if parsed.path == "/coles/catalogue/categories":
+            try:
+                payload = coles_category_api()
+            except RuntimeError as error:
+                self.send_json(502, {"status": "error", "error": str(error)})
+                return
+            self.send_json(200, {"status": "success", "source": "coles-category-api", "categories": payload})
             return
         if parsed.path == "/aldi/catalogue/status":
             self.send_json(200, {"status": "success", **aldi_catalogue_status()})

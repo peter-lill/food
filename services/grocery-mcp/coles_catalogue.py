@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
 
@@ -29,6 +29,11 @@ COLES_CDP_URL = os.getenv("COLES_CDP_URL", os.getenv("WOOLWORTHS_CDP_URL", "")).
 # remains an explicit opt-in for installations that provide their own CDP URL.
 COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "firefox").strip().lower()
 COLES_FIREFOX_FETCH_URL = os.getenv("COLES_FIREFOX_FETCH_URL", "").strip()
+COLES_API_BASE_URL = os.getenv(
+    "COLES_API_BASE_URL", "https://apigw.coles.com.au/digital/colesappbff"
+).rstrip("/")
+COLES_API_KEY = os.getenv("COLES_API_KEY", "").strip()
+COLES_STORE_ID = os.getenv("COLES_STORE_ID", "").strip()
 COLES_PAGE_SIZE = 48
 COLES_ROOT_CATEGORIES = (
     "/browse/meat-seafood", "/browse/fruit-vegetables", "/browse/dairy-eggs-fridge",
@@ -75,6 +80,38 @@ def parse_coles_browse_document(raw: str) -> dict[str, Any]:
     if not isinstance(result, dict) or not isinstance(result.get("results"), list):
         raise RuntimeError("Coles browse page returned an invalid catalogue result")
     return result
+
+
+def coles_category_api() -> dict[str, Any]:
+    """Read Coles' configured category endpoint without touching the browser cache.
+
+    This is intentionally a narrow, read-only probe of the same API gateway
+    already configured for product search.  It does not borrow browser cookies,
+    replay a verification response, or attempt to emulate a browser session.
+    """
+    if not COLES_API_KEY:
+        raise RuntimeError("Coles category API is not configured; set COLES_API_KEY")
+    if not COLES_STORE_ID:
+        raise RuntimeError("Coles category API is not configured; set COLES_STORE_ID")
+
+    query = urlencode({"storeId": COLES_STORE_ID})
+    request = Request(
+        f"{COLES_API_BASE_URL}/v2/products/category?{query}",
+        headers={
+            "Accept": "application/json",
+            "Ocp-Apim-Subscription-Key": COLES_API_KEY,
+        },
+    )
+    try:
+        with urlopen(request, timeout=30) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        raise RuntimeError(f"Coles category API returned HTTP {error.code}") from error
+    except (URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise RuntimeError("Coles category API did not return valid JSON") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("Coles category API returned an invalid response")
+    return payload
 
 
 def coles_browser_verification_error(body_text: object) -> str | None:
