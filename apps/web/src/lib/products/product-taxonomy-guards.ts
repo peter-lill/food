@@ -27,9 +27,11 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["diced tomatoes", "crushed tomatoes", "whole peeled tomatoes", "tomatoes with paste", "tomato paste"])) return result("Pantry", "Canned food, soups & noodles", "canned tomato identity");
   if ((has(text, ["pineapple chunks", "pineapple slices", "pineapple pieces", "peach slices", "peaches sliced", "fruit salad", "two fruits"]) && has(text, ["in juice", "canned fruit", "tinned"])) || has(text, ["fruit in juice cups", "peaches in juice cups"])) return result("Pantry", "Canned food, soups & noodles", "canned fruit identity");
 
-  // Finished snacks must outrank flavour and ingredient words. Apostrophes are
-  // normalised inconsistently across retailer feeds, so match the Snack'N'Go
-  // family with a regex rather than a word-boundary literal.
+  // Frozen branded/range identity must be resolved before the generic word
+  // "chips" is treated as a shelf-stable snack. Birds Eye's Golden Crunch
+  // potato range is a freezer range, including Lattice and Sidewinders.
+  if (has(text, ["birds eye"]) && (has(text, ["golden crunch", "deli seasoned chips", "crumbed hoki", "cheesy bakes"]) || has(text, ["sidewinders", "lattice"]))) return result("Frozen", "Frozen food", "frozen brand/product identity");
+
   const snackNGo = /\bsnack\s*['’]?\s*n\s*['’]?\s*go\b/i.test(text);
   if (snackNGo || has(text, ["breakfast biscuits", "custard creme biscuits", "custard crème biscuits", "arnotts shapes", "arnott's shapes", "vita weat", "cracker", "crackers", "cracker chips", "crispbread", "potato chips", "vege chips", "lentil chips", "chickpea chips", "hummus chips", "corn chips", "rice crackers", "pea crisps", "pork crackle", "mixed nuts", "cereal bar", "cereal bars", "fruit filled bar", "fruit filled bars", "filled bars", "protein bar", "protein bars", "paleo bar"])) return result("Pantry", "Snacks", "packaged snack identity");
 
@@ -41,10 +43,6 @@ export function guardedProductIdentity(value: string): ProductClassification | n
 
   if (has(text, ["recipe base", "stock cube", "stock cubes", "stock powder", "liquid stock", "gravy granules", "gravy mix"])) return result("Pantry", "Stocks, gravy & recipe bases", "cooking-base identity");
   if (has(text, ["simmer sauce", "pasta sauce", "curry sauce", "stir fry sauce", "marinade and sauce", "dipping sauce", "black bean sauce", "stir fry paste", "curry paste", "rice paste"])) return result("Pantry", "Sauces & condiments", "sauce or cooking paste identity");
-
-  // All Birds Eye chip/potato and crumbed-fish products in this catalogue are
-  // freezer lines; this must run before generic packaged-chip classification.
-  if (has(text, ["birds eye"]) && has(text, ["chips", "crinkles", "sidewinders", "lattice", "crumbed hoki", "cheesy bakes"])) return result("Frozen", "Frozen food", "frozen brand/product identity");
 
   if (has(text, ["olive oil spread", "canola spread", "buttery spread", "margarine spread"])) return result("Dairy & eggs", "Butter & margarine", "table spread identity");
   if (has(text, ["rice bran oil", "olive oil", "extra virgin olive oil", "canola oil", "vegetable oil", "sunflower oil", "sesame oil"]) && !has(text, ["breadstick", "breadsticks", "cracker", "crackers", "spread", "sardine", "sardines", "tuna", "anchovy", "anchovies", "mackerel", "toast", "toasts", "chips", "crisps"]) && !snackNGo) return result("Pantry", "Oils & vinegars", "culinary oil identity");
