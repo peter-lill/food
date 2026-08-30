@@ -156,7 +156,9 @@ assert.match(productHubStyles, /\.shelfFilters\{position:static;display:flex;gap
 assert.match(productCatalogueSource, /showProductCardsDirectly \? <div className=\{`\$\{departmentStyles\.fullWidth\} \$\{styles\.grid\}`\}/, "direct catalogue contexts render the product grid immediately at full catalogue width");
 assert.match(departmentArtworkStyles, /\.fullWidth\s*\{\s*grid-column:\s*1\s*\/\s*-1;/, "direct product grids must span every department column instead of being compressed into one");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
-assert.match(productHubStyles, /@media\(min-width:1451px\)\{\.grid\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, "wide catalogue pages must show six compact product cards across");
+assert.match(productHubStyles, /@media\(min-width:1451px\)\{\.grid\{grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/, "wide catalogue pages must show five readable product cards across");
+assert.match(productHubStyles, /\.thumb\{background:transparent\}/, "product images must not sit on a white thumbnail box");
+assert.match(productHubStyles, /\.thumb img\{width:260px!important;height:260px!important/, "wide product cards must allow a 260px product image");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
 assert.match(productHubStyles, /\.grid\{align-items:start\}/, "desktop product cards must not stretch to the tallest card in their row");
