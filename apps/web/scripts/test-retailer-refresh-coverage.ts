@@ -117,6 +117,7 @@ assert.match(imageRecoverySource, /await markSelectedCandidate\(product\.id, can
 assert.match(imageRecoverySource, /isGeneric \|\| !product\.imageUrl\.startsWith\("generated:\/\/"\)/, "specific products must not recycle an old generated generic image during recovery");
 const imageQueueSource = readFileSync(new URL("./enqueue-selected-product-images.ts", import.meta.url), "utf8");
 assert.match(imageQueueSource, /assessProductImage\(candidate\.url\)/, "the backlog should reassess authoritative candidates whose original CDN check failed");
+assert.match(imageQueueSource, /retailerProductUrl/, "the backlog should reassess direct retailer images with the product page that supplied them");
 assert.match(imageQueueSource, /COALESCE\(c\."qualityScore", 0\) = 0/, "the backlog reassessment should remain limited to failed or missing quality checks");
 assert.match(imageQueueSource, /c\."accepted" = true[\s\S]*?"overallScore"[\s\S]*?>= 75[\s\S]*?"identityScore"[\s\S]*?>= 90[\s\S]*?"providerScore"[\s\S]*?>= 90/, "the image backlog should promote only accepted, high-confidence authoritative candidates");
 assert.match(imageQueueSource, /NOT EXISTS \([\s\S]*?selected\."selected" = true/, "the image backlog must not replace an existing selected candidate");
@@ -126,6 +127,9 @@ const imageQualitySource = readFileSync(new URL("../src/lib/products/image-quali
 assert.match(imageQualitySource, /fetchRemoteImage\(url, timeoutMs\)/, "quality scoring and image import must use the same retailer-aware downloader");
 const remoteImageSource = readFileSync(new URL("../src/lib/images/remote-image.ts", import.meta.url), "utf8");
 assert.match(remoteImageSource, /woolworths\.com\.au\/shop\/productdetails/, "Woolworths CDN retries should carry the matching product-page context");
+assert.match(remoteImageSource, /coles\\\.com\\\.au/, "Coles retailer product pages should be allowed as image-download context");
+const imageAssetSource = readFileSync(new URL("../src/lib/images/image-asset.service.ts", import.meta.url), "utf8");
+assert.match(imageAssetSource, /retailerProductUrl/, "the imported primary asset should use its linked retailer product page context");
 const productImageRouteSource = readFileSync(new URL("../src/app/api/products/[productId]/image/route.ts", import.meta.url), "utf8");
 assert.match(productImageRouteSource, /isGenericFoodImageEligible\(product\)/, "the image endpoint must check full generic eligibility before serving a generated asset");
 assert.match(productImageRouteSource, /const genericFamily = allowGenericImage/, "specific unbranded retailer products must retain retailer image fallbacks");

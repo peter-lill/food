@@ -24,8 +24,19 @@ async function reassessBlockedAuthoritativeCandidates() {
     url: string;
     providerScore: number;
     identityScore: number;
+    retailerProductUrl: string | null;
   }>>`
-    SELECT c."id", c."url", c."providerScore", c."identityScore"
+    SELECT c."id", c."url", c."providerScore", c."identityScore",
+           (
+             SELECT sp."productUrl"
+             FROM "StoreProduct" sp
+             WHERE sp."productId" = c."productId"
+               AND sp."active" = true
+               AND sp."imageUrl" = c."url"
+               AND sp."productUrl" IS NOT NULL
+             ORDER BY sp."updatedAt" DESC
+             LIMIT 1
+           ) AS "retailerProductUrl"
     FROM "ProductImageCandidate" c
     JOIN "Product" p ON p."id" = c."productId"
     WHERE c."rejected" = false
@@ -51,7 +62,7 @@ async function reassessBlockedAuthoritativeCandidates() {
   for (let offset = 0; offset < candidates.length; offset += reassessmentConcurrency) {
     const batch = candidates.slice(offset, offset + reassessmentConcurrency);
     await Promise.all(batch.map(async (candidate) => {
-      const assessment = await assessProductImage(candidate.url);
+      const assessment = await assessProductImage(candidate.url, { referer: candidate.retailerProductUrl });
       const accepted = usableImageCandidateAssessment(assessment);
       const overallScore = imageCandidateOverallScore({
         qualityScore: assessment.score,

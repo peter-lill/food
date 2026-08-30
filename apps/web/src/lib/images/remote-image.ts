@@ -9,6 +9,11 @@ export type RemoteImage = {
   declaredContentLength: number | null;
 };
 
+export type RemoteImageFetchOptions = {
+  /** The retailer product page that supplied this image URL. */
+  referer?: string | null;
+};
+
 function woolworthsStockcode(url: string) {
   try {
     const parsed = new URL(url);
@@ -16,6 +21,23 @@ function woolworthsStockcode(url: string) {
     return parsed.pathname.match(/\/(\d{4,12})(?:_\d+)?\.(?:jpe?g|png|webp)$/i)?.[1] ?? null;
   } catch {
     return null;
+  }
+}
+
+function safeRetailerProductReferer(value: string | null | undefined) {
+  if (!value) return "";
+  try {
+    const parsed = new URL(value);
+    if (
+      parsed.protocol !== "https:"
+      || (
+        !/(?:^|\.)woolworths\.com\.au$/i.test(parsed.hostname)
+        && !/(?:^|\.)coles\.com\.au$/i.test(parsed.hostname)
+      )
+    ) return "";
+    return parsed.toString();
+  } catch {
+    return "";
   }
 }
 
@@ -44,15 +66,18 @@ async function imageResponse(url: string, signal: AbortSignal, referer = "", coo
   });
 }
 
-export async function fetchRemoteImage(url: string, timeoutMs = 15_000): Promise<RemoteImage> {
+export async function fetchRemoteImage(
+  url: string,
+  timeoutMs = 15_000,
+  options: RemoteImageFetchOptions = {},
+): Promise<RemoteImage> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const stockcode = woolworthsStockcode(url);
-    const referer = stockcode
-      ? `https://www.woolworths.com.au/shop/productdetails/${stockcode}`
-      : "";
+    const referer = safeRetailerProductReferer(options.referer)
+      || (stockcode ? `https://www.woolworths.com.au/shop/productdetails/${stockcode}` : "");
 
     let response = await imageResponse(url, controller.signal, referer).catch(() => null);
     if ((!response || !response.ok) && referer) {

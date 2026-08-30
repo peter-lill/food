@@ -76,6 +76,7 @@ type Candidate = {
   sourceLabel: string;
   providerScore: number;
   identityScore: number | null;
+  referer?: string | null;
 };
 
 type CandidateInspection = {
@@ -134,7 +135,7 @@ function emptyAssessment(url: string): ProductImageAssessment {
 }
 
 async function inspectCandidate(candidate: Candidate): Promise<CandidateInspection> {
-  const assessment = await assessProductImage(candidate.url).catch(() => emptyAssessment(candidate.url));
+  const assessment = await assessProductImage(candidate.url, { referer: candidate.referer }).catch(() => emptyAssessment(candidate.url));
   if (!assessment.reachable) return { accepted: false, score: assessment.score, reason: "Image could not be reached", assessment };
   if (!assessment.contentType?.startsWith("image/")) return { accepted: false, score: assessment.score, reason: "Response was not an image", assessment };
   const minimumQuality = candidateMinimumQuality(candidate);
@@ -266,7 +267,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
       imageUrl: { not: null },
       retailer: { in: ["Coles", "Woolworths"] },
     },
-    select: { retailer: true, retailerProductName: true, imageUrl: true },
+    select: { retailer: true, retailerProductName: true, imageUrl: true, productUrl: true },
   });
   candidates.push(...linkedRetailerImages.flatMap((listing) => listing.imageUrl ? [{
     url: listing.imageUrl,
@@ -274,6 +275,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
     sourceLabel: `${listing.retailer} · ${listing.retailerProductName}`,
     providerScore: providerScore(listing.retailer),
     identityScore: 90,
+    referer: listing.productUrl,
   }] : []));
   if (/^\d{7,14}$/.test(barcode)) {
     const exactRetailerMatches = (await searchColesAndWoolworthsCatalogue(barcode).catch(() => []))
@@ -284,6 +286,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
       sourceLabel: `${candidate.retailer} · ${candidate.productName}`,
       providerScore: 100,
       identityScore: 100,
+      referer: candidate.sourceUrl,
     })));
     diagnostics.steps.push({
       provider: "Retailer barcode",
@@ -306,6 +309,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
       sourceLabel: `Woolworths · ${woolworths.productName}`,
       providerScore: 98,
       identityScore: 100,
+      referer: woolworths.sourceUrl,
     });
 
     const exact = await openFoodFactsImage(barcode);
@@ -358,6 +362,7 @@ export async function recoverProductImage(productId: string, options: { allowGen
         sourceLabel: `${source} · ${result.productName}`,
         providerScore: providerScore(source),
         identityScore,
+        referer: result.sourceUrl,
       });
     }
   }

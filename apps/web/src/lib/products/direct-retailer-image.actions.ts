@@ -74,7 +74,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
       redirect(`${destination}${imagePanelAnchor}`);
     }
 
-    const assessment = await assessProductImage(candidate.imageUrl);
+    const assessment = await assessProductImage(candidate.imageUrl, { referer: candidate.sourceUrl });
     const accepted = assessment.reachable
       && Boolean(assessment.contentType?.startsWith("image/"))
       && assessment.score >= 35;
