@@ -43,6 +43,36 @@ assert.equal(
   "removing a deli weight must not leave a dangling Per in the displayed family name",
 );
 assert.equal(
+  productFamilyName("Cabbage Whole"),
+  "Cabbage",
+  "a whole cabbage must group with its portioned equivalent",
+);
+assert.equal(
+  productFamilyName("Cabbage Half"),
+  "Cabbage",
+  "a half cabbage must remain a variant of the cabbage family",
+);
+assert.equal(
+  productFamilyName("Red Cabbage Whole"),
+  "Red Cabbage",
+  "whole and half qualifiers must not collapse distinct cabbage varieties",
+);
+assert.equal(
+  productFamilyName("Caesar Salad Bowl"),
+  "Caesar Salad",
+  "a prepared salad bowl must group with its packaged salad family",
+);
+assert.equal(
+  productFamilyName("Caesar Salad Kit Entertainer"),
+  "Caesar Salad",
+  "prepared-salad package formats must remain variants of the same salad",
+);
+assert.equal(
+  productFamilyName("Capsicum Yellow Each"),
+  "Capsicum Yellow Each",
+  "different capsicum varieties must remain separate product families",
+);
+assert.equal(
   departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
   "Pantry",
   "a legacy Woolworths Pantry path must override a historical meat name match",
