@@ -122,6 +122,9 @@ assert.match(departmentArtworkStyles, /\.fullWidth\s*\{\s*grid-column:\s*1\s*\/\
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
-assert.match(productHubStyles, /\.cardBody \.priceRow\{height:107px/, "desktop price boxes must start from an aligned fixed-height band");
+assert.match(productHubStyles, /\.grid\{align-items:start\}/, "desktop product cards must not stretch to the tallest card in their row");
+assert.match(productHubStyles, /\.card\{grid-template-rows:132px auto\}/, "desktop product cards must use a compact image band");
+assert.match(productCatalogueSource, /className=\{styles\.productFacts\}/, "product cards must present best price and checked date as compact fact rows");
+assert.match(productHubStyles, /\.productFacts>div\{display:grid;grid-template-columns:78px auto minmax\(0,1fr\) auto/, "product price and check facts must render as separate compact lines");
 
 console.log("Product retailer price display regressions passed.");
