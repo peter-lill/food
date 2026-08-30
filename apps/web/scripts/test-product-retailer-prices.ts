@@ -148,6 +148,10 @@ assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected de
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
 assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
 assert.match(productCatalogueSource, /const showProductCardsDirectly = Boolean\(q \|\| department \|\| view !== "all"\)/, "searches, department pages and filters must show product cards without nesting them behind category accordions");
+assert.match(productCatalogueSource, /shelf: rawShelf/, "department pages must accept an optional shelf filter");
+assert.match(productCatalogueSource, /All \{department\}/, "a department page must default to an all-products shelf filter");
+assert.match(productCatalogueSource, /shelfGroups\.map/, "department pages must offer their shelf groups as optional filters");
+assert.match(productHubStyles, /\.departmentBrowse\{display:grid;grid-template-columns:210px minmax\(0,1fr\)/, "wide department pages must show optional shelf filters beside the product grid");
 assert.match(productCatalogueSource, /showProductCardsDirectly \? <div className=\{`\$\{departmentStyles\.fullWidth\} \$\{styles\.grid\}`\}/, "direct catalogue contexts render the product grid immediately at full catalogue width");
 assert.match(departmentArtworkStyles, /\.fullWidth\s*\{\s*grid-column:\s*1\s*\/\s*-1;/, "direct product grids must span every department column instead of being compressed into one");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");

@@ -8,7 +8,7 @@ import departmentStyles from "./department-artwork.module.css";
 export const dynamic = "force-dynamic";
 
 type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
-type ProductsPageProps = { searchParams: Promise<{ department?: string; q?: string; view?: string }> };
+type ProductsPageProps = { searchParams: Promise<{ department?: string; q?: string; shelf?: string; view?: string }> };
 
 const departmentArtwork: Record<string, string> = {
   "Fruit & vegetables": "fruit-vegetables.webp",
@@ -212,7 +212,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
-  const { department: rawDepartment, q = "", view: rawView } = await searchParams;
+  const { department: rawDepartment, q = "", shelf: rawShelf, view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
   const [allProducts, departmentCounts, productRecordCount] = await Promise.all([
@@ -221,15 +221,26 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     getProductHubRecordCount(),
   ]);
 
+  const shelfGroups = department ? [...allProducts.reduce((groups, product) => {
+    const label = shelfGroupForDepartment(product.shelfLabel, department);
+    const current = groups.get(label) ?? [];
+    current.push(product);
+    groups.set(label, current);
+    return groups;
+  }, new Map<string, typeof allProducts>())]
+    .sort(([left], [right]) => left.startsWith("Other ") ? 1 : right.startsWith("Other ") ? -1 : left.localeCompare(right, "en-AU")) : [];
+  const shelf = shelfGroups.some(([label]) => label === rawShelf) ? rawShelf : null;
+  const shelfProducts = shelf ? allProducts.filter((product) => shelfGroupForDepartment(product.shelfLabel, department ?? "") === shelf) : allProducts;
+
   const counts: Record<ProductView, number> = {
-    all: allProducts.length,
-    pantry: allProducts.filter((product) => product.pantryQuantity > 0).length,
-    priced: allProducts.filter((product) => product.latestPrice !== null).length,
-    recipes: allProducts.filter((product) => product.recipeCount > 0).length,
-    "needs-details": allProducts.filter(needsDetails).length,
+    all: shelfProducts.length,
+    pantry: shelfProducts.filter((product) => product.pantryQuantity > 0).length,
+    priced: shelfProducts.filter((product) => product.latestPrice !== null).length,
+    recipes: shelfProducts.filter((product) => product.recipeCount > 0).length,
+    "needs-details": shelfProducts.filter(needsDetails).length,
   };
 
-  const products = allProducts.filter((product) => {
+  const products = shelfProducts.filter((product) => {
     if (view === "pantry") return product.pantryQuantity > 0;
     if (view === "priced") return product.latestPrice !== null;
     if (view === "recipes") return product.recipeCount > 0;
@@ -247,6 +258,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     .sort(([left], [right]) => left.localeCompare(right, "en-AU"));
   const browseDepartments = !q && view === "all" && !department;
   const showProductCardsDirectly = Boolean(q || department || view !== "all");
+  const departmentShelfHref = (selectedShelf?: string) => {
+    const params = new URLSearchParams({ department: department ?? "" });
+    if (q) params.set("q", q);
+    if (view !== "all") params.set("view", view);
+    if (selectedShelf) params.set("shelf", selectedShelf);
+    return `/products?${params.toString()}`;
+  };
 
   const retailerCount = new Set(allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : [])).size;
   const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
@@ -298,6 +316,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             {q ? <p>Results for &quot;{q}&quot;.</p> : department ? <p>All {department.toLocaleLowerCase("en-AU")} product families.</p> : <p>Choose a department, or search for a product directly.</p>}
           </div>
           <form className={styles.search}>
+            {department ? <input name="department" type="hidden" value={department} /> : null}
+            {shelf ? <input name="shelf" type="hidden" value={shelf} /> : null}
             {view !== "all" ? <input name="view" type="hidden" value={view} /> : null}
             <div className={styles.searchField}><span aria-hidden="true">?</span><input aria-label="Search products" defaultValue={q} name="q" placeholder="Search name, brand or barcode" type="search" /></div>
             <button className={styles.searchButton} type="submit">Search</button>
@@ -308,6 +328,8 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           {views.map((item) => {
             const params = new URLSearchParams();
             if (q) params.set("q", q);
+            if (department) params.set("department", department);
+            if (shelf) params.set("shelf", shelf);
             if (item.value !== "all") params.set("view", item.value);
             return <Link className={view === item.value ? styles.filterActive : styles.filter} href={params.size ? `/products?${params.toString()}` : "/products"} key={item.value}><span>{item.label}</span><strong>{counts[item.value]}</strong></Link>;
           })}
@@ -323,7 +345,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <span className={departmentStyles.departmentCount}>{productCount.toLocaleString("en-AU")} products</span>
               </span>
             </Link>;
-          }) : products.length && showProductCardsDirectly ? <div className={`${departmentStyles.fullWidth} ${styles.grid}`}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
+          }) : department && products.length ? <div className={`${departmentStyles.fullWidth} ${styles.departmentBrowse}`}>
+            <nav aria-label={`${department} categories`} className={styles.shelfFilters}>
+              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span>All {department}</span><strong>{allProducts.length}</strong></Link>
+              {shelfGroups.map(([label, shelfGroupProducts]) => <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>)}
+            </nav>
+            <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
+          </div> : products.length && showProductCardsDirectly ? <div className={`${departmentStyles.fullWidth} ${styles.grid}`}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
             <details className={departmentStyles.department} key={department} open={Boolean(department)}>
               <summary className={departmentStyles.departmentSummary}>
                 <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
