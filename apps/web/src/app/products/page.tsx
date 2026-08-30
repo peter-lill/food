@@ -347,8 +347,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </Link>;
           }) : department && products.length ? <div className={`${departmentStyles.fullWidth} ${styles.departmentBrowse}`}>
             <nav aria-label={`${department} categories`} className={styles.shelfFilters}>
-              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span>All {department}</span><strong>{allProducts.length}</strong></Link>
-              {shelfGroups.map(([label, shelfGroupProducts]) => <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>)}
+              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span className={styles.shelfFilterImage}><img alt="" src={artworkForDepartment(department)} /></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
+              {shelfGroups.map(([label, shelfGroupProducts]) => {
+                const representative = shelfGroupProducts.find((product) => product.imageUrl) ?? null;
+                const image = representative?.imageUrl ? `/api/products/${encodeURIComponent(representative.id)}/image?v=${encodeURIComponent(imageVersion(representative.imageUrl))}` : artworkForDepartment(department);
+                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span className={styles.shelfFilterImage}><img alt="" loading="lazy" src={image} /></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
+              })}
             </nav>
             <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
           </div> : products.length && showProductCardsDirectly ? <div className={`${departmentStyles.fullWidth} ${styles.grid}`}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
