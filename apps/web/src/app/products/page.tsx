@@ -319,7 +319,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 <span className={departmentStyles.departmentCount}>{productCount.toLocaleString("en-AU")} products</span>
               </span>
             </Link>;
-          }) : products.length && showProductCardsDirectly ? <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
+          }) : products.length && showProductCardsDirectly ? <div className={`${departmentStyles.fullWidth} ${styles.grid}`}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div> : products.length ? departmentGroups.map(([department, departmentProducts]) => (
             <details className={departmentStyles.department} key={department} open={Boolean(department)}>
               <summary className={departmentStyles.departmentSummary}>
                 <span className={departmentStyles.departmentArtwork}><img alt="" loading="lazy" src={artworkForDepartment(department)} /></span>
