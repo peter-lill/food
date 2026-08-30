@@ -51,3 +51,8 @@
   .productFacts>div{grid-template-columns:70px auto minmax(0,1fr);gap:6px;padding:5px 0}
   .productFacts>div .specialBadge{display:none}
 }
+
+/* Dense desktop catalogue: product names retain a two-line title band. */
+@media(min-width:1451px){.grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}}
+@media(min-width:1051px) and (max-width:1450px){.grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}}
+@media(min-width:761px) and (max-width:1050px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
