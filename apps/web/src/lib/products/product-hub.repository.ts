@@ -209,7 +209,9 @@ export function finaliseProductFamilyListItem(
     brand: null,
     barcode: null,
     description: null,
-    imageUrl: genericFamilyImage(item.canonicalName ?? item.name),
+    // The first grouped product provides a visual representative only. Family
+    // metadata and pricing remain deliberately variant-agnostic below.
+    imageUrl: genericFamilyImage(item.canonicalName ?? item.name) ?? item.imageUrl,
     retailerCount,
     variantCount,
     priceNeedsSpecificVariant: item.latestPrice !== null,
