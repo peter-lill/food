@@ -187,11 +187,10 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
         </div>
         <h2>{title}</h2>
         {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
-        <div className={styles.identitySlot}>{detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}</div>
-        <div className={styles.completenessSlot}>{completeness < 100 ? <div className={styles.completeness} aria-label={`${completeness}% product information complete`}><span style={{ width: `${completeness}%` }} /></div> : null}</div>
-        <div className={styles.priceRow}>
-          <div><small>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `Best price · ${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ? `Best price · ${product.latestRetailer}` : "Best price"}</small><strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>{product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}</div>
-          <div><small>{observed ? `Checked ${observed}` : "Retailer"}</small><strong>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "Not linked"}</strong></div>
+        {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
+        <div className={styles.productFacts}>
+          <div><small>Best price</small><strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong><span>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ?? "No retailer linked"}</span>{product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}</div>
+          <div><small>Checked</small><strong>{observed ?? "Not checked"}</strong><span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "No retailer linked"}</span></div>
         </div>
         <div className={styles.meta}>
           {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}

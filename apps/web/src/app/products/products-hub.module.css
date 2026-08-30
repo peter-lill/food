@@ -25,3 +25,29 @@
 .heroMark svg,.mobileHeroMark svg,.summaryIcon svg{width:21px;height:21px}
 .primaryAction svg,.secondaryAction svg{width:18px;height:18px}
 .primaryAction{box-shadow:0 8px 18px rgba(21,128,61,.16)}
+
+/* Compact product summaries: scan the item, price and check date in order. */
+.productFacts{display:grid;gap:0;margin-top:10px;border-top:1px solid #edf0ee}
+.productFacts>div{display:grid;grid-template-columns:78px auto minmax(0,1fr) auto;align-items:center;gap:8px;min-width:0;padding:7px 0;border-bottom:1px solid #edf0ee}
+.productFacts small{color:#87918b;font-size:.68rem;font-weight:750}
+.productFacts strong{color:#26362d;font-size:.88rem;white-space:nowrap}
+.productFacts>div>span{min-width:0;color:#718078;font-size:.72rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.productFacts [data-retailer-logo]{display:inline-flex;align-items:center;vertical-align:middle}
+.productFacts [data-retailer-logo] img{width:100%!important;height:100%!important;object-fit:contain!important}
+
+@media(min-width:761px){
+  .card{grid-template-rows:132px auto}
+  .thumb img{width:96px!important;height:96px!important}
+  .cardBody{padding:13px 16px 15px}
+  .cardBody h2{margin:8px 0 3px}
+  .cardBody .brandLine{display:-webkit-box;height:auto;min-height:0;margin:0;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:1}
+  .cardBody .productFacts{margin-top:9px}
+  .cardBody .meta{height:auto;min-height:0;margin-top:8px}
+  .cardBody .openLabel{margin-top:9px;padding-top:0}
+}
+
+@media(max-width:760px){
+  .productFacts{margin-top:8px}
+  .productFacts>div{grid-template-columns:70px auto minmax(0,1fr);gap:6px;padding:5px 0}
+  .productFacts>div .specialBadge{display:none}
+}
