@@ -234,6 +234,12 @@ function canonicalProduceFamily(value: string) {
   if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
   if (/\brocket\b/.test(normalised)) return "Rocket Leaves";
 
+  const cabbagePortion = normalised.match(/^(.*\bcabbage)\s+(?:whole|half)(?:\s+(?:each|ea))?$/);
+  if (cabbagePortion) return titleCase(cabbagePortion[1]);
+
+  const preparedSalad = normalised.match(/^(.+\bsalad)\s+(?:bowl|kit|tub)(?:\s+(?:entertainer|family|large|each))?$/);
+  if (preparedSalad) return titleCase(preparedSalad[1]);
+
   return null;
 }
 
@@ -245,6 +251,9 @@ function removeTrailingUnitQualifier(value: string) {
 }
 
 export function productFamilyName(value: string) {
+  const produceFamily = canonicalProduceFamily(value);
+  if (produceFamily) return produceFamily;
+
   const identity = identifyGrocery(value);
   if (identity) return removeTrailingUnitQualifier(identity.family ?? identity.canonicalName);
 
@@ -259,8 +268,8 @@ export function productFamilyName(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  const produceFamily = canonicalProduceFamily(cleaned);
-  if (produceFamily) return produceFamily;
+  const cleanedProduceFamily = canonicalProduceFamily(cleaned);
+  if (cleanedProduceFamily) return cleanedProduceFamily;
 
   return cleaned ? titleCase(removeTrailingUnitQualifier(cleaned)) : titleCase(removeTrailingUnitQualifier(value));
 }
