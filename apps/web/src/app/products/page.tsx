@@ -185,13 +185,15 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
           <span>{category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised")}</span>
           {completeness < 100 ? <span>{completeness}% complete</span> : null}
         </div>
+        <div className={styles.priceSummary}>
+          <small>Best price</small>
+          <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
+          <span>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ?? "No retailer linked"}</span>
+          {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}
+        </div>
         <h2>{title}</h2>
         {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}
         {detailLine ? <p className={styles.brandLine}>{detailLine}</p> : null}
-        <div className={styles.productFacts}>
-          <div><small>Best price</small><strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong><span>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ?? "No retailer linked"}</span>{product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2l7 7a2 2 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}</div>
-          <div><small>Checked</small><strong>{observed ?? "Not checked"}</strong><span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "No retailer linked"}</span></div>
-        </div>
         <div className={styles.meta}>
           {product.recipeCount > 0 ? <span>{product.recipeCount} recipe{product.recipeCount === 1 ? "" : "s"}</span> : null}
           {product.retailerCount > 0 ? <span>{product.retailerCount} retailer{product.retailerCount === 1 ? "" : "s"}</span> : null}
@@ -199,7 +201,10 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
           {!family && !generic && !product.imageUrl && product.barcode ? <span>Enrichment pending</span> : null}
           {!family && !generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
         </div>
-        <span className={styles.openLabel}>View product <span aria-hidden="true">-&gt;</span></span>
+        <div className={styles.cardFooter}>
+          <span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "No retailer linked"}</span>
+          <small>{observed ? `Checked ${observed}` : "Not checked"}</small>
+        </div>
       </div>
       <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />
     </article>

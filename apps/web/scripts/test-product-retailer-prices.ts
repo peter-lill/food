@@ -156,7 +156,8 @@ assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*ov
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
 assert.match(productHubStyles, /\.grid\{align-items:start\}/, "desktop product cards must not stretch to the tallest card in their row");
 assert.match(productHubStyles, /\.card\{grid-template-rows:132px auto\}/, "desktop product cards must use a compact image band");
-assert.match(productCatalogueSource, /className=\{styles\.productFacts\}/, "product cards must present best price and checked date as compact fact rows");
-assert.match(productHubStyles, /\.productFacts>div\{display:grid;grid-template-columns:78px auto minmax\(0,1fr\) auto/, "product price and check facts must render as separate compact lines");
+assert.match(productCatalogueSource, /className=\{styles\.priceSummary\}/, "product cards must present one prominent best-price summary");
+assert.match(productCatalogueSource, /className=\{styles\.cardFooter\}/, "product cards must retain retailer and checked details in a compact footer");
+assert.match(productHubStyles, /\.priceSummary strong\{[^}]*font-size:1\.38rem/, "product card prices must remain visually prominent in the dense catalogue layout");
 
 console.log("Product retailer price display regressions passed.");
