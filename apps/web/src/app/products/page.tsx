@@ -165,7 +165,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
   const family = product.variantCount > 1;
   const generic = isGenericFood(product);
   const detailLine = family || generic ? null : product.brand;
-  const productImage = !family && product.imageUrl
+  const productImage = product.imageUrl
     ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
     : null;
 

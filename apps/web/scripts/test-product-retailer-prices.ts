@@ -96,7 +96,7 @@ const activiaFamily: ProductHubListItem = {
 };
 const yoghurtFamily = finaliseProductFamilyListItem(activiaFamily, 29, 1);
 assert.equal(yoghurtFamily.description, null, "a family card must not inherit one variant's marketing description");
-assert.equal(yoghurtFamily.imageUrl, null, "a family card must not present one variant's image as the whole family");
+assert.equal(yoghurtFamily.imageUrl, "https://cdn.example/activia.jpg", "a family card may retain one representative image without adopting its variant details");
 assert.equal(yoghurtFamily.category, "Dairy & eggs", "a family card must retain its shared department");
 assert.equal(yoghurtFamily.retailerCount, 1, "retailer counts must be distinct across grouped variants");
 assert.equal(yoghurtFamily.variantCount, 29, "a family card must report the number of specific products it contains");
@@ -104,6 +104,7 @@ assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must
 
 assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
 assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
+assert.match(productCatalogueSource, /const productImage = product\.imageUrl/, "family cards must render their retained representative catalogue image");
 assert.match(productPageSource, /listing\.productUrl \? <a className=\{styles\.retailerPriceLink\}/, "retailer prices must link to their authoritative product page when available");
 assert.match(productPageSource, /price\.sourceUrl \?\? product\.storeProducts\.find/, "price comparison tiles must prefer each observation's authoritative retailer URL");
 assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retailer\} \/>/, "retailer price links must keep their retailer logo visible");
