@@ -15,36 +15,44 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["australian botanical soap", "aveeno", "argan hair", "body oil", "hair oil", "jojoba", "rosehip oil", "primrose oil"]))
     return result("Health & personal care", "Health & personal care", "personal-care identity");
 
-  const babyStage = /\b(?:4|6|8|10|12)\+?\s*months?\b/.test(text)
-    || /\b1\s*(?:-|to|\s)\s*4\s*years?\b/.test(text);
+  const babyStage = /\b(?:4|6|8|10|12)\+?\s*months?\b/.test(text) || /\b1\s*(?:-|to|\s)\s*4\s*years?\b/.test(text);
   if (has(text, ["baby mum mum", "little bellies", "little quacker", "annabel karmel little meals"]) || babyStage) {
     if (has(text, ["rusk", "rusks", "puff", "puffs", "snack", "bar", "food", "puree", "custard", "meal", "meals", "cereal", "pasta bake", "bolognese", "bolognaise"])) return result("Baby", "Baby food & care", "baby age/stage product identity");
   }
 
-  // Named soft drinks beat sugar/sweetener wording such as Zero Sugar.
   if (has(text, ["coca cola", "coca-cola", "coke", "pepsi", "sprite", "fanta"]) && has(text, ["zero sugar", "no sugar", "sugar free", "cola", "soft drink"]))
     return result("Drinks", "Cold drinks", "beverage brand/product identity");
 
-  if (has(text, ["tuna", "sardine", "sardines", "mackerel", "anchovy", "anchovies"]) && (has(text, ["chunks", "slices", "fillets in oil", "in oil", "in vegetable oil", "in olive oil", "in sauce", "tomato sauce"]) || /\bin\b.{0,32}\boil\b/.test(text) || /\b(?:50|90|95|105|110|125|185|400|415|425)g\b/.test(text)))
+  // Canned/pouched seafood identity must beat its packing sauce, oil or seasoning.
+  if (has(text, ["tuna", "sardine", "sardines", "mackerel", "anchovy", "anchovies", "herring fillet", "herring fillets", "smoked mussels", "smoked oysters"]) && (has(text, ["chunks", "slices", "fillets in oil", "in oil", "in vegetable oil", "in olive oil", "in sauce", "tomato sauce", "mustard sauce", "curry sauce", "mango pepper sauce", "bbq sauce"]) || /\bin\b.{0,32}\b(?:oil|sauce|springwater|brine)\b/.test(text) || /\b(?:50|85|90|95|105|110|125|185|200|400|415|425)g\b/.test(text)))
     return result("Pantry", "Canned food, soups & noodles", "shelf-stable seafood identity");
 
-  if (has(text, ["cucumbers bread and butter", "cucumbers bread & butter", "bread and butter cucumbers", "bread & butter cucumbers", "stuffed olives", "pickled cucumber", "pickled cucumbers"]))
+  if (has(text, ["cucumbers bread and butter", "cucumbers bread & butter", "bread and butter cucumbers", "bread & butter cucumbers", "stuffed olives", "pickled cucumber", "pickled cucumbers", "baby capers", "capers"]))
     return result("Pantry", "Pickled vegetables & condiments", "pickled vegetable identity");
 
   if (has(text, ["diced tomatoes", "crushed tomatoes", "whole peeled tomatoes", "tomatoes with paste", "tomato paste"]))
     return result("Pantry", "Canned food, soups & noodles", "canned tomato identity");
+  if ((has(text, ["pineapple chunks", "pineapple slices", "pineapple pieces", "peach slices", "peaches sliced", "fruit salad", "two fruits"]) && has(text, ["in juice", "canned fruit", "tinned"])) || has(text, ["fruit in juice cups", "peaches in juice cups"]))
+    return result("Pantry", "Canned food, soups & noodles", "canned fruit identity");
 
-  if (has(text, ["muffins", "muffin 4 pack", "bread", "breadsticks", "bread sticks", "bruschetta toasts", "toasts", "croissant", "brioche", "bagel", "bakery loaf"]) && !has(text, ["bread mix", "bread crumbs", "breadcrumbs", "bread flour", "pizza flour", "plain flour", "muffin mix"]))
+  // Finished snacks and bars must beat flavour/ingredient words such as honey,
+  // cinnamon, lentil, chickpea, olive oil and salt.
+  if (has(text, ["breakfast biscuits", "custard creme biscuits", "custard crème biscuits", "arnotts shapes", "arnott's shapes", "vita weat", "cracker", "crackers", "cracker chips", "crispbread", "potato chips", "vege chips", "lentil chips", "chickpea chips", "hummus chips", "corn chips", "rice crackers", "pea crisps", "pork crackle", "mixed nuts", "cereal bar", "cereal bars", "fruit filled bars", "protein bar", "protein bars", "paleo bar", "snack'n'go"]))
+    return result("Pantry", "Snacks", "packaged snack identity");
+
+  // Baking mixes/ingredients before finished bakery words.
+  if (has(text, ["muffin mix", "cake mix", "brownie mix", "cookie mix", "bread mix", "custard powder", "bread crumbs", "breadcrumbs", "panko bread crumbs", "bread improver", "cream of tartar", "egg replacer", "bread and pizza plain flour", "bread & pizza plain flour"]))
+    return result("Pantry", "Baking", "baking mix or ingredient identity");
+
+  if (has(text, ["muffins", "muffin 4 pack", "bread", "breadsticks", "bread sticks", "bruschetta toasts", "toasts", "croissant", "brioche", "bagel", "bakery loaf"]) && !has(text, ["bread mix", "bread crumbs", "breadcrumbs", "bread flour", "pizza flour", "plain flour", "muffin mix", "improver"]))
     return result("Bakery", "Bread & bakery", "bakery product identity");
 
-  if (has(text, ["chicken drumstick", "chicken drumsticks", "chicken wing", "chicken wings", "chicken breast", "chicken thigh", "chicken thighs", "chicken bites", "pork shoulder", "pork loin", "beef brisket", "beef roast", "beef soup bones", "lamb leg", "salmon fillet", "salmon fillets", "hoki fillet", "fish fillet", "prawn skewers", "prawn cutlets", "beef mince", "meatballs", "air dried venison", "salt and pepper squid", "salt & pepper squid"]))
+  // Prepared/fresh meat identity before honey, gravy, sauce or seasoning words.
+  if (has(text, ["chicken drumstick", "chicken drumsticks", "chicken wing", "chicken wings", "chicken breast", "chicken thigh", "chicken thighs", "chicken bites", "chicken burger", "chicken burgers", "pork shoulder", "pork loin", "beef brisket", "beef roast", "beef soup bones", "beef sausage", "beef sausages", "honey beef sausages", "lamb leg", "salmon fillet", "salmon fillets", "hoki fillet", "fish fillet", "prawn skewers", "prawn cutlets", "beef mince", "meatballs", "air dried venison", "biltong", "salt and pepper squid", "salt & pepper squid"]))
     return result("Meat & seafood", "Fresh meat & seafood", "meat or seafood product identity");
 
   if (has(text, ["leg ham", "virginian ham", "mortadella", "prosciutto", "salami", "charcuterie", "pate"]))
     return result("Deli", "Deli meat & antipasto", "deli product identity");
-
-  if (has(text, ["muffin mix", "cake mix", "brownie mix", "cookie mix", "bread mix", "custard powder", "bread and pizza plain flour", "bread & pizza plain flour"]))
-    return result("Pantry", "Baking", "baking mix or ingredient identity");
 
   if (has(text, ["simmer sauce", "pasta sauce", "curry sauce", "stir fry sauce", "marinade and sauce", "dipping sauce", "black bean sauce", "stir fry paste", "curry paste", "rice paste"]))
     return result("Pantry", "Sauces & condiments", "sauce or cooking paste identity");
@@ -52,14 +60,8 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["birds eye"]) && has(text, ["chips", "crinkles", "sidewinders", "lattice", "crumbed hoki", "cheesy bakes"]))
     return result("Frozen", "Frozen food", "frozen brand/product identity");
 
-  if (has(text, ["breakfast biscuits", "custard creme biscuits", "custard crème biscuits", "arnotts shapes", "arnott's shapes", "cracker", "crackers", "cracker chips", "crispbread", "potato chips", "vege chips", "rice crackers", "corn chips", "pea crisps"]))
-    return result("Pantry", "Snacks", "packaged snack identity");
-
-  if (has(text, ["rice bran oil", "olive oil", "extra virgin olive oil", "canola oil", "vegetable oil", "sunflower oil", "sesame oil"]) && !has(text, ["breadstick", "breadsticks", "cracker", "crackers", "spread", "sardine", "sardines", "tuna", "anchovy", "anchovies", "mackerel", "toast", "toasts"]))
+  if (has(text, ["rice bran oil", "olive oil", "extra virgin olive oil", "canola oil", "vegetable oil", "sunflower oil", "sesame oil"]) && !has(text, ["breadstick", "breadsticks", "cracker", "crackers", "spread", "sardine", "sardines", "tuna", "anchovy", "anchovies", "mackerel", "toast", "toasts", "snack'n'go", "chips", "crisps"]))
     return result("Pantry", "Oils & vinegars", "culinary oil identity");
-
-  if (has(text, ["fruit salad in juice", "peach slices in juice", "peaches in juice", "two fruits in juice", "fruit in juice cups", "peaches in juice cups"]))
-    return result("Pantry", "Canned food, soups & noodles", "canned fruit identity");
 
   if (has(text, ["pitted prunes", "dried prunes", "dried cranberries"]))
     return result("Pantry", "Snacks", "dried fruit identity");
