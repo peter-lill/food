@@ -15,23 +15,22 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["australian botanical soap", "aveeno", "argan hair", "body oil", "hair oil", "jojoba", "rosehip oil", "primrose oil"]))
     return result("Health & personal care", "Health & personal care", "personal-care identity");
 
-  // Normalisation may turn "1-4 years" into "1 4 years", so accept either
-  // punctuation or whitespace between stage numbers.
   const babyStage = /\b(?:4|6|8|10|12)\+?\s*months?\b/.test(text)
     || /\b1\s*(?:-|to|\s)\s*4\s*years?\b/.test(text);
   if (has(text, ["baby mum mum", "little bellies", "little quacker", "annabel karmel little meals"]) || babyStage) {
     if (has(text, ["rusk", "rusks", "puff", "puffs", "snack", "bar", "food", "puree", "custard", "meal", "meals", "cereal", "pasta bake", "bolognese", "bolognaise"])) return result("Baby", "Baby food & care", "baby age/stage product identity");
   }
 
-  // Shelf-stable/canned seafood must precede culinary oils. Packing medium is
-  // not the product identity, including phrases such as "in extra virgin oil".
+  // Named soft drinks beat sugar/sweetener wording such as Zero Sugar.
+  if (has(text, ["coca cola", "coca-cola", "coke", "pepsi", "sprite", "fanta"]) && has(text, ["zero sugar", "no sugar", "sugar free", "cola", "soft drink"]))
+    return result("Drinks", "Cold drinks", "beverage brand/product identity");
+
   if (has(text, ["tuna", "sardine", "sardines", "mackerel", "anchovy", "anchovies"]) && (has(text, ["chunks", "slices", "fillets in oil", "in oil", "in vegetable oil", "in olive oil", "in sauce", "tomato sauce"]) || /\bin\b.{0,32}\boil\b/.test(text) || /\b(?:50|90|95|105|110|125|185|400|415|425)g\b/.test(text)))
     return result("Pantry", "Canned food, soups & noodles", "shelf-stable seafood identity");
 
   if (has(text, ["cucumbers bread and butter", "cucumbers bread & butter", "bread and butter cucumbers", "bread & butter cucumbers", "stuffed olives", "pickled cucumber", "pickled cucumbers"]))
     return result("Pantry", "Pickled vegetables & condiments", "pickled vegetable identity");
 
-  // Canned tomato identity before herb/spice flavour words.
   if (has(text, ["diced tomatoes", "crushed tomatoes", "whole peeled tomatoes", "tomatoes with paste", "tomato paste"]))
     return result("Pantry", "Canned food, soups & noodles", "canned tomato identity");
 
@@ -47,10 +46,9 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["muffin mix", "cake mix", "brownie mix", "cookie mix", "bread mix", "custard powder", "bread and pizza plain flour", "bread & pizza plain flour"]))
     return result("Pantry", "Baking", "baking mix or ingredient identity");
 
-  if (has(text, ["simmer sauce", "pasta sauce", "curry sauce", "stir fry sauce", "marinade and sauce", "dipping sauce", "black bean sauce"]))
-    return result("Pantry", "Sauces & condiments", "sauce product identity");
+  if (has(text, ["simmer sauce", "pasta sauce", "curry sauce", "stir fry sauce", "marinade and sauce", "dipping sauce", "black bean sauce", "stir fry paste", "curry paste", "rice paste"]))
+    return result("Pantry", "Sauces & condiments", "sauce or cooking paste identity");
 
-  // Birds Eye freezer identity must run before generic chips/snack matching.
   if (has(text, ["birds eye"]) && has(text, ["chips", "crinkles", "sidewinders", "lattice", "crumbed hoki", "cheesy bakes"]))
     return result("Frozen", "Frozen food", "frozen brand/product identity");
 
