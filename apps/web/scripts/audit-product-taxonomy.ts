@@ -1,6 +1,6 @@
 import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
-import { classifyProductText, productDepartment } from "../src/lib/products/product-category";
+import { classifyProduct, classifyProductText, productDepartment } from "../src/lib/products/product-category";
 
 const apply = process.argv.includes("--apply");
 
@@ -17,25 +17,34 @@ async function main() {
   const counts = new Map<string, number>();
 
   for (const product of products) {
-    const retailerEvidence = product.storeProducts.map((listing) => `${listing.retailerProductName} ${listing.aisle ?? ""}`).join(" ");
-    const identity = [product.canonicalName, product.name, retailerEvidence].filter(Boolean).join(" ");
-    const classification = classifyProductText(identity);
-    const effective = productDepartment(product.category, identity);
+    const name = product.canonicalName ?? product.name;
+    const nameClassification = classifyProductText(name);
+    const retailerClassifications = product.storeProducts.map((listing) => classifyProduct({
+      name: listing.retailerProductName || name,
+      storedCategory: product.category,
+      retailer: listing.retailer,
+      aisle: listing.aisle,
+    }));
+    const authoritative = retailerClassifications.find((item) => item.confidence === "authoritative" && item.department !== "Other");
+    const classification = authoritative ?? nameClassification;
+    const effective = authoritative?.department ?? productDepartment(product.category, name);
     counts.set(effective, (counts.get(effective) ?? 0) + 1);
 
     const differs = classification.department !== "Other" && effective !== product.category;
-    const proposal: Proposal = { id: product.id, name: product.canonicalName ?? product.name, from: product.category, to: effective, shelf: classification.shelf, confidence: classification.confidence, reason: classification.reason };
+    const proposal: Proposal = { id: product.id, name, from: product.category, to: effective, shelf: classification.shelf, confidence: classification.confidence, reason: classification.reason };
 
-    // Automatic repair remains deliberately narrow: only high-confidence identity
-    // evidence may repair uncategorised/Other records or legacy Pantry. Existing
-    // canonical non-Pantry departments are never overwritten by name heuristics.
-    if (differs && classification.confidence === "high" && (!product.category || product.category === "Other" || product.category === "Pantry")) {
+    // Only authoritative retailer taxonomy can automatically replace an existing
+    // canonical category. High-confidence name identity may repair empty/Other
+    // records, but legacy Pantry moves remain review-only until explicitly vetted.
+    if (differs && classification.confidence === "authoritative") {
+      changes.push(proposal);
+    } else if (differs && classification.confidence === "high" && (!product.category || product.category === "Other")) {
       changes.push(proposal);
     } else if (differs) {
       review.push(proposal);
     }
 
-    if (effective === "Other") unresolved.push({ name: product.canonicalName ?? product.name, category: product.category });
+    if (effective === "Other") unresolved.push({ name, category: product.category });
   }
 
   console.log(`Catalogue taxonomy audit: ${products.length} products.`);
