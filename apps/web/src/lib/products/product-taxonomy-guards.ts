@@ -5,16 +5,31 @@ const has = (text: string, terms: string[]) => terms.some((term) => new RegExp(`
 const result = (department: ProductClassification["department"], shelf: string, reason: string): ProductClassification => ({ department, shelf, confidence: "high", reason });
 
 /** High-specificity identity guardrails. Product identity must beat flavour,
- * ingredient, serving suggestion and modifier words. */
+ * ingredient, serving suggestion, retailer shelf wording and modifier words. */
 export function guardedProductIdentity(value: string): ProductClassification | null {
   const text = normaliseProductText(value);
   if (!text) return null;
 
+  // Retail-wide identity vetoes for ambiguous words such as frozen, chilled,
+  // tools, toys, champagne, cider and BBQ.
+  if (has(text, ["freezer bag", "freezer bags", "sandwich bag", "sandwich bags", "storage bag", "storage bags", "snack bags", "lunch bags", "oven bag", "oven bags", "resealable bag", "resealable bags", "upholstery stain remover", "cleaning wipes", "degreaser spray"])) return result("Household", "Food storage & household", "household storage/cleaning identity");
+  if (has(text, ["car air freshener", "car cleaning wipes", "tyre shine", "tire shine", "tyre foam", "tire foam", "car wash", "wash & wax", "wash and wax"])) return result("Automotive", "Car care", "automotive product identity");
+  if (has(text, ["bath towel", "bath mat", "hand towel", "beach towel"])) return result("Furniture & homewares", "Bathroom & homewares", "homewares product identity");
+  if (has(text, ["electric salt and pepper mill", "electric salt & pepper mill", "salt and pepper mill", "salt & pepper mill", "kitchen timer", "cake tester", "vegetable slicer", "poultry shears", "meat tenderiser", "melon baller", "skimmer tongs", "cutlery set"])) return result("Home, kitchen & appliances", "Kitchen tools & utensils", "kitchen tool identity");
+  if (has(text, ["eyelash curler", "makeup blender", "facial razor", "makeup brush", "brush set", "striplash adhesive", "lash adhesive"])) return result("Health & personal care", "Beauty tools & accessories", "beauty product identity");
+  if (has(text, ["dog toy", "cat toy", "pet toy", "pee pads", "pet pads"])) return result("Pet", "Pet accessories & toys", "pet accessory identity");
+  if (has(text, ["dog food", "puppy food", "cat food", "kitten food", "pet food", "dog treat", "cat treat", "dog biscuit", "cat litter", "litter freshener", "litter tray", "chilled dog food", "frozen dog food"])) return result("Pet", has(text, ["cat", "kitten"]) ? "Cat food & care" : has(text, ["dog", "puppy"]) ? "Dog food & care" : "Pet food & care", "pet product identity");
+
+  if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
+  if (has(text, ["bbq sauce", "barbecue sauce"])) return result("Pantry", "Sauces & condiments", "barbecue sauce identity");
+  if (has(text, ["bbq seasoning", "barbecue seasoning", "bbq rub", "barbecue rub", "lamb rub"])) return result("Pantry", "Herbs & spices", "barbecue seasoning identity");
+  if (has(text, ["bbq sausages", "barbecue sausages", "bbq pork ribs", "barbecue pork ribs", "bbq chicken", "barbecue chicken", "bbq beef", "barbecue beef"])) return result("Meat & seafood", "Fresh meat & seafood", "barbecue meat identity");
+  if (has(text, ["bbq flavoured noodle snacks", "barbecue flavoured noodle snacks", "smokey bbq mix", "smoky bbq mix"])) return result("Pantry", "Snacks", "barbecue-flavoured snack identity");
+  if (has(text, ["liqueur cake", "rum cake", "amaretto cake"])) return result("Bakery", "Cakes & bakery", "cake product identity");
+
   if (has(text, ["air wick", "air freshener", "diffuser", "freshmatic", "automatic spray", "carpet fresh", "garbage bag", "bin liner", "cling wrap", "aluminium foil", "baking paper"])) return result("Household", "Cleaning & household", "household product identity");
   if (has(text, ["band aid", "band-aid", "first aid", "lip balm", "insect repellent", "sunscreen", "toothbrush", "toothpaste", "shampoo", "conditioner", "body wash", "hand wash", "skin lotion", "moisturising lotion", "vinegar gummies"])) return result("Health & personal care", "Health & personal care", "personal-care product identity");
   if (has(text, ["australian botanical soap", "aveeno", "argan hair", "body oil", "hair oil", "jojoba", "rosehip oil", "primrose oil"])) return result("Health & personal care", "Health & personal care", "personal-care identity");
-
-  if (has(text, ["puppy food", "dog food", "cat food", "kitten food", "pet food", "dog treat", "cat treat", "dog biscuit", "cat litter", "litter freshener", "litter tray"])) return result("Pet", has(text, ["cat", "kitten"]) ? "Cat food & care" : has(text, ["dog", "puppy"]) ? "Dog food & care" : "Pet food & care", "pet product identity");
 
   const babyStage = /\b(?:4|6|8|10|12)\+?\s*months?\b/.test(text) || /\b1\s*(?:-|to|\s)\s*4\s*years?\b/.test(text);
   if ((has(text, ["baby mum mum", "little bellies", "little quacker", "annabel karmel little meals"]) || babyStage) && has(text, ["rusk", "rusks", "puff", "puffs", "snack", "bar", "food", "puree", "custard", "meal", "meals", "cereal", "pasta bake", "bolognese", "bolognaise"])) return result("Baby", "Baby food & care", "baby age/stage product identity");
@@ -27,9 +42,6 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["diced tomatoes", "crushed tomatoes", "whole peeled tomatoes", "tomatoes with paste", "tomato paste"])) return result("Pantry", "Canned food, soups & noodles", "canned tomato identity");
   if ((has(text, ["pineapple chunks", "pineapple slices", "pineapple pieces", "peach slices", "peaches sliced", "fruit salad", "two fruits"]) && has(text, ["in juice", "canned fruit", "tinned"])) || has(text, ["fruit in juice cups", "peaches in juice cups"])) return result("Pantry", "Canned food, soups & noodles", "canned fruit identity");
 
-  // Frozen branded/range identity must be resolved before the generic word
-  // "chips" is treated as a shelf-stable snack. Birds Eye's Golden Crunch
-  // potato range is a freezer range, including Lattice and Sidewinders.
   if (has(text, ["birds eye"]) && (has(text, ["golden crunch", "deli seasoned chips", "crumbed hoki", "cheesy bakes"]) || has(text, ["sidewinders", "lattice"]))) return result("Frozen", "Frozen food", "frozen brand/product identity");
 
   const snackNGo = /\bsnack\s*['’]?\s*n\s*['’]?\s*go\b/i.test(text);
