@@ -4,6 +4,14 @@
   gap: 16px;
 }
 
+/* Search, filter and department results render product cards directly here.
+ * They must use the catalogue's full width rather than a single department
+ * column; otherwise each product card is compressed into a quarter of the
+ * available page. */
+.fullWidth {
+  grid-column: 1 / -1;
+}
+
 .department {
   overflow: hidden;
   border: 1px solid #e2e8e4;
