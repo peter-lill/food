@@ -251,6 +251,9 @@ function removeTrailingUnitQualifier(value: string) {
 }
 
 export function productFamilyName(value: string) {
+  const produceFamily = canonicalProduceFamily(value);
+  if (produceFamily) return produceFamily;
+
   const identity = identifyGrocery(value);
   if (identity) return removeTrailingUnitQualifier(identity.family ?? identity.canonicalName);
 
@@ -265,8 +268,8 @@ export function productFamilyName(value: string) {
     .replace(/\s+/g, " ")
     .trim();
 
-  const produceFamily = canonicalProduceFamily(cleaned);
-  if (produceFamily) return produceFamily;
+  const cleanedProduceFamily = canonicalProduceFamily(cleaned);
+  if (cleanedProduceFamily) return cleanedProduceFamily;
 
   return cleaned ? titleCase(removeTrailingUnitQualifier(cleaned)) : titleCase(removeTrailingUnitQualifier(value));
 }
