@@ -8,6 +8,7 @@ import { priceObservationKind } from "../src/lib/products/price-observation-disp
 const productPageSource = readFileSync(new URL("../src/app/products/[productId]/page.tsx", import.meta.url), "utf8");
 const productCatalogueSource = readFileSync(new URL("../src/app/products/page.tsx", import.meta.url), "utf8");
 const productHubStyles = readFileSync(new URL("../src/app/products/products-hub.module.css", import.meta.url), "utf8");
+const departmentArtworkStyles = readFileSync(new URL("../src/app/products/department-artwork.module.css", import.meta.url), "utf8");
 const productHubSource = readFileSync(new URL("../src/lib/products/product-hub.repository.ts", import.meta.url), "utf8");
 
 assert.doesNotMatch(
@@ -116,7 +117,8 @@ assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected de
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
 assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
 assert.match(productCatalogueSource, /const showProductCardsDirectly = Boolean\(q \|\| department \|\| view !== "all"\)/, "searches, department pages and filters must show product cards without nesting them behind category accordions");
-assert.match(productCatalogueSource, /showProductCardsDirectly \? <div className=\{styles\.grid\}/, "direct catalogue contexts render the product grid immediately");
+assert.match(productCatalogueSource, /showProductCardsDirectly \? <div className=\{`\$\{departmentStyles\.fullWidth\} \$\{styles\.grid\}`\}/, "direct catalogue contexts render the product grid immediately at full catalogue width");
+assert.match(departmentArtworkStyles, /\.fullWidth\s*\{\s*grid-column:\s*1\s*\/\s*-1;/, "direct product grids must span every department column instead of being compressed into one");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
 assert.match(productHubStyles, /\.cardBody \.identitySlot\{height:2\.3rem[^}]*overflow:hidden/, "desktop card brands must use a compact fixed-height band");
 assert.match(productHubStyles, /\.identitySlot \.brandLine\{[^}]*-webkit-line-clamp:2/, "long card brands must be clamped instead of moving price rows");
