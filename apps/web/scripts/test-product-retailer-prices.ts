@@ -135,6 +135,8 @@ assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must
 assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
 assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
 assert.match(productCatalogueSource, /const productImage = product\.imageUrl/, "family cards must render their retained representative catalogue image");
+assert.match(productCatalogueSource, /enabledRetailers\(retailerPreferences\)\.length/, "the products summary must count the retailers the signed-in user selected");
+assert.match(productCatalogueSource, /retailers selected/, "the products summary must describe selected retailer preferences accurately");
 assert.match(productPageSource, /listing\.productUrl \? <a className=\{styles\.retailerPriceLink\}/, "retailer prices must link to their authoritative product page when available");
 assert.match(productPageSource, /price\.sourceUrl \?\? product\.storeProducts\.find/, "price comparison tiles must prefer each observation's authoritative retailer URL");
 assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retailer\} \/>/, "retailer price links must keep their retailer logo visible");
@@ -166,5 +168,7 @@ assert.match(productHubStyles, /\.card\{grid-template-rows:132px auto\}/, "deskt
 assert.match(productCatalogueSource, /className=\{styles\.priceSummary\}/, "product cards must present one prominent best-price summary");
 assert.match(productCatalogueSource, /className=\{styles\.cardFooter\}/, "product cards must retain retailer and checked details in a compact footer");
 assert.match(productHubStyles, /\.priceSummary strong\{[^}]*font-size:1\.38rem/, "product card prices must remain visually prominent in the dense catalogue layout");
+assert.match(productHubStyles, /\.summaryIcon\{[^}]*width:32px[^}]*height:32px/, "product summary icons must remain visually compact");
+assert.match(productHubStyles, /\.heroMark svg,\.mobileHeroMark svg\{width:18px;height:18px\}/, "product hero controls must not overpower the page heading");
 
 console.log("Product retailer price display regressions passed.");
