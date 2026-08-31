@@ -33,6 +33,8 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
   // Beer is a batter modifier here, not the product identity.
   if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
+  // Flavours and inclusions such as honey or fruit must not override yoghurt itself.
+  if (has(text, ["yoghurt", "yogurt"])) return result("Dairy & eggs", "Yoghurt", "yoghurt product identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
