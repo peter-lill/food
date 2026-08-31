@@ -31,6 +31,11 @@ const cases: Array<[string, string, string | null]> = [
   ["Banana Boat Aloe Vera Gel", "Health & personal care", "Health & personal care"],
   ["Beef Jerky With Tomato Treats 200g", "Meat & seafood", "Fresh meat & seafood"],
   ["Admiral Mandarin Segments In Syrup", "Pantry", "Canned food, soups & noodles"],
+  ["Banana Muffin Bars 10 Pack 420g", "Bakery", "Cakes & bakery"],
+  ["Baked Provisions Carrot Cake Slice 2 Pack", "Bakery", "Cakes & bakery"],
+  ["Baked Provisions Spinach & Ricotta Roll 2 Pack", "Bakery", "Savoury bakery"],
+  ["Bakers Collection Gluten Free Good Health Jam Creams Biscuits", "Confectionery", "Biscuits & cookies"],
+  ["Bakers Collection Lemon Slice 6 Pack", "Bakery", "Cakes & bakery"],
 
   // Obvious retail-wide identities should not remain Other.
   ["10.1\" Tablet", "Electronics & technology", "Electronics & technology"],
