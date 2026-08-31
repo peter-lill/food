@@ -46,6 +46,13 @@ const cases: Array<[string, string, string | null]> = [
   ["1st Steps Bowl With Spoon & Travel Set Single Pack", "Baby", "Baby accessories"],
   ["Appetito Duel Digital Timer 100 Hours", "Home, kitchen & appliances", "Kitchen tools & utensils"],
   ["Armor All Windscreen Wash", "Automotive", "Car care"],
+  ["1st Steps Bath Boats Multi Colour 4 Pack", "Baby", "Baby accessories"],
+  ["1st Steps Fork And Spoon With Suction Cup Base And Travel Box 3 Pack", "Baby", "Baby accessories"],
+  ["1st Steps Storage Pots With Spoon Purple Blue Bpa Free 3 Pack", "Baby", "Baby accessories"],
+  ["3 Blade Razor System 8 Pack", "Health & personal care", "Health & personal care"],
+  ["3 Minute Clean Denture Cleaning Tablets 48 Pack", "Health & personal care", "Health & personal care"],
+  ["3D Wooden Puzzle", "Toys, games & entertainment", "Toys & games"],
+  ["3m Command Clear Mini Hanging Hooks 6x Hooks 8x Small Strips 6 Pack", "Household", "Home organisation & storage"],
 ];
 
 for (const [name, department, shelf] of cases) {
