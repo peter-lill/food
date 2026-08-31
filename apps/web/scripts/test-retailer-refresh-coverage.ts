@@ -124,7 +124,7 @@ assert.match(imageQueueSource, /NOT EXISTS \([\s\S]*?selected\."selected" = true
 assert.match(imageQueueSource, /data: \{ imageUrl: candidate\.url, lifecycle: "READY" \}/, "a promoted backlog candidate should update the product image record");
 assert.match(imageQueueSource, /c\."assetId" IS NULL OR p\."primaryImageAssetId" IS DISTINCT FROM c\."assetId"/, "a candidate preview asset must still be eligible for primary-image reconciliation");
 const imageQualitySource = readFileSync(new URL("../src/lib/products/image-quality.ts", import.meta.url), "utf8");
-assert.match(imageQualitySource, /fetchRemoteImage\(url, timeoutMs\)/, "quality scoring and image import must use the same retailer-aware downloader");
+assert.match(imageQualitySource, /fetchRemoteImage\(url, timeoutMs, options\)/, "quality scoring and image import must use the same retailer-aware downloader");
 const remoteImageSource = readFileSync(new URL("../src/lib/images/remote-image.ts", import.meta.url), "utf8");
 assert.match(remoteImageSource, /woolworths\.com\.au\/shop\/productdetails/, "Woolworths CDN retries should carry the matching product-page context");
 assert.match(remoteImageSource, /coles\\\.com\\\.au/, "Coles retailer product pages should be allowed as image-download context");
