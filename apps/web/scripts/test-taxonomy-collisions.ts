@@ -62,6 +62,16 @@ const cases: Array<[string, string, string | null]> = [
   ["8 Pattern Spray Nozzle", "Garden & outdoor", "Garden & outdoor"],
   ["Acurite Mechanical Kitchen Scale / 5kg", "Home, kitchen & appliances", "Kitchen tools & utensils"],
   ["Adult Tin Games", "Toys, games & entertainment", "Toys & games"],
+  ["Alula Gold Follow On Formula Stage 2 6-12 Months", "Baby", "Baby food & care"],
+  ["Advil Ibuprofen Tablets 24 Pack", "Health & personal care", "Health & personal care"],
+  ["Anticol Throaties Lozenges 10 Pack", "Health & personal care", "Health & personal care"],
+  ["Appetito 60 Minute Timer Square", "Home, kitchen & appliances", "Kitchen tools & utensils"],
+  ["Appetito High Temp Baster", "Home, kitchen & appliances", "Kitchen tools & utensils"],
+  ["Appetito Mesh Produce Bags 5 Pack", "Household", "Food storage & household"],
+  ["Appetito Stainless Steel Straight Smoothie Straws With Brush 4 Pack", "Home, kitchen & appliances", "Kitchen tools & utensils"],
+  ["Armor All Leather Wipes 24 Pack", "Automotive", "Car care"],
+  ["Armor All Microfibre Glass Cloth Single Pack", "Automotive", "Car care"],
+  ["Armor All Protectant", "Automotive", "Car care"],
 ];
 
 for (const [name, department, shelf] of cases) {
