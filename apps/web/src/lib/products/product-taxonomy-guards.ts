@@ -1,7 +1,14 @@
 import { normaliseProductText } from "./product-normalisation";
 import type { ProductClassification } from "./product-category";
 
-const has = (text: string, terms: string[]) => terms.some((term) => new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\b`, "i").test(text));
+const has = (text: string, terms: string[]) => terms.some((term) => {
+  // Callers pass already-normalised product text. Normalise the lookup term as
+  // well so punctuation-bearing aliases such as BBQ, G&T, Coca-Cola and '&'
+  // variants are compared in the same representation.
+  const normalisedTerm = normaliseProductText(term);
+  if (!normalisedTerm) return false;
+  return new RegExp(`\\b${normalisedTerm.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+")}\\b`, "i").test(text);
+});
 const result = (department: ProductClassification["department"], shelf: string | null, reason: string, confidence: ProductClassification["confidence"] = "high"): ProductClassification => ({ department, shelf, confidence, reason });
 
 /** High-specificity identity guardrails. Product identity must beat flavour,
