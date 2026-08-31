@@ -30,6 +30,8 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   // Pizza is the product identity; words between a style cue and "pizza" are toppings.
   // This intentionally catches names such as "Stone Baked BBQ Chicken Pizza".
   if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
+  // Beer is a batter modifier here, not the product identity.
+  if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
