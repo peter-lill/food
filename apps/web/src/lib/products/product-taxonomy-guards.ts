@@ -47,6 +47,7 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
   // Biscuits and bakery forms are the product identity; fruit, dairy and vegetable words may only describe flavour or filling.
   if (has(text, ["breakfast biscuits"])) return result("Pantry", "Snacks", "breakfast biscuit identity");
+  if (has(text, ["arnotts jatz", "arnott's jatz", "arnotts salada", "arnott's salada", "arnotts sao", "arnott's sao", "arnotts sesame wheat", "arnott's sesame wheat", "arnotts shapes", "arnott's shapes"])) return result("Pantry", "Snacks", "savoury Arnott's biscuit or cracker identity");
   if (has(text, ["ginger nut biscuits", "lemon crisp biscuits", "orange slice biscuits", "jam creams biscuits"]) || (has(text, ["arnotts", "arnott's"]) && has(text, ["biscuits", "shortbread"]))) return result("Confectionery", "Biscuits & cookies", "sweet biscuit identity");
   if (has(text, ["muffin bars", "carrot cake slice", "lemon slice", "almond fingers", "almond rounds"])) return result("Bakery", "Cakes & bakery", "baked sweet product identity");
   if (has(text, ["spinach & ricotta roll", "spinach and ricotta roll"])) return result("Bakery", "Savoury bakery", "savoury bakery identity");
