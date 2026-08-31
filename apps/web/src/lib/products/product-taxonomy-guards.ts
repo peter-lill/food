@@ -14,6 +14,13 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   const text = normaliseProductText(value);
   if (!text) return null;
 
+  // Strong retail-wide identities that should never fall through to Other.
+  if (/\b\d{1,2}(?:\.\d+)?\s*(?:inch\s*)?tablet\b/i.test(text) || has(text, ["wall charger", "soundbar"])) return result("Electronics & technology", "Electronics & technology", "electronics product identity");
+  if (has(text, ["cordless stick vacuum", "stick vacuum"])) return result("Home, kitchen & appliances", "Appliances", "appliance product identity");
+  if (has(text, ["baby bottle brush", "baby brush set", "baby feeding set", "baby bowl with spoon"]) || (has(text, ["1st steps"]) && has(text, ["bottle brush", "bowl with spoon", "travel set"]))) return result("Baby", "Baby accessories", "baby accessory identity");
+  if (has(text, ["appetito digital timer", "digital kitchen timer"])) return result("Home, kitchen & appliances", "Kitchen tools & utensils", "kitchen timer identity");
+  if (has(text, ["windscreen wash", "windshield wash"])) return result("Automotive", "Car care", "automotive product identity");
+
   if (has(text, ["freezer bag", "freezer bags", "sandwich bag", "sandwich bags", "storage bag", "storage bags", "snack bags", "lunch bags", "oven bag", "oven bags", "resealable bag", "resealable bags", "upholstery stain remover", "cleaning wipes", "degreaser spray"])) return result("Household", "Food storage & household", "household storage/cleaning identity");
   if (has(text, ["car air freshener", "car cleaning wipes", "tyre shine", "tire shine", "tyre foam", "tire foam", "car wash", "wash & wax", "wash and wax"])) return result("Automotive", "Car care", "automotive product identity");
   if (has(text, ["bath towel", "bath mat", "hand towel", "beach towel"])) return result("Furniture & homewares", "Bathroom & homewares", "homewares product identity");
