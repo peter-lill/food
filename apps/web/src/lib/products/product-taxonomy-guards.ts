@@ -23,16 +23,19 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if ((has(text, ["g&t", "gin and tonic", "gin & tonic"]) && has(text, ["non alcoholic", "non-alcoholic", "alcohol free", "zero alcohol"])) || has(text, ["non alcoholic g&t", "non-alcoholic g&t"])) return result("Drinks", "Low & no alcohol adult drinks", "non-alcoholic adult beverage identity");
   if (has(text, ["rice bowl", "noodle box", "tuna bowl", "meal kit"])) return result("Pantry", "Ready meals & meal kits", "prepared meal identity");
   if (has(text, ["spaghetti in tomato sauce", "canned spaghetti"])) return result("Pantry", "Canned food, soups & noodles", "canned meal identity");
+  // Pizza identity outranks topping/flavour words such as BBQ chicken.
   if (has(text, ["stone baked pizza", "wood fired pizza", "thin crust pizza", "frozen pizza"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
   // BBQ/barbecue is a preparation/flavour word as often as it is an outdoor-product word.
-  // Resolve explicit identities first and deliberately refuse to infer Garden from the bare modifier.
+  // Resolve explicit product identities first; bare BBQ remains deliberately ambiguous.
   if (has(text, ["bbq grill", "barbecue grill", "bbq cover", "barbecue cover", "bbq tool", "barbecue tool", "bbq utensil", "barbecue utensil"])) return result("Garden & outdoor", "Barbecues & outdoor cooking", "barbecue equipment identity");
-  if (has(text, ["bbq sauce", "barbecue sauce", "bbq marinade", "barbecue marinade", "bbq glaze", "barbecue glaze"])) return result("Pantry", "Sauces & condiments", "barbecue sauce or marinade identity");
-  if (has(text, ["bbq seasoning", "barbecue seasoning", "bbq rub", "barbecue rub", "lamb rub"])) return result("Pantry", "Herbs & spices", "barbecue seasoning identity");
-  if (has(text, ["bbq sausages", "barbecue sausages", "bbq pork ribs", "barbecue pork ribs", "bbq chicken", "barbecue chicken", "bbq beef", "barbecue beef", "pork ribs", "chicken wings", "beef brisket", "chicken kebab", "chicken kebabs", "beef kebab", "beef kebabs"])) return result("Meat & seafood", "Fresh meat & seafood", "barbecue meat identity");
+  if (has(text, ["bbq sauce", "barbecue sauce", "bbq marinade", "barbecue marinade", "bbq glaze", "barbecue glaze"]) && !has(text, ["chicken", "beef", "pork", "lamb", "ribs", "wings", "brisket"])) return result("Pantry", "Sauces & condiments", "barbecue sauce or marinade identity");
+  if (has(text, ["bbq seasoning", "barbecue seasoning", "bbq rub", "barbecue rub", "lamb rub"]) && !has(text, ["whole chicken", "chicken drumstick", "chicken drumsticks", "chicken breast", "chicken thigh", "chicken thighs", "pork ribs", "beef brisket"])) return result("Pantry", "Herbs & spices", "barbecue seasoning identity");
+  const bbqMeat = has(text, ["bbq", "barbecue"])
+    && has(text, ["split chicken", "whole chicken", "chicken drumstick", "chicken drumsticks", "chicken breast", "chicken thigh", "chicken thighs", "chicken wing", "chicken wings", "chicken kebab", "chicken kebabs", "beef kebab", "beef kebabs", "beef brisket", "beef jerky", "beef sausage", "beef sausages", "pork ribs", "pork shoulder", "lamb chop", "lamb chops", "sausages"]);
+  if (bbqMeat || has(text, ["bbq sausages", "barbecue sausages", "bbq pork ribs", "barbecue pork ribs", "bbq chicken", "barbecue chicken", "bbq beef", "barbecue beef", "pork ribs", "chicken wings", "beef brisket", "chicken kebab", "chicken kebabs", "beef kebab", "beef kebabs"])) return result("Meat & seafood", "Fresh meat & seafood", "barbecue meat identity");
   if (has(text, ["bbq flavoured noodle snacks", "barbecue flavoured noodle snacks", "smokey bbq mix", "smoky bbq mix", "bbq chips", "barbecue chips", "bbq crisps", "barbecue crisps", "bbq crackers", "barbecue crackers"])) return result("Pantry", "Snacks", "barbecue-flavoured snack identity");
   if (has(text, ["bbq", "barbecue"])) return result("Other", null, "ambiguous barbecue modifier requires stronger product identity", "low");
 
@@ -63,5 +66,6 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["rice bran oil", "olive oil", "extra virgin olive oil", "canola oil", "vegetable oil", "sunflower oil", "sesame oil"]) && !has(text, ["breadstick", "breadsticks", "cracker", "crackers", "spread", "sardine", "sardines", "tuna", "anchovy", "anchovies", "mackerel", "toast", "toasts", "chips", "crisps"]) && !snackNGo) return result("Pantry", "Oils & vinegars", "culinary oil identity");
   if (has(text, ["pitted prunes", "dried prunes", "dried cranberries"])) return result("Pantry", "Snacks", "dried fruit identity");
   if (has(text, ["rice pudding", "dessert sauce", "flavoured topping", "fudge topping", "strawberry topping", "caramel topping", "maple flavoured syrup", "waffle cones", "waffle cone"])) return result("Pantry", "Desserts", "dessert product identity");
+
   return null;
 }
