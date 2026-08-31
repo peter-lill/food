@@ -28,18 +28,14 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if ((has(text, ["g&t", "gin and tonic", "gin & tonic"]) && has(text, ["non alcoholic", "non-alcoholic", "alcohol free", "zero alcohol"])) || has(text, ["non alcoholic g&t", "non-alcoholic g&t"])) return result("Drinks", "Low & no alcohol adult drinks", "non-alcoholic adult beverage identity");
   if (has(text, ["rice bowl", "noodle box", "tuna bowl", "meal kit"])) return result("Pantry", "Ready meals & meal kits", "prepared meal identity");
   if (has(text, ["spaghetti in tomato sauce", "canned spaghetti"])) return result("Pantry", "Canned food, soups & noodles", "canned meal identity");
-  // Pizza is the product identity; words between a style cue and "pizza" are toppings.
-  // This intentionally catches names such as "Stone Baked BBQ Chicken Pizza".
   if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
-  // Beer is a batter modifier here, not the product identity.
   if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
-  // Flavours and inclusions such as honey or fruit must not override yoghurt itself.
+  // Biscuits are the product identity; yoghurt, ginger and fruit words may only describe flavour or filling.
+  if (has(text, ["breakfast biscuits"])) return result("Pantry", "Snacks", "breakfast biscuit identity");
+  if (has(text, ["ginger nut biscuits", "lemon crisp biscuits", "orange slice biscuits"])) return result("Confectionery", "Biscuits & cookies", "sweet biscuit identity");
   if (has(text, ["yoghurt", "yogurt"])) return result("Dairy & eggs", "Yoghurt", "yoghurt product identity");
-  // Tea is the beverage identity; honey, fruit and botanicals are flavour modifiers.
   if (has(text, ["green tea", "black tea", "iced tea", "ice tea"])) return result("Drinks", "Tea", "tea beverage identity");
-  // Fruit and flavour words must not override dry pancake or waffle baking mixes.
   if (has(text, ["pancake and waffle mix", "pancake & waffle mix", "pancake mix", "waffle mix"])) return result("Pantry", "Baking", "pancake or waffle mix identity");
-  // Protein pudding is a chilled dessert product; fruit words describe flavour, not fresh produce.
   if (has(text, ["protein pudding"])) return result("Dairy & eggs", "Chilled desserts", "chilled protein pudding identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
