@@ -1,9 +1,11 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
-import { ProductLifecycle, ProductType } from "@prisma/client";
+import { ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
+import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { categoryResolutionForImport, comparableProductCategoryKey, type ImportedCategoryResolution } from "./catalogue-import-category-evidence";
 import { hasSuspiciousLabelTail, type ImportDisposition } from "./woolworths-controlled-import-matching";
 
 const apply = process.argv.includes("--apply");
@@ -16,7 +18,7 @@ const pageSize = Number.isInteger(importAll ? requestedPageSize : requestedLimit
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
 type AldiProduct = { externalId: string; name: string; brand: string | null; packSize: string | null; unitPrice: string | null; price: number; imageUrl: string | null; productUrl: string; categoryPath: string };
-type Plan = { product: AldiProduct; disposition: ImportDisposition; reason: string; productId: string | null; storeProductId: string | null };
+type Plan = { product: AldiProduct; disposition: ImportDisposition; reason: string; productId: string | null; storeProductId: string | null; category: ImportedCategoryResolution | null };
 
 function text(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : null; }
 function price(value: unknown) { return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null; }
@@ -45,33 +47,31 @@ function eligibility(product: AldiProduct) {
   return null;
 }
 
-function categoryForAldi(product: AldiProduct) {
-  const name = normaliseProductText(product.name);
-  if (/(?:dog|cat|pet).*(?:food|treat|biscuit)|(?:food|treat|biscuit).*(?:dog|cat|pet)/.test(name)) return { category: "Pet", productType: ProductType.PACKAGED };
-  if (/(?:ice cream|gelato|sorbet|frozen)/.test(name)) return { category: "Frozen", productType: ProductType.FROZEN };
-  if (/(?:milk|yoghurt|yogurt|cheese|butter|cream|egg)/.test(name)) return { category: "Dairy & eggs", productType: ProductType.DAIRY };
-  if (/(?:water|juice|cola|drink|coffee|tea|beer|wine)/.test(name)) return { category: "Drinks", productType: ProductType.BEVERAGE };
-  if (/(?:shampoo|toothpaste|deodorant|vitamin|nappy)/.test(name)) return { category: "Health & personal care", productType: ProductType.PERSONAL_CARE };
-  if (/(?:detergent|dishwashing|toilet|tissue|cleaner|bleach)/.test(name)) return { category: "Household", productType: ProductType.HOUSEHOLD };
-  return { category: "Other", productType: ProductType.OTHER };
-}
-
 async function plansForPage(products: AldiProduct[], aliasesSeen: Set<string>) {
   const externalIds = products.map((product) => product.externalId); const aliases = products.map((product) => normaliseProductText(product.name));
+  const comparableKeys = products.flatMap((product) => { const key = comparableProductCategoryKey(product.name); return key ? [key] : []; });
   const [listings, aliasRows] = await Promise.all([
     prisma.storeProduct.findMany({ where: { retailer: "ALDI", externalId: { in: externalIds } }, select: { id: true, externalId: true, productId: true } }),
-    prisma.productAlias.findMany({ where: { normalised: { in: aliases } }, select: { normalised: true, productId: true } }),
+    prisma.productAlias.findMany({ where: { normalised: { in: [...new Set([...aliases, ...comparableKeys])] } }, select: { normalised: true, productId: true, product: { select: { category: true } } } }),
   ]);
   const listingById = new Map(listings.flatMap((listing) => listing.externalId ? [[listing.externalId, listing] as const] : []));
   const productByAlias = new Map(aliasRows.map((alias) => [alias.normalised, alias.productId]));
+  const comparableCategories = new Map<string, Set<SupermarketDepartment>>();
+  for (const alias of aliasRows) {
+    if (!comparableKeys.includes(alias.normalised)) continue;
+    const category = productDepartment(alias.product.category, "");
+    if (category === "Other") continue;
+    const categories = comparableCategories.get(alias.normalised) ?? new Set<SupermarketDepartment>();
+    categories.add(category); comparableCategories.set(alias.normalised, categories);
+  }
   return products.map<Plan>((product) => {
-    const invalid = eligibility(product); if (invalid) return { product, disposition: "skip", reason: invalid, productId: null, storeProductId: null };
-    const listing = listingById.get(product.externalId); if (listing) return { product, disposition: "retain", reason: "authoritative ALDI listing already exists", productId: listing.productId, storeProductId: listing.id };
+    const invalid = eligibility(product); if (invalid) return { product, disposition: "skip", reason: invalid, productId: null, storeProductId: null, category: null };
+    const listing = listingById.get(product.externalId); if (listing) return { product, disposition: "retain", reason: "authoritative ALDI listing already exists", productId: listing.productId, storeProductId: listing.id, category: null };
     const alias = normaliseProductText(product.name); const productId = productByAlias.get(alias);
-    if (productId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId, storeProductId: randomUUID() };
-    if (aliasesSeen.has(alias)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name", productId: null, storeProductId: null };
+    if (productId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId, storeProductId: randomUUID(), category: null };
+    if (aliasesSeen.has(alias)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name", productId: null, storeProductId: null, category: null };
     aliasesSeen.add(alias);
-    return { product, disposition: "create", reason: "unique public ALDI catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID() };
+    return { product, disposition: "create", reason: "unique public ALDI catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category: categoryResolutionForImport(product.name, comparableCategories) };
   });
 }
 
@@ -80,7 +80,7 @@ async function attach(plans: Plan[]) {
   const applicable = plans.filter((plan) => plan.disposition !== "skip"); const creates = applicable.filter((plan) => plan.disposition === "create"); const newListings = applicable.filter((plan) => plan.disposition !== "retain"); const retained = applicable.filter((plan) => plan.disposition === "retain");
   await prisma.$transaction(async (tx) => {
     if (creates.length) {
-      await tx.product.createMany({ data: creates.map((plan) => { const mapped = categoryForAldi(plan.product); return { id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name, slug: `${slugifyProductName(plan.product.name)}-aldi-${plan.product.externalId}`, brand: plan.product.brand, category: mapped.category, packSize: plan.product.packSize, imageUrl: plan.product.imageUrl, productType: mapped.productType, lifecycle: ProductLifecycle.REVIEW_REQUIRED, confidenceScore: 0.65 }; }) });
+      await tx.product.createMany({ data: creates.map((plan) => { const mapped = plan.category!; return { id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name, slug: `${slugifyProductName(plan.product.name)}-aldi-${plan.product.externalId}`, brand: plan.product.brand, category: mapped.category, packSize: plan.product.packSize, imageUrl: plan.product.imageUrl, productType: mapped.productType, lifecycle: ProductLifecycle.REVIEW_REQUIRED, confidenceScore: 0.65 }; }) });
       await tx.productAlias.createMany({ data: creates.map((plan) => ({ productId: plan.productId!, alias: plan.product.name, normalised: normaliseProductText(plan.product.name), source: "aldi-controlled-import" })) });
     }
     if (newListings.length) await tx.storeProduct.createMany({ data: newListings.map((plan) => ({ id: plan.storeProductId!, productId: plan.productId!, retailer: "ALDI", externalId: plan.product.externalId, ...listing(plan) })) });
@@ -90,9 +90,10 @@ async function attach(plans: Plan[]) {
 }
 
 async function main() {
-  const counts: Record<ImportDisposition, number> = { retain: 0, "link-barcode": 0, "link-name": 0, create: 0, skip: 0 }; const skipReasons = new Map<string, number>(); const aliasesSeen = new Set<string>(); let offset = 0; let processed = 0; let pages = 0;
-  while (true) { const page = await readPage(offset); if (!page.products.length && pages === 0) throw new Error("No ALDI cache records were returned."); const plans = await plansForPage(page.products, aliasesSeen); for (const plan of plans) { counts[plan.disposition] += 1; if (plan.disposition === "skip") skipReasons.set(plan.reason, (skipReasons.get(plan.reason) ?? 0) + 1); } if (apply && plans.length) await attach(plans); processed += plans.length; pages += 1; if (importAll && (processed % 1000 === 0 || page.nextOffset === null)) console.log(`Bulk progress: ${processed} records across ${pages} cache pages.`); if (!importAll || page.nextOffset === null) break; offset = page.nextOffset; }
+  const counts: Record<ImportDisposition, number> = { retain: 0, "link-barcode": 0, "link-name": 0, create: 0, skip: 0 }; const categorySources = new Map<string, number>(); const skipReasons = new Map<string, number>(); const aliasesSeen = new Set<string>(); let offset = 0; let processed = 0; let pages = 0;
+  while (true) { const page = await readPage(offset); if (!page.products.length && pages === 0) throw new Error("No ALDI cache records were returned."); const plans = await plansForPage(page.products, aliasesSeen); for (const plan of plans) { counts[plan.disposition] += 1; if (plan.category) categorySources.set(plan.category.source, (categorySources.get(plan.category.source) ?? 0) + 1); if (plan.disposition === "skip") skipReasons.set(plan.reason, (skipReasons.get(plan.reason) ?? 0) + 1); } if (apply && plans.length) await attach(plans); processed += plans.length; pages += 1; if (importAll && (processed % 1000 === 0 || page.nextOffset === null)) console.log(`Bulk progress: ${processed} records across ${pages} cache pages.`); if (!importAll || page.nextOffset === null) break; offset = page.nextOffset; }
   if (skipReasons.size) console.log(`Skip reasons: ${JSON.stringify(Object.fromEntries(skipReasons))}.`);
+  if (categorySources.size) console.log(`Create-category evidence: ${JSON.stringify(Object.fromEntries(categorySources))}.`);
   console.log(`${apply ? "ALDI controlled import" : "ALDI import preview"} complete. ${JSON.stringify(counts)}.${apply ? "" : " No database changes were made."}`);
 }
 void main().catch((error) => { console.error(error); process.exitCode = 1; }).finally(() => prisma.$disconnect());

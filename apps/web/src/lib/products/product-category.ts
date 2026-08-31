@@ -77,6 +77,12 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
     ],
   },
   {
+    // These household products contain food words, so they must take
+    // precedence over the broad pantry/drinks terms below.
+    department: "Household",
+    terms: ["kitchen towel", "kitchen towels", "tea towel", "tea towels"],
+  },
+  {
     department: "Drinks",
     terms: [
       "cola", "cordial", "drink", "energy drink", "hard rated", "iced tea", "juice",
