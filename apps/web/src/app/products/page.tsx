@@ -2,6 +2,9 @@ import Link from "next/link";
 import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
+import { requireAuthSession } from "@/lib/auth-session";
+import { prisma } from "@/lib/prisma";
+import { enabledRetailers } from "@/lib/retailers/retailer-preferences";
 import styles from "./products-hub.module.css";
 import departmentStyles from "./department-artwork.module.css";
 
@@ -212,13 +215,15 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
 }
 
 export default async function ProductsPage({ searchParams }: ProductsPageProps) {
+  const session = await requireAuthSession();
   const { department: rawDepartment, q = "", shelf: rawShelf, view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
-  const [allProducts, departmentCounts, productRecordCount] = await Promise.all([
+  const [allProducts, departmentCounts, productRecordCount, retailerPreferences] = await Promise.all([
     getProductHubList(q, department ?? undefined),
     getProductDepartmentCounts(),
     getProductHubRecordCount(),
+    prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
   ]);
 
   const shelfGroups = department ? [...allProducts.reduce((groups, product) => {
@@ -266,7 +271,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     return `/products?${params.toString()}`;
   };
 
-  const retailerCount = new Set(allProducts.flatMap((product) => product.latestRetailer ? [product.latestRetailer] : [])).size;
+  const retailerCount = enabledRetailers(retailerPreferences).length;
   const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
   const views: Array<{ value: ProductView; label: string }> = [
     { value: "all", label: "All" },
@@ -305,7 +310,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="pantry" /></span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="price" /></span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="recipe" /></span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="store" /></span><div><strong>{retailerCount}</strong><small>retailers tracked</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="store" /></span><div><strong>{retailerCount}</strong><small>retailers selected</small></div></article>
       </section>
 
       <section className={styles.cataloguePanel}>

@@ -71,3 +71,10 @@
 /* Five-up product grid: larger cut-out imagery without a framed thumbnail background. */
 @media(min-width:1451px){.grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}}
 @media(min-width:761px){.card{grid-template-rows:282px auto}.thumb{background:transparent}.thumb img{width:260px!important;height:260px!important;max-width:calc(100% - 18px)!important;max-height:calc(100% - 18px)!important;background:transparent!important}}
+
+/* Product controls stay deliberately quieter than the content they introduce. */
+.heroMark,.mobileHeroMark{width:42px;height:42px;border-radius:13px;font-size:1.1rem;box-shadow:0 6px 16px rgba(21,128,61,.16)}
+.summaryIcon{width:32px;height:32px;border-radius:10px}
+.heroMark svg,.mobileHeroMark svg{width:18px;height:18px}.summaryIcon svg{width:16px;height:16px}.primaryAction svg,.secondaryAction svg{width:16px;height:16px}
+@media(max-width:760px){.mobileHeroHeading{grid-template-columns:42px minmax(0,1fr);gap:10px}}
+@media(max-width:390px){.mobileHeroHeading{grid-template-columns:38px minmax(0,1fr)}.mobileHeroMark{width:38px;height:38px}}
