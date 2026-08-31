@@ -84,6 +84,12 @@ const cases: Array<[string, string, string | null]> = [
   ["Arnotts Arno Shortbread Biscuits", "Confectionery", "Biscuits & cookies"],
   ["Arnotts Gluten Free Mint Slice Biscuits", "Confectionery", "Biscuits & cookies"],
   ["Arnotts Family Assorted Biscuits", "Confectionery", "Biscuits & cookies"],
+  ["Arnotts Jatz Entertainers Pack", "Pantry", "Snacks"],
+  ["Arnotts Original Salada Crispbreads", "Pantry", "Snacks"],
+  ["Arnotts Sao Biscuits", "Pantry", "Snacks"],
+  ["Arnotts Sesame Wheat Biscuits", "Pantry", "Snacks"],
+  ["Arnotts Shapes Originals Barbecue", "Pantry", "Snacks"],
+  ["Arnotts Sourdough Salada Crispbreads", "Pantry", "Snacks"],
 ];
 
 for (const [name, department, shelf] of cases) {
