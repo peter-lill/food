@@ -27,6 +27,10 @@ const cases: Array<[string, string, string | null]> = [
   ["Arnotts Lemon Crisp Biscuits", "Confectionery", "Biscuits & cookies"],
   ["Arnotts Orange Slice Biscuits", "Confectionery", "Biscuits & cookies"],
   ["Smoked Oysters in BBQ Sauce 85g", "Pantry", "Canned food, soups & noodles"],
+  ["1st Steps Baby Wash Cloth Blue Lime Purple 5 Pack", "Baby", "Baby accessories"],
+  ["Banana Boat Aloe Vera Gel", "Health & personal care", "Health & personal care"],
+  ["Beef Jerky With Tomato Treats 200g", "Meat & seafood", "Fresh meat & seafood"],
+  ["Admiral Mandarin Segments In Syrup", "Pantry", "Canned food, soups & noodles"],
 
   // Obvious retail-wide identities should not remain Other.
   ["10.1\" Tablet", "Electronics & technology", "Electronics & technology"],
