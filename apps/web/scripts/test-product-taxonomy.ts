@@ -68,7 +68,7 @@ const cases: Array<[string, string, string | null]> = [
   ["Birds Eye Golden Crunch Sidewinders Twisty Potato Chips", "Frozen", "Frozen food"],
   ["Coke Zero Sugar 30x375ml", "Drinks", "Cold drinks"],
   ["Chicken Mince with Rice, Carrot & Spinach Premium Puppy Food 100g", "Pet", "Dog food & care"],
-  ["23rd St Signature G&T Non Alcoholic No Sugar Cans", "Other", null],
+  ["23rd St Signature G&T Non Alcoholic No Sugar Cans", "Drinks", "Low & no alcohol adult drinks"],
   ["50% Less Sugar Dried Cranberries 250g", "Pantry", "Snacks"],
 ];
 
