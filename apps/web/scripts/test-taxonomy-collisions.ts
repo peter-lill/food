@@ -72,6 +72,18 @@ const cases: Array<[string, string, string | null]> = [
   ["Armor All Leather Wipes 24 Pack", "Automotive", "Car care"],
   ["Armor All Microfibre Glass Cloth Single Pack", "Automotive", "Car care"],
   ["Armor All Protectant", "Automotive", "Car care"],
+
+  // Clear grocery identities from the unresolved catalogue population.
+  ["Almond Meal 400g", "Pantry", "Baking"],
+  ["Almonds Flaked 125g", "Pantry", "Snacks"],
+  ["Almond Hazelnut & Vanilla Premium Nut Bars 5 Pack 175g", "Pantry", "Snacks"],
+  ["Always Fresh Artichoke Hearts Marinated", "Pantry", "Pickled vegetables & condiments"],
+  ["Always Fresh Kalamata Olives Pitted", "Pantry", "Pickled vegetables & condiments"],
+  ["Always Fresh Sauerkraut Polish", "Pantry", "Pickled vegetables & condiments"],
+  ["Almond Fingers 6 Pack 280g", "Bakery", "Cakes & bakery"],
+  ["Arnotts Arno Shortbread Biscuits", "Confectionery", "Biscuits & cookies"],
+  ["Arnotts Gluten Free Mint Slice Biscuits", "Confectionery", "Biscuits & cookies"],
+  ["Arnotts Family Assorted Biscuits", "Confectionery", "Biscuits & cookies"],
 ];
 
 for (const [name, department, shelf] of cases) {
