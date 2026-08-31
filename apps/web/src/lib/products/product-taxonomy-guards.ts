@@ -37,6 +37,8 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["yoghurt", "yogurt"])) return result("Dairy & eggs", "Yoghurt", "yoghurt product identity");
   // Tea is the beverage identity; honey, fruit and botanicals are flavour modifiers.
   if (has(text, ["green tea", "black tea", "iced tea", "ice tea"])) return result("Drinks", "Tea", "tea beverage identity");
+  // Fruit and flavour words must not override dry pancake or waffle baking mixes.
+  if (has(text, ["pancake and waffle mix", "pancake & waffle mix", "pancake mix", "waffle mix"])) return result("Pantry", "Baking", "pancake or waffle mix identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
