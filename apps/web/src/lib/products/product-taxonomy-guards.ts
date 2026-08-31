@@ -32,7 +32,9 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
   if (has(text, ["bbq grill", "barbecue grill", "bbq cover", "barbecue cover", "bbq tool", "barbecue tool", "bbq utensil", "barbecue utensil"])) return result("Garden & outdoor", "Barbecues & outdoor cooking", "barbecue equipment identity");
-  if (has(text, ["bbq sauce", "barbecue sauce", "bbq marinade", "barbecue marinade", "bbq glaze", "barbecue glaze"]) && !has(text, ["chicken", "beef", "pork", "lamb", "ribs", "wings", "brisket"])) return result("Pantry", "Sauces & condiments", "barbecue sauce or marinade identity");
+  // The noun naming the product is decisive here. "Rib glaze" is a glaze,
+  // while "pork ribs ... glaze" is meat. Do not treat flavour words as meat.
+  if (has(text, ["bbq rib glaze", "barbecue rib glaze", "bbq sauce", "barbecue sauce", "bbq marinade", "barbecue marinade", "bbq glaze", "barbecue glaze"]) && !has(text, ["whole chicken", "split chicken", "chicken drumstick", "chicken breast", "chicken thigh", "chicken wing", "beef brisket", "pork ribs", "pork shoulder", "lamb chops"])) return result("Pantry", "Sauces & condiments", "barbecue sauce or marinade identity");
   if (has(text, ["bbq seasoning", "barbecue seasoning", "bbq rub", "barbecue rub", "lamb rub"]) && !has(text, ["whole chicken", "chicken drumstick", "chicken drumsticks", "chicken breast", "chicken thigh", "chicken thighs", "pork ribs", "beef brisket"])) return result("Pantry", "Herbs & spices", "barbecue seasoning identity");
   const bbqMeat = has(text, ["bbq", "barbecue"]) && (
     has(text, ["whole chicken", "chicken drumstick", "chicken drumsticks", "chicken breast", "chicken thigh", "chicken thighs", "chicken wing", "chicken wings", "chicken kebab", "chicken kebabs", "beef kebab", "beef kebabs", "beef brisket", "beef jerky", "beef sausage", "beef sausages", "pork ribs", "pork shoulder", "lamb chop", "lamb chops", "sausages"])
