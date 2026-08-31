@@ -116,7 +116,7 @@ assert.match(imageRecoverySource, /candidateSelectionPriority\(right\.candidate\
 assert.match(imageRecoverySource, /await markSelectedCandidate\(product\.id, candidateId\);\s+await makeCandidatePrimaryAsset\(product\.id, candidateId\);/, "the selected image candidate should be stored and applied automatically");
 assert.match(imageRecoverySource, /isGeneric \|\| !product\.imageUrl\.startsWith\("generated:\/\/"\)/, "specific products must not recycle an old generated generic image during recovery");
 const imageQueueSource = readFileSync(new URL("./enqueue-selected-product-images.ts", import.meta.url), "utf8");
-assert.match(imageQueueSource, /assessProductImage\(candidate\.url\)/, "the backlog should reassess authoritative candidates whose original CDN check failed");
+assert.match(imageQueueSource, /assessProductImage\(candidate\.url, \{ referer: candidate\.retailerProductUrl \}\)/, "the backlog should reassess authoritative candidates whose original CDN check failed with their retailer product-page context");
 assert.match(imageQueueSource, /retailerProductUrl/, "the backlog should reassess direct retailer images with the product page that supplied them");
 assert.match(imageQueueSource, /COALESCE\(c\."qualityScore", 0\) = 0/, "the backlog reassessment should remain limited to failed or missing quality checks");
 assert.match(imageQueueSource, /c\."accepted" = true[\s\S]*?"overallScore"[\s\S]*?>= 75[\s\S]*?"identityScore"[\s\S]*?>= 90[\s\S]*?"providerScore"[\s\S]*?>= 90/, "the image backlog should promote only accepted, high-confidence authoritative candidates");
