@@ -27,7 +27,9 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if ((has(text, ["g&t", "gin and tonic", "gin & tonic"]) && has(text, ["non alcoholic", "non-alcoholic", "alcohol free", "zero alcohol"])) || has(text, ["non alcoholic g&t", "non-alcoholic g&t"])) return result("Drinks", "Low & no alcohol adult drinks", "non-alcoholic adult beverage identity");
   if (has(text, ["rice bowl", "noodle box", "tuna bowl", "meal kit"])) return result("Pantry", "Ready meals & meal kits", "prepared meal identity");
   if (has(text, ["spaghetti in tomato sauce", "canned spaghetti"])) return result("Pantry", "Canned food, soups & noodles", "canned meal identity");
-  if (has(text, ["stone baked pizza", "wood fired pizza", "thin crust pizza", "frozen pizza"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
+  // Pizza is the product identity; words between a style cue and "pizza" are toppings.
+  // This intentionally catches names such as "Stone Baked BBQ Chicken Pizza".
+  if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
 
   if (has(text, ["apple cider vinegar", "raw cider vinegar"]) && !has(text, ["gummies", "capsules", "conditioner", "shampoo"])) return result("Pantry", "Oils & vinegars", "culinary vinegar identity");
 
