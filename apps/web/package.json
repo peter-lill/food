@@ -33,6 +33,8 @@
     "products:reconcile-categories": "tsx scripts/reconcile-product-catalogue.ts",
     "products:reconcile-departments": "tsx scripts/reconcile-product-categories.ts",
     "products:reconcile-departments:apply": "tsx scripts/reconcile-product-categories.ts --apply",
+    "products:reconcile-imported-categories": "tsx scripts/reconcile-imported-categories.ts",
+    "products:reconcile-imported-categories:apply": "tsx scripts/reconcile-imported-categories.ts --apply",
     "products:refresh-missing-pack-sizes": "tsx scripts/enqueue-missing-retailer-pack-sizes.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:audit:export": "prisma generate && tsx scripts/export-product-catalogue-audit.ts",
