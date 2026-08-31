@@ -39,8 +39,9 @@ async function writeAssetBytes(asset: ImageAssetRecord, bytes: Buffer) {
 export async function importImageAsset(input: {
   url: string;
   provider?: string | null;
+  referer?: string | null;
 }) {
-  const { bytes, mimeType } = await fetchRemoteImage(input.url);
+  const { bytes, mimeType } = await fetchRemoteImage(input.url, 15_000, { referer: input.referer });
   return importImageAssetBytes({ bytes, mimeType, originalUrl: input.url, provider: input.provider });
 }
 
@@ -94,10 +95,26 @@ export async function importImageAssetBytes(input: {
 }
 
 export async function importCandidateAsset(productId: string, candidateId: string) {
-  const candidates = await prisma.$queryRaw<Array<{ id: string; url: string; source: string; assetId: string | null }>>`
-    SELECT "id", "url", "source", "assetId"
-    FROM "ProductImageCandidate"
-    WHERE "productId" = ${productId} AND "id" = ${candidateId}
+  const candidates = await prisma.$queryRaw<Array<{
+    id: string;
+    url: string;
+    source: string;
+    assetId: string | null;
+    retailerProductUrl: string | null;
+  }>>`
+    SELECT c."id", c."url", c."source", c."assetId",
+           (
+             SELECT sp."productUrl"
+             FROM "StoreProduct" sp
+             WHERE sp."productId" = c."productId"
+               AND sp."active" = true
+               AND sp."imageUrl" = c."url"
+               AND sp."productUrl" IS NOT NULL
+             ORDER BY sp."updatedAt" DESC
+             LIMIT 1
+           ) AS "retailerProductUrl"
+    FROM "ProductImageCandidate" c
+    WHERE c."productId" = ${productId} AND c."id" = ${candidateId}
     LIMIT 1
   `;
   const candidate = candidates[0];
@@ -108,7 +125,11 @@ export async function importCandidateAsset(productId: string, candidateId: strin
     if (existing) return existing;
   }
 
-  const asset = await importImageAsset({ url: candidate.url, provider: candidate.source });
+  const asset = await importImageAsset({
+    url: candidate.url,
+    provider: candidate.source,
+    referer: candidate.retailerProductUrl,
+  });
   await prisma.$executeRaw`
     UPDATE "ProductImageCandidate"
     SET "assetId" = ${asset.id}, "updatedAt" = NOW()

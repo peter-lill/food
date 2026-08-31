@@ -106,9 +106,12 @@ function qualityScore(input: {
   return { score: Math.max(0, Math.min(100, score)), issues };
 }
 
-export async function assessProductImage(url: string): Promise<ProductImageAssessment> {
+export async function assessProductImage(
+  url: string,
+  options: { referer?: string | null } = {},
+): Promise<ProductImageAssessment> {
   try {
-    const downloaded = await fetchRemoteImage(url, timeoutMs);
+    const downloaded = await fetchRemoteImage(url, timeoutMs, options);
     const contentType = downloaded.mimeType;
     const bytes = new Uint8Array(downloaded.bytes);
     const size = dimensions(bytes, contentType);
