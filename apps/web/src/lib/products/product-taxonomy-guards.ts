@@ -15,15 +15,16 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (!text) return null;
 
   // Strong retail-wide identities that should never fall through to Other.
-  if (/\b\d{1,2}(?:\.\d+)?\s*(?:inch\s*)?tablet\b/i.test(text) || has(text, ["wall charger", "soundbar"])) return result("Electronics & technology", "Electronics & technology", "electronics product identity");
+  if (/\b\d{1,2}(?:\.\d+)?\s*(?:inch\s*)?tablet\b/i.test(text) || has(text, ["wall charger", "soundbar", "surge powerboard", "smart watch"]) || /\b(?:aa|aaa|9v)\s+batteries\b/i.test(text)) return result("Electronics & technology", "Electronics & technology", "electronics product identity");
   if (has(text, ["cordless stick vacuum", "stick vacuum"])) return result("Home, kitchen & appliances", "Appliances", "appliance product identity");
   if (has(text, ["baby bottle brush", "baby brush set", "baby feeding set", "baby bowl with spoon", "baby wash cloth", "baby washcloth"]) || (has(text, ["1st steps"]) && has(text, ["bottle brush", "bowl with spoon", "travel set", "wash cloth", "washcloth", "bath boats", "fork and spoon", "storage pots"]))) return result("Baby", "Baby accessories", "baby accessory identity");
-  if (has(text, ["digital kitchen timer"]) || (has(text, ["appetito"]) && has(text, ["digital timer"]))) return result("Home, kitchen & appliances", "Kitchen tools & utensils", "kitchen timer identity");
+  if (has(text, ["digital kitchen timer", "mechanical kitchen scale"]) || (has(text, ["appetito"]) && has(text, ["digital timer"]))) return result("Home, kitchen & appliances", "Kitchen tools & utensils", "kitchen tool identity");
   if (has(text, ["windscreen wash", "windshield wash"])) return result("Automotive", "Car care", "automotive product identity");
   if (has(text, ["banana boat"]) && has(text, ["aloe vera gel", "aloe gel", "after sun", "aloe mist"])) return result("Health & personal care", "Health & personal care", "after-sun personal-care identity");
   if (has(text, ["razor system", "denture cleaning tablets", "denture cleanser tablets"])) return result("Health & personal care", "Health & personal care", "personal-care product identity");
-  if (has(text, ["3d wooden puzzle", "wooden puzzle"])) return result("Toys, games & entertainment", "Toys & games", "toy/game product identity");
-  if (has(text, ["command adhesive picture hanging", "command picture strip", "command utility adhesive hooks", "command clear mini hanging hooks", "command clear utensil hooks"])) return result("Household", "Home organisation & storage", "home organisation product identity");
+  if (has(text, ["3d wooden puzzle", "wooden puzzle", "adult tin games"])) return result("Toys, games & entertainment", "Toys & games", "toy/game product identity");
+  if (has(text, ["command adhesive picture hanging", "command picture strip", "command utility adhesive hooks", "command clear mini hanging hooks", "command clear utensil hooks", "motion sensor automatic bin", "automatic bin"])) return result("Household", "Home organisation & storage", "home organisation product identity");
+  if (has(text, ["pattern spray nozzle"])) return result("Garden & outdoor", "Garden & outdoor", "garden/outdoor product identity");
 
   if (has(text, ["freezer bag", "freezer bags", "sandwich bag", "sandwich bags", "storage bag", "storage bags", "snack bags", "lunch bags", "oven bag", "oven bags", "resealable bag", "resealable bags", "upholstery stain remover", "cleaning wipes", "degreaser spray"])) return result("Household", "Food storage & household", "household storage/cleaning identity");
   if (has(text, ["car air freshener", "car cleaning wipes", "tyre shine", "tire shine", "tyre foam", "tire foam", "car wash", "wash & wax", "wash and wax"])) return result("Automotive", "Car care", "automotive product identity");
