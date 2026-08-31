@@ -1,6 +1,7 @@
 import { ProductType } from "@prisma/client";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
+import { normaliseProductText } from "../src/lib/products/product-normalisation";
 
 export type ImportedCategoryResolution = {
   category: SupermarketDepartment;
@@ -36,7 +37,7 @@ export function comparableProductCategoryKey(productName: string) {
   const identity = identifyGrocery(productName);
   if (!identity) return null;
   const reliable = identity.evidence.includes("protected grocery concept matched") || identity.family !== null;
-  return reliable ? identity.normalised : null;
+  return reliable ? normaliseProductText(identity.family ?? identity.canonicalName) : null;
 }
 
 export function categoryResolutionForImport(
