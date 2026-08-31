@@ -38,9 +38,11 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["spaghetti in tomato sauce", "canned spaghetti"])) return result("Pantry", "Canned food, soups & noodles", "canned meal identity");
   if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
   if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
-  // Biscuits are the product identity; yoghurt, ginger and fruit words may only describe flavour or filling.
+  // Biscuits and bakery forms are the product identity; fruit, dairy and vegetable words may only describe flavour or filling.
   if (has(text, ["breakfast biscuits"])) return result("Pantry", "Snacks", "breakfast biscuit identity");
-  if (has(text, ["ginger nut biscuits", "lemon crisp biscuits", "orange slice biscuits"])) return result("Confectionery", "Biscuits & cookies", "sweet biscuit identity");
+  if (has(text, ["ginger nut biscuits", "lemon crisp biscuits", "orange slice biscuits", "jam creams biscuits"])) return result("Confectionery", "Biscuits & cookies", "sweet biscuit identity");
+  if (has(text, ["muffin bars", "carrot cake slice", "lemon slice"])) return result("Bakery", "Cakes & bakery", "baked sweet product identity");
+  if (has(text, ["spinach & ricotta roll", "spinach and ricotta roll"])) return result("Bakery", "Savoury bakery", "savoury bakery identity");
   if (has(text, ["yoghurt", "yogurt"])) return result("Dairy & eggs", "Yoghurt", "yoghurt product identity");
   if (has(text, ["green tea", "black tea", "iced tea", "ice tea"])) return result("Drinks", "Tea", "tea beverage identity");
   if (has(text, ["pancake and waffle mix", "pancake & waffle mix", "pancake mix", "waffle mix"])) return result("Pantry", "Baking", "pancake or waffle mix identity");
