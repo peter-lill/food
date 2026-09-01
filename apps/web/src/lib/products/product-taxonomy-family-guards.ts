@@ -18,8 +18,12 @@ export function guardedProductFamily(value: string): ProductClassification | nul
   const text = normaliseProductText(value);
   if (!text) return null;
 
-  // Office and stationery. Explicitly support common singular/plural catalogue forms.
-  if (has(text, ["ballpoint pen", "ballpoint pens", "ball point pen", "ball point pens", "gel ink pen", "gel ink pens", "retractable pen", "retractable pens", "colour pen", "colour pens", "color pen", "color pens", "highlighter", "highlighters", "pencil with eraser", "pencils with eraser", "colour pencil", "colour pencils", "color pencil", "color pencils", "felt marker", "felt markers", "crayon", "crayons", "glue stick", "glue sticks", "correction tape", "correction fluid", "correction pen", "correction pens", "white out", "wite out"])) return result("Office & stationery", "Stationery", "stationery product family");
+  // Office and stationery. Product nouns may be separated from modifiers by colour/model words.
+  const stationeryProduct = /\b(?:pen|pens|pencil|pencils|highlighter|highlighters|marker|markers|crayon|crayons)\b/i.test(text)
+    || /\bglue\s+sticks?\b/i.test(text)
+    || /\bcorrection\s+(?:tape|tapes|fluid|fluids|pen|pens)\b/i.test(text)
+    || /\b(?:white|wite)\s*out\b/i.test(text);
+  if (stationeryProduct) return result("Office & stationery", "Stationery", "stationery product family");
 
   // Health, beauty and personal care.
   if (has(text, ["disposable razor", "razor cartridges", "dental floss", "floss picks", "mouthwash", "antiseptic liquid", "antiseptic ointment", "sore throat gargle", "paracetamol", "pain relief gel", "petroleum jelly", "pimple patches", "cleansing wipes", "blood pressure monitor", "earplugs"])) return result("Health & personal care", "Health & personal care", "health/personal-care product family");
