@@ -48,7 +48,7 @@ export function guardedProductIdentity(value: string): ProductClassification | n
   if (has(text, ["pizza"]) && has(text, ["stone baked", "wood fired", "thin crust", "frozen"])) return result("Frozen", "Frozen meals & pizza", "pizza product identity");
   if (has(text, ["beer batter", "beer battered"]) && has(text, ["fries", "shoestring fries", "steak cut chips", "chips"])) return result("Frozen", "Frozen food", "beer-battered frozen food identity");
   if (has(text, ["cheese pack", "cheese block", "cheese slices", "sliced cheese", "feta cheese", "cheddar cheese", "pepper cheese"])) return result("Dairy & eggs", "Cheese", "cheese product identity");
-  if (has(text, ["steamed pudding", "steamed puddings"])) return result("Pantry", "Desserts", "dessert product identity");
+  if (has(text, ["steamed pudding", "steamed puddings"])) return result("Dairy & eggs", "Chilled desserts", "chilled dessert product identity");
   // Biscuits and bakery forms are the product identity; fruit, dairy and vegetable words may only describe flavour or filling.
   if (has(text, ["breakfast biscuits"])) return result("Pantry", "Snacks", "breakfast biscuit identity");
   if ((has(text, ["arnotts", "arnott's"]) && has(text, ["jatz", "salada", "sao", "sesame wheat", "shapes"])) || has(text, ["arnotts jatz", "arnott's jatz", "arnotts salada", "arnott's salada", "arnotts sao", "arnott's sao", "arnotts sesame wheat", "arnott's sesame wheat", "arnotts shapes", "arnott's shapes"])) return result("Pantry", "Snacks", "savoury Arnott's biscuit or cracker identity");
