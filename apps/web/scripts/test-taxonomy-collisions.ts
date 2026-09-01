@@ -96,6 +96,19 @@ const cases: Array<[string, string, string | null]> = [
   ["Arnotts Sesame Wheat Biscuits", "Pantry", "Snacks"],
   ["Arnotts Shapes Originals Barbecue", "Pantry", "Snacks"],
   ["Arnotts Sourdough Salada Crispbreads", "Pantry", "Snacks"],
+
+  // Next conservative unresolved-Other batch: explicit product nouns only.
+  ["3m Command Large Black Picture Strip 4 Pack", "Household", "Home organisation & storage"],
+  ["3m Command Large Utility Adhesive Hooks Holds x Hook 2x Strips Single Pack", "Household", "Home organisation & storage"],
+  ["3m Command Mounting Hook Large 3 Pack", "Household", "Home organisation & storage"],
+  ["40hr Recipe Sourdough Vienna", "Bakery", "Bread & bakery"],
+  ["7-Up Bottle", "Drinks", "Cold drinks"],
+  ["Abes Bagels The Natural Thiiins 6 Pack", "Bakery", "Bread & bakery"],
+  ["Abes Bagels The Sesame Thiiins 6 Pack", "Bakery", "Bread & bakery"],
+  ["Acacia Wood Utensils with Holder", "Home, kitchen & appliances", "Kitchen tools & utensils"],
+  ["Admiral Lychees In Syrup", "Pantry", "Canned food, soups & noodles"],
+  ["Adult's Compression Tights", "Clothing, footwear & accessories", "Clothing & footwear"],
+  ["Adult's Seamless Long Sleeve Fitness Tops", "Clothing, footwear & accessories", "Clothing & footwear"],
 ];
 
 for (const [name, department, shelf] of cases) {
