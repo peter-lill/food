@@ -37,6 +37,12 @@ const cases: Array<[string, string, string | null]> = [
   ["Bakers Collection Gluten Free Good Health Jam Creams Biscuits", "Confectionery", "Biscuits & cookies"],
   ["Bakers Collection Lemon Slice 6 Pack", "Bakery", "Cakes & bakery"],
 
+  // Audit-discovered precedence collisions: the head product identity wins.
+  ["Asahi Super Dry 0% Non Alcoholic Beer Glass Bottles", "Drinks", "Low & no alcohol adult drinks"],
+  ["Ashgrove Beer Lovers Cheese Pack", "Dairy & eggs", "Cheese"],
+  ["Ashgrove Bush Pepper Cheese", "Dairy & eggs", "Cheese"],
+  ["Aunt Bettys Cinnamon Caramel Donut Steamed Puddings", "Dairy & eggs", "Chilled desserts"],
+
   // Obvious retail-wide identities should not remain Other.
   ["10.1\" Tablet", "Electronics & technology", "Electronics & technology"],
   ["20W Wall Charger", "Electronics & technology", "Electronics & technology"],
