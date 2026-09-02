@@ -29,15 +29,13 @@ function productTypeForDepartment(category: SupermarketDepartment): ProductType 
 }
 
 /**
- * A key is only emitted where the grocery identity engine found a recognised
- * product concept or a stable product family. This deliberately avoids using
- * arbitrary overlapping words (for example, "tea" in "tea towels").
+ * A key is emitted only for an explicit product family, never merely a
+ * recognised ingredient. This deliberately avoids turning ingredient-bearing
+ * products such as asparagus soup or feta pizza into fresh produce or dairy.
  */
 export function comparableProductCategoryKey(productName: string) {
   const identity = identifyGrocery(productName);
-  if (!identity) return null;
-  const reliable = identity.evidence.includes("protected grocery concept matched") || identity.family !== null;
-  return reliable ? normaliseProductText(identity.family ?? identity.canonicalName) : null;
+  return identity?.family ? normaliseProductText(identity.family) : null;
 }
 
 export function categoryResolutionForImport(
