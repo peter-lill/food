@@ -13,7 +13,11 @@ async function main() {
   });
 
   const updates = products.flatMap((product) => {
-    const category = productDepartment(product.category, product.canonicalName ?? product.name);
+    // This legacy command must never rewrite an established catalogue record
+    // from product-name keywords. It is retained solely to normalise known
+    // category aliases already stored in the database (for example, "Fresh
+    // produce" -> "Fruit & vegetables").
+    const category = productDepartment(product.category, "");
     return category !== "Other" && category !== product.category
       ? [{ id: product.id, category }]
       : [];

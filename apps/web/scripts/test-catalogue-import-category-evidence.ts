@@ -19,24 +19,26 @@ assert.deepEqual(categoryResolutionForImport("Full Cream Milk 2L", comparableCat
   source: "comparable-product",
 });
 
-// Conflicting comparable products are not evidence. Fall back to the shared,
-// ordered name rules instead of forcing a category.
+// Conflicting comparable products are not evidence. Do not promote title
+// keywords into a stored category.
 assert.deepEqual(categoryResolutionForImport("Chips", comparableCategories), {
   category: "Other",
   productType: "OTHER",
-  source: "name-rules",
+  source: "unclassified",
 });
 
-// Regression cases for ALDI/Drakes' former independent keyword lists.
+// Regression cases for ALDI/Drakes' former independent keyword lists. These
+// require retailer taxonomy or a corroborating comparable product, because a
+// title alone cannot establish a reliable department.
 assert.deepEqual(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), {
-  category: "Confectionery",
-  productType: "PACKAGED",
-  source: "name-rules",
+  category: "Other",
+  productType: "OTHER",
+  source: "unclassified",
 });
 assert.deepEqual(categoryResolutionForImport("Cotton Tea Towels", new Map()), {
-  category: "Household",
-  productType: "HOUSEHOLD",
-  source: "name-rules",
+  category: "Other",
+  productType: "OTHER",
+  source: "unclassified",
 });
 
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), "Dairy & eggs"), false);

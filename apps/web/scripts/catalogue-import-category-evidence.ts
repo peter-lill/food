@@ -1,12 +1,12 @@
 import { ProductType } from "@prisma/client";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
-import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
+import type { SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
 
 export type ImportedCategoryResolution = {
   category: SupermarketDepartment;
   productType: ProductType;
-  source: "comparable-product" | "name-rules";
+  source: "comparable-product" | "unclassified";
 };
 
 function productTypeForDepartment(category: SupermarketDepartment): ProductType {
@@ -55,8 +55,12 @@ export function categoryResolutionForImport(
     }
   }
 
-  const category = productDepartment("Other", productName);
-  return { category, productType: productTypeForDepartment(category), source: "name-rules" };
+  // A product title is not category authority. Retailer titles routinely
+  // contain flavours, ingredients and serving suggestions (for example,
+  // asparagus soup, feta pizza and dog food with beef). Keep the product in
+  // the review queue until an authoritative retailer path, barcode/manual
+  // classification, or unanimous comparable product can establish it.
+  return { category: "Other", productType: ProductType.OTHER, source: "unclassified" };
 }
 
 /** Existing data is repaired only from corroborating comparable products. */
