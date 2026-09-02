@@ -170,7 +170,7 @@ export async function ProductImagePanel({ productId, productName, hasImage, show
           <form action={resolveDirectRetailerImage.bind(null, productId)} className={styles.resolver}>
             <label className="field">
               <span>Retailer product page</span>
-              <input name="retailerReference" placeholder="Paste a Woolworths product link" required />
+              <input name="retailerReference" placeholder="Paste a Coles or Woolworths product link" required />
             </label>
             <div className="form-actions">
               <button className="secondary-button" type="submit">Retrieve retailer image</button>

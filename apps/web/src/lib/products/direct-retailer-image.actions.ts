@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { resolveWoolworthsProductReference } from "@/lib/prices/coles-woolworths-provider";
+import { resolveRetailerProductReference } from "@/lib/prices/coles-woolworths-provider";
 import {
   recordCandidateAssessment,
   recordDiscoveredCandidate,
@@ -62,14 +62,14 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
   const reference = String(formData.get("retailerReference") ?? "").trim();
 
   if (!reference) {
-    await setStatus(productId, "warning", "Paste a Woolworths product link or product ID first.");
+    await setStatus(productId, "warning", "Paste a Coles or Woolworths product link or product ID first.");
     redirect(`${destination}${imagePanelAnchor}`);
   }
 
   try {
-    const candidate = await resolveWoolworthsProductReference(reference);
+    const candidate = await resolveRetailerProductReference(reference);
     if (!candidate?.imageUrl || !candidate.externalId) {
-      await setStatus(productId, "warning", "Food could not resolve an exact Woolworths image from that reference.");
+      await setStatus(productId, "warning", "Food could not resolve an exact retailer image from that reference.");
       revalidateProduct(productId, destination);
       redirect(`${destination}${imagePanelAnchor}`);
     }
@@ -81,8 +81,8 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
 
     const candidateId = await recordDiscoveredCandidate(productId, {
       url: candidate.imageUrl,
-      source: "woolworths-direct",
-      sourceLabel: `Woolworths · ${candidate.productName}`,
+      source: `${candidate.retailer.toLocaleLowerCase("en-AU")}-direct`,
+      sourceLabel: `${candidate.retailer} · ${candidate.productName}`,
       identityScore: 100,
       providerScore: 98,
     });
@@ -99,7 +99,7 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     });
 
     if (!accepted) {
-      await setStatus(productId, "warning", "The exact Woolworths product was found, but its image did not pass validation. It remains in the Candidate Gallery for review.");
+      await setStatus(productId, "warning", `The exact ${candidate.retailer} product was found, but its image did not pass validation. It remains in the Candidate Gallery for review.`);
       revalidateProduct(productId, destination);
       redirect(`${destination}${candidateAnchor(candidateId)}`);
     }
@@ -128,12 +128,12 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
       }),
     ]);
 
-    await setStatus(productId, "success", `Exact Woolworths product ${candidate.externalId} was resolved and made primary.`);
+    await setStatus(productId, "success", `Exact ${candidate.retailer} product ${candidate.externalId} was resolved and made primary.`);
     revalidateProduct(productId, destination);
     redirect(`${destination}?image=${encodeURIComponent(candidateId)}${candidateAnchor(candidateId)}`);
   } catch (error) {
     if (isRedirectError(error)) throw error;
-    await setStatus(productId, "error", "The Woolworths reference could not be resolved. Check the link or product ID and try again.");
+    await setStatus(productId, "error", "The retailer reference could not be resolved. Check the Coles or Woolworths link or product ID and try again.");
     revalidateProduct(productId, destination);
     redirect(`${destination}${imagePanelAnchor}`);
   }
