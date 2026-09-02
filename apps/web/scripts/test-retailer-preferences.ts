@@ -127,7 +127,8 @@ assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*2
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
 assert.match(accountStylesSource, /\.storeMapMarker\s*{[\s\S]*?pointer-events:\s*none/, "the branded location marker does not block map interaction");
 assert.match(accountStylesSource, /\[data-retailer-logo="coles"\][\s\S]*?border-radius:\s*50%/, "Coles maps use a compact circular location badge instead of its wide wordmark");
-assert.match(accountStylesSource, /\[data-retailer-logo="drakes"\][\s\S]*?content:\s*"D"/, "Drakes maps use its compact D location badge instead of the wide storefront wordmark");
+assert.match(accountStylesSource, /\[data-retailer-logo="drakes"\]\s*img\s*\{[\s\S]*?object-fit:\s*contain/, "Drakes maps preserve the real Drakes logo inside the location marker");
+assert.doesNotMatch(accountStylesSource, /\[data-retailer-logo="drakes"\][\s\S]*?content:\s*"D"/, "Drakes maps must not replace the retailer logo with a fabricated letter badge");
 assert.match(accountStylesSource, /\.retailerHeading\s*>\s*div\s*>\s*strong\s*{[\s\S]*?height:\s*48px/);
 
 const healthConnectStylesSource = readFileSync(
