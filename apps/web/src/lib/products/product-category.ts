@@ -22,9 +22,12 @@ export type SupermarketDepartment = (typeof supermarketDepartments)[number];
 const departmentAliases = new Map<string, SupermarketDepartment>([
   ["fresh produce", "Fruit & vegetables"],
   ["produce", "Fruit & vegetables"],
+  ["fruit veg", "Fruit & vegetables"],
+  ["fruit and veg", "Fruit & vegetables"],
   ["fruit and vegetables", "Fruit & vegetables"],
   ["fruit vegetables", "Fruit & vegetables"],
   ["fresh meat", "Meat & seafood"],
+  ["deli meat", "Deli"],
   ["seafood", "Meat & seafood"],
   ["meat and seafood", "Meat & seafood"],
   ["meat seafood", "Meat & seafood"],
@@ -32,8 +35,10 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["dairy eggs fridge", "Dairy & eggs"],
   ["dairy and eggs", "Dairy & eggs"],
   ["dairy eggs", "Dairy & eggs"],
+  ["milk", "Dairy & eggs"],
   ["chilled", "Dairy & eggs"],
   ["freezer", "Frozen"],
+  ["frozen food", "Frozen"],
   ["international", "Pantry"],
   ["international foods", "Pantry"],
   ["salt", "Pantry"],
@@ -178,6 +183,28 @@ function nameHasExplicitBabyDepartment(value: string) {
 
 export function inferProductCategory(value: string) {
   return departmentFromText(value);
+}
+
+/**
+ * Retailer catalogue paths are category evidence, unlike a product title.
+ * Resolve only an explicit path segment (for example "dairy-eggs-fridge"),
+ * never a keyword somewhere in a long path or a product name.
+ */
+export function retailerPathDepartment(value: string | null | undefined): SupermarketDepartment | null {
+  if (!value) return null;
+  const segments = value
+    .split(/[\\/|>]+/)
+    .map((segment) => normaliseProductText(segment))
+    .filter(Boolean)
+    .flatMap((segment) => [segment, segment.replace(/^(?:browse|products|shop)\s+/, "")]);
+
+  for (const segment of segments) {
+    const canonical = canonicalDepartments.get(segment);
+    if (canonical) return canonical;
+    const alias = departmentAliases.get(segment);
+    if (alias && alias !== "Other") return alias;
+  }
+  return null;
 }
 
 export function productDepartment(category: string | null | undefined, productName: string): SupermarketDepartment {

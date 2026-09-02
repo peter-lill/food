@@ -1,12 +1,12 @@
 import { ProductType } from "@prisma/client";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
-import type { SupermarketDepartment } from "../src/lib/products/product-category";
+import { retailerPathDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
 
 export type ImportedCategoryResolution = {
   category: SupermarketDepartment;
   productType: ProductType;
-  source: "comparable-product" | "unclassified";
+  source: "retailer-path" | "comparable-product" | "unclassified";
 };
 
 function productTypeForDepartment(category: SupermarketDepartment): ProductType {
@@ -45,7 +45,16 @@ export function comparableProductCategoryKey(productName: string) {
 export function categoryResolutionForImport(
   productName: string,
   comparableCategories: ReadonlyMap<string, ReadonlySet<SupermarketDepartment>>,
+  retailerCategoryPath?: string | null,
 ): ImportedCategoryResolution {
+  const retailerPathCategory = retailerPathDepartment(retailerCategoryPath);
+  if (retailerPathCategory && retailerPathCategory !== "Other") {
+    return {
+      category: retailerPathCategory,
+      productType: productTypeForDepartment(retailerPathCategory),
+      source: "retailer-path",
+    };
+  }
   const comparableKey = comparableProductCategoryKey(productName);
   const candidates = comparableKey ? comparableCategories.get(comparableKey) : undefined;
   if (candidates?.size === 1) {
@@ -63,9 +72,22 @@ export function categoryResolutionForImport(
   return { category: "Other", productType: ProductType.OTHER, source: "unclassified" };
 }
 
+/** A product with multiple retailer listings needs one consistent source path. */
+export function unanimousRetailerCategoryPath(paths: ReadonlyArray<string | null | undefined>) {
+  const populatedPaths = paths.filter((path): path is string => Boolean(path));
+  if (!populatedPaths.length) return null;
+  const pathByCategory = new Map<SupermarketDepartment, string>();
+  for (const path of populatedPaths) {
+    const category = retailerPathDepartment(path);
+    if (!category) return null;
+    if (!pathByCategory.has(category)) pathByCategory.set(category, path);
+  }
+  return pathByCategory.size === 1 ? [...pathByCategory.values()][0] ?? null : null;
+}
+
 /** Existing data is repaired only from corroborating comparable products. */
 export function canRepairImportedCategory(resolution: ImportedCategoryResolution, currentCategory: SupermarketDepartment) {
-  return resolution.source === "comparable-product"
+  return (resolution.source === "retailer-path" || resolution.source === "comparable-product")
     && resolution.category !== "Other"
     && resolution.category !== currentCategory;
 }

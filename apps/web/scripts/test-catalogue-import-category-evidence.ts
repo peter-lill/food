@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { SupermarketDepartment } from "../src/lib/products/product-category";
-import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
 
 const comparableCategories: Map<string, Set<SupermarketDepartment>> = new Map([
   ["milk", new Set<SupermarketDepartment>(["Dairy & eggs"])],
@@ -18,6 +18,19 @@ assert.deepEqual(categoryResolutionForImport("Full Cream Milk 2L", comparableCat
   productType: "DAIRY",
   source: "comparable-product",
 });
+assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), "/browse/dairy-eggs-fridge"), {
+  category: "Dairy & eggs",
+  productType: "DAIRY",
+  source: "retailer-path",
+});
+assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), "Fruit & Veg"), {
+  category: "Fruit & vegetables",
+  productType: "GENERIC_PRODUCE",
+  source: "retailer-path",
+});
+assert.equal(unanimousRetailerCategoryPath(["/browse/dairy-eggs-fridge", "Dairy & eggs"]), "/browse/dairy-eggs-fridge");
+assert.equal(unanimousRetailerCategoryPath(["Dairy & eggs", "Pantry"]), null);
+assert.equal(unanimousRetailerCategoryPath(["Dairy & eggs", "/products/unknown"]), null);
 
 // Conflicting comparable products are not evidence. Do not promote title
 // keywords into a stored category.
@@ -43,5 +56,6 @@ assert.deepEqual(categoryResolutionForImport("Cotton Tea Towels", new Map()), {
 
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), "Dairy & eggs"), false);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Full Cream Milk 2L", comparableCategories), "Other"), true);
+assert.equal(canRepairImportedCategory(categoryResolutionForImport("Any retailer product", new Map(), "Household"), "Other"), true);
 
 console.log("catalogue import category evidence tests passed");

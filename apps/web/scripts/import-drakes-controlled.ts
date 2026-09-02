@@ -75,11 +75,11 @@ async function plansForPage(products: DrakesProduct[], aliasesSeen: Set<string>)
     if (productId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId, storeProductId: randomUUID(), category: null };
     if (aliasesSeen.has(alias)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name", productId: null, storeProductId: null, category: null };
     aliasesSeen.add(alias);
-    return { product, disposition: "create", reason: "unique selected-store Drakes catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category: categoryResolutionForImport(product.name, comparableCategories) };
+    return { product, disposition: "create", reason: "unique selected-store Drakes catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category: categoryResolutionForImport(product.name, comparableCategories, product.categoryPath) };
   });
 }
 
-function listing(plan: Plan) { const product = plan.product; return { retailerProductName: product.name, brand: product.brand, packSize: product.packSize, productUrl: product.productUrl, imageUrl: product.imageUrl, aisle: null, active: true, lastSeenAt: new Date() }; }
+function listing(plan: Plan) { const product = plan.product; return { retailerProductName: product.name, brand: product.brand, packSize: product.packSize, productUrl: product.productUrl, imageUrl: product.imageUrl, aisle: product.categoryPath, active: true, lastSeenAt: new Date() }; }
 async function attach(plans: Plan[]) {
   const applicable = plans.filter((plan) => plan.disposition !== "skip"); const creates = applicable.filter((plan) => plan.disposition === "create"); const newListings = applicable.filter((plan) => plan.disposition !== "retain"); const retained = applicable.filter((plan) => plan.disposition === "retain");
   await prisma.$transaction(async (tx) => {
