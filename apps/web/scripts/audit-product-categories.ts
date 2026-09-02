@@ -3,7 +3,7 @@ import "dotenv/config";
 import { ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "../src/lib/products/product-category";
-import { categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
+import { categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
 
 const strict = process.argv.includes("--strict");
 const limitArgument = process.argv.find((argument) => argument.startsWith("--limit="))?.slice("--limit=".length);
@@ -43,7 +43,7 @@ async function main() {
       id: true, name: true, canonicalName: true, category: true, productType: true,
       barcode: true,
       aliases: { select: { source: true } },
-      storeProducts: { where: { active: true }, select: { retailer: true } },
+      storeProducts: { where: { active: true }, select: { retailer: true, aisle: true } },
     },
     orderBy: [{ category: "asc" }, { canonicalName: "asc" }, { name: "asc" }],
   });
@@ -99,9 +99,10 @@ async function main() {
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const importedOnly = retailers.size > 0 && [...retailers].every((retailer) => importedRetailers.has(retailer));
     const hasImportedAlias = product.aliases.some((alias) => alias.source === "aldi-controlled-import" || alias.source === "drakes-controlled-import");
-    const comparable = categoryResolutionForImport(name, comparableCategories);
-    const comparableEvidenceMatches = comparable.source === "comparable-product" && comparable.category === category;
-    if (importedOnly && hasImportedAlias && category !== "Other" && !product.barcode && !comparableEvidenceMatches) {
+    const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
+    const comparable = categoryResolutionForImport(name, comparableCategories, retailerPath);
+    const categoryEvidenceMatches = (comparable.source === "retailer-path" || comparable.source === "comparable-product") && comparable.category === category;
+    if (importedOnly && hasImportedAlias && category !== "Other" && !product.barcode && !categoryEvidenceMatches) {
       findings.push({
         code: "UNVERIFIED_IMPORTED_CATEGORY", id: product.id, name,
         detail: `category=${category}; retailers=${[...retailers].sort().join(",")}; requires comparable-product, barcode/manual, or retailer-path evidence`,

@@ -35,6 +35,8 @@
     "products:reconcile-departments:apply": "tsx scripts/reconcile-product-categories.ts --apply",
     "products:reconcile-imported-categories": "tsx scripts/reconcile-imported-categories.ts",
     "products:reconcile-imported-categories:apply": "tsx scripts/reconcile-imported-categories.ts --apply",
+    "products:backfill-imported-category-paths": "tsx scripts/backfill-imported-catalogue-paths.ts",
+    "products:backfill-imported-category-paths:apply": "tsx scripts/backfill-imported-catalogue-paths.ts --apply",
     "products:refresh-missing-pack-sizes": "tsx scripts/enqueue-missing-retailer-pack-sizes.ts",
     "products:audit": "tsx scripts/audit-product-catalogue.ts",
     "products:categories:audit": "tsx scripts/audit-product-categories.ts",

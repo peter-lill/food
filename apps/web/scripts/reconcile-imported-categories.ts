@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
-import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
 
 const apply = process.argv.includes("--apply");
 const importedRetailers = ["ALDI", "Drakes"];
@@ -29,7 +29,7 @@ async function main() {
           every: { retailer: { in: importedRetailers } },
         },
       },
-      select: { id: true, name: true, canonicalName: true, category: true },
+      select: { id: true, name: true, canonicalName: true, category: true, storeProducts: { where: { active: true }, select: { retailer: true, aisle: true } } },
       orderBy: [{ canonicalName: "asc" }, { name: "asc" }],
     }),
     prisma.productAlias.findMany({
@@ -58,7 +58,8 @@ async function main() {
   for (const product of importedProducts) {
     const name = product.canonicalName ?? product.name;
     const from = productDepartment(product.category, "");
-    const resolved = categoryResolutionForImport(name, comparableCategories);
+    const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
+    const resolved = categoryResolutionForImport(name, comparableCategories, retailerPath);
     // Historical product titles often contain ingredients, flavours, and use
     // cases. Unlike a new import, a name-only conclusion is not enough to
     // rewrite an established category ("dog food with beef", "lemon cleaner",
