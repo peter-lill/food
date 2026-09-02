@@ -143,7 +143,7 @@ assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retai
 assert.match(productPageSource, /priceObservationKind\(observation\.source\)/, "recent price history must translate internal ingestion identifiers before rendering");
 assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent price history must never render internal ingestion identifiers");
 assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalogue must build a complete department index instead of relying on its first page of products");
-assert.doesNotMatch(productHubSource, /getProductHubRecordCount/, "the compact catalogue should not fetch an unused record-count banner metric");
+assert.doesNotMatch(productCatalogueSource, /getProductHubRecordCount/, "the compact catalogue should not fetch an unused record-count banner metric");
 assert.doesNotMatch(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the compact catalogue should not render the removed record-count banner");
 assert.match(productCatalogueSource, /<ProductActions \/>/, "catalogue actions must remain available in the compact toolbar");
 assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected department must be browsable beyond the alphabetical default page");
