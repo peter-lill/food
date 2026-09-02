@@ -176,7 +176,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
     <article className={styles.card} key={product.id}>
       <div className={styles.thumb}>
         {productImage ? (
-          <img alt={title} loading="lazy" src={productImage} style={{ display: "block", width: "112px", height: "112px", maxWidth: "calc(100% - 36px)", maxHeight: "calc(100% - 36px)", objectFit: "contain", objectPosition: "center", padding: "8px", borderRadius: "18px", background: "#fff", boxSizing: "border-box" }} />
+          <img alt={title} loading="lazy" src={productImage} />
         ) : <div className={styles.imageFallback} aria-hidden="true"><span>+</span><small>{family ? "Product family" : generic ? "Fresh produce" : "Image pending"}</small></div>}
         <div className={styles.badges}>
           {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}

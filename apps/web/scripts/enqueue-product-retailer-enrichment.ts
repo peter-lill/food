@@ -16,8 +16,8 @@ async function main() {
       id: true,
       canonicalName: true,
       name: true,
-      storeProducts: {
-        where: { lastSeenAt: { gte: cutoff } },
+      priceObservations: {
+        where: { observedAt: { gte: cutoff } },
         select: { retailer: true },
       },
     },
@@ -25,7 +25,7 @@ async function main() {
   });
   const productsToRefresh = refreshAll
     ? products
-    : products.filter((product) => retailersNeedRefresh(product.storeProducts.map((listing) => listing.retailer)));
+    : products.filter((product) => retailersNeedRefresh(product.priceObservations.map((observation) => observation.retailer)));
 
   console.log(`${apply ? "Queueing" : "Would queue"} ${productsToRefresh.length} product ${refreshAll ? "authority and image" : "price"} refresh job(s).`);
 
