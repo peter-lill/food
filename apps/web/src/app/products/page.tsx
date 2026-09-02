@@ -178,6 +178,9 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
         {productImage ? (
           <img alt={title} loading="lazy" src={productImage} />
         ) : <div className={styles.imageFallback} aria-hidden="true"><span>+</span><small>{family ? "Product family" : generic ? "Fresh produce" : "Image pending"}</small></div>}
+        <span className={styles.specialImageSlot}>
+          {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <>On special</> : null}
+        </span>
         <div className={styles.badges}>
           {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
           {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
@@ -192,7 +195,6 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
           <small>Best price</small>
           <strong>{product.priceNeedsSpecificVariant ? "See variants" : latestPrice ?? "Not priced"}</strong>
           <span>{product.priceNeedsSpecificVariant ? "Individual variants have different prices" : product.latestRetailer && product.latestPackSize ? `${product.latestRetailer} · ${product.latestPackSize}` : product.latestRetailer ?? "No retailer linked"}</span>
-          {product.latestIsSpecial && !product.priceNeedsSpecificVariant ? <span className={styles.specialBadge}><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M20 13V6a2 2 0 0 0-2-2h-7L4 11a2 2 0 0 0 0 2.83 0L20 13Z" /><circle cx="15.5" cy="8.5" r="1" /></svg>On special</span> : null}
         </div>
         <h2>{title}</h2>
         {receiptName ? <p className={styles.receiptName}>{receiptName}</p> : null}

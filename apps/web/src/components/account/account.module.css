@@ -281,7 +281,7 @@
   width: 54px;
   height: 54px;
   place-items: center;
-  transform: translate(-50%, -100%);
+  transform: translate(-50%, calc(-100% - 8px));
   border: 3px solid white;
   border-radius: 50% 50% 50% 0;
   background: white;
@@ -326,7 +326,11 @@
   max-width: 42px !important;
   max-height: 24px !important;
   object-fit: contain !important;
+  /* The Drakes asset has a small trolley at its visual origin and a long
+     wordmark to the right. Centre the combined lock-up, not the trolley. */
+  transform: translateX(-10px);
 }
+
 
 .preferredBadge {
   padding: 6px 8px;
