@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount, type ProductHubListItem } from "@/lib/products/product-hub.repository";
+import { getProductDepartmentCounts, getProductHubList, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { requireAuthSession } from "@/lib/auth-session";
@@ -219,10 +219,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const { department: rawDepartment, q = "", shelf: rawShelf, view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
-  const [allProducts, departmentCounts, productRecordCount, retailerPreferences] = await Promise.all([
+  const [allProducts, departmentCounts, retailerPreferences] = await Promise.all([
     getProductHubList(q, department ?? undefined),
     getProductDepartmentCounts(),
-    getProductHubRecordCount(),
     prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
   ]);
 
@@ -283,29 +282,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
   return (
     <main className={styles.page}>
-      <section className={styles.desktopHero}>
-        <div className={styles.heroCopy}>
-          <div className={styles.heroHeading}>
-            <span className={styles.heroMark} aria-hidden="true"><CatalogueIcon name="library" /></span>
-            <div><p className="eyebrow">PRODUCT LIBRARY</p><h1 className="page-title">Your products</h1></div>
-          </div>
-          <ProductActions />
-        </div>
-        <div className={styles.heroMetric}>
-          <span>Library</span><strong>{productRecordCount.toLocaleString("en-AU")}</strong><small>catalogue products</small>
-          <div className={styles.heroProgress}><span style={{ width: `${allProducts.length ? ((allProducts.length - counts["needs-details"]) / allProducts.length) * 100 : 0}%` }} /></div>
-          <small>{allProducts.length.toLocaleString("en-AU")} families in this view · {counts["needs-details"]} need more details</small>
-        </div>
-      </section>
-
-      <section className={styles.mobileHero}>
-        <div className={styles.mobileHeroHeading}>
-          <span className={styles.mobileHeroMark} aria-hidden="true"><CatalogueIcon name="library" /></span>
-          <div><p className="eyebrow">PRODUCT LIBRARY</p><h1>Your products</h1></div>
-        </div>
-        <ProductActions />
-      </section>
-
       <section className={styles.summaryGrid} aria-label="Product catalogue summary">
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="pantry" /></span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="price" /></span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
@@ -315,11 +291,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.cataloguePanel}>
         <div className={styles.toolbar}>
-          <div className={styles.toolbarTitle}>
-            <p className="eyebrow">CATALOGUE</p>
-            <h2>{browseDepartments ? "Browse departments" : `${products.length} ${products.length === 1 ? "product" : "products"}`}</h2>
-            {q ? <p>Results for &quot;{q}&quot;.</p> : department ? <p>All {department.toLocaleLowerCase("en-AU")} product families.</p> : <p>Choose a department, or search for a product directly.</p>}
-          </div>
+          <ProductActions />
           <form className={styles.search}>
             {department ? <input name="department" type="hidden" value={department} /> : null}
             {shelf ? <input name="shelf" type="hidden" value={shelf} /> : null}

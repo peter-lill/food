@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { retailerProductUrl, toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
+import { parseColesProductReference, retailerProductUrl, toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { identityScore, retailerSearchQuery } from "../src/lib/retailers/retailer-intelligence.service";
 
 const candidate = toRetailerCatalogueCandidate({
@@ -33,6 +33,13 @@ assert.equal(
   "https://www.woolworths.com.au/shop/productdetails/114435",
   "cached Woolworths listings retain a direct canonical product page",
 );
+assert.equal(
+  parseColesProductReference("https://www.coles.com.au/product/coles-simply-table-spread-1kg-5428639"),
+  "5428639",
+  "a direct Coles product URL must preserve its exact retailer ID for image retrieval",
+);
+assert.equal(parseColesProductReference("5428639"), "5428639");
+assert.equal(parseColesProductReference("https://example.com/product/coles-simply-table-spread-1kg-5428639"), null);
 
 const colesPackCandidate = toRetailerCatalogueCandidate({
   retailer: "Coles",

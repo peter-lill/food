@@ -315,6 +315,18 @@ export function parseWoolworthsProductReference(value: string) {
   }
 }
 
+export function parseColesProductReference(value: string) {
+  const input = value.trim();
+  if (/^\d{4,16}$/.test(input)) return input;
+  try {
+    const url = new URL(input);
+    if (!/(^|\.)coles\.com\.au$/i.test(url.hostname)) return null;
+    return url.pathname.match(/-(\d{4,16})\/?$/)?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveWoolworthsProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
   const externalId = parseWoolworthsProductReference(value);
   if (!externalId) return null;
@@ -347,6 +359,33 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
     barcode: exactDetail?.barcode ?? exact?.barcode ?? null,
     imageUrl,
   };
+}
+
+/**
+ * Resolve an exact Coles product URL or product ID from the verified retailer
+ * catalogue.  This deliberately matches the retailer ID, rather than trusting
+ * similarly named search results.
+ */
+export async function resolveColesProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
+  const externalId = parseColesProductReference(value);
+  if (!externalId) return null;
+
+  const results = await searchColesAndWoolworthsCatalogue(externalId, { retailers: ["Coles"] });
+  const exact = results.find((candidate) => (
+    candidate.retailer === "Coles"
+    && candidate.externalId?.replace(/\D/g, "") === externalId
+  ));
+  if (!exact) return null;
+
+  const sourceUrl = typeof value === "string" && /^https:\/\//i.test(value.trim())
+    ? value.trim()
+    : retailerProductUrl("Coles", exact.productName, externalId);
+  const imageUrl = exact.imageUrl ?? await fetchRetailerPageImage(sourceUrl);
+  return { ...exact, sourceUrl, imageUrl };
+}
+
+export async function resolveRetailerProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
+  return (await resolveColesProductReference(value)) ?? resolveWoolworthsProductReference(value);
 }
 
 export function toRetailerCatalogueCandidate(result: GroceryProviderResult): RetailerCatalogueCandidate | null {
