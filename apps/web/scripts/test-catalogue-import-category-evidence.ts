@@ -9,6 +9,8 @@ const comparableCategories: Map<string, Set<SupermarketDepartment>> = new Map([
 ]);
 
 assert.equal(comparableProductCategoryKey("Full Cream Milk 2L"), "milk");
+assert.equal(comparableProductCategoryKey("Campbells Condensed Cream Of Asparagus Soup"), null);
+assert.equal(comparableProductCategoryKey("Brubecks Boutique Foods The Melbourne Pumpkin & Feta Pizza"), null);
 assert.deepEqual(categoryResolutionForImport("Full Cream Milk 2L", comparableCategories), {
   category: "Dairy & eggs",
   productType: "DAIRY",
