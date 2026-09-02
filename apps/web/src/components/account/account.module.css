@@ -328,7 +328,7 @@
   object-fit: contain !important;
   /* The Drakes asset has a small trolley at its visual origin and a long
      wordmark to the right. Centre the combined lock-up, not the trolley. */
-  transform: translateX(-10px);
+  transform: translateX(-25px);
 }
 
 
