@@ -1,6 +1,6 @@
 import unittest
 
-from drakes_catalogue import discover_department_categories, parse_drakes_listing, valid_store_id
+from drakes_catalogue import discover_department_categories, parse_drakes_listing, sidebar_data_url, valid_store_id
 
 
 class DrakesCatalogueTests(unittest.TestCase):
@@ -37,6 +37,19 @@ class DrakesCatalogueTests(unittest.TestCase):
         self.assertEqual(discover_department_categories(document), ["/category/fruit-vegetables", "/category/bread-bakery"])
         products, _ = parse_drakes_listing(document, "087", "/category/bread-bakery")
         self.assertEqual(products[0]["category_path"], "/category/bread-bakery")
+
+    def test_discovers_first_level_departments_from_sidebar_json(self):
+        home = '<nav data-data-url="https://cdn.example/sidebar.json?group=1&amp;type=store">'
+        sidebar = '''{"departments":[
+          {"id":"all","name":"All Departments","parent_id":"","slug":"all"},
+          {"id":"fruit","name":"Fruit & Vegetables","parent_id":"all","slug":"fruit-vegetables"},
+          {"id":"bakery","name":"Bread & Bakery","parent_id":"all","slug":"bread-bakery"},
+          {"id":"sub","name":"Fresh Fruit","parent_id":"fruit","slug":"fresh-fruit"}
+        ]}'''
+        self.assertEqual(sidebar_data_url(home), "https://cdn.example/sidebar.json?group=1&type=store")
+        self.assertEqual(discover_department_categories(home, sidebar), [
+            "/category/fruit-vegetables", "/category/bread-bakery",
+        ])
 
     def test_rejects_arbitrary_store_hosts(self):
         with self.assertRaises(ValueError):
