@@ -99,3 +99,5 @@
 .heroMark svg,.mobileHeroMark svg{width:18px;height:18px}.summaryIcon svg{width:16px;height:16px}.primaryAction svg,.secondaryAction svg{width:16px;height:16px}
 @media(max-width:760px){.mobileHeroHeading{grid-template-columns:42px minmax(0,1fr);gap:10px}}
 @media(max-width:390px){.mobileHeroHeading{grid-template-columns:38px minmax(0,1fr)}.mobileHeroMark{width:38px;height:38px}}
+/* The catalogue and department views share one clean, transparent product-image treatment. */
+@media(max-width:760px){.thumb{background:transparent}.thumb img{width:min(100%,132px)!important;height:min(100%,132px)!important;max-width:calc(100% - 12px)!important;max-height:calc(100% - 12px)!important;padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;object-fit:contain!important;object-position:center!important}}

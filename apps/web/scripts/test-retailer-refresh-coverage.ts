@@ -137,6 +137,8 @@ assert.match(productImageRouteSource, /"source" <> 'OpenAI generated'/, "specifi
 
 const retailerQueueSource = readFileSync(new URL("enqueue-product-retailer-enrichment.ts", import.meta.url), "utf8");
 assert.match(retailerQueueSource, /process\.argv\.includes\("--all"\)/, "the catalogue can be refreshed globally after an authority policy change");
+assert.match(retailerQueueSource, /priceObservations:\s*\{\s*where: \{ observedAt: \{ gte: cutoff \} \}/, "a stale-price run must measure the age of price observations, not listing visibility");
+assert.match(retailerQueueSource, /product\.priceObservations\.map\(\(observation\) => observation\.retailer\)/, "a stale-price run must queue retailers without a current price observation");
 assert.match(retailerQueueSource, /productImageEnrichment/, "a whole-catalogue refresh must re-evaluate images as well as listings");
 const workerHandlerSource = readFileSync(new URL("../src/lib/jobs/worker-handlers.ts", import.meta.url), "utf8");
 assert.match(workerHandlerSource, /provider\.includes\("coles"\) && provider\.includes\("woolworths"\)/, "combined retailer jobs must not be misreported as Woolworths-only");

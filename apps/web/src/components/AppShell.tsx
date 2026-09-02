@@ -24,7 +24,7 @@ function FoodMark() {
       alt=""
       aria-hidden="true"
       height="64"
-      src="/brand/food-mark.svg?v=20260902-1"
+      src="/brand/food-basket-alpha.png?v=20260902-2"
       width="64"
     />
   );
