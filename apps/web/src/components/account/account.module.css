@@ -305,18 +305,35 @@
   max-height: 30px;
 }
 
+/* Every retailer uses the same place-pin and glyph scale.  Their assets vary,
+   but no retailer is allowed to grow the map marker or replace its geometry. */
+.storeMapMarker [data-retailer-logo] {
+  width: 24px !important;
+  height: 24px !important;
+  justify-content: center !important;
+  overflow: hidden;
+}
+
+.storeMapMarker [data-retailer-logo] img {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
 /* Use compact, recognisable retailer assets inside the location pin. */
 .storeMapMarker [data-retailer-logo="coles"] {
-  width: 38px !important;
-  height: 38px !important;
   border-radius: 50%;
   background: #e30613 !important;
 }
 
 .storeMapMarker [data-retailer-logo="coles"] img {
-  width: 30px !important;
-  height: auto !important;
-  max-width: 30px;
+  width: 76px !important;
+  height: 24px !important;
+  max-width: none !important;
+  max-height: 24px !important;
+  object-fit: fill !important;
+  transform: none;
   filter: brightness(0) invert(1);
 }
 
