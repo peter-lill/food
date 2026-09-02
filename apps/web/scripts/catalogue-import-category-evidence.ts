@@ -56,3 +56,10 @@ export function categoryResolutionForImport(
   const category = productDepartment("Other", productName);
   return { category, productType: productTypeForDepartment(category), source: "name-rules" };
 }
+
+/** Existing data is repaired only from corroborating comparable products. */
+export function canRepairImportedCategory(resolution: ImportedCategoryResolution, currentCategory: SupermarketDepartment) {
+  return resolution.source === "comparable-product"
+    && resolution.category !== "Other"
+    && resolution.category !== currentCategory;
+}
