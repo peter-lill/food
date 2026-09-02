@@ -143,9 +143,9 @@ assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retai
 assert.match(productPageSource, /priceObservationKind\(observation\.source\)/, "recent price history must translate internal ingestion identifiers before rendering");
 assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent price history must never render internal ingestion identifiers");
 assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalogue must build a complete department index instead of relying on its first page of products");
-assert.match(productHubSource, /getProductHubRecordCount/, "the catalogue header must have an unpaged product-record count separate from its family view");
-assert.match(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the catalogue header must display the actual product-record count");
-assert.match(productCatalogueSource, /families in this view/, "the catalogue must distinguish the current collapsed-family result from the product-record count");
+assert.doesNotMatch(productHubSource, /getProductHubRecordCount/, "the compact catalogue should not fetch an unused record-count banner metric");
+assert.doesNotMatch(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the compact catalogue should not render the removed record-count banner");
+assert.match(productCatalogueSource, /<ProductActions \/>/, "catalogue actions must remain available in the compact toolbar");
 assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected department must be browsable beyond the alphabetical default page");
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
 assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
@@ -167,6 +167,8 @@ assert.match(productHubStyles, /\.grid\{align-items:start\}/, "desktop product c
 assert.match(productHubStyles, /\.card\{grid-template-rows:132px auto\}/, "desktop product cards must use a compact image band");
 assert.match(productCatalogueSource, /className=\{styles\.priceSummary\}/, "product cards must present one prominent best-price summary");
 assert.match(productCatalogueSource, /className=\{styles\.cardFooter\}/, "product cards must retain retailer and checked details in a compact footer");
+assert.match(productCatalogueSource, /className=\{styles\.specialImageSlot\}/, "special indicators must occupy the image band without shifting product details");
+assert.match(productHubStyles, /\.specialImageSlot\{position:absolute/, "special indicators must use a fixed image-band position");
 assert.match(productHubStyles, /\.priceSummary strong\{[^}]*font-size:1\.38rem/, "product card prices must remain visually prominent in the dense catalogue layout");
 assert.match(productHubStyles, /\.summaryIcon\{[^}]*width:32px[^}]*height:32px/, "product summary icons must remain visually compact");
 assert.match(productHubStyles, /\.heroMark svg,\.mobileHeroMark svg\{width:18px;height:18px\}/, "product hero controls must not overpower the page heading");
