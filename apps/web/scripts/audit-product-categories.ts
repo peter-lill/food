@@ -13,7 +13,7 @@ const importedRetailers = new Set(["ALDI", "Drakes"]);
 type FindingCode = "INVALID_CATEGORY" | "PRODUCT_TYPE_MISMATCH" | "UNCLASSIFIED" | "UNVERIFIED_IMPORTED_CATEGORY";
 type Finding = { code: FindingCode; id: string; name: string; detail: string };
 
-function expectedProductTypes(category: SupermarketDepartment) {
+function expectedProductTypes(category: SupermarketDepartment): Set<ProductType> {
   switch (category) {
     case "Fruit & vegetables": return new Set([ProductType.GENERIC_PRODUCE]);
     case "Bakery": return new Set([ProductType.BAKERY]);
