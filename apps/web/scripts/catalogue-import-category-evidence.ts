@@ -36,6 +36,9 @@ function productTypeForDepartment(category: SupermarketDepartment): ProductType 
 export function comparableProductCategoryKey(productName: string) {
   const identity = identifyGrocery(productName);
   const isProductFamily = identity?.evidence.includes("generic family inferred from product identity");
+  // The identity engine groups flatbread and dippers for product-family display,
+  // but plain flatbread is bakery and must not inherit a chilled-dip category.
+  if (identity?.family === "Flatbread Dippers" && !/\bdippers?\b/i.test(productName)) return null;
   return isProductFamily && identity?.family ? normaliseProductText(identity.family) : null;
 }
 
