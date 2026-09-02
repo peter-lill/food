@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
-import { categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
 
 const apply = process.argv.includes("--apply");
 const importedRetailers = ["ALDI", "Drakes"];
@@ -54,11 +54,21 @@ async function main() {
   }
 
   const updates: Update[] = [];
+  let skippedNameOnly = 0;
   for (const product of importedProducts) {
     const name = product.canonicalName ?? product.name;
     const from = productDepartment(product.category, "");
     const resolved = categoryResolutionForImport(name, comparableCategories);
-    if (resolved.category === "Other" || resolved.category === from) continue;
+    // Historical product titles often contain ingredients, flavours, and use
+    // cases. Unlike a new import, a name-only conclusion is not enough to
+    // rewrite an established category ("dog food with beef", "lemon cleaner",
+    // and "apple jelly" are representative false positives). Only unanimous
+    // comparable-product evidence is permitted to change stored data.
+    if (resolved.source !== "comparable-product") {
+      skippedNameOnly += 1;
+      continue;
+    }
+    if (!canRepairImportedCategory(resolved, from)) continue;
     updates.push({ id: product.id, name, from, to: resolved.category, productType: resolved.productType, source: resolved.source });
   }
 
@@ -67,6 +77,7 @@ async function main() {
   );
   console.log(`${apply ? "Updating" : "Would update"} ${updates.length} ALDI/Drakes-only product categor${updates.length === 1 ? "y" : "ies"}.`);
   console.log(`Category evidence: ${JSON.stringify(sourceCounts)}.`);
+  console.log(`Skipped ${skippedNameOnly} name-only candidates; they require stronger category evidence.`);
   for (const update of updates.slice(0, 100)) {
     console.log(`${update.from} -> ${update.to} [${update.source}] ${update.name}`);
   }

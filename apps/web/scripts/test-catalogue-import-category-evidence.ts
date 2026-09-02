@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { SupermarketDepartment } from "../src/lib/products/product-category";
-import { categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey } from "./catalogue-import-category-evidence";
 
 const comparableCategories: Map<string, Set<SupermarketDepartment>> = new Map([
   ["milk", new Set<SupermarketDepartment>(["Dairy & eggs"])],
@@ -34,5 +34,8 @@ assert.deepEqual(categoryResolutionForImport("Cotton Tea Towels", new Map()), {
   productType: "HOUSEHOLD",
   source: "name-rules",
 });
+
+assert.equal(canRepairImportedCategory(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), "Dairy & eggs"), false);
+assert.equal(canRepairImportedCategory(categoryResolutionForImport("Full Cream Milk 2L", comparableCategories), "Other"), true);
 
 console.log("catalogue import category evidence tests passed");
