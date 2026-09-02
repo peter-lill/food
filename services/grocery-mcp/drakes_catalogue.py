@@ -43,7 +43,7 @@ def valid_store_id(value: str) -> str:
     return store
 
 
-def parse_drakes_listing(document: str, store_id: str) -> tuple[list[dict], int]:
+def parse_drakes_listing(document: str, store_id: str, category_path: str = "/search?sort_by=name") -> tuple[list[dict], int]:
     products: list[dict] = []
     pattern = re.compile(
         r'<a href="(?P<href>/lines/[^"]+)">(?P<image>.*?)</a>.*?'
@@ -73,10 +73,37 @@ def parse_drakes_listing(document: str, store_id: str) -> tuple[list[dict], int]
             "was_price": None,
             "image_url": html.unescape(image[-1]) if image else None,
             "product_url": f"https://{store_id}.drakes.com.au{html.unescape(match.group('href'))}",
-            "category_path": "/search?sort_by=name",
+            "category_path": category_path,
         })
     pages = [int(value) for value in re.findall(r'[?&]page=(\d+)', document)]
     return products, max(pages, default=1)
+
+
+_DRAKES_DEPARTMENT_NAMES = {
+    "fruit vegetables", "bread bakery", "meat", "deli seafood",
+    "ready to eat meals", "dairy", "freezer", "pantry", "drinks", "beer",
+    "confectionery snacks", "baby", "health beauty", "household cleaning needs",
+    "petcare", "general merchandise",
+}
+
+
+def discover_department_categories(document: str) -> list[str]:
+    """Return the store's first-level, public department category paths.
+
+    The home page also links to individual products and promotional shelves.
+    Only retain links whose visible label is one of the department menu labels;
+    this avoids assigning a product to a feature collection or search page.
+    """
+    paths: list[str] = []
+    for match in re.finditer(r'<a\s+[^>]*href="(?P<href>/category/[^"?#]+)[^"]*"[^>]*>(?P<label>.*?)</a>', document, re.I | re.S):
+        label = clean(match.group("label"))
+        if not label:
+            continue
+        normalised = re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip()
+        path = html.unescape(match.group("href"))
+        if normalised in _DRAKES_DEPARTMENT_NAMES and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def cache_connection() -> sqlite3.Connection:
@@ -140,18 +167,42 @@ class DrakesCatalogueSession:
         with urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8", errors="replace")
 
-    def refresh(self, store_id: str, max_pages: int | None = None) -> dict:
+    def refresh(self, store_id: str, max_pages: int | None = None, category_path: str | None = None) -> dict:
         store = valid_store_id(store_id)
+        if category_path and not re.fullmatch(r"/category/[a-z0-9-]+", category_path):
+            raise ValueError("category must be a public Drakes /category/<slug> path")
         maximum = max_pages or DRAKES_PAGE_LIMIT
         all_products: list[dict] = []
         page = 1
         total_pages = 1
         while page <= total_pages and page <= maximum:
+            base_path = category_path or "/search"
             suffix = "?sort_by=name" if page == 1 else f"?page={page}&sort_by=name"
-            products, total_pages = parse_drakes_listing(self.read(f"https://{store}.drakes.com.au/search{suffix}"), store)
+            products, total_pages = parse_drakes_listing(
+                self.read(f"https://{store}.drakes.com.au{base_path}{suffix}"), store,
+                category_path or "/search?sort_by=name",
+            )
             all_products.extend(products)
             page += 1
-        return {"storeId": store, "products": cache_products(all_products), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
+        return {"storeId": store, "category": category_path, "products": cache_products(all_products), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
+
+    def department_categories(self, store_id: str) -> list[str]:
+        store = valid_store_id(store_id)
+        return discover_department_categories(self.read(f"https://{store}.drakes.com.au/"))
+
+    def refresh_departments(self, store_id: str, max_pages: int | None = None) -> dict:
+        store = valid_store_id(store_id)
+        categories = self.department_categories(store)
+        if not categories:
+            raise RuntimeError("Drakes home page did not expose department category links")
+        outcomes = [self.refresh(store, max_pages, category) for category in categories]
+        return {
+            "storeId": store,
+            "categories": categories,
+            "products": sum(outcome["products"] for outcome in outcomes),
+            "pages": sum(outcome["pages"] for outcome in outcomes),
+            "truncatedCategories": [outcome["category"] for outcome in outcomes if outcome["truncated"]],
+        }
 
 
 def status(store_id: str | None = None) -> dict:

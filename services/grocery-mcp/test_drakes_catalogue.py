@@ -1,6 +1,6 @@
 import unittest
 
-from drakes_catalogue import parse_drakes_listing, valid_store_id
+from drakes_catalogue import discover_department_categories, parse_drakes_listing, valid_store_id
 
 
 class DrakesCatalogueTests(unittest.TestCase):
@@ -23,6 +23,20 @@ class DrakesCatalogueTests(unittest.TestCase):
             "product_url": "https://087.drakes.com.au/lines/norco-full-cream-fresh-milk-2l",
             "category_path": "/search?sort_by=name",
         }])
+
+    def test_preserves_department_path_and_discovers_only_departments(self):
+        document = '''
+        <a href="/category/fruit-vegetables"><span>Fruit &amp; Vegetables</span></a>
+        <a href="/category/bread-bakery">Bread &amp; Bakery</a>
+        <a href="/category/fresh-vegetables">Fresh Vegetables</a>
+        <a href="/lines/carrot">Carrot</a>
+        <a href="/lines/norco-full-cream-fresh-milk-2l"><img src="https://cdn.example/milk.jpg"></a>
+        <span class="talker__product-name">Norco Full Cream Fresh Milk</span>
+        <strong class="price__sell">$5.05</strong>
+        '''
+        self.assertEqual(discover_department_categories(document), ["/category/fruit-vegetables", "/category/bread-bakery"])
+        products, _ = parse_drakes_listing(document, "087", "/category/bread-bakery")
+        self.assertEqual(products[0]["category_path"], "/category/bread-bakery")
 
     def test_rejects_arbitrary_store_hosts(self):
         with self.assertRaises(ValueError):

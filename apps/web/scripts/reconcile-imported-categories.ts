@@ -61,11 +61,11 @@ async function main() {
     const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
     const resolved = categoryResolutionForImport(name, comparableCategories, retailerPath);
     // Historical product titles often contain ingredients, flavours, and use
-    // cases. Unlike a new import, a name-only conclusion is not enough to
-    // rewrite an established category ("dog food with beef", "lemon cleaner",
-    // and "apple jelly" are representative false positives). Only unanimous
-    // comparable-product evidence is permitted to change stored data.
-    if (resolved.source !== "comparable-product") {
+    // cases. A name-only conclusion is never enough to rewrite an established
+    // category ("dog food with beef", "lemon cleaner", and "apple jelly" are
+    // representative false positives). A first-level retailer department is
+    // authoritative, as is a unanimous comparable-product family.
+    if (resolved.source === "unclassified") {
       skippedNameOnly += 1;
       continue;
     }
