@@ -21,6 +21,27 @@
 
 /* Product library visual system: descriptive icons, compact hero, clear action hierarchy. */
 .desktopHero{min-height:176px;padding:24px 26px}
+
+/* Keep the catalogue entry point information-dense on desktop: the primary
+   task is browsing departments, not reading a tall dashboard header. */
+@media (min-width:761px){
+  .page{gap:16px}
+  .desktopHero{min-height:0;grid-template-columns:minmax(0,1fr)190px;gap:18px;padding:18px 22px;border-radius:24px}
+  .heroMark{width:42px;height:42px;border-radius:13px;font-size:1.1rem}
+  .heroCopy h1{font-size:2rem;line-height:1.05}
+  .heroActions{gap:8px;margin-top:12px}
+  .primaryAction,.secondaryAction{min-height:38px;padding:0 13px;border-radius:12px;font-size:.84rem}
+  .heroMetric{padding:16px 18px;border-radius:18px}
+  .heroMetric strong{margin-top:4px;font-size:2.25rem}
+  .heroMetric small{margin-top:3px;font-size:.76rem}
+  .heroProgress{margin-top:12px}
+  .summaryCard{gap:10px;padding:11px 13px;border-radius:15px}
+  .summaryIcon{width:34px;height:34px;border-radius:11px;font-size:.85rem}
+  .summaryCard strong{font-size:1.05rem}
+  .summaryCard small{margin-top:1px;font-size:.75rem}
+  .cataloguePanel{padding:18px 20px;border-radius:22px}
+  .filters{margin:13px 0}
+}
 .heroMark,.mobileHeroMark{font-size:0}
 .heroMark svg,.mobileHeroMark svg,.summaryIcon svg{width:21px;height:21px}
 .primaryAction svg,.secondaryAction svg{width:18px;height:18px}
