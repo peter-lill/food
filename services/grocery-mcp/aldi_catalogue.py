@@ -25,6 +25,12 @@ ALDI_CATALOGUE_DB = os.getenv("ALDI_CATALOGUE_DB", "/data/aldi-catalogue.sqlite3
 ALDI_PRODUCTS_URL = "https://www.aldi.com.au/products"
 ALDI_PAGE_LIMIT = 250
 
+_ALDI_DEPARTMENT_NAMES = {
+    "fruits vegetables", "meat seafood", "deli chilled meats", "dairy eggs fridge",
+    "pantry", "bakery", "freezer", "drinks", "health beauty", "baby",
+    "cleaning household", "pets", "liquor", "snacks confectionery",
+}
+
 
 def clean(value: str | None) -> str | None:
     if not value:
@@ -77,6 +83,20 @@ def parse_aldi_listing(document: str, category_path: str) -> tuple[list[dict], i
         })
     pages = [int(value) for value in re.findall(r'[?&]page=(\d+)', document)]
     return products, max(pages, default=1)
+
+
+def discover_department_categories(document: str) -> list[str]:
+    """Extract first-level department links from ALDI's public category menu."""
+    paths: list[str] = []
+    for match in re.finditer(r'<a\s+[^>]*href="(?P<href>/products/[^"?#]+/k/\d+)[^"]*"[^>]*>(?P<label>.*?)</a>', document, re.I | re.S):
+        label = clean(match.group("label"))
+        if not label:
+            continue
+        normalised = re.sub(r"[^a-z0-9]+", " ", label.casefold()).strip()
+        path = html.unescape(match.group("href"))
+        if normalised in _ALDI_DEPARTMENT_NAMES and path not in paths:
+            paths.append(path)
+    return paths
 
 
 def cache_connection() -> sqlite3.Connection:
@@ -152,6 +172,21 @@ class AldiCatalogueSession:
             all_products.extend(products)
             page += 1
         return {"category": category_path, "products": cache_products(all_products), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
+
+    def department_categories(self) -> list[str]:
+        return discover_department_categories(self.read(ALDI_PRODUCTS_URL))
+
+    def refresh_departments(self, max_pages: int | None = None) -> dict:
+        categories = self.department_categories()
+        if not categories:
+            raise RuntimeError("ALDI products page did not expose department category links")
+        outcomes = [self.refresh(category, max_pages) for category in categories]
+        return {
+            "categories": categories,
+            "products": sum(outcome["products"] for outcome in outcomes),
+            "pages": sum(outcome["pages"] for outcome in outcomes),
+            "truncatedCategories": [outcome["category"] for outcome in outcomes if outcome["truncated"]],
+        }
 
 
 def status() -> dict:

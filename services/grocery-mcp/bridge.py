@@ -1741,6 +1741,23 @@ class Handler(BaseHTTPRequestHandler):
             store_id = (params.get("storeId") or [None])[0]
             self.send_json(200, {"status": "success", **drakes_catalogue_status(store_id)})
             return
+        if parsed.path == "/aldi/catalogue/categories":
+            try:
+                categories = AldiCatalogueSession().department_categories()
+            except (RuntimeError, OSError) as error:
+                self.send_json(502, {"status": "error", "error": f"ALDI category discovery failed: {error}"})
+                return
+            self.send_json(200, {"status": "success", "categories": categories})
+            return
+        if parsed.path == "/drakes/catalogue/categories":
+            store_id = (params.get("storeId") or [""])[0].strip()
+            try:
+                categories = DrakesCatalogueSession().department_categories(store_id)
+            except Exception as error:  # noqa: BLE001
+                self.send_json(502, {"status": "error", "error": f"Drakes category discovery failed: {error}"})
+                return
+            self.send_json(200, {"status": "success", "storeId": store_id, "categories": categories})
+            return
         if parsed.path == "/stores":
             retailer = (params.get("retailer") or [""])[0].strip().lower()
             postcode = (params.get("postcode") or [""])[0].strip()
@@ -1807,7 +1824,8 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_json(400, {"status": "error", "error": "maxPages must be zero or a positive whole number"})
                     return
                 try:
-                    outcome = AldiCatalogueSession().refresh(category, requested_pages or None)
+                    all_departments = (params.get("allDepartments") or ["0"])[0].strip().lower() in ("1", "true", "yes")
+                    outcome = AldiCatalogueSession().refresh_departments(requested_pages or None) if all_departments else AldiCatalogueSession().refresh(category, requested_pages or None)
                 except (ValueError, RuntimeError, OSError) as error:
                     self.send_json(502, {"status": "error", "error": f"ALDI catalogue refresh failed: {error}"})
                     return
@@ -1860,7 +1878,9 @@ class Handler(BaseHTTPRequestHandler):
                 store_id = (params.get("storeId") or [""])[0].strip()
                 try:
                     maximum = max(1, min(500, int((params.get("maxPages") or ["500"])[0])))
-                    outcome = DrakesCatalogueSession().refresh(store_id, maximum)
+                    category = (params.get("category") or [""])[0].strip() or None
+                    all_departments = (params.get("allDepartments") or ["0"])[0].strip().lower() in ("1", "true", "yes")
+                    outcome = DrakesCatalogueSession().refresh_departments(store_id, maximum) if all_departments else DrakesCatalogueSession().refresh(store_id, maximum, category)
                 except Exception as error:  # noqa: BLE001
                     self.send_json(502, {"status": "error", "error": f"Drakes catalogue refresh failed: {error}"})
                     return
