@@ -312,8 +312,8 @@
   max-height: none;
   /* Department artwork is intentionally square. Containing it avoids cutting
    * the hero subject off at the bottom of a shallow, wide card. */
-  object-fit: contain;
-  object-position: center;
+  object-fit: contain !important;
+  object-position: center !important;
   filter: none;
 }
 

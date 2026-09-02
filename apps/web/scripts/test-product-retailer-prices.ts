@@ -155,6 +155,7 @@ assert.match(productCatalogueSource, /All \{department\}/, "a department page mu
 assert.match(productCatalogueSource, /shelfGroups\.map/, "department pages must offer their shelf groups as optional filters");
 assert.match(productCatalogueSource, /className=\{styles\.shelfFilterImage\}/, "shelf filters must include a visual category tile");
 assert.match(productHubStyles, /\.shelfFilters\{position:static;display:flex;gap:12px/, "department shelf filters must render as a horizontal retail-style row above products");
+assert.match(departmentArtworkStyles, /\.departmentArtwork img\s*\{[^}]*object-fit:\s*contain\s*!important/, "department artwork must show the complete square source rather than cropping it to the wide card");
 assert.match(productCatalogueSource, /showProductCardsDirectly \? <div className=\{`\$\{departmentStyles\.fullWidth\} \$\{styles\.grid\}`\}/, "direct catalogue contexts render the product grid immediately at full catalogue width");
 assert.match(departmentArtworkStyles, /\.fullWidth\s*\{\s*grid-column:\s*1\s*\/\s*-1;/, "direct product grids must span every department column instead of being compressed into one");
 assert.match(productHubStyles, /\.cardBody h2\{[^}]*height:2\.5em[^}]*-webkit-line-clamp:2/, "desktop card titles must use a fixed two-line band");
