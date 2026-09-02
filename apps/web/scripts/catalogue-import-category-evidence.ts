@@ -35,7 +35,8 @@ function productTypeForDepartment(category: SupermarketDepartment): ProductType 
  */
 export function comparableProductCategoryKey(productName: string) {
   const identity = identifyGrocery(productName);
-  return identity?.family ? normaliseProductText(identity.family) : null;
+  const isProductFamily = identity?.evidence.includes("generic family inferred from product identity");
+  return isProductFamily && identity?.family ? normaliseProductText(identity.family) : null;
 }
 
 export function categoryResolutionForImport(
