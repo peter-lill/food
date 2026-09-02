@@ -8,6 +8,7 @@ scoped to the store hostname that supplied its price.
 from __future__ import annotations
 
 import html
+import json
 import os
 import re
 import sqlite3
@@ -87,13 +88,44 @@ _DRAKES_DEPARTMENT_NAMES = {
 }
 
 
-def discover_department_categories(document: str) -> list[str]:
+def sidebar_data_url(document: str) -> str | None:
+    match = re.search(r'data-data-url="([^"]+)"', document, re.I)
+    return html.unescape(match.group(1)) if match else None
+
+
+def discover_department_categories(document: str, sidebar_document: str | None = None) -> list[str]:
     """Return the store's first-level, public department category paths.
 
     The home page also links to individual products and promotional shelves.
     Only retain links whose visible label is one of the department menu labels;
     this avoids assigning a product to a feature collection or search page.
     """
+    if sidebar_document:
+        try:
+            payload = json.loads(sidebar_document)
+            departments = payload.get("departments") if isinstance(payload, dict) else None
+            if isinstance(departments, list):
+                roots = {
+                    item.get("id")
+                    for item in departments
+                    if isinstance(item, dict) and str(item.get("name", "")).casefold() == "all departments"
+                }
+                paths = []
+                for item in departments:
+                    if not isinstance(item, dict) or item.get("parent_id") not in roots:
+                        continue
+                    name = item.get("name")
+                    slug = item.get("slug")
+                    normalised = re.sub(r"[^a-z0-9]+", " ", str(name).casefold()).strip()
+                    if normalised in _DRAKES_DEPARTMENT_NAMES and isinstance(slug, str) and re.fullmatch(r"[a-z0-9-]+", slug):
+                        path = f"/category/{slug}"
+                        if path not in paths:
+                            paths.append(path)
+                if paths:
+                    return paths
+        except (TypeError, ValueError, json.JSONDecodeError):
+            pass
+
     paths: list[str] = []
     for match in re.finditer(r'<a\s+[^>]*href="(?P<href>/category/[^"?#]+)[^"]*"[^>]*>(?P<label>.*?)</a>', document, re.I | re.S):
         label = clean(match.group("label"))
@@ -188,7 +220,10 @@ class DrakesCatalogueSession:
 
     def department_categories(self, store_id: str) -> list[str]:
         store = valid_store_id(store_id)
-        return discover_department_categories(self.read(f"https://{store}.drakes.com.au/"))
+        home = self.read(f"https://{store}.drakes.com.au/")
+        sidebar_url = sidebar_data_url(home)
+        sidebar = self.read(sidebar_url) if sidebar_url else None
+        return discover_department_categories(home, sidebar)
 
     def refresh_departments(self, store_id: str, max_pages: int | None = None) -> dict:
         store = valid_store_id(store_id)
