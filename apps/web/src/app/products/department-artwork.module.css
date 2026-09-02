@@ -284,9 +284,9 @@
 }
 
 .departmentSummary {
-  grid-template-rows: 132px minmax(2.35em, auto) auto;
+  grid-template-rows: 168px minmax(2.35em, auto) auto;
   gap: 7px;
-  min-height: 198px;
+  min-height: 234px;
   padding: 11px;
 }
 
@@ -299,7 +299,7 @@
 }
 
 .departmentArtwork {
-  height: 132px;
+  height: 168px;
   border: 1px solid rgba(40, 70, 52, .06);
   border-radius: 12px;
   background: #f3f5f1;
@@ -310,7 +310,10 @@
   height: 100%;
   max-width: none;
   max-height: none;
-  object-fit: cover;
+  /* Department artwork is intentionally square. Containing it avoids cutting
+   * the hero subject off at the bottom of a shallow, wide card. */
+  object-fit: contain;
+  object-position: center;
   filter: none;
 }
 
@@ -324,13 +327,13 @@
 
 @media (max-width: 760px) {
   .departmentSummary {
-    grid-template-rows: 104px minmax(2.35em, auto) auto;
-    min-height: 188px;
+    grid-template-rows: 124px minmax(2.35em, auto) auto;
+    min-height: 208px;
     padding: 9px;
   }
 
   .departmentArtwork {
-    height: 104px;
+    height: 124px;
   }
 
   .departmentSummary::after {
