@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { spawn } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -19,35 +19,33 @@ const tsxCli = [
   resolve(process.cwd(), "..", "..", "node_modules", "tsx", "dist", "cli.mjs"),
 ].find(existsSync);
 if (!tsxCli) throw new Error("The local tsx runtime is missing. Run npm ci before synchronising catalogues.");
+const tsxCliPath: string = tsxCli;
 
 function run(script: string, args: string[]) {
-  return new Promise<void>((resolveRun, reject) => {
-    const child = spawn(process.execPath, [tsxCli, script, ...args], {
-      cwd: process.cwd(),
-      env: process.env,
-      stdio: "inherit",
-    });
-    child.once("error", reject);
-    child.once("exit", (code, signal) => {
-      if (code === 0) resolveRun();
-      else reject(new Error(`${script} ${signal ? `was terminated by ${signal}` : `exited with code ${code ?? "unknown"}`}.`));
-    });
+  const result = spawnSync(process.execPath, [tsxCliPath, script, ...args], {
+    cwd: process.cwd(),
+    env: process.env,
+    stdio: "inherit",
   });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(`${script} ${result.signal ? `was terminated by ${result.signal}` : `exited with code ${result.status ?? "unknown"}`}.`);
 }
 
-async function main() {
+function main() {
   console.log(`Synchronising ALDI and Drakes catalogue categories for Drakes store ${drakesStore}.`);
   // Importers update retained listings as well as new ones. This writes the
   // retailer category path before the category reconciler evaluates it.
-  await run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
-  await run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
-  await run("scripts/backfill-imported-catalogue-paths.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
-  await run("scripts/reconcile-imported-categories.ts", ["--apply"]);
-  await run("scripts/reconcile-product-categories.ts", ["--apply"]);
-  await run("scripts/audit-product-categories.ts", ["--strict", "--limit=200"]);
+  run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
+  run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
+  run("scripts/backfill-imported-catalogue-paths.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
+  run("scripts/reconcile-imported-categories.ts", ["--apply"]);
+  run("scripts/reconcile-product-categories.ts", ["--apply"]);
+  run("scripts/audit-product-categories.ts", ["--strict", "--limit=200"]);
 }
 
-void main().catch((error) => {
+try {
+  main();
+} catch (error) {
   console.error(error);
   process.exitCode = 1;
-});
+}
