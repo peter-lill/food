@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { importImageAsset } from "@/lib/images/image-asset.service";
 import { prisma } from "@/lib/prisma";
 import { resolveRetailerProductReference } from "@/lib/prices/coles-woolworths-provider";
 import {
@@ -77,10 +78,17 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
 
     const assessment = await assessProductImage(candidate.imageUrl, { referer: candidate.sourceUrl });
     const retailerBrandAsset = isRetailerBrandImageUrl(candidate.imageUrl);
+    // Coles currently serves some exact product photos in formats whose
+    // dimensions cannot be read by our lightweight scorer.  For a direct,
+    // exact retailer match, a reachable, non-trivial image remains stronger
+    // evidence than that parser limitation.
+    const exactRetailerImage = assessment.reachable
+      && Boolean(assessment.contentType?.startsWith("image/"))
+      && (assessment.contentLength ?? 0) >= 12_000;
     const accepted = !retailerBrandAsset
       && assessment.reachable
       && Boolean(assessment.contentType?.startsWith("image/"))
-      && assessment.score >= 35;
+      && (assessment.score >= 35 || exactRetailerImage);
 
     const candidateId = await recordDiscoveredCandidate(productId, {
       url: candidate.imageUrl,
@@ -102,6 +110,35 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
       rejectionReasons,
       overallScore,
     });
+
+    // Keep a local asset while the successful request still has the retailer
+    // product-page referer. Candidate-gallery previews later cannot rely on a
+    // second anonymous CDN request (the cause of the broken Coles thumbnail).
+    if (accepted) {
+      try {
+        const asset = await importImageAsset({
+          url: candidate.imageUrl,
+          provider: `${candidate.retailer.toLocaleLowerCase("en-AU")}-direct`,
+          referer: candidate.sourceUrl,
+        });
+        await prisma.$executeRaw`
+          UPDATE "ProductImageCandidate"
+          SET "assetId" = ${asset.id}, "updatedAt" = NOW()
+          WHERE "id" = ${candidateId} AND "productId" = ${productId}
+        `;
+      } catch (error) {
+        await recordCandidateAssessment({
+          candidateId,
+          assessment,
+          accepted: false,
+          rejectionReasons: [error instanceof Error ? error.message : "Exact retailer image could not be stored"],
+          overallScore,
+        });
+        await setStatus(productId, "warning", `The exact ${candidate.retailer} product was found, but Food could not store its image.`);
+        revalidateProduct(productId, destination);
+        redirect(`${destination}${candidateAnchor(candidateId)}`);
+      }
+    }
 
     if (!accepted) {
       await setStatus(productId, "warning", `The exact ${candidate.retailer} product was found, but its image did not pass validation. It remains in the Candidate Gallery for review.`);

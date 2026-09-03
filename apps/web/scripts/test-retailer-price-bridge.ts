@@ -148,6 +148,7 @@ const colesCatalogueSource = readFileSync(new URL("../../../services/grocery-mcp
 const composeSource = readFileSync(new URL("../../../docker-compose.yml", import.meta.url), "utf8");
 const providerSource = readFileSync(new URL("../src/lib/prices/providers/mcp-grocery.provider.ts", import.meta.url), "utf8");
 const catalogueSource = readFileSync(new URL("../src/lib/prices/coles-woolworths-provider.ts", import.meta.url), "utf8");
+const directRetailerImageSource = readFileSync(new URL("../src/lib/products/direct-retailer-image.actions.ts", import.meta.url), "utf8");
 const livePriceSearchSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.tsx", import.meta.url), "utf8");
 const livePriceSearchStylesSource = readFileSync(new URL("../src/components/prices/LiveShoppingPriceSearch.module.css", import.meta.url), "utf8");
 const shoppingPriceSearchRouteSource = readFileSync(new URL("../src/app/api/prices/shopping-list/[listId]/search/route.ts", import.meta.url), "utf8");
@@ -159,6 +160,9 @@ assert.match(catalogueSource, /!results\.length && errors\.length[\s\S]*throw ne
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
 assert.match(bridgeSource, /nested_text\(source, \("brand", "brandName", "manufacturer"\)\)/);
 assert.match(bridgeSource, /def nested_image_url[\s\S]*"imageUris"/, "Coles imageUris must be preserved so exact product references can use the retailer product image");
+assert.match(directRetailerImageSource, /const exactRetailerImage = assessment\.reachable/, "an exact Coles image must not be rejected only because its format has no lightweight dimension parser");
+assert.match(directRetailerImageSource, /importImageAsset\([\s\S]*referer: candidate\.sourceUrl/, "an accepted direct retailer image must be stored with its retailer-page referer before gallery rendering");
+assert.match(directRetailerImageSource, /SET "assetId" = \$\{asset\.id\}/, "the stored direct retailer image must be attached to its candidate for reliable previews");
 assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths XML namespaces remain supported");
 assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
