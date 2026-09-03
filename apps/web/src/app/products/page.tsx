@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount, type ProductHubListItem } from "@/lib/products/product-hub.repository";
+import { getProductDepartmentCounts, getProductHubList, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { requireAuthSession } from "@/lib/auth-session";
@@ -221,12 +221,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const { department: rawDepartment, q = "", shelf: rawShelf, view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
-  const [allProducts, departmentCounts, catalogueTotal, retailerPreferences] = await Promise.all([
+  const [allProducts, departmentCounts, retailerPreferences] = await Promise.all([
     getProductHubList(q, department ?? undefined),
     getProductDepartmentCounts(),
-    getProductHubRecordCount(),
     prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
   ]);
+  const catalogueTotal = departmentCounts.reduce((total, departmentCount) => total + departmentCount.productCount, 0);
 
   const shelfGroups = department ? [...allProducts.reduce((groups, product) => {
     const label = shelfGroupForDepartment(product.shelfLabel, department);
