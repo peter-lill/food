@@ -136,7 +136,7 @@ def nested_text(item: object, keys: tuple[str, ...]) -> str | None:
 
 def nested_image_url(item: object) -> str | None:
     """Return the best image URL from retailer fields that may be nested objects."""
-    value = nested_value(item, ("imageUris", "imageUrl", "imageURL", "thumbnailUrl", "image"))
+    value = nested_value(item, ("imageUris", "imageUrls", "imageUrl", "imageURL", "thumbnailUrl", "images", "image"))
 
     def find_image(candidate: object) -> str | None:
         if isinstance(candidate, str):
@@ -1842,6 +1842,25 @@ class Handler(BaseHTTPRequestHandler):
                     "status": "success", "products": products, "limit": limit,
                     "offset": offset, "nextOffset": offset + len(products) if len(products) == limit else None,
                 })
+                return
+            if parsed.path == "/coles/catalogue/product":
+                product_url = (params.get("url") or [""])[0].strip()
+                external_id = (params.get("id") or [""])[0].strip()
+                if not product_url or not external_id:
+                    self.send_json(400, {"status": "error", "error": "url and id are required"})
+                    return
+                try:
+                    source = ColesBrowserSession().product(product_url, external_id)
+                    products = normalise_products("Coles", coles_products({"response_data": {"results": [source]}}), 1)
+                except (ValueError, RuntimeError) as error:
+                    self.send_json(502, {"status": "error", "error": f"Coles product lookup failed: {error}"})
+                    return
+                if not products:
+                    self.send_json(502, {"status": "error", "error": "Coles product lookup returned no usable exact product"})
+                    return
+                product = products[0]
+                product["productUrl"] = product_url
+                self.send_json(200, {"status": "success", "product": product})
                 return
             if parsed.path == "/aldi/catalogue/refresh":
                 category = (params.get("category") or ["/products"])[0].strip() or "/products"

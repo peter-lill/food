@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sqlite3
 import threading
 import time
@@ -17,7 +18,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
@@ -83,6 +84,55 @@ def parse_coles_browse_document(raw: str) -> dict[str, Any]:
     if not isinstance(result, dict) or not isinstance(result.get("results"), list):
         raise RuntimeError("Coles browse page returned an invalid catalogue result")
     return result
+
+
+def product_identifier(item: dict[str, Any]) -> str | None:
+    """Return Coles' product ID without treating an unrelated nested ID as one."""
+    for key in ("id", "productId", "productCode", "stockCode", "sku"):
+        found = identifier(item.get(key))
+        if found:
+            return found
+    return None
+
+
+def parse_coles_product_document(raw: str, external_id: str) -> dict[str, Any]:
+    """Find the exact requested product in a verified Coles product document.
+
+    Product-page Next data is not as stable as browse-page data.  We only
+    accept an object that declares the requested retailer ID and has a product
+    name.  This deliberately rejects look-alike search data and site chrome.
+    """
+    try:
+        document = json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("Coles product page did not expose valid catalogue data") from error
+
+    pending: list[object] = [document]
+    visited: set[int] = set()
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            marker = id(value)
+            if marker in visited:
+                continue
+            visited.add(marker)
+            matches_id = product_identifier(value) == external_id
+            name = text(value.get("name")) or text(value.get("displayName")) or text(value.get("productName"))
+            if matches_id and name:
+                return value
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+    raise RuntimeError("Coles product page did not expose the requested product")
+
+
+def valid_coles_product_url(value: str, external_id: str) -> bool:
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "www.coles.com.au"
+        and bool(re.fullmatch(rf"/product/[^/]+-{re.escape(external_id)}/?", parsed.path))
+    )
 
 
 def coles_category_api() -> dict[str, Any]:
@@ -437,6 +487,61 @@ class ColesBrowserSession:
             try:
                 context = browser.contexts[0]
                 return collect(lambda url: read_page(context, url))
+            finally:
+                browser.close()
+
+    def product(self, product_url: str, external_id: str, fetch_page: Callable[[str], str] | None = None) -> dict[str, Any]:
+        """Read one exact Coles product page through the verified browser session."""
+        if not valid_coles_product_url(product_url, external_id):
+            raise ValueError("product must be a canonical Coles product URL for the requested ID")
+        if self.browser_engine not in ("chromium-cdp", "firefox"):
+            raise RuntimeError("unsupported Coles browser engine; use chromium-cdp or firefox")
+
+        def read_page(context: Any, url: str) -> str:
+            page = context.new_page()
+            try:
+                page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+                verification_error = coles_browser_verification_error(page.locator("body").inner_text(timeout=5_000))
+                if verification_error:
+                    raise RuntimeError(verification_error)
+                payload = page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
+                if not payload:
+                    raise RuntimeError("Coles product page did not expose its catalogue data")
+                return payload
+            finally:
+                page.close()
+
+        if fetch_page:
+            return parse_coles_product_document(fetch_page(product_url), external_id)
+
+        if self.browser_engine == "firefox":
+            if not self.firefox_fetch_url:
+                raise RuntimeError("Firefox browser session is not configured; set COLES_FIREFOX_FETCH_URL")
+            request_url = f"{self.firefox_fetch_url}?{urlencode({'url': product_url})}"
+            try:
+                with urlopen(request_url, timeout=90) as response:
+                    payload = json.loads(response.read())
+            except HTTPError as error:
+                try:
+                    detail = json.loads(error.read())
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    detail = {}
+                message = detail.get("error") if isinstance(detail, dict) else None
+                raise RuntimeError(message or f"Firefox browser session returned HTTP {error.code}") from error
+            except URLError as error:
+                raise RuntimeError(f"Firefox browser session is unavailable: {error.reason}") from error
+            except (json.JSONDecodeError, UnicodeDecodeError) as error:
+                raise RuntimeError("Firefox browser session returned an invalid response") from error
+            if payload.get("status") != "success" or not isinstance(payload.get("nextData"), str):
+                raise RuntimeError(payload.get("error") or "Firefox browser session did not return product data")
+            return parse_coles_product_document(payload["nextData"], external_id)
+
+        if not self.cdp_url:
+            raise RuntimeError("verified browser session is not configured; set COLES_CDP_URL")
+        with sync_playwright() as playwright:
+            browser = playwright.chromium.connect_over_cdp(self.cdp_url)
+            try:
+                return parse_coles_product_document(read_page(browser.contexts[0], product_url), external_id)
             finally:
                 browser.close()
 

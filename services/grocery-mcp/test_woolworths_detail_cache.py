@@ -193,11 +193,15 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             ["access-denied", "imperva", "incapsula"],
         )
 
-    def test_firefox_bridge_only_accepts_coles_browse_pages(self) -> None:
+    def test_firefox_bridge_only_accepts_safe_coles_catalogue_pages(self) -> None:
         self.assertTrue(self.coles_browser.valid_coles_browse_url(
             "https://www.coles.com.au/browse/meat-seafood?sortBy=recommendedDescending"
         ))
-        self.assertFalse(self.coles_browser.valid_coles_browse_url("https://www.coles.com.au/product/example"))
+        self.assertTrue(self.coles_browser.valid_coles_product_url(
+            "https://www.coles.com.au/product/coles-simply-table-spread-1kg-5428639"
+        ))
+        self.assertFalse(self.coles_browser.valid_coles_product_url("https://www.coles.com.au/product/example"))
+        self.assertFalse(self.coles_browser.valid_coles_product_url("https://example.test/product/coles-simply-table-spread-1kg-5428639"))
         self.assertFalse(self.coles_browser.valid_coles_browse_url("https://example.test/browse/meat-seafood"))
         self.assertEqual(
             self.coles_browser.coles_verification_error(
@@ -214,6 +218,36 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertIn("title='Coles | Meat & Seafood'", message)
         self.assertIn("body='Meat & Seafood Fresh products", message)
         self.assertLess(len(message), 850)
+
+    def test_coles_product_document_requires_the_exact_retailer_id(self) -> None:
+        raw = json.dumps({"props": {"pageProps": {
+            "navigation": {"id": "not-a-product"},
+            "product": {
+                "id": "5428639",
+                "name": "Coles Simply Table Spread",
+                "brand": "Coles Simply",
+                "size": "1 kg",
+                "pricing": {"now": 3.5},
+                "imageUris": {"large": "https://images.example/coles-simply.jpg"},
+            },
+        }}})
+        product = self.coles_catalogue.parse_coles_product_document(raw, "5428639")
+        self.assertEqual(product["name"], "Coles Simply Table Spread")
+        with self.assertRaisesRegex(RuntimeError, "requested product"):
+            self.coles_catalogue.parse_coles_product_document(raw, "9999999")
+
+    def test_firefox_catalogue_engine_reads_exact_product_page(self) -> None:
+        raw = json.dumps({"props": {"pageProps": {"product": {
+            "id": "5428639", "name": "Coles Simply Table Spread", "pricing": {"now": 3.5},
+        }}}})
+        product = self.coles_catalogue.ColesBrowserSession(
+            browser_engine="firefox", firefox_fetch_url="http://firefox.test/fetch"
+        ).product(
+            "https://www.coles.com.au/product/coles-simply-table-spread-1kg-5428639",
+            "5428639",
+            fetch_page=lambda url: raw,
+        )
+        self.assertEqual(product["id"], "5428639")
 
     def test_firefox_catalogue_engine_requires_a_configured_browser_session(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "COLES_FIREFOX_FETCH_URL"):
