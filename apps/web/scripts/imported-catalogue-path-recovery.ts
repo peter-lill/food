@@ -22,6 +22,23 @@ export function drakesProductExternalId(externalId: string | null) {
   return match?.[1] ?? null;
 }
 
+/**
+ * Retailer IDs and presentation titles can change between catalogue runs, but
+ * an exact product URL remains a stable retailer-owned identity. Ignore only
+ * fragments and a redundant trailing slash; query strings remain part of the
+ * identity when a retailer needs them to identify a product.
+ */
+export function canonicalRetailerProductUrl(value: string | null) {
+  if (!value) return null;
+  try {
+    const url = new URL(value);
+    const pathname = url.pathname.replace(/\/+$/, "") || "/";
+    return `${url.origin.toLocaleLowerCase("en-AU")}${pathname}${url.search}`;
+  } catch {
+    return null;
+  }
+}
+
 type NamedCategoryPath = { name: string; categoryPath: string };
 
 /**
@@ -39,6 +56,28 @@ export function unambiguousRetailerNamePaths(products: readonly NamedCategoryPat
       paths.set(name, product.categoryPath);
     } else if (retailerPathDepartment(existing) !== department) {
       paths.set(name, null);
+    }
+  }
+  return paths;
+}
+
+type UrlCategoryPath = { productUrl: string | null; categoryPath: string };
+
+/**
+ * A URL is stronger than a retailer title, but retain the same safeguard: do
+ * not restore a category if one exact URL appears under different departments.
+ */
+export function unambiguousRetailerUrlPaths(products: readonly UrlCategoryPath[]) {
+  const paths = new Map<string, string | null>();
+  for (const product of products) {
+    const url = canonicalRetailerProductUrl(product.productUrl);
+    const department = retailerPathDepartment(product.categoryPath);
+    if (!url || !department) continue;
+    const existing = paths.get(url);
+    if (existing === undefined) {
+      paths.set(url, product.categoryPath);
+    } else if (retailerPathDepartment(existing) !== department) {
+      paths.set(url, null);
     }
   }
   return paths;
