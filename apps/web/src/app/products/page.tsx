@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList, type ProductHubListItem } from "@/lib/products/product-hub.repository";
+import { getProductDepartmentCounts, getProductHubList, getProductHubRecordCount, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { requireAuthSession } from "@/lib/auth-session";
@@ -221,9 +221,10 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   const { department: rawDepartment, q = "", shelf: rawShelf, view: rawView } = await searchParams;
   const view = normaliseView(rawView);
   const department = normaliseDepartment(rawDepartment);
-  const [allProducts, departmentCounts, retailerPreferences] = await Promise.all([
+  const [allProducts, departmentCounts, catalogueTotal, retailerPreferences] = await Promise.all([
     getProductHubList(q, department ?? undefined),
     getProductDepartmentCounts(),
+    getProductHubRecordCount(),
     prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
   ]);
 
@@ -293,7 +294,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.cataloguePanel}>
         <div className={styles.toolbar}>
-          <ProductActions />
+          <div className={styles.catalogueUtilities}>
+            <ProductActions />
+            <span aria-label={`${catalogueTotal.toLocaleString("en-AU")} products in the catalogue`} className={styles.catalogueTotal}>
+              <CatalogueIcon name="library" />
+              <strong>{catalogueTotal.toLocaleString("en-AU")}</strong>
+              <span>catalogue products</span>
+            </span>
+          </div>
           <form className={styles.search}>
             {department ? <input name="department" type="hidden" value={department} /> : null}
             {shelf ? <input name="shelf" type="hidden" value={shelf} /> : null}
