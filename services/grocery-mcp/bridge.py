@@ -134,6 +134,33 @@ def nested_text(item: object, keys: tuple[str, ...]) -> str | None:
     return clean_text(value)
 
 
+def nested_image_url(item: object) -> str | None:
+    """Return the best image URL from retailer fields that may be nested objects."""
+    value = nested_value(item, ("imageUris", "imageUrl", "imageURL", "thumbnailUrl", "image"))
+
+    def find_image(candidate: object) -> str | None:
+        if isinstance(candidate, str):
+            return clean_text(candidate)
+        if isinstance(candidate, list):
+            for entry in candidate:
+                image = find_image(entry)
+                if image:
+                    return image
+            return None
+        if isinstance(candidate, dict):
+            for key in ("large", "medium", "thumbnail", "url", "src"):
+                image = find_image(candidate.get(key))
+                if image:
+                    return image
+            for entry in candidate.values():
+                image = find_image(entry)
+                if image:
+                    return image
+        return None
+
+    return find_image(value)
+
+
 def nested_identifier(item: object, keys: tuple[str, ...]) -> str | None:
     value = nested_value(item, keys)
     if isinstance(value, dict):
@@ -193,7 +220,9 @@ def coles_products(result: dict) -> list[dict]:
             "packSize": pack_size,
             "store": "coles",
             "barcode": nested_identifier(source, ("barcode", "gtin", "ean", "upc")),
-            "imageUrl": nested_text(source, ("imageUrl", "imageURL", "thumbnailUrl")),
+            # Coles returns its canonical listing image in imageUris (usually
+            # an array or size-keyed object), not only in a scalar imageUrl.
+            "imageUrl": nested_image_url(source),
             "productId": nested_identifier(
                 source,
                 ("id", "code", "productId", "productCode", "sku", "stockCode"),
