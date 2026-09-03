@@ -126,9 +126,12 @@ const accountStylesSource = readFileSync(
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?max-height:\s*252px/);
 assert.match(accountStylesSource, /\.storeResultsList\s*{[\s\S]*?overflow-y:\s*auto/);
 assert.match(accountStylesSource, /\.storeMapMarker\s*{[\s\S]*?pointer-events:\s*none/, "the branded location marker does not block map interaction");
-assert.match(accountStylesSource, /\[data-retailer-logo="coles"\][\s\S]*?border-radius:\s*50%/, "Coles maps use a compact circular location badge instead of its wide wordmark");
-assert.match(accountStylesSource, /\[data-retailer-logo="drakes"\]\s*img\s*\{[\s\S]*?object-fit:\s*contain/, "Drakes maps preserve the real Drakes logo inside the location marker");
+assert.match(accountStylesSource, /\.storeMapMarker\s*\{[\s\S]*?width:\s*76px[\s\S]*?height:\s*42px/, "map markers must have enough room for the genuine retailer wordmarks");
+assert.match(accountStylesSource, /\[data-retailer-logo="coles"\]\s*img\s*\{[\s\S]*?width:\s*62px[\s\S]*?object-fit:\s*contain/, "Coles maps preserve the genuine red Coles wordmark without a fabricated circular glyph");
+assert.doesNotMatch(accountStylesSource, /\[data-retailer-logo="coles"\][\s\S]*?filter:\s*brightness/, "Coles maps must not recolour the genuine red wordmark into a substitute icon");
+assert.match(accountStylesSource, /\[data-retailer-logo="drakes"\]\s*img\s*\{[\s\S]*?width:\s*62px[\s\S]*?object-fit:\s*contain/, "Drakes maps preserve the complete Drakes wordmark inside the location marker");
 assert.doesNotMatch(accountStylesSource, /\[data-retailer-logo="drakes"\][\s\S]*?content:\s*"D"/, "Drakes maps must not replace the retailer logo with a fabricated letter badge");
+assert.doesNotMatch(accountStylesSource, /\[data-retailer-logo="drakes"\][\s\S]*?overflow:\s*hidden/, "Drakes map wordmarks must not be cropped to a trolley glyph");
 assert.match(accountStylesSource, /\.retailerHeading\s*>\s*div\s*>\s*strong\s*{[\s\S]*?height:\s*48px/);
 
 const healthConnectStylesSource = readFileSync(
