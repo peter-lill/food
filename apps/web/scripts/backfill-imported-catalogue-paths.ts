@@ -2,6 +2,7 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { retailerPathDepartment } from "../src/lib/products/product-category";
+import { needsAuthoritativeCategoryPathRestore } from "./imported-catalogue-path-recovery";
 
 const apply = process.argv.includes("--apply");
 const pageSize = 500;
@@ -53,11 +54,12 @@ async function cachedProducts(pathname: string, query: Record<string, string> = 
 
 async function main() {
   const listings = await prisma.storeProduct.findMany({
-    where: { retailer: { in: ["ALDI", "Drakes"] }, aisle: null, active: true },
-    select: { id: true, retailer: true, externalId: true },
+    where: { retailer: { in: ["ALDI", "Drakes"] }, active: true },
+    select: { id: true, retailer: true, externalId: true, aisle: true },
   });
+  const staleListings = listings.filter((listing) => needsAuthoritativeCategoryPathRestore(listing.aisle));
   const aldiPaths = new Map((await cachedProducts("/aldi/catalogue/products")).map((product) => [product.externalId, product.categoryPath]));
-  const drakesStores = [...new Set(listings
+  const drakesStores = [...new Set(staleListings
     .filter((listing) => listing.retailer === "Drakes")
     .flatMap((listing) => {
       const storeId = drakesStoreId(listing.externalId);
@@ -70,7 +72,7 @@ async function main() {
     }
   }
 
-  const updates = listings.flatMap((listing) => {
+  const updates = staleListings.flatMap((listing) => {
     const categoryPath = listing.retailer === "ALDI"
       ? (listing.externalId ? aldiPaths.get(listing.externalId) : null)
       : (listing.externalId ? drakesPaths.get(listing.externalId) : null);
@@ -79,7 +81,7 @@ async function main() {
       : [];
   });
 
-  console.log(`${apply ? "Restoring" : "Would restore"} authoritative category paths for ${updates.length} of ${listings.length} ALDI/Drakes listings.`);
+  console.log(`${apply ? "Restoring" : "Would restore"} authoritative category paths for ${updates.length} of ${staleListings.length} ALDI/Drakes listings with missing or unrecognised paths.`);
   console.log(`Resolved departments: ${JSON.stringify(Object.fromEntries(updates.reduce((counts, update) => {
     const department = retailerPathDepartment(update.categoryPath)!;
     counts.set(department, (counts.get(department) ?? 0) + 1);
