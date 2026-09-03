@@ -3,7 +3,9 @@ import { canonicalAldiExternalId, canonicalRetailerProductUrl, currentRetailerCa
 
 assert.equal(needsAuthoritativeCategoryPathRestore(null), true);
 assert.equal(needsAuthoritativeCategoryPathRestore("Legacy shelf 8"), true);
+assert.equal(needsAuthoritativeCategoryPathRestore("Dairy & eggs"), true);
 assert.equal(needsAuthoritativeCategoryPathRestore("/category/dairy"), false);
+assert.equal(needsAuthoritativeCategoryPathRestore("/products/dairy-eggs-fridge/k/960000000"), false);
 assert.equal(needsAuthoritativeCategoryPathRestore("/category/general-merchandise"), false);
 assert.equal(canonicalAldiExternalId("0005428639"), "5428639");
 assert.equal(canonicalAldiExternalId("0"), "0");

@@ -23,6 +23,7 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["fresh produce", "Fruit & vegetables"],
   ["produce", "Fruit & vegetables"],
   ["fruit veg", "Fruit & vegetables"],
+  ["fruits vegetables", "Fruit & vegetables"],
   ["fruit and veg", "Fruit & vegetables"],
   ["fruit and vegetables", "Fruit & vegetables"],
   ["fruit vegetables", "Fruit & vegetables"],
@@ -61,6 +62,7 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["cleaning household", "Household"],
   ["household cleaning needs", "Household"],
   ["petcare", "Pet"],
+  ["ready to eat meals", "Deli"],
   ["beer", "Drinks"],
   ["pets", "Pet"],
   // Both ALDI and Drakes use this as an explicit retailer department. It is

@@ -7,7 +7,12 @@ import { normaliseProductText } from "../src/lib/products/product-normalisation"
  * need the current retailer cache just as much as records with no aisle.
  */
 export function needsAuthoritativeCategoryPathRestore(aisle: string | null) {
-  return retailerPathDepartment(aisle) === null;
+  const path = aisle?.trim() ?? "";
+  // ALDI and Drakes imports must retain the source path, not merely a Food
+  // display department from an earlier import. A value such as "Dairy & eggs"
+  // can be recognised, but it cannot be re-audited against the retailer and
+  // must be replaced by the fresh /products/... or /category/... path.
+  return retailerPathDepartment(path) === null || !/^\/(?:products|category)\//.test(path);
 }
 
 /** ALDI's historical data sometimes retained zero-padded numeric identifiers. */
