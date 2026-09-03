@@ -82,3 +82,52 @@ export function unambiguousRetailerUrlPaths(products: readonly UrlCategoryPath[]
   }
   return paths;
 }
+
+type RetailerCatalogueIdentity = { externalId: string; name: string; productUrl: string | null };
+type StoredRetailerListingIdentity = { retailer: string; externalId: string | null; retailerProductName: string; productUrl: string | null };
+
+export type CurrentRetailerCatalogueIndex = {
+  externalIds: ReadonlySet<string>;
+  productUrls: ReadonlySet<string>;
+  names: ReadonlySet<string>;
+};
+
+/**
+ * Build a deliberately conservative current-catalogue identity index. It is
+ * used when retiring historical imports: any exact retailer identity is
+ * enough to retain a record, while a missing identity is never treated as a
+ * reason to overwrite its category.
+ */
+export function currentRetailerCatalogueIndex(products: readonly RetailerCatalogueIdentity[], retailer: "ALDI" | "Drakes") {
+  const externalIds = new Set<string>();
+  const productUrls = new Set<string>();
+  const names = new Set<string>();
+  for (const product of products) {
+    const externalId = retailer === "ALDI"
+      ? canonicalAldiExternalId(product.externalId)
+      : product.externalId;
+    if (externalId) externalIds.add(externalId);
+    const productUrl = canonicalRetailerProductUrl(product.productUrl);
+    if (productUrl) productUrls.add(productUrl);
+    const name = normaliseProductText(product.name);
+    if (name) names.add(name);
+  }
+  return { externalIds, productUrls, names };
+}
+
+/**
+ * A current ID or exact retailer URL proves the listing is current. Exact
+ * normalised retailer names are intentionally also retained: false positives
+ * merely keep a record for review, whereas a false negative would wrongly
+ * archive a catalogue product.
+ */
+export function listingAppearsInCurrentRetailerCatalogue(listing: StoredRetailerListingIdentity, index: CurrentRetailerCatalogueIndex) {
+  const externalId = listing.retailer === "ALDI"
+    ? canonicalAldiExternalId(listing.externalId)
+    : drakesProductExternalId(listing.externalId);
+  if (externalId && index.externalIds.has(externalId)) return true;
+  const productUrl = canonicalRetailerProductUrl(listing.productUrl);
+  if (productUrl && index.productUrls.has(productUrl)) return true;
+  const name = normaliseProductText(listing.retailerProductName);
+  return Boolean(name && index.names.has(name));
+}
