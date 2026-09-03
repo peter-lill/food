@@ -84,6 +84,27 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertTrue(products[0]["is_special"])
         self.assertEqual(products[0]["category_paths"], ["Meat & Seafood"])
 
+    def test_coles_search_preserves_the_nested_listing_image(self) -> None:
+        payload = {
+            "response_data": {
+                "results": [{
+                    "id": 5428639,
+                    "name": "Simply Spread",
+                    "size": "1kg",
+                    "pricing": {"now": 4.50},
+                    "imageUris": {
+                        "thumbnail": "https://example.test/spread-small.jpg",
+                        "large": "https://example.test/simply-spread-large.jpg",
+                    },
+                }],
+            },
+        }
+
+        products = self.bridge.coles_products(payload)
+
+        self.assertEqual(products[0]["productId"], "5428639")
+        self.assertEqual(products[0]["imageUrl"], "https://example.test/simply-spread-large.jpg")
+
     def test_coles_browser_verification_page_is_reported_before_catalogue_parsing(self) -> None:
         body = """
             Pardon Our Interruption

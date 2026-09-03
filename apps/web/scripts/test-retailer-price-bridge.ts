@@ -158,6 +158,7 @@ assert.match(providerSource, /GROCERY_MCP_TIMEOUT_MS \?\? 30_000/, "the local re
 assert.match(catalogueSource, /!results\.length && errors\.length[\s\S]*throw new Error/, "an all-provider timeout must fail the job so the queue retries it");
 assert.match(bridgeSource, /"code", "productId", "productCode"/);
 assert.match(bridgeSource, /nested_text\(source, \("brand", "brandName", "manufacturer"\)\)/);
+assert.match(bridgeSource, /def nested_image_url[\s\S]*"imageUris"/, "Coles imageUris must be preserved so exact product references can use the retailer product image");
 assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths XML namespaces remain supported");
 assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
