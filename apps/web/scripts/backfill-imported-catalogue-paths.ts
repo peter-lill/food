@@ -2,10 +2,12 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { retailerPathDepartment } from "../src/lib/products/product-category";
-import { needsAuthoritativeCategoryPathRestore } from "./imported-catalogue-path-recovery";
+import { canonicalAldiExternalId, drakesProductExternalId, needsAuthoritativeCategoryPathRestore } from "./imported-catalogue-path-recovery";
 
 const apply = process.argv.includes("--apply");
 const pageSize = 500;
+const requestedDrakesStore = process.argv.find((argument) => argument.startsWith("--drakes-store="))?.slice("--drakes-store=".length).toLowerCase() ?? null;
+if (requestedDrakesStore && !/^[a-z0-9-]{1,64}$/.test(requestedDrakesStore)) throw new Error("--drakes-store must be a Drakes store ID, for example 089.");
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
 type CachedProduct = { externalId: string; categoryPath: string };
@@ -58,30 +60,43 @@ async function main() {
     select: { id: true, retailer: true, externalId: true, aisle: true },
   });
   const staleListings = listings.filter((listing) => needsAuthoritativeCategoryPathRestore(listing.aisle));
-  const aldiPaths = new Map((await cachedProducts("/aldi/catalogue/products")).map((product) => [product.externalId, product.categoryPath]));
-  const drakesStores = [...new Set(staleListings
+  const aldiPaths = new Map((await cachedProducts("/aldi/catalogue/products")).flatMap((product) => {
+    const externalId = canonicalAldiExternalId(product.externalId);
+    return externalId ? [[externalId, product.categoryPath] as const] : [];
+  }));
+  const historicalDrakesStores = [...new Set(staleListings
     .filter((listing) => listing.retailer === "Drakes")
     .flatMap((listing) => {
       const storeId = drakesStoreId(listing.externalId);
       return storeId ? [storeId] : [];
     }))];
+  const drakesStores = requestedDrakesStore ? [requestedDrakesStore] : historicalDrakesStores;
   const drakesPaths = new Map<string, string>();
+  const drakesFallbackPaths = new Map<string, string | null>();
   for (const storeId of drakesStores) {
     for (const product of await cachedProducts("/drakes/catalogue/products", { storeId })) {
       drakesPaths.set(`${storeId}:${product.externalId}`, product.categoryPath);
+      const productId = product.externalId;
+      const currentPath = drakesFallbackPaths.get(productId);
+      if (currentPath === undefined) {
+        drakesFallbackPaths.set(productId, product.categoryPath);
+      } else if (retailerPathDepartment(currentPath) !== retailerPathDepartment(product.categoryPath)) {
+        drakesFallbackPaths.set(productId, null);
+      }
     }
   }
 
   const updates = staleListings.flatMap((listing) => {
     const categoryPath = listing.retailer === "ALDI"
-      ? (listing.externalId ? aldiPaths.get(listing.externalId) : null)
-      : (listing.externalId ? drakesPaths.get(listing.externalId) : null);
+      ? (aldiPaths.get(canonicalAldiExternalId(listing.externalId) ?? "") ?? null)
+      : (listing.externalId ? drakesPaths.get(listing.externalId) ?? drakesFallbackPaths.get(drakesProductExternalId(listing.externalId) ?? "") ?? null : null);
     return categoryPath && retailerPathDepartment(categoryPath)
       ? [{ id: listing.id, retailer: listing.retailer, categoryPath }]
       : [];
   });
 
   console.log(`${apply ? "Restoring" : "Would restore"} authoritative category paths for ${updates.length} of ${staleListings.length} ALDI/Drakes listings with missing or unrecognised paths.`);
+  console.log(`Source cache coverage: ALDI ${aldiPaths.size}; Drakes ${drakesPaths.size} exact paths and ${[...drakesFallbackPaths.values()].filter(Boolean).length} unique product paths across ${drakesStores.join(", ") || "no stores"}${requestedDrakesStore ? " (selected current store)" : ""}.`);
   console.log(`Resolved departments: ${JSON.stringify(Object.fromEntries(updates.reduce((counts, update) => {
     const department = retailerPathDepartment(update.categoryPath)!;
     counts.set(department, (counts.get(department) ?? 0) + 1);
