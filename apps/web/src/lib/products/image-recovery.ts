@@ -13,6 +13,7 @@ import { assessProductImage, type ProductImageAssessment } from "@/lib/products/
 import { imageCandidateOverallScore } from "@/lib/products/image-candidate-score";
 import { generateGenericProductImage } from "@/lib/products/generic-image-generation";
 import { isGenericFoodImageEligible } from "@/lib/products/generic-image-policy";
+import { isRetailerBrandImageUrl } from "@/lib/products/retailer-brand-image";
 import { makeCandidatePrimaryAsset } from "@/lib/images/image-asset.service";
 import {
   markSelectedCandidate,
@@ -382,7 +383,9 @@ export async function recoverProductImage(productId: string, options: { allowGen
     diagnostics.steps.push({ provider: "Wikimedia Commons", status: "skipped", candidates: 0, detail: "Product is branded or barcoded" });
   }
 
-  if (product.imageUrl && (isGeneric || !product.imageUrl.startsWith("generated://"))) candidates.push({
+  if (product.imageUrl
+    && !isRetailerBrandImageUrl(product.imageUrl)
+    && (isGeneric || !product.imageUrl.startsWith("generated://"))) candidates.push({
     url: product.imageUrl,
     source: "Current/manual image",
     sourceLabel: "Existing product image",
@@ -408,6 +411,10 @@ export async function recoverProductImage(productId: string, options: { allowGen
     const candidateId = candidateIds.get(candidate.url);
     if (!candidateId) continue;
     const inspection = await inspectCandidate(candidate);
+    if (isRetailerBrandImageUrl(candidate.url)) {
+      inspection.accepted = false;
+      inspection.reason = "Retailer brand logo is not a product image";
+    }
     if (isGeneric && candidate.source === "Wikimedia Commons" && (candidate.identityScore ?? 0) < 90) {
       inspection.accepted = false;
       inspection.reason = "Wikimedia identity match was below the professional generic-image threshold";

@@ -327,6 +327,14 @@ export function parseColesProductReference(value: string) {
   }
 }
 
+export function retailerForProductReference(value: string): "Coles" | "Woolworths" | null {
+  const input = value.trim();
+  if (!/^https?:\/\//i.test(input)) return null;
+  if (parseColesProductReference(input)) return "Coles";
+  if (parseWoolworthsProductReference(input)) return "Woolworths";
+  return null;
+}
+
 export async function resolveWoolworthsProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
   const externalId = parseWoolworthsProductReference(value);
   if (!externalId) return null;
@@ -341,22 +349,24 @@ export async function resolveWoolworthsProductReference(value: string): Promise<
   ));
   if (exact?.imageUrl) return exact;
 
-  const sourceUrl = retailerProductUrl("Woolworths", exactDetail?.productName ?? exact?.productName ?? "product", externalId);
-  const imageUrl = await resolveWoolworthsCdnImage(externalId)
-    ?? exactDetail?.imageUrl
-    ?? exact?.imageUrl
+  const verified = exactDetail ?? exact;
+  if (!verified) return null;
+
+  const sourceUrl = retailerProductUrl("Woolworths", verified.productName, externalId);
+  const imageUrl = verified.imageUrl
+    ?? await resolveWoolworthsCdnImage(externalId)
     ?? await fetchRetailerPageImage(sourceUrl);
-  if (!imageUrl) return exactDetail ?? exact ?? null;
+  if (!imageUrl) return verified;
 
   return {
     retailer: "Woolworths",
-    productName: exactDetail?.productName ?? exact?.productName ?? `Woolworths product ${externalId}`,
-    price: exactDetail?.price ?? exact?.price ?? null,
-    packSize: exactDetail?.packSize ?? exact?.packSize ?? null,
-    isSpecial: exactDetail?.isSpecial ?? exact?.isSpecial ?? false,
+    productName: verified.productName,
+    price: verified.price,
+    packSize: verified.packSize,
+    isSpecial: verified.isSpecial,
     sourceUrl,
     externalId,
-    barcode: exactDetail?.barcode ?? exact?.barcode ?? null,
+    barcode: verified.barcode,
     imageUrl,
   };
 }
@@ -385,6 +395,9 @@ export async function resolveColesProductReference(value: string): Promise<Retai
 }
 
 export async function resolveRetailerProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {
+  const retailer = retailerForProductReference(value);
+  if (retailer === "Coles") return resolveColesProductReference(value);
+  if (retailer === "Woolworths") return resolveWoolworthsProductReference(value);
   return (await resolveColesProductReference(value)) ?? resolveWoolworthsProductReference(value);
 }
 
