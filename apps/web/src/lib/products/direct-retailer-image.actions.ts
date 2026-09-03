@@ -10,6 +10,7 @@ import {
   recordDiscoveredCandidate,
 } from "@/lib/products/image-candidate.repository";
 import { assessProductImage } from "@/lib/products/image-quality";
+import { isRetailerBrandImageUrl } from "@/lib/products/retailer-brand-image";
 
 const imagePanelAnchor = "#image-intelligence";
 
@@ -75,7 +76,9 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     }
 
     const assessment = await assessProductImage(candidate.imageUrl, { referer: candidate.sourceUrl });
-    const accepted = assessment.reachable
+    const retailerBrandAsset = isRetailerBrandImageUrl(candidate.imageUrl);
+    const accepted = !retailerBrandAsset
+      && assessment.reachable
       && Boolean(assessment.contentType?.startsWith("image/"))
       && assessment.score >= 35;
 
@@ -88,7 +91,9 @@ export async function resolveDirectRetailerImage(productId: string, formData: Fo
     });
 
     const overallScore = Math.round((assessment.score * 0.45) + (100 * 0.4) + (98 * 0.15));
-    const rejectionReasons = accepted ? [] : assessment.issues.length ? assessment.issues : ["Image did not pass validation"];
+    const rejectionReasons = accepted ? [] : retailerBrandAsset
+      ? ["Retailer brand logo is not a product image"]
+      : assessment.issues.length ? assessment.issues : ["Image did not pass validation"];
 
     await recordCandidateAssessment({
       candidateId,

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { parseColesProductReference, retailerProductUrl, toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
+import { parseColesProductReference, retailerForProductReference, retailerProductUrl, toRetailerCatalogueCandidate } from "../src/lib/prices/coles-woolworths-provider";
 import { identityScore, retailerSearchQuery } from "../src/lib/retailers/retailer-intelligence.service";
+import { isRetailerBrandImageUrl } from "../src/lib/products/retailer-brand-image";
 
 const candidate = toRetailerCatalogueCandidate({
   retailer: "Coles",
@@ -40,6 +41,11 @@ assert.equal(
 );
 assert.equal(parseColesProductReference("5428639"), "5428639");
 assert.equal(parseColesProductReference("https://example.com/product/coles-simply-table-spread-1kg-5428639"), null);
+assert.equal(retailerForProductReference("https://www.coles.com.au/product/coles-simply-table-spread-1kg-5428639"), "Coles", "a Coles URL must never be retried against Woolworths using the same numeric ID");
+assert.equal(retailerForProductReference("https://www.woolworths.com.au/shop/productdetails/12345"), "Woolworths");
+assert.equal(retailerForProductReference("5428639"), null, "a bare numeric reference remains retailer-ambiguous");
+assert.equal(isRetailerBrandImageUrl("https://cdn0.woolworths.media/content/content/wk34-wow-wapple-logo-horizontal-1200x1200.png"), true, "a Woolworths Wapple logo must never be selected as a product image");
+assert.equal(isRetailerBrandImageUrl("https://cdn0.woolworths.media/content/wowproductimages/large/5428639.jpg"), false, "a normal product image URL must remain eligible");
 
 const colesPackCandidate = toRetailerCatalogueCandidate({
   retailer: "Coles",
