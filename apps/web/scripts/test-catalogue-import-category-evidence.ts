@@ -28,6 +28,7 @@ assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), 
   productType: "GENERIC_PRODUCE",
   source: "retailer-path",
 });
+assert.equal(unanimousRetailerCategoryPath(["/category/general-merchandise"]), "/category/general-merchandise");
 assert.equal(unanimousRetailerCategoryPath(["/browse/dairy-eggs-fridge", "Dairy & eggs"]), "/browse/dairy-eggs-fridge");
 assert.equal(unanimousRetailerCategoryPath(["Dairy & eggs", "Pantry"]), null);
 assert.equal(unanimousRetailerCategoryPath(["Dairy & eggs", "/products/unknown"]), null);
