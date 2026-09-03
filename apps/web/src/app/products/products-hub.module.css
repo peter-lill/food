@@ -116,12 +116,6 @@
 .cataloguePanel{padding:18px;border-radius:22px}.toolbar{align-items:center;gap:16px}.filters{margin:13px 0 15px}
 @media(max-width:760px){.page{gap:12px}.cataloguePanel{padding:13px}.summaryCard{padding:11px 12px}}
 
-/* The total remains available without bringing back the former oversized hero. */
-.catalogueUtilities{display:flex;align-items:center;gap:10px;min-width:0;flex-wrap:wrap}
-.catalogueTotal{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 11px;border:1px solid #dce8df;border-radius:12px;background:#f2f8f4;color:#28623f;font-size:.72rem;white-space:nowrap}
-.catalogueTotal svg{width:16px;height:16px;flex:0 0 auto}.catalogueTotal strong{font-size:.9rem;line-height:1}.catalogueTotal>span{color:#62756a;font-weight:750}
-@media(max-width:760px){.catalogueUtilities{display:grid;grid-template-columns:minmax(0,1fr);width:100%}.catalogueTotal{justify-content:center;width:max-content}}
-
 /* Reserve the same image-band anchor in every tile: a special never shifts its
    product name, retailer footer, or any neighbouring card out of alignment. */
 .specialImageSlot{position:absolute;top:10px;left:10px;z-index:2;display:grid;place-items:center;min-width:72px;min-height:24px;padding:0 9px;border:1px solid transparent;border-radius:999px;color:transparent;font-size:.64rem;font-weight:850;line-height:1;pointer-events:none}

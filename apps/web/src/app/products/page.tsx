@@ -274,7 +274,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
   };
 
   const retailerCount = enabledRetailers(retailerPreferences).length;
-  const linkedRecipeCount = allProducts.reduce((total, product) => total + product.recipeCount, 0);
   const views: Array<{ value: ProductView; label: string }> = [
     { value: "all", label: "All" },
     { value: "pantry", label: "In pantry" },
@@ -288,20 +287,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
       <section className={styles.summaryGrid} aria-label="Product catalogue summary">
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="pantry" /></span><div><strong>{counts.pantry}</strong><small>in your pantry</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="price" /></span><div><strong>{counts.priced}</strong><small>with price history</small></div></article>
-        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="recipe" /></span><div><strong>{linkedRecipeCount}</strong><small>recipe links</small></div></article>
+        <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="library" /></span><div><strong>{catalogueTotal.toLocaleString("en-AU")}</strong><small>catalogue products</small></div></article>
         <article className={styles.summaryCard}><span className={styles.summaryIcon}><CatalogueIcon name="store" /></span><div><strong>{retailerCount}</strong><small>retailers selected</small></div></article>
       </section>
 
       <section className={styles.cataloguePanel}>
         <div className={styles.toolbar}>
-          <div className={styles.catalogueUtilities}>
-            <ProductActions />
-            <span aria-label={`${catalogueTotal.toLocaleString("en-AU")} products in the catalogue`} className={styles.catalogueTotal}>
-              <CatalogueIcon name="library" />
-              <strong>{catalogueTotal.toLocaleString("en-AU")}</strong>
-              <span>catalogue products</span>
-            </span>
-          </div>
+          <ProductActions />
           <form className={styles.search}>
             {department ? <input name="department" type="hidden" value={department} /> : null}
             {shelf ? <input name="shelf" type="hidden" value={shelf} /> : null}
