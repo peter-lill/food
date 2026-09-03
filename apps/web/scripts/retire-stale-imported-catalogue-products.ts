@@ -63,12 +63,15 @@ async function main() {
   const products = await prisma.product.findMany({
     where: {
       lifecycle: { not: "ARCHIVED" },
-      storeProducts: { some: { retailer: { in: ["ALDI", "Drakes"] } }, every: { retailer: { in: ["ALDI", "Drakes"] } } },
+      storeProducts: {
+        some: { active: true, retailer: { in: ["ALDI", "Drakes"] } },
+        every: { OR: [{ active: false }, { retailer: { in: ["ALDI", "Drakes"] } }] },
+      },
     },
     select: {
       id: true,
       name: true,
-      storeProducts: { select: { retailer: true, externalId: true, retailerProductName: true, productUrl: true } },
+      storeProducts: { where: { active: true }, select: { retailer: true, externalId: true, retailerProductName: true, productUrl: true } },
       _count: { select: { inventoryItems: true, ingredientRecords: true, shoppingItems: true, receiptItems: true } },
     },
   });

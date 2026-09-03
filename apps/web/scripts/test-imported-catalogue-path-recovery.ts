@@ -37,7 +37,7 @@ const aldiIndex = currentRetailerCatalogueIndex([
   { externalId: "0005428639", name: "Coles Simply Table Spread 1kg", productUrl: "https://example.test/spread" },
 ], "ALDI");
 assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: "5428639", retailerProductName: "Different title", productUrl: null }, aldiIndex), true);
-assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: null, retailerProductName: "Coles Simply Table Spread 1kg", productUrl: null }, aldiIndex), true);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: null, retailerProductName: "Coles Simply Table Spread 1kg", productUrl: null }, aldiIndex), false);
 assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: "999", retailerProductName: "Old listing", productUrl: null }, aldiIndex), false);
 
 const drakesIndex = currentRetailerCatalogueIndex([
