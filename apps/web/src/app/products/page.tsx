@@ -226,6 +226,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     getProductDepartmentCounts(),
     prisma.retailerPreference.findMany({ where: { userId: session.user.id } }),
   ]);
+  const catalogueTotal = departmentCounts.reduce((total, departmentCount) => total + departmentCount.productCount, 0);
 
   const shelfGroups = department ? [...allProducts.reduce((groups, product) => {
     const label = shelfGroupForDepartment(product.shelfLabel, department);
@@ -293,7 +294,14 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
 
       <section className={styles.cataloguePanel}>
         <div className={styles.toolbar}>
-          <ProductActions />
+          <div className={styles.catalogueUtilities}>
+            <ProductActions />
+            <span aria-label={`${catalogueTotal.toLocaleString("en-AU")} products in the catalogue`} className={styles.catalogueTotal}>
+              <CatalogueIcon name="library" />
+              <strong>{catalogueTotal.toLocaleString("en-AU")}</strong>
+              <span>catalogue products</span>
+            </span>
+          </div>
           <form className={styles.search}>
             {department ? <input name="department" type="hidden" value={department} /> : null}
             {shelf ? <input name="shelf" type="hidden" value={shelf} /> : null}

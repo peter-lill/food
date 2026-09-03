@@ -146,6 +146,8 @@ assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalo
 assert.doesNotMatch(productCatalogueSource, /getProductHubRecordCount/, "the compact catalogue should not fetch an unused record-count banner metric");
 assert.doesNotMatch(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the compact catalogue should not render the removed record-count banner");
 assert.match(productCatalogueSource, /<ProductActions \/>/, "catalogue actions must remain available in the compact toolbar");
+assert.match(productCatalogueSource, /const catalogueTotal = departmentCounts\.reduce/, "the compact toolbar must derive the complete catalogue total from its existing department index");
+assert.match(productCatalogueSource, /catalogue products/, "the compact toolbar must keep the complete catalogue total visible");
 assert.match(productHubSource, /take: department \? 2_000 : 500/, "a selected department must be browsable beyond the alphabetical default page");
 assert.match(productCatalogueSource, /shelfGroupForDepartment\(product\.shelfLabel, department\)/, "department browsing must suppress a duplicate department name as a shelf heading");
 assert.match(productCatalogueSource, /open=\{Boolean\(department\)\}/, "opening a selected department must reveal its shelf choices without a redundant second click");
