@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { canonicalAldiExternalId, canonicalRetailerProductUrl, drakesProductExternalId, needsAuthoritativeCategoryPathRestore, unambiguousRetailerNamePaths, unambiguousRetailerUrlPaths } from "./imported-catalogue-path-recovery";
+import { canonicalAldiExternalId, canonicalRetailerProductUrl, currentRetailerCatalogueIndex, drakesProductExternalId, listingAppearsInCurrentRetailerCatalogue, needsAuthoritativeCategoryPathRestore, unambiguousRetailerNamePaths, unambiguousRetailerUrlPaths } from "./imported-catalogue-path-recovery";
 
 assert.equal(needsAuthoritativeCategoryPathRestore(null), true);
 assert.equal(needsAuthoritativeCategoryPathRestore("Legacy shelf 8"), true);
@@ -30,5 +30,19 @@ const urlPaths = unambiguousRetailerUrlPaths([
 ]);
 assert.equal(urlPaths.get("https://www.drakes.com.au/product/cordial"), "/category/drinks");
 assert.equal(urlPaths.get("https://www.drakes.com.au/product/mixed"), null);
+
+const aldiIndex = currentRetailerCatalogueIndex([
+  { externalId: "0005428639", name: "Coles Simply Table Spread 1kg", productUrl: "https://example.test/spread" },
+], "ALDI");
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: "5428639", retailerProductName: "Different title", productUrl: null }, aldiIndex), true);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: null, retailerProductName: "Coles Simply Table Spread 1kg", productUrl: null }, aldiIndex), true);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", externalId: "999", retailerProductName: "Old listing", productUrl: null }, aldiIndex), false);
+
+const drakesIndex = currentRetailerCatalogueIndex([
+  { externalId: "norco-full-cream-fresh-milk-2l", name: "Norco Full Cream Fresh Milk 2L", productUrl: "https://www.drakes.com.au/product/norco-full-cream-fresh-milk-2l" },
+], "Drakes");
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:norco-full-cream-fresh-milk-2l", retailerProductName: "Old milk title", productUrl: null }, drakesIndex), true);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:old-milk", retailerProductName: "Old milk title", productUrl: "https://www.drakes.com.au/product/norco-full-cream-fresh-milk-2l" }, drakesIndex), true);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:old-milk", retailerProductName: "Old milk title", productUrl: null }, drakesIndex), false);
 
 console.log("imported catalogue path recovery tests passed");

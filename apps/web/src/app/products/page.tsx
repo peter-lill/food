@@ -80,11 +80,12 @@ function normaliseName(value: string) {
 }
 
 function shelfGroupForDepartment(shelfLabel: string | null, department: string) {
-  if (!shelfLabel) return `Other ${department.toLocaleLowerCase("en-AU")} products`;
+  const fallbackLabel = department === "Other" ? "Unsorted products" : `Other ${department.toLocaleLowerCase("en-AU")} products`;
+  if (!shelfLabel) return fallbackLabel;
   const shelf = normaliseName(shelfLabel);
   const parent = normaliseName(department);
   return shelf === parent || shelf.endsWith(parent)
-    ? `Other ${department.toLocaleLowerCase("en-AU")} products`
+    ? fallbackLabel
     : shelfLabel;
 }
 
