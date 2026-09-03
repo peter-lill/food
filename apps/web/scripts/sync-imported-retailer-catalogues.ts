@@ -11,8 +11,14 @@ if (!apply) throw new Error("This command changes catalogue records. Pass --appl
 if (!/^[a-z0-9-]{1,64}$/.test(drakesStore)) throw new Error("Pass --drakes-store=089 for the selected Drakes store.");
 if (!process.env.GROCERY_MCP_BRIDGE_URL?.trim()) throw new Error("GROCERY_MCP_BRIDGE_URL is required to import the current retailer catalogues.");
 
-const tsxCli = resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs");
-if (!existsSync(tsxCli)) throw new Error("The local tsx runtime is missing. Run npm ci before synchronising catalogues.");
+// npm runs a workspace script from apps/web while dependencies are hoisted at
+// the repository root. Support both a standalone workspace install and the
+// normal monorepo layout.
+const tsxCli = [
+  resolve(process.cwd(), "node_modules", "tsx", "dist", "cli.mjs"),
+  resolve(process.cwd(), "..", "..", "node_modules", "tsx", "dist", "cli.mjs"),
+].find(existsSync);
+if (!tsxCli) throw new Error("The local tsx runtime is missing. Run npm ci before synchronising catalogues.");
 
 function run(script: string, args: string[]) {
   return new Promise<void>((resolveRun, reject) => {
