@@ -299,6 +299,9 @@
 }
 
 .departmentArtwork {
+  justify-self: center;
+  align-self: center;
+  width: 168px;
   height: 168px;
   border: 1px solid rgba(40, 70, 52, .06);
   border-radius: 12px;
@@ -333,6 +336,7 @@
   }
 
   .departmentArtwork {
+    width: 124px;
     height: 124px;
   }
 

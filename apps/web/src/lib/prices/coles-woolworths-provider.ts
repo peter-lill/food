@@ -118,6 +118,38 @@ async function fetchRetailerPageImage(url: string | null) {
   }
 }
 
+async function resolveExactColesProductPage(sourceUrl: string, externalId: string): Promise<RetailerCatalogueCandidate | null> {
+  const baseUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
+  if (!baseUrl) return null;
+
+  const url = new URL("/coles/catalogue/product", baseUrl);
+  url.searchParams.set("url", sourceUrl);
+  url.searchParams.set("id", externalId);
+  const controller = new AbortController();
+  // The Coles Firefox session is intentionally human-verifiable, so permit its
+  // page fetch to finish instead of falling back to an unverified HTML scrape.
+  const timer = setTimeout(() => controller.abort(), 100_000);
+  try {
+    const response = await fetch(url, {
+      cache: "no-store",
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => null) as {
+      status?: unknown;
+      product?: GroceryProviderResult;
+    } | null;
+    if (!response.ok || payload?.status !== "success" || !payload.product) return null;
+    const candidate = toRetailerCatalogueCandidate(payload.product);
+    if (candidate?.retailer !== "Coles" || candidate.externalId?.replace(/\D/g, "") !== externalId) return null;
+    return { ...candidate, sourceUrl };
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function reachableImageUrl(url: string) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8_000);
@@ -380,18 +412,29 @@ export async function resolveColesProductReference(value: string): Promise<Retai
   const externalId = parseColesProductReference(value);
   if (!externalId) return null;
 
+  const sourceUrl = typeof value === "string" && /^https:\/\//i.test(value.trim())
+    ? value.trim()
+    : null;
+
   const results = await searchColesAndWoolworthsCatalogue(externalId, { retailers: ["Coles"] });
   const exact = results.find((candidate) => (
     candidate.retailer === "Coles"
     && candidate.externalId?.replace(/\D/g, "") === externalId
   ));
-  if (!exact) return null;
+  if (exact) {
+    const canonicalUrl = sourceUrl ?? retailerProductUrl("Coles", exact.productName, externalId);
+    const imageUrl = exact.imageUrl ?? await fetchRetailerPageImage(canonicalUrl);
+    if (imageUrl || !sourceUrl) return { ...exact, sourceUrl: canonicalUrl, imageUrl };
+    // A search listing can identify the right Coles item while omitting its
+    // image. Use the supplied canonical page as the exact-image fallback.
+    return (await resolveExactColesProductPage(sourceUrl, externalId))
+      ?? { ...exact, sourceUrl: canonicalUrl, imageUrl: null };
+  }
 
-  const sourceUrl = typeof value === "string" && /^https:\/\//i.test(value.trim())
-    ? value.trim()
-    : retailerProductUrl("Coles", exact.productName, externalId);
-  const imageUrl = exact.imageUrl ?? await fetchRetailerPageImage(sourceUrl);
-  return { ...exact, sourceUrl, imageUrl };
+  // Search may omit a product ID even though its linked retailer page is
+  // valid. In that case, read the exact Coles page through the verified
+  // browser session and require the same retailer ID before accepting it.
+  return sourceUrl ? resolveExactColesProductPage(sourceUrl, externalId) : null;
 }
 
 export async function resolveRetailerProductReference(value: string): Promise<RetailerCatalogueCandidate | null> {

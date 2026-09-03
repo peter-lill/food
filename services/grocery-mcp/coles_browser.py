@@ -6,6 +6,7 @@ import signal
 import subprocess
 import threading
 import time
+import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Empty, Queue
@@ -73,6 +74,16 @@ def valid_coles_browse_url(value: str) -> bool:
     )
 
 
+def valid_coles_product_url(value: str) -> bool:
+    """Allow only a canonical, public Coles product page with a numeric ID."""
+    parsed = urlparse(value)
+    return (
+        parsed.scheme == "https"
+        and parsed.netloc == "www.coles.com.au"
+        and bool(re.fullmatch(r"/product/[^/]+-\d{4,16}/?", parsed.path))
+    )
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "FoodColesFirefox/1.0"
 
@@ -93,8 +104,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(404, {"status": "error", "error": "Not found"})
             return
         url = (parse_qs(parsed.query).get("url") or [""])[0]
-        if not valid_coles_browse_url(url):
-            self.send_json(400, {"status": "error", "error": "Only Coles browse URLs are allowed"})
+        if not (valid_coles_browse_url(url) or valid_coles_product_url(url)):
+            self.send_json(400, {"status": "error", "error": "Only public Coles browse or product URLs are allowed"})
             return
         completed = threading.Event()
         result: dict[str, object] = {}
