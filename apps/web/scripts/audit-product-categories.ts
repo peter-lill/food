@@ -1,9 +1,9 @@
 import "dotenv/config";
 
-import { ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
-import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "../src/lib/products/product-category";
+import { productDepartment, retailerPathDepartment, supermarketDepartments, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
+import { isProductTypeCompatibleWithDepartment } from "./product-category-audit-policy";
 
 const strict = process.argv.includes("--strict");
 const limitArgument = process.argv.find((argument) => argument.startsWith("--limit="))?.slice("--limit=".length);
@@ -12,25 +12,6 @@ const importedRetailers = new Set(["ALDI", "Drakes"]);
 
 type FindingCode = "INVALID_CATEGORY" | "PRODUCT_TYPE_MISMATCH" | "UNCLASSIFIED" | "UNVERIFIED_IMPORTED_CATEGORY";
 type Finding = { code: FindingCode; id: string; name: string; detail: string };
-
-function expectedProductTypes(category: SupermarketDepartment): Set<ProductType> {
-  switch (category) {
-    case "Fruit & vegetables": return new Set([ProductType.GENERIC_PRODUCE]);
-    case "Bakery": return new Set([ProductType.BAKERY]);
-    case "Meat & seafood": return new Set([ProductType.FRESH_MEAT, ProductType.SEAFOOD]);
-    case "Dairy & eggs": return new Set([ProductType.DAIRY]);
-    case "Frozen": return new Set([ProductType.FROZEN]);
-    case "Drinks": return new Set([ProductType.BEVERAGE]);
-    case "Health & personal care": return new Set([ProductType.PERSONAL_CARE]);
-    case "Household": return new Set([ProductType.HOUSEHOLD]);
-    case "Deli":
-    case "Pantry":
-    case "Confectionery":
-    case "Baby":
-    case "Pet": return new Set([ProductType.PACKAGED]);
-    case "Other": return new Set([ProductType.OTHER]);
-  }
-}
 
 function isCanonicalStoredCategory(value: string | null, category: SupermarketDepartment) {
   return value === category && supermarketDepartments.includes(category);
@@ -85,15 +66,20 @@ async function main() {
       });
     }
 
-    if (!expectedProductTypes(category).has(product.productType)) {
+    if (!isProductTypeCompatibleWithDepartment(category, product.productType)) {
       findings.push({
         code: "PRODUCT_TYPE_MISMATCH", id: product.id, name,
         detail: `category=${category}; productType=${product.productType}`,
       });
     }
 
-    if (category === "Other") {
-      findings.push({ code: "UNCLASSIFIED", id: product.id, name, detail: `productType=${product.productType}` });
+    const retailerPathCategories = product.storeProducts.map((listing) => retailerPathDepartment(listing.aisle));
+    const hasAuthoritativeOtherPath = retailerPathCategories.some((pathCategory) => pathCategory === "Other");
+    if (category === "Other" && !hasAuthoritativeOtherPath) {
+      findings.push({
+        code: "UNCLASSIFIED", id: product.id, name,
+        detail: `productType=${product.productType}; no recognised retailer category path establishes this catch-all category`,
+      });
     }
 
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
@@ -103,9 +89,14 @@ async function main() {
     const comparable = categoryResolutionForImport(name, comparableCategories, retailerPath);
     const categoryEvidenceMatches = (comparable.source === "retailer-path" || comparable.source === "comparable-product") && comparable.category === category;
     if (importedOnly && hasImportedAlias && category !== "Other" && !product.barcode && !categoryEvidenceMatches) {
+      const pathState = retailerPath
+        ? "retailer paths disagree"
+        : retailerPathCategories.some((pathCategory) => pathCategory === "Other")
+          ? "retailer paths establish only the catch-all Other department"
+          : "no recognised retailer category path is stored";
       findings.push({
         code: "UNVERIFIED_IMPORTED_CATEGORY", id: product.id, name,
-        detail: `category=${category}; retailers=${[...retailers].sort().join(",")}; requires comparable-product, barcode/manual, or retailer-path evidence`,
+        detail: `category=${category}; retailers=${[...retailers].sort().join(",")}; ${pathState}; requires a barcode, comparable product, or retailer-path evidence`,
       });
     }
   }

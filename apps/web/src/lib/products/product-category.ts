@@ -63,6 +63,11 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["petcare", "Pet"],
   ["beer", "Drinks"],
   ["pets", "Pet"],
+  // Both ALDI and Drakes use this as an explicit retailer department. It is
+  // deliberately retained as Food's catch-all rather than pretending a
+  // toothbrush or storage box belongs in a grocery department.
+  ["general merchandise", "Other"],
+  ["general merch", "Other"],
 ]);
 
 for (const department of supermarketDepartments) {
@@ -212,7 +217,7 @@ export function retailerPathDepartment(value: string | null | undefined): Superm
     const canonical = canonicalDepartments.get(segment);
     if (canonical) return canonical;
     const alias = departmentAliases.get(segment);
-    if (alias && alias !== "Other") return alias;
+    if (alias) return alias;
   }
   return null;
 }
