@@ -332,7 +332,7 @@
   height: 24px !important;
   max-width: none !important;
   max-height: 24px !important;
-  object-fit: fill !important;
+  object-fit: contain !important;
   transform: none;
   filter: brightness(0) invert(1);
 }
@@ -342,7 +342,7 @@
   height: 24px !important;
   max-width: none !important;
   max-height: 24px !important;
-  object-fit: fill !important;
+  object-fit: contain !important;
   transform: none;
 }
 
