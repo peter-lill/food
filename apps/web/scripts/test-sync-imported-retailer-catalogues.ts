@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const source = readFileSync(new URL("sync-imported-retailer-catalogues.ts", import.meta.url), "utf8");
 
 assert.match(source, /--drakes-store=089/, "the sync command must require an explicit selected Drakes store");
+assert.match(source, /resolve\(process\.cwd\(\), "\.\.", "\.\.", "node_modules", "tsx", "dist", "cli\.mjs"\)/, "the sync must locate the hoisted monorepo tsx runtime when npm runs from apps/web");
 assert.match(source, /import-aldi-controlled\.ts", \["--all", "--apply"\]/, "the sync must write current ALDI category paths before reconciliation");
 assert.match(source, /import-drakes-controlled\.ts", \[`--store=\$\{drakesStore\}`, "--all", "--apply"\]/, "the sync must write selected-store Drakes category paths before reconciliation");
 assert.match(source, /backfill-imported-catalogue-paths\.ts/, "the sync must recover legacy retailer listings after current imports");
