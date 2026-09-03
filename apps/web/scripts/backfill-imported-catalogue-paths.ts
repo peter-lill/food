@@ -3,7 +3,7 @@ import "dotenv/config";
 import { prisma } from "../src/lib/prisma";
 import { retailerPathDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
-import { canonicalAldiExternalId, drakesProductExternalId, needsAuthoritativeCategoryPathRestore, unambiguousRetailerNamePaths } from "./imported-catalogue-path-recovery";
+import { canonicalAldiExternalId, canonicalRetailerProductUrl, drakesProductExternalId, needsAuthoritativeCategoryPathRestore, unambiguousRetailerNamePaths, unambiguousRetailerUrlPaths } from "./imported-catalogue-path-recovery";
 
 const apply = process.argv.includes("--apply");
 const pageSize = 500;
@@ -11,7 +11,7 @@ const requestedDrakesStore = process.argv.find((argument) => argument.startsWith
 if (requestedDrakesStore && !/^[a-z0-9-]{1,64}$/.test(requestedDrakesStore)) throw new Error("--drakes-store must be a Drakes store ID, for example 089.");
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
-type CachedProduct = { externalId: string; name: string; categoryPath: string };
+type CachedProduct = { externalId: string; name: string; productUrl: string | null; categoryPath: string };
 
 function text(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
@@ -23,7 +23,7 @@ function cachedProduct(value: unknown): CachedProduct | null {
   const externalId = text(input.external_id);
   const name = text(input.name);
   const categoryPath = text(input.category_path);
-  return externalId && name && categoryPath ? { externalId, name, categoryPath } : null;
+  return externalId && name && categoryPath ? { externalId, name, productUrl: text(input.product_url), categoryPath } : null;
 }
 
 function drakesStoreId(externalId: string | null) {
@@ -59,7 +59,7 @@ async function cachedProducts(pathname: string, query: Record<string, string> = 
 async function main() {
   const listings = await prisma.storeProduct.findMany({
     where: { retailer: { in: ["ALDI", "Drakes"] }, active: true },
-    select: { id: true, retailer: true, externalId: true, aisle: true, retailerProductName: true },
+    select: { id: true, retailer: true, externalId: true, aisle: true, retailerProductName: true, productUrl: true },
   });
   const staleListings = listings.filter((listing) => needsAuthoritativeCategoryPathRestore(listing.aisle));
   const aldiProducts = await cachedProducts("/aldi/catalogue/products");
@@ -68,6 +68,7 @@ async function main() {
     return externalId ? [[externalId, product.categoryPath] as const] : [];
   }));
   const aldiNamePaths = unambiguousRetailerNamePaths(aldiProducts);
+  const aldiUrlPaths = unambiguousRetailerUrlPaths(aldiProducts);
   const historicalDrakesStores = [...new Set(staleListings
     .filter((listing) => listing.retailer === "Drakes")
     .flatMap((listing) => {
@@ -92,20 +93,23 @@ async function main() {
     }
   }
   const drakesNamePaths = unambiguousRetailerNamePaths(drakesProducts);
+  const drakesUrlPaths = unambiguousRetailerUrlPaths(drakesProducts);
 
   const updates = staleListings.flatMap((listing) => {
     const name = normaliseProductText(listing.retailerProductName ?? "");
     const identifiedPath = listing.retailer === "ALDI"
       ? aldiPaths.get(canonicalAldiExternalId(listing.externalId) ?? "")
       : listing.externalId ? drakesPaths.get(listing.externalId) ?? drakesFallbackPaths.get(drakesProductExternalId(listing.externalId) ?? "") : null;
-    const categoryPath = identifiedPath ?? (listing.retailer === "ALDI" ? aldiNamePaths.get(name) : drakesNamePaths.get(name)) ?? null;
+    const retailerUrl = canonicalRetailerProductUrl(listing.productUrl);
+    const urlPath = retailerUrl ? (listing.retailer === "ALDI" ? aldiUrlPaths.get(retailerUrl) : drakesUrlPaths.get(retailerUrl)) : null;
+    const categoryPath = identifiedPath ?? urlPath ?? (listing.retailer === "ALDI" ? aldiNamePaths.get(name) : drakesNamePaths.get(name)) ?? null;
     return categoryPath && retailerPathDepartment(categoryPath)
-      ? [{ id: listing.id, retailer: listing.retailer, categoryPath, source: identifiedPath ? "retailer-id" : "exact-retailer-name" }]
+      ? [{ id: listing.id, retailer: listing.retailer, categoryPath, source: identifiedPath ? "retailer-id" : urlPath ? "retailer-url" : "exact-retailer-name" }]
       : [];
   });
 
   console.log(`${apply ? "Restoring" : "Would restore"} authoritative category paths for ${updates.length} of ${staleListings.length} ALDI/Drakes listings with missing or unrecognised paths.`);
-  console.log(`Source cache coverage: ALDI ${aldiPaths.size}; Drakes ${drakesPaths.size} exact paths and ${[...drakesFallbackPaths.values()].filter(Boolean).length} unique product paths across ${drakesStores.join(", ") || "no stores"}${requestedDrakesStore ? " (selected current store)" : ""}.`);
+  console.log(`Source cache coverage: ALDI ${aldiPaths.size} IDs and ${[...aldiUrlPaths.values()].filter(Boolean).length} URLs; Drakes ${drakesPaths.size} exact IDs, ${[...drakesFallbackPaths.values()].filter(Boolean).length} unique product IDs, and ${[...drakesUrlPaths.values()].filter(Boolean).length} URLs across ${drakesStores.join(", ") || "no stores"}${requestedDrakesStore ? " (selected current store)" : ""}.`);
   console.log(`Restoration evidence: ${JSON.stringify(Object.fromEntries(updates.reduce((counts, update) => {
     counts.set(update.source, (counts.get(update.source) ?? 0) + 1);
     return counts;
