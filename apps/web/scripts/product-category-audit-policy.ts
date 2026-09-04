@@ -20,6 +20,25 @@ function expectedProductTypes(category: SupermarketDepartment): Set<ProductType>
   }
 }
 
+export function defaultProductTypeForDepartment(category: SupermarketDepartment) {
+  switch (category) {
+    case "Fruit & vegetables": return ProductType.GENERIC_PRODUCE;
+    case "Bakery": return ProductType.BAKERY;
+    case "Meat & seafood": return ProductType.FRESH_MEAT;
+    case "Dairy & eggs": return ProductType.DAIRY;
+    case "Frozen": return ProductType.FROZEN;
+    case "Drinks": return ProductType.BEVERAGE;
+    case "Health & personal care": return ProductType.PERSONAL_CARE;
+    case "Household": return ProductType.HOUSEHOLD;
+    case "Other": return ProductType.OTHER;
+    case "Deli":
+    case "Pantry":
+    case "Confectionery":
+    case "Baby":
+    case "Pet": return ProductType.PACKAGED;
+  }
+}
+
 /**
  * PACKAGED describes the form of a product, not its supermarket department.
  * A packaged loaf, yoghurt, frozen meal, or bag of produce remains correctly
