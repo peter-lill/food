@@ -56,10 +56,13 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   ["snacks and confectionery", "Confectionery"],
   ["snacks confectionery", "Confectionery"],
   ["confectionery snacks", "Confectionery"],
+  ["chips chocolates snacks", "Confectionery"],
+  ["dietary world foods", "Pantry"],
   ["health and beauty", "Health & personal care"],
   ["health beauty", "Health & personal care"],
   ["cleaning and household", "Household"],
   ["cleaning household", "Household"],
+  ["cleaning laundry", "Household"],
   ["household cleaning needs", "Household"],
   ["petcare", "Pet"],
   ["ready to eat meals", "Deli"],
@@ -70,6 +73,7 @@ const departmentAliases = new Map<string, SupermarketDepartment>([
   // toothbrush or storage box belongs in a grocery department.
   ["general merchandise", "Other"],
   ["general merch", "Other"],
+  ["home garden", "Other"],
 ]);
 
 for (const department of supermarketDepartments) {

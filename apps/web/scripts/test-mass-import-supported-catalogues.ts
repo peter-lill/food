@@ -1,0 +1,15 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+
+const source = readFileSync(new URL("./mass-import-supported-catalogues.ts", import.meta.url), "utf8");
+assert.match(source, /\/aldi\/catalogue\/refresh/);
+assert.match(source, /\/drakes\/catalogue\/refresh/);
+assert.match(source, /\/coles\/catalogue\/refresh/);
+assert.match(source, /\/woolworths\/catalogue\/collection\/start/);
+assert.match(source, /import-coles-controlled\.ts/);
+assert.match(source, /import-woolworths-controlled\.ts/);
+assert.match(source, /sync-imported-retailer-catalogues\.ts/);
+assert.match(source, /audit-product-categories\.ts/);
+assert.match(source, /counts\.failed > 0 \|\| counts\.completed !== counts\.total/);
+assert.match(source, /IGA was not included/);
+console.log("supported retailer mass import tests passed");

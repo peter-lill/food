@@ -75,11 +75,12 @@ async function main() {
 
     const retailerPathCategories = product.storeProducts.map((listing) => retailerPathDepartment(listing.aisle));
     const hasImportedAlias = product.aliases.some((alias) => alias.source === "aldi-controlled-import" || alias.source === "drakes-controlled-import");
+    const hasColesControlledAlias = product.aliases.some((alias) => alias.source === "coles-controlled-import");
     const hasAuthoritativeOtherPath = retailerPathCategories.some((pathCategory) => pathCategory === "Other");
     // Explicit Other is a valid category for manually maintained and legacy
     // non-imported records. A missing category, or an automated ALDI/Drakes
     // fallback to Other, still needs authoritative evidence.
-    if (category === "Other" && !hasAuthoritativeOtherPath && (product.category !== "Other" || hasImportedAlias)) {
+    if (category === "Other" && !hasAuthoritativeOtherPath && (product.category !== "Other" || hasImportedAlias || hasColesControlledAlias)) {
       findings.push({
         code: "UNCLASSIFIED", id: product.id, name,
         detail: `productType=${product.productType}; no recognised retailer category path establishes this catch-all category`,
@@ -91,7 +92,7 @@ async function main() {
     const retailerPath = supportedRetailerCategoryPath(name, product.storeProducts.map((listing) => listing.aisle), category);
     const comparable = categoryResolutionForImport(name, comparableCategories, retailerPath);
     const categoryEvidenceMatches = (comparable.source === "retailer-path" || comparable.source === "comparable-product") && comparable.category === category;
-    if (importedOnly && hasImportedAlias && category !== "Other" && !product.barcode && !categoryEvidenceMatches) {
+    if (((importedOnly && hasImportedAlias) || hasColesControlledAlias) && category !== "Other" && !product.barcode && !categoryEvidenceMatches) {
       const pathState = retailerPath
         ? "retailer paths need a supported category tie-break"
         : retailerPathCategories.some((pathCategory) => pathCategory === "Other")
