@@ -48,7 +48,7 @@ export function categoryResolutionForImport(
   retailerCategoryPath?: string | null,
 ): ImportedCategoryResolution {
   const retailerPathCategory = retailerPathDepartment(retailerCategoryPath);
-  if (retailerPathCategory && retailerPathCategory !== "Other") {
+  if (retailerPathCategory) {
     return {
       category: retailerPathCategory,
       productType: productTypeForDepartment(retailerPathCategory),
@@ -85,9 +85,8 @@ export function unanimousRetailerCategoryPath(paths: ReadonlyArray<string | null
   return pathByCategory.size === 1 ? [...pathByCategory.values()][0] ?? null : null;
 }
 
-/** Existing data is repaired only from corroborating comparable products. */
+/** Existing data is repaired only from an authoritative path or corroborating comparable products. */
 export function canRepairImportedCategory(resolution: ImportedCategoryResolution, currentCategory: SupermarketDepartment) {
   return (resolution.source === "retailer-path" || resolution.source === "comparable-product")
-    && resolution.category !== "Other"
     && resolution.category !== currentCategory;
 }

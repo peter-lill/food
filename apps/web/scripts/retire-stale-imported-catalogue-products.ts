@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
-import { currentRetailerCatalogueIndex, listingAppearsInCurrentRetailerCatalogue } from "./imported-catalogue-path-recovery";
+import { currentRetailerCatalogueIndex, staleRetailerListingIds } from "./imported-catalogue-path-recovery";
 
 const apply = process.argv.includes("--apply");
 const pageSize = 500;
@@ -60,49 +60,57 @@ async function main() {
     ALDI: currentRetailerCatalogueIndex(aldiProducts, "ALDI"),
     Drakes: currentRetailerCatalogueIndex(drakesProducts, "Drakes"),
   };
-  const products = await prisma.product.findMany({
+  const retailerListings = await prisma.storeProduct.findMany({
     where: {
-      lifecycle: { not: "ARCHIVED" },
-      storeProducts: {
-        some: { active: true, retailer: { in: ["ALDI", "Drakes"] } },
-        every: { OR: [{ active: false }, { retailer: { in: ["ALDI", "Drakes"] } }] },
-      },
+      active: true,
+      retailer: { in: ["ALDI", "Drakes"] },
+      product: { lifecycle: { not: "ARCHIVED" } },
     },
+    select: { id: true, productId: true, retailer: true, externalId: true, retailerProductName: true, productUrl: true },
+  });
+  const staleListingIds = staleRetailerListingIds(retailerListings, current);
+  const staleListingIdSet = new Set(staleListingIds);
+  const affectedProductIds = [...new Set(retailerListings.filter((listing) => staleListingIdSet.has(listing.id)).map((listing) => listing.productId))];
+  const affectedProducts = affectedProductIds.length ? await prisma.product.findMany({
+    where: { id: { in: affectedProductIds }, lifecycle: { not: "ARCHIVED" } },
     select: {
       id: true,
       name: true,
-      storeProducts: { where: { active: true }, select: { retailer: true, externalId: true, retailerProductName: true, productUrl: true } },
+      storeProducts: { where: { active: true }, select: { id: true } },
       _count: { select: { inventoryItems: true, ingredientRecords: true, shoppingItems: true, receiptItems: true } },
     },
-  });
-  const protectedProducts = products.filter((product) => Object.values(product._count).some((count) => count > 0));
-  const staleProducts = products.filter((product) => {
+  }) : [];
+  const protectedProducts = affectedProducts.filter((product) => Object.values(product._count).some((count) => count > 0));
+  const staleProducts = affectedProducts.filter((product) => {
     if (Object.values(product._count).some((count) => count > 0)) return false;
-    return !product.storeProducts.some((listing) => {
-      if (listing.retailer !== "ALDI" && listing.retailer !== "Drakes") return true;
-      const retailer = listing.retailer as "ALDI" | "Drakes";
-      return listingAppearsInCurrentRetailerCatalogue(listing, current[retailer]);
-    });
+    return product.storeProducts.every((listing) => staleListingIdSet.has(listing.id));
   });
-  const retailerCounts = Object.fromEntries(["ALDI", "Drakes"].map((retailer) => [retailer, staleProducts.filter((product) => product.storeProducts.some((listing) => listing.retailer === retailer)).length]));
+  const retailerCounts = Object.fromEntries(["ALDI", "Drakes"].map((retailer) => [retailer, retailerListings.filter((listing) => listing.retailer === retailer && staleListingIdSet.has(listing.id)).length]));
 
-  console.log(`${apply ? "Archiving" : "Would archive"} ${staleProducts.length} stale ALDI/Drakes catalogue-only products.`);
+  console.log(`${apply ? "Deactivating" : "Would deactivate"} ${staleListingIds.length} stale ALDI/Drakes retailer listings.`);
+  console.log(`${apply ? "Archiving" : "Would archive"} ${staleProducts.length} products left with no current retailer listing or user history.`);
   console.log(`Current cache coverage: ALDI ${aldiProducts.length} listings; Drakes ${drakesProducts.length} listings at store ${requestedDrakesStore}.`);
   console.log(`Protected from archival because they have pantry, recipe, shopping, or receipt history: ${protectedProducts.length}.`);
-  console.log(`Archive candidates by retailer: ${JSON.stringify(retailerCounts)}.`);
+  console.log(`Stale listings by retailer: ${JSON.stringify(retailerCounts)}.`);
   for (const product of staleProducts.slice(0, 20)) console.log(`- ${product.name} (${product.id})`);
   if (staleProducts.length > 20) console.log(`…and ${staleProducts.length - 20} more.`);
   if (!apply) {
     console.log("No database changes were made. Rerun with --apply after reviewing this preview.");
     return;
   }
-  if (!staleProducts.length) {
-    console.log("No stale catalogue-only products required archival.");
+  if (!staleListingIds.length) {
+    console.log("No stale retailer listings or catalogue-only products required retirement.");
     return;
   }
-  const result = await prisma.product.updateMany({ where: { id: { in: staleProducts.map((product) => product.id) } }, data: { lifecycle: "ARCHIVED" } });
-  if (result.count !== staleProducts.length) throw new Error(`Archived ${result.count} products, expected ${staleProducts.length}. No further steps were run.`);
-  console.log(`Archived ${result.count} stale catalogue-only products. Their history is retained and they will no longer appear in the active catalogue or category audit.`);
+  const [listingResult, productResult] = await prisma.$transaction(async (transaction) => {
+    const retiredListings = await transaction.storeProduct.updateMany({ where: { id: { in: staleListingIds }, active: true }, data: { active: false } });
+    const archivedProducts = await transaction.product.updateMany({ where: { id: { in: staleProducts.map((product) => product.id) }, lifecycle: { not: "ARCHIVED" } }, data: { lifecycle: "ARCHIVED" } });
+    if (retiredListings.count !== staleListingIds.length || archivedProducts.count !== staleProducts.length) {
+      throw new Error(`Retired ${retiredListings.count}/${staleListingIds.length} listings and ${archivedProducts.count}/${staleProducts.length} products; expected an exact atomic update.`);
+    }
+    return [retiredListings, archivedProducts] as const;
+  });
+  console.log(`Deactivated ${listingResult.count} stale retailer listings and archived ${productResult.count} catalogue-only products. Price and user history were retained.`);
 }
 
 void main()

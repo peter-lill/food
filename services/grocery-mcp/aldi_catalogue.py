@@ -14,6 +14,7 @@ import os
 import re
 import sqlite3
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable
@@ -109,9 +110,13 @@ def cache_connection() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS aldi_products (
           external_id TEXT PRIMARY KEY, name TEXT NOT NULL, brand TEXT, pack_size TEXT,
           unit_price TEXT, price REAL NOT NULL, image_url TEXT, product_url TEXT NOT NULL,
-          category_path TEXT NOT NULL, refreshed_at INTEGER NOT NULL
+          category_path TEXT NOT NULL, refreshed_at INTEGER NOT NULL,
+          refresh_generation TEXT
         )
     """)
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(aldi_products)")}
+    if "refresh_generation" not in columns:
+        connection.execute("ALTER TABLE aldi_products ADD COLUMN refresh_generation TEXT")
     connection.execute("CREATE INDEX IF NOT EXISTS aldi_products_category ON aldi_products(category_path, name)")
     return connection
 
@@ -126,26 +131,36 @@ def cache_session():
         connection.close()
 
 
-def cache_products(products: list[dict]) -> int:
-    now = int(time.time())
+def cache_products(products: list[dict], refreshed_at: int | None = None, refresh_generation: str | None = None) -> int:
+    now = refreshed_at if refreshed_at is not None else int(time.time())
     with cache_session() as connection:
         for product in products:
             connection.execute("""
                 INSERT INTO aldi_products (
                   external_id, name, brand, pack_size, unit_price, price, image_url,
-                  product_url, category_path, refreshed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  product_url, category_path, refreshed_at, refresh_generation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(external_id) DO UPDATE SET
                   name=excluded.name, brand=excluded.brand, pack_size=excluded.pack_size,
                   unit_price=excluded.unit_price, price=excluded.price, image_url=excluded.image_url,
                   product_url=excluded.product_url, category_path=excluded.category_path,
-                  refreshed_at=excluded.refreshed_at
+                  refreshed_at=excluded.refreshed_at,
+                  refresh_generation=excluded.refresh_generation
             """, (
                 product["external_id"], product["name"], product["brand"], product["pack_size"],
                 product["unit_price"], product["price"], product["image_url"], product["product_url"],
-                product["category_path"], now,
+                product["category_path"], now, refresh_generation,
             ))
     return len(products)
+
+
+def prune_stale_products(refresh_generation: str) -> int:
+    with cache_session() as connection:
+        cursor = connection.execute(
+            "DELETE FROM aldi_products WHERE refresh_generation IS NULL OR refresh_generation != ?",
+            (refresh_generation,),
+        )
+        return cursor.rowcount
 
 
 @dataclass
@@ -159,7 +174,7 @@ class AldiCatalogueSession:
         with urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8", errors="replace")
 
-    def refresh(self, category_path: str = "/products", max_pages: int | None = None) -> dict:
+    def refresh(self, category_path: str = "/products", max_pages: int | None = None, refresh_generation: str | None = None) -> dict:
         if not category_path.startswith("/products"):
             raise ValueError("category must be an ALDI /products path")
         maximum = max_pages or ALDI_PAGE_LIMIT
@@ -171,7 +186,7 @@ class AldiCatalogueSession:
             products, total_pages = parse_aldi_listing(self.read(f"https://www.aldi.com.au{category_path}{suffix}"), category_path)
             all_products.extend(products)
             page += 1
-        return {"category": category_path, "products": cache_products(all_products), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
+        return {"category": category_path, "products": cache_products(all_products, refresh_generation=refresh_generation), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
 
     def department_categories(self) -> list[str]:
         return discover_department_categories(self.read(ALDI_PRODUCTS_URL))
@@ -180,12 +195,18 @@ class AldiCatalogueSession:
         categories = self.department_categories()
         if not categories:
             raise RuntimeError("ALDI products page did not expose department category links")
-        outcomes = [self.refresh(category, max_pages) for category in categories]
+        refresh_generation = uuid.uuid4().hex
+        outcomes = []
+        for category in categories:
+            outcomes.append(self.refresh(category, max_pages, refresh_generation))
+        truncated = [outcome["category"] for outcome in outcomes if outcome["truncated"]]
+        retired = 0 if truncated else prune_stale_products(refresh_generation)
         return {
             "categories": categories,
             "products": sum(outcome["products"] for outcome in outcomes),
             "pages": sum(outcome["pages"] for outcome in outcomes),
-            "truncatedCategories": [outcome["category"] for outcome in outcomes if outcome["truncated"]],
+            "truncatedCategories": truncated,
+            "retiredProducts": retired,
         }
 
 
