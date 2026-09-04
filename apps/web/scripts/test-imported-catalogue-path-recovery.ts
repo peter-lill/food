@@ -42,9 +42,10 @@ assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", extern
 
 const drakesIndex = currentRetailerCatalogueIndex([
   { externalId: "norco-full-cream-fresh-milk-2l", name: "Norco Full Cream Fresh Milk 2L", productUrl: "https://www.drakes.com.au/product/norco-full-cream-fresh-milk-2l" },
-], "Drakes");
+], "Drakes", "089");
 assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:norco-full-cream-fresh-milk-2l", retailerProductName: "Old milk title", productUrl: null }, drakesIndex), true);
 assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:old-milk", retailerProductName: "Old milk title", productUrl: "https://www.drakes.com.au/product/norco-full-cream-fresh-milk-2l" }, drakesIndex), true);
 assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "089:old-milk", retailerProductName: "Old milk title", productUrl: null }, drakesIndex), false);
+assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "Drakes", externalId: "087:norco-full-cream-fresh-milk-2l", retailerProductName: "Same product at old store", productUrl: "https://www.drakes.com.au/product/norco-full-cream-fresh-milk-2l" }, drakesIndex), false);
 
 console.log("imported catalogue path recovery tests passed");

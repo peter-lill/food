@@ -94,6 +94,7 @@ type StoredRetailerListingIdentity = { retailer: string; externalId: string | nu
 export type CurrentRetailerCatalogueIndex = {
   externalIds: ReadonlySet<string>;
   productUrls: ReadonlySet<string>;
+  selectedDrakesStore: string | null;
 };
 
 /**
@@ -102,7 +103,11 @@ export type CurrentRetailerCatalogueIndex = {
  * enough to retain a record, while a missing identity is never treated as a
  * reason to overwrite its category.
  */
-export function currentRetailerCatalogueIndex(products: readonly RetailerCatalogueIdentity[], retailer: "ALDI" | "Drakes") {
+export function currentRetailerCatalogueIndex(
+  products: readonly RetailerCatalogueIdentity[],
+  retailer: "ALDI" | "Drakes",
+  selectedDrakesStore: string | null = null,
+) {
   const externalIds = new Set<string>();
   const productUrls = new Set<string>();
   for (const product of products) {
@@ -113,7 +118,7 @@ export function currentRetailerCatalogueIndex(products: readonly RetailerCatalog
     const productUrl = canonicalRetailerProductUrl(product.productUrl);
     if (productUrl) productUrls.add(productUrl);
   }
-  return { externalIds, productUrls };
+  return { externalIds, productUrls, selectedDrakesStore: retailer === "Drakes" ? selectedDrakesStore : null };
 }
 
 /**
@@ -122,6 +127,13 @@ export function currentRetailerCatalogueIndex(products: readonly RetailerCatalog
  * stable identities and otherwise preserve stale duplicate catalogue records.
  */
 export function listingAppearsInCurrentRetailerCatalogue(listing: StoredRetailerListingIdentity, index: CurrentRetailerCatalogueIndex) {
+  if (listing.retailer === "Drakes" && index.selectedDrakesStore) {
+    const listingStore = listing.externalId?.match(/^([a-z0-9-]{1,64}):/)?.[1] ?? null;
+    // Drakes prices and taxonomy are selected-store data. A product slug or
+    // URL shared with the selected store must not keep an older store's
+    // listing active, because the two stores can place it in different aisles.
+    if (listingStore !== index.selectedDrakesStore) return false;
+  }
   const externalId = listing.retailer === "ALDI"
     ? canonicalAldiExternalId(listing.externalId)
     : drakesProductExternalId(listing.externalId);

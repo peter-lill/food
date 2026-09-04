@@ -11,12 +11,13 @@ assert.equal(listingAppearsInCurrentRetailerCatalogue({ retailer: "ALDI", extern
 
 const currentDrakes = currentRetailerCatalogueIndex([
   { externalId: "current-drakes", name: "Current Drakes product", productUrl: null },
-], "Drakes");
+], "Drakes", "089");
 assert.deepEqual(staleRetailerListingIds([
   { id: "aldi-current", retailer: "ALDI", externalId: "000123", retailerProductName: "Current", productUrl: null },
   { id: "aldi-stale", retailer: "ALDI", externalId: "999", retailerProductName: "Stale", productUrl: null },
   { id: "drakes-current", retailer: "Drakes", externalId: "089:current-drakes", retailerProductName: "Current", productUrl: null },
+  { id: "drakes-old-store", retailer: "Drakes", externalId: "087:current-drakes", retailerProductName: "Current elsewhere", productUrl: null },
   { id: "coles-ignored", retailer: "Coles", externalId: "999", retailerProductName: "Unrelated", productUrl: null },
-], { ALDI: currentAldi, Drakes: currentDrakes }), ["aldi-stale"]);
+], { ALDI: currentAldi, Drakes: currentDrakes }), ["aldi-stale", "drakes-old-store"]);
 
 console.log("stale imported catalogue retirement tests passed");

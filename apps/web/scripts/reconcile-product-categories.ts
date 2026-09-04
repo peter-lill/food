@@ -14,12 +14,12 @@ async function main() {
   });
 
   const updates = products.flatMap((product) => {
-    // This legacy command must never rewrite an established catalogue record
-    // from product-name keywords. It is retained solely to normalise known
-    // category aliases already stored in the database (for example, "Fresh
-    // produce" -> "Fruit & vegetables").
-    const category = productDepartment(product.category, "");
-    const categoryNeedsNormalising = category !== "Other" && category !== product.category;
+    // Preserve every established category. For a genuinely missing legacy
+    // value, use the existing conservative department inference and persist
+    // an explicit Other when no safe match exists; null must not silently act
+    // as a category forever.
+    const category = productDepartment(product.category, product.category ? "" : (product.canonicalName ?? product.name));
+    const categoryNeedsNormalising = category !== product.category;
     const productTypeNeedsRepair = !isProductTypeCompatibleWithDepartment(category, product.productType);
     return categoryNeedsNormalising || productTypeNeedsRepair
       ? [{
