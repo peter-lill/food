@@ -122,7 +122,7 @@ const departmentRules: Array<{ department: SupermarketDepartment; terms: string[
       "mandarin", "mango", "mint", "mushroom", "nectarine", "onion", "orange",
       "oregano", "parsley", "pea", "peas", "pear", "potato", "pumpkin", "radish", "rosemary",
       "sage", "salad", "spinach", "spring onion", "strawberry", "sweet potato", "thyme",
-      "rocket", "tomato", "watermelon", "zucchini",
+      "rocket", "brussels sprout", "brussels sprouts", "strawberries", "tomato", "watermelon", "zucchini",
     ],
   },
   {

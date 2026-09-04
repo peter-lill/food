@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import type { SupermarketDepartment } from "../src/lib/products/product-category";
-import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, supportedRetailerCategoryPath, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
 
 const comparableCategories: Map<string, Set<SupermarketDepartment>> = new Map([
   ["milk", new Set<SupermarketDepartment>(["Dairy & eggs"])],
@@ -62,6 +62,11 @@ assert.deepEqual(categoryResolutionForImport("Cotton Tea Towels", new Map()), {
 
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), "Dairy & eggs"), false);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Full Cream Milk 2L", comparableCategories), "Other"), true);
+
+assert.equal(supportedRetailerCategoryPath("Remedy Kombucha Sparkling Live Cultured Drink", ["/category/dairy", "/category/drinks-1"], "Other"), "/category/drinks-1");
+assert.equal(supportedRetailerCategoryPath("Sara Lee Carrot Cake", ["/category/bakery", "/category/freezer"], "Bakery"), "/category/bakery");
+assert.equal(supportedRetailerCategoryPath("Brussels Sprouts 500g", ["/category/freezer", "/category/fruit-vegetables"], "Other"), "/category/fruit-vegetables");
+assert.equal(supportedRetailerCategoryPath("Unknown product", ["/category/dairy", "/category/pantry"], "Other"), null);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Any retailer product", new Map(), "Household"), "Other"), true);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("10K Powerbank", new Map(), "/category/general-merchandise"), "Dairy & eggs"), true);
 

@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
-import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
+import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, supportedRetailerCategoryPath } from "./catalogue-import-category-evidence";
 
 const apply = process.argv.includes("--apply");
 const importedRetailers = ["ALDI", "Drakes"];
@@ -58,7 +58,7 @@ async function main() {
   for (const product of importedProducts) {
     const name = product.canonicalName ?? product.name;
     const from = productDepartment(product.category, "");
-    const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
+    const retailerPath = supportedRetailerCategoryPath(name, product.storeProducts.map((listing) => listing.aisle), from);
     const resolved = categoryResolutionForImport(name, comparableCategories, retailerPath);
     // Historical product titles often contain ingredients, flavours, and use
     // cases. A name-only conclusion is never enough to rewrite an established
