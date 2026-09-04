@@ -1,6 +1,6 @@
 import { ProductType } from "@prisma/client";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
-import { retailerPathDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
+import { inferProductCategory, retailerPathDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
 
 export type ImportedCategoryResolution = {
@@ -83,6 +83,36 @@ export function unanimousRetailerCategoryPath(paths: ReadonlyArray<string | null
     if (!pathByCategory.has(category)) pathByCategory.set(category, path);
   }
   return pathByCategory.size === 1 ? [...pathByCategory.values()][0] ?? null : null;
+}
+
+/**
+ * Resolve products which a retailer deliberately exposes in more than one
+ * department. An established category supported by any retailer path wins.
+ * For an unclassified product, its title may only break a tie between the
+ * retailer's own candidate departments; it can never invent a third one.
+ */
+export function supportedRetailerCategoryPath(
+  productName: string,
+  paths: ReadonlyArray<string | null | undefined>,
+  currentCategory?: SupermarketDepartment,
+) {
+  const recognised = paths.flatMap((path) => {
+    const category = retailerPathDepartment(path);
+    return path && category ? [{ path, category }] : [];
+  });
+  if (!recognised.length) return null;
+
+  if (currentCategory && currentCategory !== "Other") {
+    const existing = recognised.find((candidate) => candidate.category === currentCategory);
+    if (existing) return existing.path;
+  }
+
+  const categories = new Set(recognised.map((candidate) => candidate.category));
+  if (categories.size === 1) return recognised[0]?.path ?? null;
+
+  const inferred = inferProductCategory(productName);
+  const tieBreak = inferred ? recognised.find((candidate) => candidate.category === inferred) : null;
+  return tieBreak?.path ?? null;
 }
 
 /** Existing data is repaired only from an authoritative path or corroborating comparable products. */

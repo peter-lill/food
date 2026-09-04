@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, retailerPathDepartment, supermarketDepartments, type SupermarketDepartment } from "../src/lib/products/product-category";
-import { categoryResolutionForImport, comparableProductCategoryKey, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
+import { categoryResolutionForImport, comparableProductCategoryKey, supportedRetailerCategoryPath } from "./catalogue-import-category-evidence";
 import { isProductTypeCompatibleWithDepartment } from "./product-category-audit-policy";
 
 const strict = process.argv.includes("--strict");
@@ -88,12 +88,12 @@ async function main() {
 
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const importedOnly = retailers.size > 0 && [...retailers].every((retailer) => importedRetailers.has(retailer));
-    const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
+    const retailerPath = supportedRetailerCategoryPath(name, product.storeProducts.map((listing) => listing.aisle), category);
     const comparable = categoryResolutionForImport(name, comparableCategories, retailerPath);
     const categoryEvidenceMatches = (comparable.source === "retailer-path" || comparable.source === "comparable-product") && comparable.category === category;
     if (importedOnly && hasImportedAlias && category !== "Other" && !product.barcode && !categoryEvidenceMatches) {
       const pathState = retailerPath
-        ? "retailer paths disagree"
+        ? "retailer paths need a supported category tie-break"
         : retailerPathCategories.some((pathCategory) => pathCategory === "Other")
           ? "retailer paths establish only the catch-all Other department"
           : "no recognised retailer category path is stored";
