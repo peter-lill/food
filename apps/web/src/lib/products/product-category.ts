@@ -213,7 +213,13 @@ export function retailerPathDepartment(value: string | null | undefined): Superm
     .split(/[\\/|>]+/)
     .map((segment) => normaliseProductText(segment))
     .filter(Boolean)
-    .flatMap((segment) => [segment, segment.replace(/^(?:browse|products|shop)\s+/, "")]);
+    .flatMap((segment) => {
+      const withoutNavigationPrefix = segment.replace(/^(?:browse|products|shop)\s+/, "");
+      // Some retailer routes append a collision suffix to the department slug
+      // (Drakes currently exposes /category/drinks-1 and /category/beer-1).
+      // The suffix is routing metadata, not part of the category name.
+      return [segment, withoutNavigationPrefix, withoutNavigationPrefix.replace(/\s+\d+$/, "")];
+    });
 
   for (const segment of segments) {
     const canonical = canonicalDepartments.get(segment);
