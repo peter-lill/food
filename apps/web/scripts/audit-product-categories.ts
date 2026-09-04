@@ -74,8 +74,12 @@ async function main() {
     }
 
     const retailerPathCategories = product.storeProducts.map((listing) => retailerPathDepartment(listing.aisle));
+    const hasImportedAlias = product.aliases.some((alias) => alias.source === "aldi-controlled-import" || alias.source === "drakes-controlled-import");
     const hasAuthoritativeOtherPath = retailerPathCategories.some((pathCategory) => pathCategory === "Other");
-    if (category === "Other" && !hasAuthoritativeOtherPath) {
+    // Explicit Other is a valid category for manually maintained and legacy
+    // non-imported records. A missing category, or an automated ALDI/Drakes
+    // fallback to Other, still needs authoritative evidence.
+    if (category === "Other" && !hasAuthoritativeOtherPath && (product.category !== "Other" || hasImportedAlias)) {
       findings.push({
         code: "UNCLASSIFIED", id: product.id, name,
         detail: `productType=${product.productType}; no recognised retailer category path establishes this catch-all category`,
@@ -84,7 +88,6 @@ async function main() {
 
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const importedOnly = retailers.size > 0 && [...retailers].every((retailer) => importedRetailers.has(retailer));
-    const hasImportedAlias = product.aliases.some((alias) => alias.source === "aldi-controlled-import" || alias.source === "drakes-controlled-import");
     const retailerPath = unanimousRetailerCategoryPath(product.storeProducts.map((listing) => listing.aisle));
     const comparable = categoryResolutionForImport(name, comparableCategories, retailerPath);
     const categoryEvidenceMatches = (comparable.source === "retailer-path" || comparable.source === "comparable-product") && comparable.category === category;

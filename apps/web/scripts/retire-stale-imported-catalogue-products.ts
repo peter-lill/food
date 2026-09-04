@@ -58,7 +58,7 @@ async function main() {
   ]);
   const current = {
     ALDI: currentRetailerCatalogueIndex(aldiProducts, "ALDI"),
-    Drakes: currentRetailerCatalogueIndex(drakesProducts, "Drakes"),
+    Drakes: currentRetailerCatalogueIndex(drakesProducts, "Drakes", requestedDrakesStore),
   };
   const retailerListings = await prisma.storeProduct.findMany({
     where: {
