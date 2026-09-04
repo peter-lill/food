@@ -129,3 +129,15 @@ export function listingAppearsInCurrentRetailerCatalogue(listing: StoredRetailer
   const productUrl = canonicalRetailerProductUrl(listing.productUrl);
   return Boolean(productUrl && index.productUrls.has(productUrl));
 }
+
+export function staleRetailerListingIds<T extends StoredRetailerListingIdentity & { id: string }>(
+  listings: readonly T[],
+  indexes: Readonly<Record<"ALDI" | "Drakes", CurrentRetailerCatalogueIndex>>,
+) {
+  return listings
+    .filter((listing) => {
+      if (listing.retailer !== "ALDI" && listing.retailer !== "Drakes") return false;
+      return !listingAppearsInCurrentRetailerCatalogue(listing, indexes[listing.retailer]);
+    })
+    .map((listing) => listing.id);
+}

@@ -37,6 +37,7 @@ function main() {
   // retailer category path before the category reconciler evaluates it.
   run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
   run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
+  run("scripts/retire-stale-imported-catalogue-products.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
   run("scripts/backfill-imported-catalogue-paths.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
   run("scripts/reconcile-imported-categories.ts", ["--apply"]);
   run("scripts/reconcile-product-categories.ts", ["--apply"]);

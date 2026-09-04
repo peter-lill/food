@@ -28,6 +28,11 @@ assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), 
   productType: "GENERIC_PRODUCE",
   source: "retailer-path",
 });
+assert.deepEqual(categoryResolutionForImport("10K Powerbank", new Map(), "/category/general-merchandise"), {
+  category: "Other",
+  productType: "OTHER",
+  source: "retailer-path",
+});
 assert.equal(unanimousRetailerCategoryPath(["/category/general-merchandise"]), "/category/general-merchandise");
 assert.equal(unanimousRetailerCategoryPath(["/browse/dairy-eggs-fridge", "Dairy & eggs"]), "/browse/dairy-eggs-fridge");
 assert.equal(unanimousRetailerCategoryPath(["Dairy & eggs", "Pantry"]), null);
@@ -58,5 +63,6 @@ assert.deepEqual(categoryResolutionForImport("Cotton Tea Towels", new Map()), {
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Cadbury Dairy Milk Chocolate", new Map()), "Dairy & eggs"), false);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Full Cream Milk 2L", comparableCategories), "Other"), true);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Any retailer product", new Map(), "Household"), "Other"), true);
+assert.equal(canRepairImportedCategory(categoryResolutionForImport("10K Powerbank", new Map(), "/category/general-merchandise"), "Dairy & eggs"), true);
 
 console.log("catalogue import category evidence tests passed");

@@ -1,9 +1,21 @@
+import tempfile
 import unittest
+from pathlib import Path
 
-from drakes_catalogue import discover_department_categories, parse_drakes_listing, sidebar_data_url, valid_store_id
+import drakes_catalogue
+from drakes_catalogue import cache_products, discover_department_categories, parse_drakes_listing, prune_stale_products, sidebar_data_url, valid_store_id
 
 
 class DrakesCatalogueTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.original_database = drakes_catalogue.DRAKES_CATALOGUE_DB
+        drakes_catalogue.DRAKES_CATALOGUE_DB = str(Path(self.temporary_directory.name) / "drakes.sqlite")
+
+    def tearDown(self):
+        drakes_catalogue.DRAKES_CATALOGUE_DB = self.original_database
+        self.temporary_directory.cleanup()
+
     def test_parses_selected_store_shelf_and_pagination(self):
         document = '''
         <a href="/lines/norco-full-cream-fresh-milk-2l"><img src="https://cdn.example/milk.jpg"></a>
@@ -54,6 +66,22 @@ class DrakesCatalogueTests(unittest.TestCase):
     def test_rejects_arbitrary_store_hosts(self):
         with self.assertRaises(ValueError):
             valid_store_id("087.example.com")
+
+    def test_prunes_only_stale_products_for_selected_store(self):
+        product = {
+            "external_id": "old", "name": "Old product", "brand": None,
+            "pack_size": None, "unit_price": None, "price": 1.0,
+            "was_price": None, "image_url": None,
+            "product_url": "https://087.drakes.com.au/lines/old",
+            "category_path": "/category/pantry",
+        }
+        cache_products([{**product, "store_id": "087"}, {**product, "store_id": "088"}], 100, "old-run")
+        cache_products([{**product, "store_id": "087", "external_id": "current", "name": "Current product"}], 200, "current-run")
+
+        self.assertEqual(prune_stale_products("087", "current-run"), 1)
+        with drakes_catalogue.cache_session() as connection:
+            rows = connection.execute("SELECT store_id, external_id FROM drakes_products ORDER BY store_id, external_id").fetchall()
+            self.assertEqual([tuple(row) for row in rows], [("087", "current"), ("088", "old")])
 
 
 if __name__ == "__main__":

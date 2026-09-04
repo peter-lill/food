@@ -13,6 +13,7 @@ import os
 import re
 import sqlite3
 import time
+import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Callable
@@ -150,9 +151,13 @@ def cache_connection() -> sqlite3.Connection:
           brand TEXT, pack_size TEXT, unit_price TEXT, price REAL NOT NULL,
           was_price REAL, image_url TEXT, product_url TEXT NOT NULL,
           category_path TEXT NOT NULL, refreshed_at INTEGER NOT NULL,
+          refresh_generation TEXT,
           PRIMARY KEY (store_id, external_id)
         )
     """)
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(drakes_products)")}
+    if "refresh_generation" not in columns:
+        connection.execute("ALTER TABLE drakes_products ADD COLUMN refresh_generation TEXT")
     connection.execute("CREATE INDEX IF NOT EXISTS drakes_products_store_name ON drakes_products(store_id, name)")
     return connection
 
@@ -167,25 +172,36 @@ def cache_session():
         connection.close()
 
 
-def cache_products(products: list[dict]) -> int:
-    now = int(time.time())
+def cache_products(products: list[dict], refreshed_at: int | None = None, refresh_generation: str | None = None) -> int:
+    now = refreshed_at if refreshed_at is not None else int(time.time())
     with cache_session() as connection:
         for product in products:
             connection.execute("""
                 INSERT INTO drakes_products (
                   store_id, external_id, name, brand, pack_size, unit_price, price,
-                  was_price, image_url, product_url, category_path, refreshed_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  was_price, image_url, product_url, category_path, refreshed_at,
+                  refresh_generation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(store_id, external_id) DO UPDATE SET
                   name=excluded.name, brand=excluded.brand, pack_size=excluded.pack_size,
                   unit_price=excluded.unit_price, price=excluded.price, was_price=excluded.was_price,
                   image_url=excluded.image_url, product_url=excluded.product_url,
-                  category_path=excluded.category_path, refreshed_at=excluded.refreshed_at
+                  category_path=excluded.category_path, refreshed_at=excluded.refreshed_at,
+                  refresh_generation=excluded.refresh_generation
             """, tuple(product[key] for key in (
                 "store_id", "external_id", "name", "brand", "pack_size", "unit_price",
                 "price", "was_price", "image_url", "product_url", "category_path",
-            )) + (now,))
+            )) + (now, refresh_generation))
     return len(products)
+
+
+def prune_stale_products(store_id: str, refresh_generation: str) -> int:
+    with cache_session() as connection:
+        cursor = connection.execute(
+            "DELETE FROM drakes_products WHERE store_id = ? AND (refresh_generation IS NULL OR refresh_generation != ?)",
+            (valid_store_id(store_id), refresh_generation),
+        )
+        return cursor.rowcount
 
 
 @dataclass
@@ -199,7 +215,7 @@ class DrakesCatalogueSession:
         with urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8", errors="replace")
 
-    def refresh(self, store_id: str, max_pages: int | None = None, category_path: str | None = None) -> dict:
+    def refresh(self, store_id: str, max_pages: int | None = None, category_path: str | None = None, refresh_generation: str | None = None) -> dict:
         store = valid_store_id(store_id)
         if category_path and not re.fullmatch(r"/category/[a-z0-9-]+", category_path):
             raise ValueError("category must be a public Drakes /category/<slug> path")
@@ -216,7 +232,7 @@ class DrakesCatalogueSession:
             )
             all_products.extend(products)
             page += 1
-        return {"storeId": store, "category": category_path, "products": cache_products(all_products), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
+        return {"storeId": store, "category": category_path, "products": cache_products(all_products, refresh_generation=refresh_generation), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
 
     def department_categories(self, store_id: str) -> list[str]:
         store = valid_store_id(store_id)
@@ -230,13 +246,19 @@ class DrakesCatalogueSession:
         categories = self.department_categories(store)
         if not categories:
             raise RuntimeError("Drakes home page did not expose department category links")
-        outcomes = [self.refresh(store, max_pages, category) for category in categories]
+        refresh_generation = uuid.uuid4().hex
+        outcomes = []
+        for category in categories:
+            outcomes.append(self.refresh(store, max_pages, category, refresh_generation))
+        truncated = [outcome["category"] for outcome in outcomes if outcome["truncated"]]
+        retired = 0 if truncated else prune_stale_products(store, refresh_generation)
         return {
             "storeId": store,
             "categories": categories,
             "products": sum(outcome["products"] for outcome in outcomes),
             "pages": sum(outcome["pages"] for outcome in outcomes),
-            "truncatedCategories": [outcome["category"] for outcome in outcomes if outcome["truncated"]],
+            "truncatedCategories": truncated,
+            "retiredProducts": retired,
         }
 
 

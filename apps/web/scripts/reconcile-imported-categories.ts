@@ -25,8 +25,8 @@ async function main() {
       where: {
         lifecycle: { not: "ARCHIVED" },
         storeProducts: {
-          some: { retailer: { in: importedRetailers } },
-          every: { retailer: { in: importedRetailers } },
+          some: { active: true, retailer: { in: importedRetailers } },
+          none: { active: true, retailer: { notIn: importedRetailers } },
         },
       },
       select: { id: true, name: true, canonicalName: true, category: true, storeProducts: { where: { active: true }, select: { retailer: true, aisle: true } } },
@@ -64,7 +64,8 @@ async function main() {
     // cases. A name-only conclusion is never enough to rewrite an established
     // category ("dog food with beef", "lemon cleaner", and "apple jelly" are
     // representative false positives). A first-level retailer department is
-    // authoritative, as is a unanimous comparable-product family.
+    // authoritative, including an explicit general-merchandise/Other path, as
+    // is a unanimous comparable-product family.
     if (resolved.source === "unclassified") {
       skippedNameOnly += 1;
       continue;

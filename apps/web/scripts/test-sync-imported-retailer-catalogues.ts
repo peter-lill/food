@@ -7,6 +7,7 @@ assert.match(source, /--drakes-store=089/, "the sync command must require an exp
 assert.match(source, /resolve\(process\.cwd\(\), "\.\.", "\.\.", "node_modules", "tsx", "dist", "cli\.mjs"\)/, "the sync must locate the hoisted monorepo tsx runtime when npm runs from apps/web");
 assert.match(source, /import-aldi-controlled\.ts", \["--all", "--apply"\]/, "the sync must write current ALDI category paths before reconciliation");
 assert.match(source, /import-drakes-controlled\.ts", \[`--store=\$\{drakesStore\}`, "--all", "--apply"\]/, "the sync must write selected-store Drakes category paths before reconciliation");
+assert.match(source, /retire-stale-imported-catalogue-products\.ts", \[`--drakes-store=\$\{drakesStore\}`, "--apply"\]/, "the sync must deactivate listings absent from the freshly pruned retailer caches");
 assert.match(source, /backfill-imported-catalogue-paths\.ts/, "the sync must recover legacy retailer listings after current imports");
 assert.match(source, /reconcile-imported-categories\.ts", \["--apply"\]/, "the sync must reconcile categories only after paths are written");
 assert.match(source, /audit-product-categories\.ts", \["--strict", "--limit=200"\]/, "the sync must finish with the strict category audit");
