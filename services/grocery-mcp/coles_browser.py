@@ -31,7 +31,6 @@ def coles_verification_error(body: str) -> str | None:
 
 
 def missing_catalogue_data_error(title: str, body: str) -> str:
-    """Return a compact public-page diagnostic when Coles changes its markup."""
     compact_body = " ".join(body.split())[:600]
     compact_title = " ".join(title.split())[:120]
     return (
@@ -41,7 +40,6 @@ def missing_catalogue_data_error(title: str, body: str) -> str:
 
 
 def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
-    """Restore the LooseVersion API expected by UC on Python 3.12."""
     patcher_module.LooseVersion = parser_type
 
 
@@ -68,15 +66,10 @@ def wait_for_x_display(timeout_seconds: int = 10) -> None:
 
 def valid_coles_browse_url(value: str) -> bool:
     parsed = urlparse(value)
-    return (
-        parsed.scheme == "https"
-        and parsed.netloc == "www.coles.com.au"
-        and parsed.path.startswith("/browse/")
-    )
+    return parsed.scheme == "https" and parsed.netloc == "www.coles.com.au" and parsed.path.startswith("/browse/")
 
 
 def valid_coles_product_url(value: str) -> bool:
-    """Allow only a canonical, public Coles product page with a numeric ID."""
     parsed = urlparse(value)
     return (
         parsed.scheme == "https"
@@ -117,21 +110,18 @@ class Handler(BaseHTTPRequestHandler):
         if result.get("error"):
             self.send_json(502, {"status": "error", "error": result["error"]})
             return
-        self.send_json(200, {"status": "success", "nextData": result["nextData"]})
+        self.send_json(200, {
+            "status": "success",
+            "nextData": result["nextData"],
+            "browsePaths": result.get("browsePaths", []),
+        })
 
     def log_message(self, format: str, *args: object) -> None:
         print(f"coles-uc {self.address_string()} {format % args}", flush=True)
 
 
-def fetch_page(driver: object, url: str) -> str:
-    """Load a Coles page and read Next data even when nonessential assets hang.
-
-    Coles pages can leave long-lived resource requests open. Selenium's normal
-    navigation strategy waits for document.readyState=complete, so a renderer
-    timeout does not necessarily mean the catalogue DOM failed to load. After
-    a navigation timeout we stop the remaining load and inspect the DOM; the
-    request still fails if verification is shown or __NEXT_DATA__ is absent.
-    """
+def fetch_page(driver: object, url: str) -> tuple[str, list[str]]:
+    """Load a Coles page and return Next data plus rendered browse links."""
     original_window = driver.current_window_handle
     driver.switch_to.new_window("tab")
     try:
@@ -153,7 +143,16 @@ def fetch_page(driver: object, url: str) -> str:
         )
         if not next_data:
             raise RuntimeError(missing_catalogue_data_error(driver.title, body))
-        return next_data
+        browse_paths = driver.execute_script("""
+            return Array.from(document.querySelectorAll('a[href*="/browse/"]'))
+              .map(a => {
+                try { return new URL(a.href, window.location.origin).pathname; }
+                catch (_) { return null; }
+              })
+              .filter(Boolean);
+        """) or []
+        unique_paths = sorted({str(path).split("?", 1)[0].split("#", 1)[0].rstrip("/") for path in browse_paths if path})
+        return next_data, unique_paths
     finally:
         driver.close()
         driver.switch_to.window(original_window)
@@ -201,7 +200,9 @@ def main() -> None:
                 except Empty:
                     continue
                 try:
-                    result["nextData"] = fetch_page(driver, url)
+                    next_data, browse_paths = fetch_page(driver, url)
+                    result["nextData"] = next_data
+                    result["browsePaths"] = browse_paths
                 except Exception as error:  # noqa: BLE001
                     result["error"] = str(error)
                 finally:
