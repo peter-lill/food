@@ -10,7 +10,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from collections import deque
+from http.client import RemoteDisconnected
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -29,27 +31,63 @@ COLES_ROOT_CATEGORIES = (
     "/browse/pet", "/browse/home-garden",
 )
 COLES_BROWSER_FETCH_URL = os.getenv(
-    "COLES_BROWSER_FETCH_URL", os.getenv("COLES_FIREFOX_FETCH_URL", "http://127.0.0.1:8791/fetch")
+    "COLES_BROWSER_FETCH_URL", os.getenv("COLES_FIREFOX_FETCH_URL", "http://127.0.0.1:8788/fetch")
 ).strip()
 GROCERY_MCP_BRIDGE_URL = os.getenv("GROCERY_MCP_BRIDGE_URL", "http://127.0.0.1:8790").rstrip("/")
 
 
-def _json_get(url: str, timeout: int = 120) -> dict:
-    try:
-        with urlopen(url, timeout=timeout) as response:
-            payload = json.loads(response.read())
-    except HTTPError as error:
+def _json_get(url: str, timeout: int = 120, attempts: int = 3) -> dict:
+    """Read one local catalogue endpoint with bounded transient retries.
+
+    Container recreation can briefly leave the bridge or browser socket
+    accepting connections before the worker is ready. Retry only connection-
+    level failures; retailer/application errors still fail immediately.
+    """
+    last_error: Exception | None = None
+    for attempt in range(1, attempts + 1):
         try:
-            detail = json.loads(error.read())
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            detail = {}
-        message = detail.get("error") if isinstance(detail, dict) else None
-        raise RuntimeError(message or f"HTTP {error.code} from catalogue service") from error
-    except (URLError, json.JSONDecodeError, UnicodeDecodeError) as error:
-        raise RuntimeError("Catalogue service did not return valid JSON") from error
-    if not isinstance(payload, dict):
-        raise RuntimeError("Catalogue service returned an invalid response")
-    return payload
+            with urlopen(url, timeout=timeout) as response:
+                payload = json.loads(response.read())
+        except HTTPError as error:
+            try:
+                detail = json.loads(error.read())
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                detail = {}
+            message = detail.get("error") if isinstance(detail, dict) else None
+            raise RuntimeError(message or f"HTTP {error.code} from catalogue service") from error
+        except (URLError, RemoteDisconnected, ConnectionResetError, TimeoutError) as error:
+            last_error = error
+            if attempt == attempts:
+                raise RuntimeError(f"Catalogue service connection failed after {attempts} attempts: {error}") from error
+            time.sleep(2 * attempt)
+            continue
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise RuntimeError("Catalogue service did not return valid JSON") from error
+        if not isinstance(payload, dict):
+            raise RuntimeError("Catalogue service returned an invalid response")
+        return payload
+    raise RuntimeError(f"Catalogue service connection failed: {last_error}")
+
+
+def _wait_for_coles_services(timeout_seconds: int = 120) -> None:
+    """Wait until both the bridge and Coles browser health endpoints respond."""
+    deadline = time.monotonic() + timeout_seconds
+    pending = {
+        "grocery bridge": f"{GROCERY_MCP_BRIDGE_URL}/health",
+        "Coles browser": COLES_BROWSER_FETCH_URL.rsplit("/fetch", 1)[0] + "/health",
+    }
+    while pending and time.monotonic() < deadline:
+        for name, url in list(pending.items()):
+            try:
+                payload = _json_get(url, timeout=5, attempts=1)
+            except RuntimeError:
+                continue
+            if payload.get("status") in ("ok", "success"):
+                pending.pop(name, None)
+        if pending:
+            time.sleep(2)
+    if pending:
+        raise RuntimeError(f"Timed out waiting for {', '.join(pending)} to become healthy")
 
 
 def _browser_next_data(url: str) -> str:
@@ -79,6 +117,7 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
         if category not in COLES_ROOT_CATEGORIES:
             raise ValueError(f"Unknown Coles root: {category}")
 
+    _wait_for_coles_services()
     queue: deque[str] = deque(roots)
     queued = set(roots)
     completed: list[str] = []
