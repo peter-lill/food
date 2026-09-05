@@ -8,6 +8,10 @@ const apply = process.argv.includes("--apply");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const drakesStore = argument("--drakes-store")?.trim().toLowerCase() ?? "";
 const resumeColes = argument("--resume-coles")?.trim() ?? "";
+const requestedColesDelay = Number(argument("--coles-delay-seconds") ?? "10");
+const colesDelaySeconds = Number.isFinite(requestedColesDelay) && requestedColesDelay >= 0 && requestedColesDelay <= 60
+  ? requestedColesDelay
+  : 10;
 if (!apply) throw new Error("This workflow changes catalogue records. Pass --apply.");
 if (!/^[a-z0-9-]{1,64}$/.test(drakesStore)) throw new Error("Pass the selected Drakes store, for example --drakes-store=089.");
 
@@ -82,7 +86,8 @@ async function main() {
     console.log(`Resuming Coles at ${resumeColes}; retaining the completed ALDI and Drakes cache refreshes.`);
   }
 
-  for (const category of colesCategories.slice(resumeIndex)) {
+  const remainingColesCategories = colesCategories.slice(resumeIndex);
+  for (const [index, category] of remainingColesCategories.entries()) {
     console.log(`Refreshing Coles ${category}.`);
     try {
       await request("/coles/catalogue/refresh", { category });
@@ -90,6 +95,10 @@ async function main() {
       throw new Error(
         `Coles stopped at ${category}. Open the verified Firefox session through noVNC, complete the Coles verification, then rerun with --resume-coles=${category}. Cause: ${String(error)}`,
       );
+    }
+    if (colesDelaySeconds > 0 && index < remainingColesCategories.length - 1) {
+      console.log(`Waiting ${colesDelaySeconds} seconds before the next Coles category.`);
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, colesDelaySeconds * 1_000));
     }
   }
   await waitForWoolworths();
