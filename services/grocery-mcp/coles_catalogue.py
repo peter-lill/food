@@ -351,9 +351,21 @@ def cache_connection() -> sqlite3.Connection:
           category_path TEXT PRIMARY KEY,
           state TEXT NOT NULL CHECK(state IN ('pending', 'running', 'completed', 'failed')),
           attempts INTEGER NOT NULL DEFAULT 0, products_cached INTEGER NOT NULL DEFAULT 0,
+          next_offset INTEGER NOT NULL DEFAULT 0, next_page INTEGER NOT NULL DEFAULT 1,
           last_started_at INTEGER, last_completed_at INTEGER, last_error TEXT
         )
     """)
+    collection_columns = {
+        row["name"] for row in connection.execute("PRAGMA table_info(coles_category_collection)")
+    }
+    if "next_offset" not in collection_columns:
+        connection.execute(
+            "ALTER TABLE coles_category_collection ADD COLUMN next_offset INTEGER NOT NULL DEFAULT 0"
+        )
+    if "next_page" not in collection_columns:
+        connection.execute(
+            "ALTER TABLE coles_category_collection ADD COLUMN next_page INTEGER NOT NULL DEFAULT 1"
+        )
     return connection
 
 
@@ -411,7 +423,12 @@ class ColesBrowserSession:
     browser_engine: str = COLES_BROWSER_ENGINE
     firefox_fetch_url: str = COLES_FIREFOX_FETCH_URL
 
-    def browse(self, category_path: str, fetch_page: Callable[[str], str] | None = None) -> int:
+    def browse(
+        self,
+        category_path: str,
+        fetch_page: Callable[[str], str] | None = None,
+        resume: bool = False,
+    ) -> int:
         if not category_path.startswith("/browse/"):
             raise ValueError("category must be a /browse/ path")
         if self.browser_engine not in ("chromium-cdp", "firefox"):
@@ -437,18 +454,60 @@ class ColesBrowserSession:
 
         def collect(read: Callable[[str], str]) -> int:
             cached_ids: set[str] = set()
-            offset = 0
-            page_number = 1
-            while True:
-                query = urlencode({"sortBy": "recommendedDescending", "start": offset, "page": page_number})
-                result = parse_coles_browse_document(read(f"https://www.coles.com.au{category_path}?{query}"))
-                cached_ids.update(cache_page(category_path, result))
-                total = int(result.get("noOfResults") or 0)
-                page_size = int(result.get("pageSize") or COLES_PAGE_SIZE)
-                offset += page_size
-                page_number += 1
-                if not result["results"] or offset >= total:
-                    return len(cached_ids)
+            now = int(time.time())
+            with cache_session() as connection:
+                checkpoint = connection.execute(
+                    "SELECT state, next_offset, next_page FROM coles_category_collection WHERE category_path = ?",
+                    (category_path,),
+                ).fetchone()
+                can_resume = resume and checkpoint and checkpoint["state"] in ("running", "failed")
+                offset = int(checkpoint["next_offset"]) if can_resume else 0
+                page_number = int(checkpoint["next_page"]) if can_resume else 1
+                connection.execute("""
+                    INSERT INTO coles_category_collection (
+                      category_path, state, attempts, products_cached, next_offset, next_page,
+                      last_started_at, last_error
+                    ) VALUES (?, 'running', 1, 0, ?, ?, ?, NULL)
+                    ON CONFLICT(category_path) DO UPDATE SET
+                      state='running', attempts=attempts + 1,
+                      products_cached=CASE WHEN ? THEN products_cached ELSE 0 END,
+                      next_offset=excluded.next_offset, next_page=excluded.next_page,
+                      last_started_at=excluded.last_started_at, last_error=NULL
+                """, (category_path, offset, page_number, now, int(bool(can_resume))))
+            try:
+                while True:
+                    query = urlencode({"sortBy": "recommendedDescending", "start": offset, "page": page_number})
+                    result = parse_coles_browse_document(read(f"https://www.coles.com.au{category_path}?{query}"))
+                    cached_ids.update(cache_page(category_path, result))
+                    total = int(result.get("noOfResults") or 0)
+                    page_size = int(result.get("pageSize") or COLES_PAGE_SIZE)
+                    offset += page_size
+                    page_number += 1
+                    complete = not result["results"] or offset >= total
+                    with cache_session() as connection:
+                        products_cached = connection.execute(
+                            "SELECT COUNT(*) FROM coles_products WHERE category_path = ?",
+                            (category_path,),
+                        ).fetchone()[0]
+                        connection.execute("""
+                            UPDATE coles_category_collection
+                            SET state=?, products_cached=?, next_offset=?, next_page=?,
+                                last_completed_at=CASE WHEN ? THEN ? ELSE last_completed_at END,
+                                last_error=NULL
+                            WHERE category_path=?
+                        """, (
+                            "completed" if complete else "running", products_cached, offset, page_number,
+                            int(complete), int(time.time()), category_path,
+                        ))
+                    if complete:
+                        return products_cached
+            except Exception as error:
+                with cache_session() as connection:
+                    connection.execute("""
+                        UPDATE coles_category_collection
+                        SET state='failed', last_error=? WHERE category_path=?
+                    """, (str(error)[:1_000], category_path))
+                raise
 
         if fetch_page:
             return collect(fetch_page)
@@ -568,6 +627,13 @@ def status() -> dict[str, Any]:
     configured = bool(COLES_FIREFOX_FETCH_URL) if COLES_BROWSER_ENGINE == "firefox" else bool(COLES_CDP_URL)
     mode = "verified-firefox" if COLES_BROWSER_ENGINE == "firefox" else "verified-browser"
     return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
+
+
+def refresh_all(resume_category: str | None = None) -> None:
+    """Refresh every Coles category in order, preserving page checkpoints."""
+    start = COLES_ROOT_CATEGORIES.index(resume_category) if resume_category else 0
+    for category in COLES_ROOT_CATEGORIES[start:]:
+        ColesBrowserSession().browse(category, resume=category == resume_category)
 
 
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:

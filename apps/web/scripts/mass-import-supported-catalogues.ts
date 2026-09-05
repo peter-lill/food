@@ -7,19 +7,12 @@ import { resolve } from "node:path";
 const apply = process.argv.includes("--apply");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const drakesStore = argument("--drakes-store")?.trim().toLowerCase() ?? "";
+const resumeColes = argument("--resume-coles")?.trim() ?? "";
 if (!apply) throw new Error("This workflow changes catalogue records. Pass --apply.");
 if (!/^[a-z0-9-]{1,64}$/.test(drakesStore)) throw new Error("Pass the selected Drakes store, for example --drakes-store=089.");
 
 const bridgeUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
 if (!bridgeUrl) throw new Error("GROCERY_MCP_BRIDGE_URL is required.");
-
-const colesCategories = [
-  "/browse/meat-seafood", "/browse/fruit-vegetables", "/browse/dairy-eggs-fridge",
-  "/browse/bakery", "/browse/deli", "/browse/pantry", "/browse/dietary-world-foods",
-  "/browse/chips-chocolates-snacks", "/browse/drinks", "/browse/frozen",
-  "/browse/cleaning-laundry", "/browse/health-beauty", "/browse/baby",
-  "/browse/pet", "/browse/home-garden",
-] as const;
 
 type JsonObject = Record<string, unknown>;
 async function request(pathname: string, parameters: Record<string, string> = {}) {
@@ -66,17 +59,33 @@ async function waitForWoolworths() {
   throw new Error("Woolworths collection did not finish within six hours.");
 }
 
+async function waitForColes(resumeCategory: string) {
+  const start = await request("/coles/catalogue/collection/start", resumeCategory ? { resumeCategory } : {});
+  console.log(`Coles collection requested: ${JSON.stringify(collectionCounts(start))}.`);
+  const deadline = Date.now() + 6 * 60 * 60 * 1000;
+  while (Date.now() < deadline) {
+    const status = await request("/coles/catalogue/collection/status");
+    const counts = collectionCounts(status);
+    console.log(`Coles collection: ${JSON.stringify(counts)}.`);
+    if (!counts.running) {
+      if (counts.failed > 0 || counts.completed !== counts.total) throw new Error(`Coles collection finished incompletely: ${JSON.stringify(counts)}.`);
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 30_000));
+  }
+  throw new Error("Coles collection did not finish within six hours.");
+}
+
 async function main() {
   await request("/health");
-  console.log("Refreshing complete ALDI catalogue.");
-  await request("/aldi/catalogue/refresh", { allDepartments: "true" });
-  console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
-  await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
-
-  for (const category of colesCategories) {
-    console.log(`Refreshing Coles ${category}.`);
-    await request("/coles/catalogue/refresh", { category });
+  if (!resumeColes) {
+    console.log("Refreshing complete ALDI catalogue.");
+    await request("/aldi/catalogue/refresh", { allDepartments: "true" });
+    console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
+    await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
   }
+
+  await waitForColes(resumeColes);
   await waitForWoolworths();
 
   run("scripts/import-coles-controlled.ts", ["--all", "--apply"]);
