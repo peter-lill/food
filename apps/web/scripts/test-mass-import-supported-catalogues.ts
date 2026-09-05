@@ -5,6 +5,9 @@ const source = readFileSync(new URL("./mass-import-supported-catalogues.ts", imp
 assert.match(source, /\/aldi\/catalogue\/refresh/);
 assert.match(source, /\/drakes\/catalogue\/refresh/);
 assert.match(source, /\/coles\/catalogue\/refresh/);
+assert.match(source, /--resume-coles/);
+assert.match(source, /complete the Coles verification/);
+assert.match(source, /colesCategories\.slice\(resumeIndex\)/);
 assert.match(source, /\/woolworths\/catalogue\/collection\/start/);
 assert.match(source, /import-coles-controlled\.ts/);
 assert.match(source, /import-woolworths-controlled\.ts/);
