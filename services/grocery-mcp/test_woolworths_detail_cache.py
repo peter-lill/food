@@ -219,6 +219,13 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertIn("body='Meat & Seafood Fresh products", message)
         self.assertLess(len(message), 850)
 
+    def test_uc_uses_python312_compatible_loose_version_parser(self) -> None:
+        patcher = types.SimpleNamespace(LooseVersion=object)
+
+        self.coles_browser.configure_uc_version_parser(patcher, "compatible-parser")
+
+        self.assertEqual(patcher.LooseVersion, "compatible-parser")
+
     def test_uc_browser_fetches_next_data_in_a_disposable_tab(self) -> None:
         class SwitchTo:
             def __init__(self, driver: object) -> None:

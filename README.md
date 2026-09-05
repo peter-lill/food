@@ -74,14 +74,14 @@ state in the same SQLite volume, and enriches every acquired product with its
 authoritative detail before it can be imported:
 
 ```bash
-curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start'
+curl -fsS 'http://127.0.0.1:8790/woolworths/catalogue/collection/start'
 ```
 
 The request returns immediately. Follow its durable progress instead of
 guessing from browser logs:
 
 ```bash
-watch -n 10 'curl -fsS http://127.0.0.1:8787/woolworths/catalogue/collection/status'
+watch -n 10 'curl -fsS http://127.0.0.1:8790/woolworths/catalogue/collection/status'
 ```
 
 Completed categories are not reacquired on a restart. Failed categories remain
@@ -89,7 +89,7 @@ visible with their error and can be retried deliberately once verification is
 healthy again:
 
 ```bash
-curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?retryFailed=1'
+curl -fsS 'http://127.0.0.1:8790/woolworths/catalogue/collection/start?retryFailed=1'
 ```
 
 Set `WOOLWORTHS_COLLECTION_CATEGORIES` to a comma-separated list of valid
@@ -103,7 +103,7 @@ recorded only broad roots, revisit those roots once to seed their descendants
 without resetting already completed child categories:
 
 ```bash
-curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?revisitCompletedRoots=1&retryFailed=1'
+curl -fsS 'http://127.0.0.1:8790/woolworths/catalogue/collection/start?revisitCompletedRoots=1&retryFailed=1'
 ```
 
 Every browse response is retained against its Woolworths stockcode, not just
@@ -112,7 +112,7 @@ revisit every completed category to rebuild those source-path associations
 before running the controlled importer again:
 
 ```bash
-curl -fsS 'http://127.0.0.1:8787/woolworths/catalogue/collection/start?revisitAllCompleted=1&retryFailed=1'
+curl -fsS 'http://127.0.0.1:8790/woolworths/catalogue/collection/start?revisitAllCompleted=1&retryFailed=1'
 ```
 
 Wait for collection status to report no pending, running or failed categories,

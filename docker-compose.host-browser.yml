@@ -7,6 +7,7 @@ services:
     ports: !reset []
     extra_hosts: !reset []
     environment:
+      PORT: ${GROCERY_MCP_HOST_PORT:-8790}
       WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://127.0.0.1:9224}
       # This bridge has host networking, so reach the loopback-only Coles
       # catalogue proxy through its published host port rather than Docker DNS.

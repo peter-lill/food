@@ -7,7 +7,7 @@ set -Eeuo pipefail
 # second instance while this script is active.
 
 food_root="${FOOD_ROOT:-/home/peter/Development/food}"
-bridge_url="${FOOD_GROCERY_MCP_URL:-http://127.0.0.1:8787}"
+bridge_url="${FOOD_GROCERY_MCP_URL:-http://127.0.0.1:8790}"
 poll_seconds="${FOOD_SPECIALS_POLL_SECONDS:-30}"
 max_wait_minutes="${FOOD_SPECIALS_MAX_WAIT_MINUTES:-480}"
 stale_days="${FOOD_SPECIALS_STALE_DAYS:-1}"
