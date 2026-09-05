@@ -20,7 +20,7 @@ from urllib.request import urlopen
 from aldi_catalogue import ALDI_PRODUCTS_URL, AldiCatalogueSession
 from catalogue_taxonomy_evidence import record_coles_category_observations, coles_taxonomy_evidence_status
 from drakes_catalogue import DrakesCatalogueSession, sidebar_data_url, valid_store_id
-from retailer_taxonomy import aldi_category_nodes, coles_browse_paths, drakes_sidebar_nodes
+from retailer_taxonomy import aldi_category_nodes, coles_browse_paths, deepest_paths, drakes_sidebar_nodes
 
 
 COLES_ROOT_CATEGORIES = (
@@ -37,7 +37,6 @@ GROCERY_MCP_BRIDGE_URL = os.getenv("GROCERY_MCP_BRIDGE_URL", "http://127.0.0.1:8
 
 
 def _json_get(url: str, timeout: int = 120, attempts: int = 3) -> dict:
-    """Read one local catalogue endpoint with bounded transient retries."""
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
@@ -65,7 +64,6 @@ def _json_get(url: str, timeout: int = 120, attempts: int = 3) -> dict:
 
 
 def _wait_for_coles_services(timeout_seconds: int = 120) -> None:
-    """Wait until both the bridge and Coles browser health endpoints respond."""
     deadline = time.monotonic() + timeout_seconds
     pending = {
         "grocery bridge": f"{GROCERY_MCP_BRIDGE_URL}/health",
@@ -85,14 +83,14 @@ def _wait_for_coles_services(timeout_seconds: int = 120) -> None:
         raise RuntimeError(f"Timed out waiting for {', '.join(pending)} to become healthy")
 
 
-def _browser_next_data(url: str) -> str:
+def _browser_payload(url: str) -> dict:
     if not COLES_BROWSER_FETCH_URL:
         raise RuntimeError("Coles browser fetch URL is not configured for this process")
     request_url = f"{COLES_BROWSER_FETCH_URL}?{urlencode({'url': url})}"
     payload = _json_get(request_url, 90)
     if payload.get("status") != "success" or not isinstance(payload.get("nextData"), str):
         raise RuntimeError(payload.get("error") or "Coles browser session did not expose Next data")
-    return payload["nextData"]
+    return payload
 
 
 def _refresh_coles_category(category: str) -> int:
@@ -107,9 +105,26 @@ def _refresh_coles_category(category: str) -> int:
 
 
 def _discover_coles_children(category: str) -> list[str]:
-    """Inspect one verified browse page without crawling its product pagination."""
-    raw = _browser_next_data(f"https://www.coles.com.au{category}")
-    return coles_browse_paths(raw, category)
+    """Inspect one verified rendered browse page without crawling pagination."""
+    payload = _browser_payload(f"https://www.coles.com.au{category}")
+    parent = category.rstrip("/")
+
+    rendered = payload.get("browsePaths")
+    rendered_children: list[str] = []
+    if isinstance(rendered, list):
+        for value in rendered:
+            if not isinstance(value, str):
+                continue
+            path = value.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+            if path.startswith(f"{parent}/"):
+                rendered_children.append(path)
+    if rendered_children:
+        return deepest_paths(rendered_children)
+
+    # Backward-compatible fallback for an older sidecar while it is being
+    # rebuilt. Current Coles pages do not reliably include navigation links in
+    # __NEXT_DATA__, which is why rendered DOM links are preferred.
+    return coles_browse_paths(payload["nextData"], category)
 
 
 def scan_coles(root: str | None, max_categories: int | None) -> dict:
@@ -119,10 +134,6 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
             raise ValueError(f"Unknown Coles root: {category}")
 
     _wait_for_coles_services()
-
-    # Root pages are discovery nodes. Do not refresh their broad product sets
-    # when they expose deeper retailer categories: taxonomy evidence is much
-    # more useful when collected from the deepest available browse paths.
     queue: deque[str] = deque()
     queued: set[str] = set()
     discovery_failures: list[dict[str, str]] = []
@@ -149,9 +160,6 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
         category = queue.popleft()
         try:
             children = _discover_coles_children(category)
-            # A category that exposes deeper descendants remains a discovery
-            # node. Queue those descendants instead of crawling all products
-            # at the broader level.
             if children:
                 print(f"Coles {category}: discovery only; {len(children)} child paths discovered.")
                 for child in children:
@@ -159,7 +167,6 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
                         queue.append(child)
                         discovered.add(child)
                 continue
-
             products = _refresh_coles_category(category)
             evidence = record_coles_category_observations(category)
         except Exception as error:  # noqa: BLE001
