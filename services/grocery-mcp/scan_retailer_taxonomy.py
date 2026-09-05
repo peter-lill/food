@@ -37,12 +37,7 @@ GROCERY_MCP_BRIDGE_URL = os.getenv("GROCERY_MCP_BRIDGE_URL", "http://127.0.0.1:8
 
 
 def _json_get(url: str, timeout: int = 120, attempts: int = 3) -> dict:
-    """Read one local catalogue endpoint with bounded transient retries.
-
-    Container recreation can briefly leave the bridge or browser socket
-    accepting connections before the worker is ready. Retry only connection-
-    level failures; retailer/application errors still fail immediately.
-    """
+    """Read one local catalogue endpoint with bounded transient retries."""
     last_error: Exception | None = None
     for attempt in range(1, attempts + 1):
         try:
@@ -111,6 +106,12 @@ def _refresh_coles_category(category: str) -> int:
     return products
 
 
+def _discover_coles_children(category: str) -> list[str]:
+    """Inspect one verified browse page without crawling its product pagination."""
+    raw = _browser_next_data(f"https://www.coles.com.au{category}")
+    return coles_browse_paths(raw, category)
+
+
 def scan_coles(root: str | None, max_categories: int | None) -> dict:
     roots = [root] if root else list(COLES_ROOT_CATEGORIES)
     for category in roots:
@@ -118,36 +119,64 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
             raise ValueError(f"Unknown Coles root: {category}")
 
     _wait_for_coles_services()
-    queue: deque[str] = deque(roots)
-    queued = set(roots)
+
+    # Root pages are discovery nodes. Do not refresh their broad product sets
+    # when they expose deeper retailer categories: taxonomy evidence is much
+    # more useful when collected from the deepest available browse paths.
+    queue: deque[str] = deque()
+    queued: set[str] = set()
+    discovery_failures: list[dict[str, str]] = []
+    discovery_nodes = 0
+    for category in roots:
+        try:
+            children = _discover_coles_children(category)
+        except Exception as error:  # noqa: BLE001
+            discovery_failures.append({"category": category, "error": str(error)})
+            continue
+        discovery_nodes += 1
+        print(f"Coles {category}: discovery only; {len(children)} child paths discovered.")
+        targets = children or [category]
+        for target in targets:
+            if target not in queued:
+                queue.append(target)
+                queued.add(target)
+
     completed: list[str] = []
-    failures: list[dict[str, str]] = []
+    failures: list[dict[str, str]] = list(discovery_failures)
+    discovered = set(queued)
 
     while queue and (max_categories is None or len(completed) < max_categories):
         category = queue.popleft()
         try:
+            children = _discover_coles_children(category)
+            # A category that exposes deeper descendants remains a discovery
+            # node. Queue those descendants instead of crawling all products
+            # at the broader level.
+            if children:
+                print(f"Coles {category}: discovery only; {len(children)} child paths discovered.")
+                for child in children:
+                    if child not in discovered:
+                        queue.append(child)
+                        discovered.add(child)
+                continue
+
             products = _refresh_coles_category(category)
             evidence = record_coles_category_observations(category)
-            raw = _browser_next_data(f"https://www.coles.com.au{category}")
-            children = coles_browse_paths(raw, category)
         except Exception as error:  # noqa: BLE001
             failures.append({"category": category, "error": str(error)})
             continue
+
         completed.append(category)
         print(
-            f"Coles {category}: {products} cached products; "
-            f"{evidence['productsObserved']} taxonomy observations; "
-            f"{len(children)} child paths discovered."
+            f"Coles {category}: leaf category; {products} cached products; "
+            f"{evidence['productsObserved']} taxonomy observations."
         )
-        for child in children:
-            if child not in queued:
-                queue.append(child)
-                queued.add(child)
 
     return {
         "retailer": "Coles",
         "completedCategories": len(completed),
-        "discoveredCategories": len(queued),
+        "discoveryNodes": discovery_nodes,
+        "discoveredCategories": len(discovered),
         "failedCategories": failures,
         "remainingCategories": len(queue),
         "taxonomyEvidence": coles_taxonomy_evidence_status(),
