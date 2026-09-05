@@ -1,26 +1,21 @@
 """Hierarchical retailer catalogue scanner.
 
-This is intentionally a catalogue-evidence pass.  It refreshes retailer caches
+This is intentionally a catalogue-evidence pass. It refreshes retailer caches
 using the deepest public category paths we can discover, but it never edits
 Food's canonical Product.category values.
-
-Examples:
-  python scan_retailer_taxonomy.py --retailer aldi --max-categories 5
-  python scan_retailer_taxonomy.py --retailer coles --root /browse/pantry --max-categories 5
-  python scan_retailer_taxonomy.py --retailer drakes --store 087 --max-categories 5
 """
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 from collections import deque
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from aldi_catalogue import ALDI_PRODUCTS_URL, AldiCatalogueSession
+from catalogue_taxonomy_evidence import record_coles_category_observations, coles_taxonomy_evidence_status
 from coles_catalogue import COLES_BROWSER_FETCH_URL, COLES_ROOT_CATEGORIES, ColesBrowserSession
 from drakes_catalogue import DrakesCatalogueSession, sidebar_data_url, valid_store_id
 from retailer_taxonomy import aldi_category_nodes, coles_browse_paths, drakes_sidebar_nodes
@@ -58,13 +53,18 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
         category = queue.popleft()
         try:
             products = session.browse(category, resume=True)
+            evidence = record_coles_category_observations(category)
             raw = _browser_next_data(f"https://www.coles.com.au{category}")
             children = coles_browse_paths(raw, category)
         except Exception as error:  # noqa: BLE001
             failures.append({"category": category, "error": str(error)})
             continue
         completed.append(category)
-        print(f"Coles {category}: {products} cached products; {len(children)} child paths discovered.")
+        print(
+            f"Coles {category}: {products} cached products; "
+            f"{evidence['productsObserved']} taxonomy observations; "
+            f"{len(children)} child paths discovered."
+        )
         for child in children:
             if child not in queued:
                 queue.append(child)
@@ -76,6 +76,7 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
         "discoveredCategories": len(queued),
         "failedCategories": failures,
         "remainingCategories": len(queue),
+        "taxonomyEvidence": coles_taxonomy_evidence_status(),
     }
 
 
