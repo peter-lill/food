@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 const apply = process.argv.includes("--apply");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const drakesStore = argument("--drakes-store")?.trim().toLowerCase() ?? "";
+const resumeColes = argument("--resume-coles")?.trim() ?? "";
 if (!apply) throw new Error("This workflow changes catalogue records. Pass --apply.");
 if (!/^[a-z0-9-]{1,64}$/.test(drakesStore)) throw new Error("Pass the selected Drakes store, for example --drakes-store=089.");
 
@@ -20,6 +21,10 @@ const colesCategories = [
   "/browse/cleaning-laundry", "/browse/health-beauty", "/browse/baby",
   "/browse/pet", "/browse/home-garden",
 ] as const;
+const resumeIndex = resumeColes ? colesCategories.indexOf(resumeColes as typeof colesCategories[number]) : 0;
+if (resumeColes && resumeIndex < 0) {
+  throw new Error(`Unknown Coles resume category: ${resumeColes}.`);
+}
 
 type JsonObject = Record<string, unknown>;
 async function request(pathname: string, parameters: Record<string, string> = {}) {
@@ -68,14 +73,24 @@ async function waitForWoolworths() {
 
 async function main() {
   await request("/health");
-  console.log("Refreshing complete ALDI catalogue.");
-  await request("/aldi/catalogue/refresh", { allDepartments: "true" });
-  console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
-  await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
+  if (!resumeColes) {
+    console.log("Refreshing complete ALDI catalogue.");
+    await request("/aldi/catalogue/refresh", { allDepartments: "true" });
+    console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
+    await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
+  } else {
+    console.log(`Resuming Coles at ${resumeColes}; retaining the completed ALDI and Drakes cache refreshes.`);
+  }
 
-  for (const category of colesCategories) {
+  for (const category of colesCategories.slice(resumeIndex)) {
     console.log(`Refreshing Coles ${category}.`);
-    await request("/coles/catalogue/refresh", { category });
+    try {
+      await request("/coles/catalogue/refresh", { category });
+    } catch (error) {
+      throw new Error(
+        `Coles stopped at ${category}. Open the verified Firefox session through noVNC, complete the Coles verification, then rerun with --resume-coles=${category}. Cause: ${String(error)}`,
+      );
+    }
   }
   await waitForWoolworths();
 
