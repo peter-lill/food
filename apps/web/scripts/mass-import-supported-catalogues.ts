@@ -83,6 +83,8 @@ async function main() {
     await request("/aldi/catalogue/refresh", { allDepartments: "true" });
     console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
     await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
+  } else {
+    console.log(`Resuming Coles at ${resumeColes}; retaining the completed ALDI and Drakes cache refreshes.`);
   }
 
   await waitForColes(resumeColes);
