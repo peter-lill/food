@@ -266,6 +266,63 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                     browser_engine="firefox", firefox_fetch_url="http://firefox.test/fetch"
                 ).browse("/browse/meat-seafood")
 
+    def test_coles_category_resume_starts_at_the_first_uncached_page(self) -> None:
+        category = "/browse/deli"
+
+        def payload(start: int, product_id: int) -> str:
+            return json.dumps({"props": {"pageProps": {"searchResults": {
+                "noOfResults": 96,
+                "pageSize": 48,
+                "start": start,
+                "results": [{
+                    "id": product_id,
+                    "name": f"Deli product {product_id}",
+                    "availability": True,
+                    "pricing": {"now": 4.5},
+                }],
+            }}}})
+
+        first_urls = []
+
+        def interrupted(url: str) -> str:
+            first_urls.append(url)
+            if "start=48" in url:
+                raise RuntimeError("Coles requires browser verification")
+            return payload(0, 1001)
+
+        with self.assertRaisesRegex(RuntimeError, "browser verification"):
+            self.coles_catalogue.ColesBrowserSession().browse(category, interrupted)
+
+        with self.coles_catalogue.cache_session() as connection:
+            checkpoint = connection.execute(
+                "SELECT state, next_offset, next_page FROM coles_category_collection WHERE category_path=?",
+                (category,),
+            ).fetchone()
+        self.assertEqual(dict(checkpoint), {"state": "failed", "next_offset": 48, "next_page": 2})
+
+        resumed_urls = []
+
+        def resumed(url: str) -> str:
+            resumed_urls.append(url)
+            return payload(48, 1002)
+
+        self.assertEqual(
+            self.coles_catalogue.ColesBrowserSession().browse(category, resumed, resume=True),
+            2,
+        )
+        self.assertEqual(len(resumed_urls), 1)
+        self.assertIn("start=48", resumed_urls[0])
+        self.assertIn("page=2", resumed_urls[0])
+        with self.coles_catalogue.cache_session() as connection:
+            checkpoint = connection.execute(
+                "SELECT state, next_offset, next_page FROM coles_category_collection WHERE category_path=?",
+                (category,),
+            ).fetchone()
+        self.assertEqual(dict(checkpoint), {"state": "completed", "next_offset": 96, "next_page": 3})
+        with self.coles_catalogue.cache_session() as connection:
+            connection.execute("DELETE FROM coles_products WHERE external_id IN ('1001', '1002')")
+            connection.execute("DELETE FROM coles_category_collection WHERE category_path=?", (category,))
+
     def test_public_aldi_listing_keeps_product_identity_price_and_catalogue_path(self) -> None:
         listing = '''
           <div id="product-tile-000000000000173130"><div class="product-tile">

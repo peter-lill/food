@@ -10,6 +10,7 @@ assert.match(source, /--coles-delay-seconds/);
 assert.match(source, /colesDelaySeconds \* 1_000/);
 assert.match(source, /complete the Coles verification/);
 assert.match(source, /remainingColesCategories = colesCategories\.slice\(resumeIndex\)/);
+assert.match(source, /resume: category === resumeColes \? "true" : "false"/);
 assert.match(source, /\/woolworths\/catalogue\/collection\/start/);
 assert.match(source, /import-coles-controlled\.ts/);
 assert.match(source, /import-woolworths-controlled\.ts/);
