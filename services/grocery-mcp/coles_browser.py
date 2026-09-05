@@ -1,4 +1,4 @@
-"""Persistent, human-verifiable Firefox session for the Coles catalogue bridge."""
+"""Persistent, human-verifiable undetected-chromedriver session for Coles."""
 
 import json
 import os
@@ -11,10 +11,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Empty, Queue
 from urllib.parse import parse_qs, urlparse
-
-from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-from playwright.sync_api import sync_playwright
-
 
 DISPLAY = os.getenv("DISPLAY", ":99")
 PROFILE_DIR = os.getenv("COLES_BROWSER_PROFILE", "/browser-profile")
@@ -85,7 +81,7 @@ def valid_coles_product_url(value: str) -> bool:
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "FoodColesFirefox/1.0"
+    server_version = "FoodColesUC/1.0"
 
     def send_json(self, status: int, payload: dict[str, object]) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -98,7 +94,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"status": "ok", "browser": "firefox"})
+            self.send_json(200, {"status": "ok", "browser": "undetected-chromedriver"})
             return
         if parsed.path != "/fetch":
             self.send_json(404, {"status": "error", "error": "Not found"})
@@ -111,7 +107,7 @@ class Handler(BaseHTTPRequestHandler):
         result: dict[str, object] = {}
         requests.put((url, completed, result))
         if not completed.wait(timeout=90):
-            self.send_json(504, {"status": "error", "error": "Firefox browser session did not return in time"})
+            self.send_json(504, {"status": "error", "error": "Undetected Chrome session did not return in time"})
             return
         if result.get("error"):
             self.send_json(502, {"status": "error", "error": result["error"]})
@@ -119,26 +115,27 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200, {"status": "success", "nextData": result["nextData"]})
 
     def log_message(self, format: str, *args: object) -> None:
-        print(f"coles-firefox {self.address_string()} {format % args}", flush=True)
+        print(f"coles-uc {self.address_string()} {format % args}", flush=True)
 
 
-def fetch_page(context: object, url: str) -> str:
-    page = context.new_page()
+def fetch_page(driver: object, url: str) -> str:
+    original_window = driver.current_window_handle
+    driver.switch_to.new_window("tab")
     try:
-        page.goto(url, wait_until="domcontentloaded", timeout=45_000)
-        body = page.locator("body").inner_text(timeout=5_000)
+        driver.get(url)
+        body = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
         verification_error = coles_verification_error(body)
         if verification_error:
             raise RuntimeError(verification_error)
-        try:
-            next_data = page.locator("#__NEXT_DATA__").text_content(timeout=15_000)
-        except PlaywrightTimeoutError as error:
-            raise RuntimeError(missing_catalogue_data_error(page.title(), body)) from error
+        next_data = driver.execute_script(
+            "const node = document.querySelector('#__NEXT_DATA__'); return node ? node.textContent : null;"
+        )
         if not next_data:
-            raise RuntimeError(missing_catalogue_data_error(page.title(), body))
+            raise RuntimeError(missing_catalogue_data_error(driver.title, body))
         return next_data
     finally:
-        page.close()
+        driver.close()
+        driver.switch_to.window(original_window)
 
 
 def main() -> None:
@@ -161,26 +158,31 @@ def main() -> None:
         server = ThreadingHTTPServer(("0.0.0.0", FETCH_PORT), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
 
-        with sync_playwright() as playwright:
-            context = playwright.firefox.launch_persistent_context(PROFILE_DIR, headless=False, no_viewport=True)
-            page = context.pages[0] if context.pages else context.new_page()
+        import undetected_chromedriver as uc
+
+        options = uc.ChromeOptions()
+        options.add_argument("--window-size=1365,768")
+        driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False)
+        driver.set_page_load_timeout(45)
+        try:
             try:
-                page.goto(START_URL, wait_until="domcontentloaded", timeout=45_000)
-            except PlaywrightTimeoutError:
+                driver.get(START_URL)
+            except Exception:  # noqa: BLE001
                 print("Initial Coles navigation timed out; the page remains open for verification", flush=True)
-            print(f"Coles Firefox browser ready: noVNC={NOVNC_PORT}, fetch={FETCH_PORT}", flush=True)
+            print(f"Coles undetected Chrome ready: noVNC={NOVNC_PORT}, fetch={FETCH_PORT}", flush=True)
             while not stopping:
                 try:
                     url, completed, result = requests.get(timeout=1)
                 except Empty:
                     continue
                 try:
-                    result["nextData"] = fetch_page(context, url)
+                    result["nextData"] = fetch_page(driver, url)
                 except Exception as error:  # noqa: BLE001
                     result["error"] = str(error)
                 finally:
                     completed.set()
-            context.close()
+        finally:
+            driver.quit()
     finally:
         if server:
             server.shutdown()

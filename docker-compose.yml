@@ -29,10 +29,10 @@ services:
       COLES_API_KEY: ${COLES_API_KEY:-}
       WOOLWORTHS_CATALOGUE_DB: /data/woolworths-catalogue.sqlite3
       WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://food-woolworths-browser:9223}
-      # Coles verification is completed in the persistent Firefox sidecar.
+      # Coles verification is completed in the persistent undetected-Chrome sidecar.
       # Keep catalogue requests in that same verified profile by default.
-      COLES_BROWSER_ENGINE: ${COLES_BROWSER_ENGINE:-firefox}
-      COLES_FIREFOX_FETCH_URL: ${COLES_FIREFOX_FETCH_URL:-http://food-coles-browser:8788/fetch}
+      COLES_BROWSER_ENGINE: ${COLES_BROWSER_ENGINE:-undetected-chromedriver}
+      COLES_BROWSER_FETCH_URL: ${COLES_BROWSER_FETCH_URL:-http://food-coles-browser:8788/fetch}
       COLES_STORE_LOCATOR_API_KEY: ${COLES_STORE_LOCATOR_API_KEY:-}
       COLES_STORE_ID: ${COLES_STORE_ID:-0584}
       COLES_API_BASE_URL: ${COLES_API_BASE_URL:-https://apigw.coles.com.au/digital/colesappbff}
@@ -84,10 +84,10 @@ services:
       DISPLAY: ":99"
       COLES_BROWSER_PROFILE: /browser-profile
     volumes:
-      - food_coles_firefox_profile:/browser-profile
+      - food_coles_uc_profile:/browser-profile
     ports:
       - "127.0.0.1:${COLES_NOVNC_PORT:-6082}:6080"
-      - "127.0.0.1:${COLES_FIREFOX_FETCH_PORT:-8788}:8788"
+      - "127.0.0.1:${COLES_BROWSER_FETCH_PORT:-8788}:8788"
     expose:
       - "8788"
     healthcheck:
@@ -148,4 +148,4 @@ volumes:
   food_auscost_data:
   food_grocery_catalogue_data:
   food_woolworths_browser_profile:
-  food_coles_firefox_profile:
+  food_coles_uc_profile:

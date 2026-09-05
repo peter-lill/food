@@ -8,6 +8,6 @@ services:
     extra_hosts: !reset []
     environment:
       WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://127.0.0.1:9224}
-      # This bridge has host networking, so reach the loopback-only Firefox
+      # This bridge has host networking, so reach the loopback-only Coles
       # catalogue proxy through its published host port rather than Docker DNS.
-      COLES_FIREFOX_FETCH_URL: ${COLES_FIREFOX_FETCH_URL:-http://127.0.0.1:8788/fetch}
+      COLES_BROWSER_FETCH_URL: ${COLES_BROWSER_FETCH_URL:-http://127.0.0.1:8788/fetch}

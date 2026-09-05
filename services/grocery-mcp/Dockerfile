@@ -2,10 +2,12 @@ FROM python:3.12-slim
 
 ARG MCP_REPOSITORY=https://github.com/iflow-mcp/hung-ngm-coles-woolworths-mcp-server.git
 ARG MCP_REVISION=d8caf10985fd1dc1053b91fc3f3006e3100d974b
+ARG UC_REPOSITORY=https://github.com/ultrafunkamsterdam/undetected-chromedriver.git
+ARG UC_REVISION=757ed6a22052f0674bb7c9f765ca884d15dcb780
 
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
-    git ca-certificates novnc openbox socat websockify x11vnc xvfb \
+    git ca-certificates chromium novnc openbox socat websockify x11vnc xvfb \
   && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/grocery-mcp
@@ -14,7 +16,8 @@ RUN git clone "$MCP_REPOSITORY" upstream \
   && git checkout "$MCP_REVISION"
 
 RUN pip install --no-cache-dir fastmcp requests python-dotenv playwright \
-  && playwright install --with-deps chromium firefox
+    "git+${UC_REPOSITORY}@${UC_REVISION}" \
+  && playwright install --with-deps chromium
 
 COPY services/grocery-mcp/bridge.py /opt/grocery-mcp/bridge.py
 COPY services/grocery-mcp/aldi_catalogue.py /opt/grocery-mcp/aldi_catalogue.py
