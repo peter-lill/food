@@ -629,6 +629,13 @@ def status() -> dict[str, Any]:
     return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 
+def refresh_all(resume_category: str | None = None) -> None:
+    """Refresh every Coles category in order, preserving page checkpoints."""
+    start = COLES_ROOT_CATEGORIES.index(resume_category) if resume_category else 0
+    for category in COLES_ROOT_CATEGORIES[start:]:
+        ColesBrowserSession().browse(category, resume=category == resume_category)
+
+
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:
     with cache_session() as connection:
         rows = connection.execute(

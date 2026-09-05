@@ -8,27 +8,11 @@ const apply = process.argv.includes("--apply");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const drakesStore = argument("--drakes-store")?.trim().toLowerCase() ?? "";
 const resumeColes = argument("--resume-coles")?.trim() ?? "";
-const requestedColesDelay = Number(argument("--coles-delay-seconds") ?? "10");
-const colesDelaySeconds = Number.isFinite(requestedColesDelay) && requestedColesDelay >= 0 && requestedColesDelay <= 60
-  ? requestedColesDelay
-  : 10;
 if (!apply) throw new Error("This workflow changes catalogue records. Pass --apply.");
 if (!/^[a-z0-9-]{1,64}$/.test(drakesStore)) throw new Error("Pass the selected Drakes store, for example --drakes-store=089.");
 
 const bridgeUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
 if (!bridgeUrl) throw new Error("GROCERY_MCP_BRIDGE_URL is required.");
-
-const colesCategories = [
-  "/browse/meat-seafood", "/browse/fruit-vegetables", "/browse/dairy-eggs-fridge",
-  "/browse/bakery", "/browse/deli", "/browse/pantry", "/browse/dietary-world-foods",
-  "/browse/chips-chocolates-snacks", "/browse/drinks", "/browse/frozen",
-  "/browse/cleaning-laundry", "/browse/health-beauty", "/browse/baby",
-  "/browse/pet", "/browse/home-garden",
-] as const;
-const resumeIndex = resumeColes ? colesCategories.indexOf(resumeColes as typeof colesCategories[number]) : 0;
-if (resumeColes && resumeIndex < 0) {
-  throw new Error(`Unknown Coles resume category: ${resumeColes}.`);
-}
 
 type JsonObject = Record<string, unknown>;
 async function request(pathname: string, parameters: Record<string, string> = {}) {
@@ -75,6 +59,23 @@ async function waitForWoolworths() {
   throw new Error("Woolworths collection did not finish within six hours.");
 }
 
+async function waitForColes(resumeCategory: string) {
+  const start = await request("/coles/catalogue/collection/start", resumeCategory ? { resumeCategory } : {});
+  console.log(`Coles collection requested: ${JSON.stringify(collectionCounts(start))}.`);
+  const deadline = Date.now() + 6 * 60 * 60 * 1000;
+  while (Date.now() < deadline) {
+    const status = await request("/coles/catalogue/collection/status");
+    const counts = collectionCounts(status);
+    console.log(`Coles collection: ${JSON.stringify(counts)}.`);
+    if (!counts.running) {
+      if (counts.failed > 0 || counts.completed !== counts.total) throw new Error(`Coles collection finished incompletely: ${JSON.stringify(counts)}.`);
+      return;
+    }
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 30_000));
+  }
+  throw new Error("Coles collection did not finish within six hours.");
+}
+
 async function main() {
   await request("/health");
   if (!resumeColes) {
@@ -86,24 +87,7 @@ async function main() {
     console.log(`Resuming Coles at ${resumeColes}; retaining the completed ALDI and Drakes cache refreshes.`);
   }
 
-  const remainingColesCategories = colesCategories.slice(resumeIndex);
-  for (const [index, category] of remainingColesCategories.entries()) {
-    console.log(`Refreshing Coles ${category}.`);
-    try {
-      await request("/coles/catalogue/refresh", {
-        category,
-        resume: category === resumeColes ? "true" : "false",
-      });
-    } catch (error) {
-      throw new Error(
-        `Coles stopped at ${category}. Open the verified Firefox session through noVNC, complete the Coles verification, then rerun with --resume-coles=${category}. Cause: ${String(error)}`,
-      );
-    }
-    if (colesDelaySeconds > 0 && index < remainingColesCategories.length - 1) {
-      console.log(`Waiting ${colesDelaySeconds} seconds before the next Coles category.`);
-      await new Promise((resolvePromise) => setTimeout(resolvePromise, colesDelaySeconds * 1_000));
-    }
-  }
+  await waitForColes(resumeColes);
   await waitForWoolworths();
 
   run("scripts/import-coles-controlled.ts", ["--all", "--apply"]);

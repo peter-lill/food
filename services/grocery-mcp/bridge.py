@@ -23,6 +23,8 @@ from coles_catalogue import (
     coles_legacy_category_api,
     coles_legacy_category_api_diagnostic,
     parse_coles_browse_document,
+    refresh_all as refresh_coles_catalogue,
+    COLES_ROOT_CATEGORIES,
     status as coles_catalogue_status,
 )
 from aldi_catalogue import (
@@ -46,6 +48,23 @@ from src.supermarkets import (  # noqa: E402
 )
 
 PORT = int(os.getenv("PORT", "8787"))
+_coles_refresh_lock = threading.Lock()
+_coles_refresh_thread: threading.Thread | None = None
+
+
+def _start_coles_refresh(resume_category: str | None = None) -> bool:
+    global _coles_refresh_thread
+    with _coles_refresh_lock:
+        if _coles_refresh_thread and _coles_refresh_thread.is_alive():
+            return False
+        def run() -> None:
+            try:
+                refresh_coles_catalogue(resume_category)
+            except Exception as error:
+                print(f"Coles catalogue refresh failed: {error}", file=sys.stderr, flush=True)
+        _coles_refresh_thread = threading.Thread(target=run, name="coles-catalogue-refresh", daemon=True)
+        _coles_refresh_thread.start()
+        return True
 
 
 def clean_text(value: object) -> str | None:
@@ -1821,6 +1840,19 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         if parsed.path != "/search":
+            if parsed.path == "/coles/catalogue/collection/start":
+                resume_category = (params.get("resumeCategory") or [""])[0].strip() or None
+                if resume_category and resume_category not in COLES_ROOT_CATEGORIES:
+                    self.send_json(400, {"status": "error", "error": "resumeCategory must be a known Coles browse path"})
+                    return
+                started = _start_coles_refresh(resume_category)
+                self.send_json(202 if started else 200, {"status": "success", "started": started, "collection": coles_catalogue_status()})
+                return
+            if parsed.path == "/coles/catalogue/collection/status":
+                collection = coles_catalogue_status()
+                collection["running"] = int(bool(_coles_refresh_thread and _coles_refresh_thread.is_alive()))
+                self.send_json(200, {"status": "success", "collection": collection})
+                return
             if parsed.path == "/coles/catalogue/refresh":
                 category = (params.get("category") or [""])[0].strip()
                 resume = (params.get("resume") or [""])[0].strip().lower() in ("1", "true", "yes")
