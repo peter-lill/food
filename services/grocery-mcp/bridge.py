@@ -1823,8 +1823,9 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path != "/search":
             if parsed.path == "/coles/catalogue/refresh":
                 category = (params.get("category") or [""])[0].strip()
+                resume = (params.get("resume") or [""])[0].strip().lower() in ("1", "true", "yes")
                 try:
-                    products = ColesBrowserSession().browse(category)
+                    products = ColesBrowserSession().browse(category, resume=resume)
                 except (ValueError, RuntimeError) as error:
                     self.send_json(502, {"status": "error", "error": f"Coles category refresh failed: {error}"})
                     return

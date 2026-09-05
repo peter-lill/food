@@ -90,7 +90,10 @@ async function main() {
   for (const [index, category] of remainingColesCategories.entries()) {
     console.log(`Refreshing Coles ${category}.`);
     try {
-      await request("/coles/catalogue/refresh", { category });
+      await request("/coles/catalogue/refresh", {
+        category,
+        resume: category === resumeColes ? "true" : "false",
+      });
     } catch (error) {
       throw new Error(
         `Coles stopped at ${category}. Open the verified Firefox session through noVNC, complete the Coles verification, then rerun with --resume-coles=${category}. Cause: ${String(error)}`,
