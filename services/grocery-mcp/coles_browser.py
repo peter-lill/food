@@ -40,6 +40,11 @@ def missing_catalogue_data_error(title: str, body: str) -> str:
     )
 
 
+def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
+    """Restore the LooseVersion API expected by UC on Python 3.12."""
+    patcher_module.LooseVersion = parser_type
+
+
 def stop(_signum: int, _frame: object) -> None:
     global stopping
     stopping = True
@@ -159,6 +164,10 @@ def main() -> None:
         threading.Thread(target=server.serve_forever, daemon=True).start()
 
         import undetected_chromedriver as uc
+        import undetected_chromedriver.patcher as uc_patcher
+        from looseversion import LooseVersion
+
+        configure_uc_version_parser(uc_patcher, LooseVersion)
 
         options = uc.ChromeOptions()
         options.add_argument("--window-size=1365,768")

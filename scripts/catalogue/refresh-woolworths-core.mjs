@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 
-const BRIDGE = process.env.GROCERY_MCP_BRIDGE_URL || "http://localhost:8787";
+const BRIDGE = process.env.GROCERY_MCP_BRIDGE_URL || "http://localhost:8790";
 const MANIFEST = new URL("./woolworths-core-categories.json", import.meta.url);
 
 const MAX_ATTEMPTS = 3;

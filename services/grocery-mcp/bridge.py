@@ -47,7 +47,7 @@ from src.supermarkets import (  # noqa: E402
     coles_search_products,
 )
 
-PORT = int(os.getenv("PORT", "8787"))
+PORT = int(os.getenv("PORT", "8790"))
 _coles_refresh_lock = threading.Lock()
 _coles_refresh_thread: threading.Thread | None = None
 

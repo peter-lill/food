@@ -15,7 +15,7 @@ RUN git clone "$MCP_REPOSITORY" upstream \
   && cd upstream \
   && git checkout "$MCP_REVISION"
 
-RUN pip install --no-cache-dir fastmcp requests python-dotenv playwright \
+RUN pip install --no-cache-dir fastmcp requests python-dotenv playwright looseversion==1.3.0 \
     "git+${UC_REPOSITORY}@${UC_REVISION}" \
   && playwright install --with-deps chromium
 
@@ -28,7 +28,7 @@ COPY services/grocery-mcp/woolworths_browser.py /opt/grocery-mcp/woolworths_brow
 COPY services/grocery-mcp/THIRD_PARTY_NOTICES.md /opt/grocery-mcp/THIRD_PARTY_NOTICES.md
 
 ENV PYTHONUNBUFFERED=1
-ENV PORT=8787
-EXPOSE 8787
+ENV PORT=8790
+EXPOSE 8790
 
 CMD ["python", "/opt/grocery-mcp/bridge.py"]
