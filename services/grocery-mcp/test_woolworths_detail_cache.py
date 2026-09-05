@@ -34,7 +34,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         spec.loader.exec_module(self.bridge)
         self.coles_catalogue = sys.modules["coles_catalogue"]
         browser_path = Path(__file__).with_name("coles_browser.py")
-        browser_spec = importlib.util.spec_from_file_location("food_coles_firefox_browser_test", browser_path)
+        browser_spec = importlib.util.spec_from_file_location("food_coles_uc_browser_test", browser_path)
         assert browser_spec and browser_spec.loader
         self.coles_browser = importlib.util.module_from_spec(browser_spec)
         browser_spec.loader.exec_module(self.coles_browser)
@@ -193,7 +193,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             ["access-denied", "imperva", "incapsula"],
         )
 
-    def test_firefox_bridge_only_accepts_safe_coles_catalogue_pages(self) -> None:
+    def test_uc_bridge_only_accepts_safe_coles_catalogue_pages(self) -> None:
         self.assertTrue(self.coles_browser.valid_coles_browse_url(
             "https://www.coles.com.au/browse/meat-seafood?sortBy=recommendedDescending"
         ))
@@ -210,7 +210,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "Coles requires browser verification",
         )
 
-    def test_firefox_browser_reports_a_compact_page_diagnostic_when_markup_changes(self) -> None:
+    def test_uc_browser_reports_a_compact_page_diagnostic_when_markup_changes(self) -> None:
         message = self.coles_browser.missing_catalogue_data_error(
             "Coles | Meat & Seafood",
             "Meat & Seafood  " + "Fresh products " * 100,
@@ -218,6 +218,42 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertIn("title='Coles | Meat & Seafood'", message)
         self.assertIn("body='Meat & Seafood Fresh products", message)
         self.assertLess(len(message), 850)
+
+    def test_uc_browser_fetches_next_data_in_a_disposable_tab(self) -> None:
+        class SwitchTo:
+            def __init__(self, driver: object) -> None:
+                self.driver = driver
+
+            def new_window(self, _kind: str) -> None:
+                self.driver.current_window_handle = "fetch-tab"
+
+            def window(self, handle: str) -> None:
+                self.driver.current_window_handle = handle
+
+        class Driver:
+            def __init__(self) -> None:
+                self.current_window_handle = "verified-session"
+                self.switch_to = SwitchTo(self)
+                self.title = "Coles | Pantry"
+                self.closed = False
+                self.url = ""
+
+            def get(self, url: str) -> None:
+                self.url = url
+
+            def execute_script(self, script: str) -> str:
+                return '{"props":{"pageProps":{}}}' if "__NEXT_DATA__" in script else "Pantry products"
+
+            def close(self) -> None:
+                self.closed = True
+
+        driver = Driver()
+        url = "https://www.coles.com.au/browse/pantry"
+
+        self.assertEqual(self.coles_browser.fetch_page(driver, url), '{"props":{"pageProps":{}}}')
+        self.assertEqual(driver.url, url)
+        self.assertTrue(driver.closed)
+        self.assertEqual(driver.current_window_handle, "verified-session")
 
     def test_coles_product_document_requires_the_exact_retailer_id(self) -> None:
         raw = json.dumps({"props": {"pageProps": {
@@ -236,12 +272,12 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "requested product"):
             self.coles_catalogue.parse_coles_product_document(raw, "9999999")
 
-    def test_firefox_catalogue_engine_reads_exact_product_page(self) -> None:
+    def test_uc_catalogue_engine_reads_exact_product_page(self) -> None:
         raw = json.dumps({"props": {"pageProps": {"product": {
             "id": "5428639", "name": "Coles Simply Table Spread", "pricing": {"now": 3.5},
         }}}})
         product = self.coles_catalogue.ColesBrowserSession(
-            browser_engine="firefox", firefox_fetch_url="http://firefox.test/fetch"
+            browser_engine="undetected-chromedriver", browser_fetch_url="http://uc.test/fetch"
         ).product(
             "https://www.coles.com.au/product/coles-simply-table-spread-1kg-5428639",
             "5428639",
@@ -249,21 +285,21 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         )
         self.assertEqual(product["id"], "5428639")
 
-    def test_firefox_catalogue_engine_requires_a_configured_browser_session(self) -> None:
-        with self.assertRaisesRegex(RuntimeError, "COLES_FIREFOX_FETCH_URL"):
+    def test_uc_catalogue_engine_requires_a_configured_browser_session(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "COLES_BROWSER_FETCH_URL"):
             self.coles_catalogue.ColesBrowserSession(
-                browser_engine="firefox", firefox_fetch_url=""
+                browser_engine="undetected-chromedriver", browser_fetch_url=""
             ).browse("/browse/meat-seafood")
 
-    def test_firefox_catalogue_engine_returns_proxy_error_detail(self) -> None:
+    def test_uc_catalogue_engine_returns_proxy_error_detail(self) -> None:
         proxy_error = HTTPError(
-            "http://firefox.test/fetch", 502, "Bad Gateway", {},
+            "http://uc.test/fetch", 502, "Bad Gateway", {},
             BytesIO(b'{"status":"error","error":"Coles requires browser verification"}'),
         )
         with patch.object(self.coles_catalogue, "urlopen", side_effect=proxy_error):
             with self.assertRaisesRegex(RuntimeError, "Coles requires browser verification"):
                 self.coles_catalogue.ColesBrowserSession(
-                    browser_engine="firefox", firefox_fetch_url="http://firefox.test/fetch"
+                    browser_engine="undetected-chromedriver", browser_fetch_url="http://uc.test/fetch"
                 ).browse("/browse/meat-seafood")
 
     def test_coles_category_resume_starts_at_the_first_uncached_page(self) -> None:

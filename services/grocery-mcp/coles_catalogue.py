@@ -26,10 +26,12 @@ from playwright.sync_api import sync_playwright
 
 COLES_CATALOGUE_DB = os.getenv("COLES_CATALOGUE_DB", "/data/coles-catalogue.sqlite3")
 COLES_CDP_URL = os.getenv("COLES_CDP_URL", os.getenv("WOOLWORTHS_CDP_URL", "")).strip()
-# The human-verifiable Firefox sidecar owns Coles' persistent session. Chromium
-# remains an explicit opt-in for installations that provide their own CDP URL.
-COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "firefox").strip().lower()
-COLES_FIREFOX_FETCH_URL = os.getenv("COLES_FIREFOX_FETCH_URL", "").strip()
+# The human-verifiable undetected-Chrome sidecar owns Coles' persistent session.
+# Chromium CDP and the former Firefox engine remain compatibility modes.
+COLES_BROWSER_ENGINE = os.getenv("COLES_BROWSER_ENGINE", "undetected-chromedriver").strip().lower()
+COLES_BROWSER_FETCH_URL = os.getenv(
+    "COLES_BROWSER_FETCH_URL", os.getenv("COLES_FIREFOX_FETCH_URL", "")
+).strip()
 COLES_API_BASE_URL = os.getenv(
     "COLES_API_BASE_URL", "https://apigw.coles.com.au/digital/colesappbff"
 ).rstrip("/")
@@ -421,7 +423,7 @@ def cache_page(category_path: str, result: dict[str, Any]) -> set[str]:
 class ColesBrowserSession:
     cdp_url: str = COLES_CDP_URL
     browser_engine: str = COLES_BROWSER_ENGINE
-    firefox_fetch_url: str = COLES_FIREFOX_FETCH_URL
+    browser_fetch_url: str = COLES_BROWSER_FETCH_URL
 
     def browse(
         self,
@@ -431,8 +433,8 @@ class ColesBrowserSession:
     ) -> int:
         if not category_path.startswith("/browse/"):
             raise ValueError("category must be a /browse/ path")
-        if self.browser_engine not in ("chromium-cdp", "firefox"):
-            raise RuntimeError("unsupported Coles browser engine; use chromium-cdp or firefox")
+        if self.browser_engine not in ("chromium-cdp", "undetected-chromedriver", "firefox"):
+            raise RuntimeError("unsupported Coles browser engine; use undetected-chromedriver or chromium-cdp")
         if fetch_page is None and self.browser_engine == "chromium-cdp" and not self.cdp_url:
             raise RuntimeError("verified browser session is not configured; set COLES_CDP_URL")
 
@@ -512,12 +514,12 @@ class ColesBrowserSession:
         if fetch_page:
             return collect(fetch_page)
 
-        if self.browser_engine == "firefox":
-            if not self.firefox_fetch_url:
-                raise RuntimeError("Firefox browser session is not configured; set COLES_FIREFOX_FETCH_URL")
+        if self.browser_engine in ("undetected-chromedriver", "firefox"):
+            if not self.browser_fetch_url:
+                raise RuntimeError("Coles browser session is not configured; set COLES_BROWSER_FETCH_URL")
 
-            def read_firefox(url: str) -> str:
-                request_url = f"{self.firefox_fetch_url}?{urlencode({'url': url})}"
+            def read_browser(url: str) -> str:
+                request_url = f"{self.browser_fetch_url}?{urlencode({'url': url})}"
                 try:
                     with urlopen(request_url, timeout=90) as response:
                         payload = json.loads(response.read())
@@ -527,19 +529,19 @@ class ColesBrowserSession:
                     except (json.JSONDecodeError, UnicodeDecodeError):
                         detail = {}
                     message = detail.get("error") if isinstance(detail, dict) else None
-                    raise RuntimeError(message or f"Firefox browser session returned HTTP {error.code}") from error
+                    raise RuntimeError(message or f"Coles browser session returned HTTP {error.code}") from error
                 except URLError as error:
-                    raise RuntimeError(f"Firefox browser session is unavailable: {error.reason}") from error
+                    raise RuntimeError(f"Coles browser session is unavailable: {error.reason}") from error
                 except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                    raise RuntimeError("Firefox browser session returned an invalid response") from error
+                    raise RuntimeError("Coles browser session returned an invalid response") from error
                 if payload.get("status") != "success":
-                    raise RuntimeError(payload.get("error") or "Firefox browser session did not return catalogue data")
+                    raise RuntimeError(payload.get("error") or "Coles browser session did not return catalogue data")
                 next_data = payload.get("nextData")
                 if not isinstance(next_data, str) or not next_data:
-                    raise RuntimeError("Firefox browser session did not return catalogue data")
+                    raise RuntimeError("Coles browser session did not return catalogue data")
                 return next_data
 
-            return collect(read_firefox)
+            return collect(read_browser)
 
         with sync_playwright() as playwright:
             browser = playwright.chromium.connect_over_cdp(self.cdp_url)
@@ -553,8 +555,8 @@ class ColesBrowserSession:
         """Read one exact Coles product page through the verified browser session."""
         if not valid_coles_product_url(product_url, external_id):
             raise ValueError("product must be a canonical Coles product URL for the requested ID")
-        if self.browser_engine not in ("chromium-cdp", "firefox"):
-            raise RuntimeError("unsupported Coles browser engine; use chromium-cdp or firefox")
+        if self.browser_engine not in ("chromium-cdp", "undetected-chromedriver", "firefox"):
+            raise RuntimeError("unsupported Coles browser engine; use undetected-chromedriver or chromium-cdp")
 
         def read_page(context: Any, url: str) -> str:
             page = context.new_page()
@@ -573,10 +575,10 @@ class ColesBrowserSession:
         if fetch_page:
             return parse_coles_product_document(fetch_page(product_url), external_id)
 
-        if self.browser_engine == "firefox":
-            if not self.firefox_fetch_url:
-                raise RuntimeError("Firefox browser session is not configured; set COLES_FIREFOX_FETCH_URL")
-            request_url = f"{self.firefox_fetch_url}?{urlencode({'url': product_url})}"
+        if self.browser_engine in ("undetected-chromedriver", "firefox"):
+            if not self.browser_fetch_url:
+                raise RuntimeError("Coles browser session is not configured; set COLES_BROWSER_FETCH_URL")
+            request_url = f"{self.browser_fetch_url}?{urlencode({'url': product_url})}"
             try:
                 with urlopen(request_url, timeout=90) as response:
                     payload = json.loads(response.read())
@@ -586,13 +588,13 @@ class ColesBrowserSession:
                 except (json.JSONDecodeError, UnicodeDecodeError):
                     detail = {}
                 message = detail.get("error") if isinstance(detail, dict) else None
-                raise RuntimeError(message or f"Firefox browser session returned HTTP {error.code}") from error
+                raise RuntimeError(message or f"Coles browser session returned HTTP {error.code}") from error
             except URLError as error:
-                raise RuntimeError(f"Firefox browser session is unavailable: {error.reason}") from error
+                raise RuntimeError(f"Coles browser session is unavailable: {error.reason}") from error
             except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                raise RuntimeError("Firefox browser session returned an invalid response") from error
+                raise RuntimeError("Coles browser session returned an invalid response") from error
             if payload.get("status") != "success" or not isinstance(payload.get("nextData"), str):
-                raise RuntimeError(payload.get("error") or "Firefox browser session did not return product data")
+                raise RuntimeError(payload.get("error") or "Coles browser session did not return product data")
             return parse_coles_product_document(payload["nextData"], external_id)
 
         if not self.cdp_url:
@@ -624,8 +626,8 @@ def status() -> dict[str, Any]:
             FROM coles_category_collection
         """).fetchone()
         product_summary = connection.execute("SELECT COUNT(*) products, MAX(refreshed_at) refreshed_at FROM coles_products").fetchone()
-    configured = bool(COLES_FIREFOX_FETCH_URL) if COLES_BROWSER_ENGINE == "firefox" else bool(COLES_CDP_URL)
-    mode = "verified-firefox" if COLES_BROWSER_ENGINE == "firefox" else "verified-browser"
+    configured = bool(COLES_BROWSER_FETCH_URL) if COLES_BROWSER_ENGINE != "chromium-cdp" else bool(COLES_CDP_URL)
+    mode = "verified-undetected-chromedriver" if COLES_BROWSER_ENGINE != "chromium-cdp" else "verified-browser"
     return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 

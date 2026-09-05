@@ -126,7 +126,7 @@ async function resolveExactColesProductPage(sourceUrl: string, externalId: strin
   url.searchParams.set("url", sourceUrl);
   url.searchParams.set("id", externalId);
   const controller = new AbortController();
-  // The Coles Firefox session is intentionally human-verifiable, so permit its
+  // The Coles UC session is intentionally human-verifiable, so permit its
   // page fetch to finish instead of falling back to an unverified HTML scrape.
   const timer = setTimeout(() => controller.abort(), 100_000);
   try {

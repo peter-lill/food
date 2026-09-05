@@ -145,6 +145,8 @@ assert.equal(
 
 const bridgeSource = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", import.meta.url), "utf8");
 const colesCatalogueSource = readFileSync(new URL("../../../services/grocery-mcp/coles_catalogue.py", import.meta.url), "utf8");
+const colesBrowserSource = readFileSync(new URL("../../../services/grocery-mcp/coles_browser.py", import.meta.url), "utf8");
+const groceryDockerfile = readFileSync(new URL("../../../services/grocery-mcp/Dockerfile", import.meta.url), "utf8");
 const composeSource = readFileSync(new URL("../../../docker-compose.yml", import.meta.url), "utf8");
 const providerSource = readFileSync(new URL("../src/lib/prices/providers/mcp-grocery.provider.ts", import.meta.url), "utf8");
 const catalogueSource = readFileSync(new URL("../src/lib/prices/coles-woolworths-provider.ts", import.meta.url), "utf8");
@@ -166,8 +168,12 @@ assert.match(directRetailerImageSource, /SET "assetId" = \$\{asset\.id\}/, "the 
 assert.match(bridgeSource, /root\.findall\("\.\/\/{\*}storeRank"\)/, "Woolworths XML namespaces remain supported");
 assert.match(bridgeSource, /latitude_text/, "store lookup accepts an explicitly selected current location");
 assert.match(bridgeSource, /COLES_STORE_LOCATOR_API_KEY/);
-assert.match(colesCatalogueSource, /COLES_BROWSER_ENGINE = os\.getenv\("COLES_BROWSER_ENGINE", "firefox"\)/, "Coles catalogue reads its verified Firefox session by default");
-assert.match(composeSource, /COLES_BROWSER_ENGINE: \$\{COLES_BROWSER_ENGINE:-firefox\}/, "the bridge container defaults to the Firefox session that a person verifies in noVNC");
+assert.match(colesCatalogueSource, /COLES_BROWSER_ENGINE = os\.getenv\("COLES_BROWSER_ENGINE", "undetected-chromedriver"\)/, "Coles catalogue uses undetected-chromedriver by default");
+assert.match(composeSource, /COLES_BROWSER_ENGINE: \$\{COLES_BROWSER_ENGINE:-undetected-chromedriver\}/, "the bridge defaults to the undetected Chrome session that a person verifies in noVNC");
+assert.match(composeSource, /COLES_BROWSER_FETCH_URL: \$\{COLES_BROWSER_FETCH_URL:-http:\/\/food-coles-browser:8788\/fetch\}/, "the bridge reads Coles pages through the UC sidecar");
+assert.match(colesBrowserSource, /import undetected_chromedriver as uc[\s\S]*uc\.Chrome\(/, "the Coles sidecar must launch its browser through undetected-chromedriver");
+assert.doesNotMatch(colesBrowserSource, /playwright\.firefox/, "the Coles sidecar must not silently fall back to Playwright Firefox");
+assert.match(groceryDockerfile, /UC_REPOSITORY=https:\/\/github\.com\/ultrafunkamsterdam\/undetected-chromedriver\.git[\s\S]*git\+\$\{UC_REPOSITORY\}@\$\{UC_REVISION\}/, "the runtime installs the pinned undetected-chromedriver revision");
 assert.match(bridgeSource, /brandIds[\s\S]*\["COL"\]/, "nearby Coles results exclude liquor brands");
 assert.match(bridgeSource, /"packSize": pack_size/, "the bridge exposes retailer package size as its own field");
 assert.match(bridgeSource, /method: 'POST'[\s\S]*credentials: 'include'/, "Woolworths search runs in an established storefront session rather than the retired anonymous client");
