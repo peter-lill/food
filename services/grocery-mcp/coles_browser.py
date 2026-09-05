@@ -124,10 +124,26 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def fetch_page(driver: object, url: str) -> str:
+    """Load a Coles page and read Next data even when nonessential assets hang.
+
+    Coles pages can leave long-lived resource requests open. Selenium's normal
+    navigation strategy waits for document.readyState=complete, so a renderer
+    timeout does not necessarily mean the catalogue DOM failed to load. After
+    a navigation timeout we stop the remaining load and inspect the DOM; the
+    request still fails if verification is shown or __NEXT_DATA__ is absent.
+    """
     original_window = driver.current_window_handle
     driver.switch_to.new_window("tab")
     try:
-        driver.get(url)
+        try:
+            driver.get(url)
+        except Exception as error:  # noqa: BLE001
+            if "Timed out receiving message from renderer" not in str(error) and "timeout" not in str(error).lower():
+                raise
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:  # noqa: BLE001
+                pass
         body = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
         verification_error = coles_verification_error(body)
         if verification_error:
