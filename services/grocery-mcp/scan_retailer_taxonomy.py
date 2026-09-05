@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from collections import deque
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -16,25 +17,60 @@ from urllib.request import urlopen
 
 from aldi_catalogue import ALDI_PRODUCTS_URL, AldiCatalogueSession
 from catalogue_taxonomy_evidence import record_coles_category_observations, coles_taxonomy_evidence_status
-from coles_catalogue import COLES_BROWSER_FETCH_URL, COLES_ROOT_CATEGORIES, ColesBrowserSession
 from drakes_catalogue import DrakesCatalogueSession, sidebar_data_url, valid_store_id
 from retailer_taxonomy import aldi_category_nodes, coles_browse_paths, drakes_sidebar_nodes
+
+
+COLES_ROOT_CATEGORIES = (
+    "/browse/meat-seafood", "/browse/fruit-vegetables", "/browse/dairy-eggs-fridge",
+    "/browse/bakery", "/browse/deli", "/browse/pantry", "/browse/dietary-world-foods",
+    "/browse/chips-chocolates-snacks", "/browse/drinks", "/browse/frozen",
+    "/browse/cleaning-laundry", "/browse/health-beauty", "/browse/baby",
+    "/browse/pet", "/browse/home-garden",
+)
+COLES_BROWSER_FETCH_URL = os.getenv(
+    "COLES_BROWSER_FETCH_URL", os.getenv("COLES_FIREFOX_FETCH_URL", "http://127.0.0.1:8791/fetch")
+).strip()
+GROCERY_MCP_BRIDGE_URL = os.getenv("GROCERY_MCP_BRIDGE_URL", "http://127.0.0.1:8790").rstrip("/")
+
+
+def _json_get(url: str, timeout: int = 120) -> dict:
+    try:
+        with urlopen(url, timeout=timeout) as response:
+            payload = json.loads(response.read())
+    except HTTPError as error:
+        try:
+            detail = json.loads(error.read())
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            detail = {}
+        message = detail.get("error") if isinstance(detail, dict) else None
+        raise RuntimeError(message or f"HTTP {error.code} from catalogue service") from error
+    except (URLError, json.JSONDecodeError, UnicodeDecodeError) as error:
+        raise RuntimeError("Catalogue service did not return valid JSON") from error
+    if not isinstance(payload, dict):
+        raise RuntimeError("Catalogue service returned an invalid response")
+    return payload
 
 
 def _browser_next_data(url: str) -> str:
     if not COLES_BROWSER_FETCH_URL:
         raise RuntimeError("Coles browser fetch URL is not configured for this process")
     request_url = f"{COLES_BROWSER_FETCH_URL}?{urlencode({'url': url})}"
-    try:
-        with urlopen(request_url, timeout=90) as response:
-            payload = json.loads(response.read())
-    except HTTPError as error:
-        raise RuntimeError(f"Coles browser session returned HTTP {error.code}") from error
-    except (URLError, json.JSONDecodeError, UnicodeDecodeError) as error:
-        raise RuntimeError("Coles browser session did not return valid catalogue data") from error
+    payload = _json_get(request_url, 90)
     if payload.get("status") != "success" or not isinstance(payload.get("nextData"), str):
         raise RuntimeError(payload.get("error") or "Coles browser session did not expose Next data")
     return payload["nextData"]
+
+
+def _refresh_coles_category(category: str) -> int:
+    query = urlencode({"category": category, "resume": "true"})
+    payload = _json_get(f"{GROCERY_MCP_BRIDGE_URL}/coles/catalogue/refresh?{query}", 300)
+    if payload.get("status") != "success":
+        raise RuntimeError(payload.get("error") or "Coles category refresh failed")
+    products = payload.get("products")
+    if not isinstance(products, int):
+        raise RuntimeError("Coles category refresh did not return a product count")
+    return products
 
 
 def scan_coles(root: str | None, max_categories: int | None) -> dict:
@@ -47,12 +83,11 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
     queued = set(roots)
     completed: list[str] = []
     failures: list[dict[str, str]] = []
-    session = ColesBrowserSession()
 
     while queue and (max_categories is None or len(completed) < max_categories):
         category = queue.popleft()
         try:
-            products = session.browse(category, resume=True)
+            products = _refresh_coles_category(category)
             evidence = record_coles_category_observations(category)
             raw = _browser_next_data(f"https://www.coles.com.au{category}")
             children = coles_browse_paths(raw, category)
