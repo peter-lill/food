@@ -1,7 +1,7 @@
 """Persistent multi-path taxonomy observations for retailer catalogue scans.
 
 The evidence database belongs to the retailer cache, not Food's canonical
-Product taxonomy.  A scan can therefore observe the same retailer product in
+Product taxonomy. A scan can therefore observe the same retailer product in
 several navigation categories without allowing the last category visited to
 replace earlier evidence.
 """
@@ -14,7 +14,8 @@ import sqlite3
 import time
 from contextlib import contextmanager
 
-from coles_catalogue import COLES_CATALOGUE_DB
+
+COLES_CATALOGUE_DB = os.getenv("COLES_CATALOGUE_DB", "/data/coles-catalogue.sqlite3")
 
 
 @contextmanager
@@ -45,12 +46,11 @@ def _coles_connection():
 def record_coles_category_observations(category_path: str) -> dict[str, int]:
     """Persist products currently observed on one successfully refreshed path.
 
-    ``ColesBrowserSession.browse`` writes the category being browsed into the
-    product cache.  Calling this immediately after a successful category pass
-    captures that observation before another category can replace the cache's
-    single primary path.  The cumulative evidence is then mirrored back into
-    ``category_paths`` so the existing bridge endpoint can expose it without a
-    schema or endpoint change.
+    The running grocery bridge writes the category being browsed into the Coles
+    cache. Calling this immediately after a successful category refresh captures
+    that observation before another category can replace the cache's single
+    primary path. Cumulative evidence is mirrored into ``category_paths`` so the
+    existing bridge endpoint can expose it without a schema or endpoint change.
     """
     now = int(time.time())
     with _coles_connection() as connection:
