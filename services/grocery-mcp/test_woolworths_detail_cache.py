@@ -827,12 +827,9 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
     def test_collector_marks_a_completed_category_without_repeating_it(self) -> None:
         category = "/shop/browse/dairy-eggs-fridge/milk"
         self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
-        self.bridge.refresh_woolworths_category = lambda _: {
-            "category": category,
-            "products": 7,
-            "detailsEnriched": 7,
-            "detailsFailed": 0,
-            "detailError": None,
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=lambda _: {"subcategories": []})
+        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+            "products": 7, "detailsEnriched": 7, "detailsFailed": 0, "detailError": None,
         }
         collector = self.bridge.WoolworthsCatalogueCollector()
 
@@ -860,18 +857,16 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (root,)
         calls = []
 
-        def refresh(category: str) -> dict:
+        def browse(category: str) -> dict:
             calls.append(category)
             return {
-                "category": category,
-                "products": 3,
-                "detailsEnriched": 3,
-                "detailsFailed": 0,
-                "detailError": None,
                 "subcategories": [child] if category == root else [],
             }
 
-        self.bridge.refresh_woolworths_category = refresh
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+            "products": 3, "detailsEnriched": 3, "detailsFailed": 0, "detailError": None,
+        }
         collector = self.bridge.WoolworthsCatalogueCollector()
         self.assertTrue(collector.start(None, False))
         assert collector._thread is not None
@@ -890,9 +885,9 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             connection.execute("UPDATE woolworths_category_collection SET state = 'completed'")
 
         collector = self.bridge.WoolworthsCatalogueCollector()
-        self.bridge.refresh_woolworths_category = lambda _: {
-            "products": 0, "detailsEnriched": 0, "detailsFailed": 0,
-            "detailError": None, "subcategories": [],
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=lambda _: {"subcategories": []})
+        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+            "products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None,
         }
         self.assertTrue(collector.start(1, False, revisit_completed_roots=True))
         assert collector._thread is not None
