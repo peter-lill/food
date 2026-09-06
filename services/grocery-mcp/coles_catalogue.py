@@ -701,8 +701,18 @@ def refresh_all(
     resume_category: str | None = None,
     session: ColesBrowserSession | None = None,
 ) -> None:
-    """Discover the Coles browse tree and paginate only its leaf categories."""
+    """Collect known leaves first, then collect each newly discovered leaf."""
     session = session or ColesBrowserSession()
+    resume_reached = resume_category is None
+
+    def collect_leaf(category: str, state: str) -> None:
+        nonlocal resume_reached
+        if category == resume_category:
+            resume_reached = True
+        if not resume_reached or (state == "completed" and category != resume_category):
+            return
+        session.browse(category, resume=category == resume_category or state in ("running", "failed"))
+
     with cache_session() as connection:
         if not connection.execute("SELECT 1 FROM coles_category_discovery LIMIT 1").fetchone():
             connection.execute("UPDATE coles_category_collection SET is_leaf=NULL")
@@ -710,6 +720,15 @@ def refresh_all(
                 "INSERT INTO coles_category_discovery (category_path) VALUES (?)",
                 [(category,) for category in COLES_ROOT_CATEGORIES],
             )
+        jobs = connection.execute(
+            """SELECT c.category_path, c.state FROM coles_category_discovery d
+               JOIN coles_category_collection c USING (category_path)
+               WHERE d.completed=1 AND c.is_leaf=1 ORDER BY d.sequence"""
+        ).fetchall()
+    # Drain durable leaf jobs before making further browser discovery requests.
+    # A failed pagination call leaves discovery and page checkpoints intact.
+    for job in jobs:
+        collect_leaf(job["category_path"], job["state"])
     while True:
         with cache_session() as connection:
             node = connection.execute(
@@ -744,20 +763,13 @@ def refresh_all(
                 "UPDATE coles_category_discovery SET completed=1, last_error=NULL WHERE category_path=?",
                 (category,),
             )
-    with cache_session() as connection:
-        jobs = connection.execute(
-            """SELECT c.category_path, c.state FROM coles_category_discovery d
-               JOIN coles_category_collection c USING (category_path)
-               WHERE c.is_leaf=1 ORDER BY d.sequence"""
-        ).fetchall()
-    leaves = [job["category_path"] for job in jobs]
-
-    start = leaves.index(resume_category) if resume_category else 0
-    for job in jobs[start:]:
-        category = job["category_path"]
-        if job["state"] == "completed" and category != resume_category:
-            continue
-        session.browse(category, resume=category == resume_category or job["state"] in ("running", "failed"))
+            state = connection.execute(
+                "SELECT state FROM coles_category_collection WHERE category_path=?", (category,)
+            ).fetchone()["state"]
+        if not children:
+            collect_leaf(category, state)
+    if not resume_reached:
+        raise ValueError(f"Unknown Coles leaf category: {resume_category}")
 
 
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:
