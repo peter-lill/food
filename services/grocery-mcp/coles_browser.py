@@ -84,6 +84,18 @@ def clear_stale_chromium_profile_locks() -> None:
             pass
 
 
+def clear_stale_x_display_entries(display: str = DISPLAY, root: str = "/tmp") -> None:
+    """Remove Xvfb entries left in the container filesystem after PID 1 exits."""
+    match = re.fullmatch(r":(\d+)", display)
+    if not match:
+        return
+    number = match.group(1)
+    for path in (Path(root) / f".X{number}-lock", Path(root) / ".X11-unix" / f"X{number}"):
+        if path.exists() or path.is_symlink():
+            print(f"Removing stale X display entry: {path}", flush=True)
+            path.unlink()
+
+
 def wait_for_x_display(timeout_seconds: int = 10) -> None:
     display_number = DISPLAY.removeprefix(":").split(".", 1)[0]
     socket_path = Path(f"/tmp/.X11-unix/X{display_number}")
@@ -210,6 +222,7 @@ def main() -> None:
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
     Path(PROFILE_DIR).mkdir(parents=True, exist_ok=True)
+    clear_stale_x_display_entries()
 
     processes: list[subprocess.Popen] = []
     server: ThreadingHTTPServer | None = None

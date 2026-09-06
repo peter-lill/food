@@ -9,6 +9,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 from urllib.error import HTTPError
+from http.client import RemoteDisconnected
 
 
 class WoolworthsDetailCacheTest(unittest.TestCase):
@@ -331,6 +332,27 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                 self.coles_catalogue.ColesBrowserSession(
                     browser_engine="undetected-chromedriver", browser_fetch_url="http://uc.test/fetch"
                 ).browse("/browse/meat-seafood")
+
+    def test_uc_catalogue_engine_normalises_restart_disconnect_for_retry(self) -> None:
+        with patch.object(self.coles_catalogue, "urlopen", side_effect=RemoteDisconnected()):
+            with self.assertRaisesRegex(RuntimeError, "browser session is unavailable"):
+                self.coles_catalogue.ColesBrowserSession(
+                    browser_fetch_url="http://uc.test/fetch",
+                ).browser_payload("https://www.coles.com.au/browse/drinks/iced-tea")
+
+    def test_uc_browser_clears_stale_x_display_entries(self) -> None:
+        root = Path(self.temporary.name)
+        socket_dir = root / ".X11-unix"
+        socket_dir.mkdir()
+        lock = root / ".X99-lock"
+        socket = socket_dir / "X99"
+        lock.write_text("123")
+        socket.write_text("stale")
+
+        self.coles_browser.clear_stale_x_display_entries(":99", str(root))
+
+        self.assertFalse(lock.exists())
+        self.assertFalse(socket.exists())
 
     def test_coles_category_resume_starts_at_the_first_uncached_page(self) -> None:
         category = "/browse/deli"

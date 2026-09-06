@@ -17,6 +17,7 @@ import time
 from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
+from http.client import RemoteDisconnected
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlparse
@@ -460,8 +461,9 @@ class ColesBrowserSession:
                 detail = {}
             message = detail.get("error") if isinstance(detail, dict) else None
             raise RuntimeError(message or f"Coles browser session returned HTTP {error.code}") from error
-        except URLError as error:
-            raise RuntimeError(f"Coles browser session is unavailable: {error.reason}") from error
+        except (URLError, RemoteDisconnected, ConnectionResetError, TimeoutError) as error:
+            reason = error.reason if isinstance(error, URLError) else str(error)
+            raise RuntimeError(f"Coles browser session is unavailable: {reason}") from error
         except (json.JSONDecodeError, UnicodeDecodeError) as error:
             raise RuntimeError("Coles browser session returned an invalid response") from error
         if payload.get("status") != "success":
