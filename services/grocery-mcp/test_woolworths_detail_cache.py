@@ -34,6 +34,9 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
         self.coles_catalogue = sys.modules["coles_catalogue"]
+        self.coles_db_patch = patch.object(self.coles_catalogue, "COLES_CATALOGUE_DB", os.environ["COLES_CATALOGUE_DB"])
+        self.coles_db_patch.start()
+        self.addCleanup(self.coles_db_patch.stop)
         browser_path = Path(__file__).with_name("coles_browser.py")
         browser_spec = importlib.util.spec_from_file_location("food_coles_uc_browser_test", browser_path)
         assert browser_spec and browser_spec.loader
@@ -541,6 +544,30 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         )
         self.assertIsNone(stale_leaf["is_leaf"])
         self.assertEqual(self.coles_catalogue.status()["total"], 2)
+
+    def test_coles_discovery_survives_failure_and_publishes_leaf_jobs(self) -> None:
+        root = "/browse/pantry"
+        oil, salt = root + "/oil", root + "/salt"
+        session = unittest.mock.Mock()
+        session.children.side_effect = lambda category: [oil, salt] if category == root else ([] if category == oil else (_ for _ in ()).throw(RuntimeError("offline")))
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)), patch.object(self.coles_catalogue.time, "sleep"):
+            with self.assertRaisesRegex(RuntimeError, "offline"):
+                self.coles_catalogue.refresh_all(session=session)
+            summary = self.coles_catalogue.status()
+            self.assertEqual(summary["total"], 1)
+            self.assertEqual(summary["discovery"], {"total": 3, "completed": 2, "pending": 1, "failed": 1})
+            recovered = unittest.mock.Mock()
+            recovered.children.return_value = []
+            self.coles_catalogue.refresh_all(session=recovered)
+            recovered.children.assert_called_once_with(salt)
+            self.assertEqual(recovered.browse.call_count, 2)
+            with self.coles_catalogue.cache_session() as connection:
+                connection.execute("UPDATE coles_category_collection SET state='completed' WHERE category_path=?", (oil,))
+                connection.execute("UPDATE coles_category_collection SET state='failed', next_offset=48, next_page=2 WHERE category_path=?", (salt,))
+            resumed = unittest.mock.Mock()
+            self.coles_catalogue.refresh_all(session=resumed)
+            resumed.children.assert_not_called()
+            resumed.browse.assert_called_once_with(salt, resume=True)
 
     def test_coles_refresh_resumes_at_discovered_leaf_checkpoint(self) -> None:
         root = "/browse/pantry"

@@ -14,7 +14,6 @@ import re
 import sqlite3
 import threading
 import time
-from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from http.client import RemoteDisconnected
@@ -374,6 +373,14 @@ def cache_connection() -> sqlite3.Connection:
         )
     if "is_leaf" not in collection_columns:
         connection.execute("ALTER TABLE coles_category_collection ADD COLUMN is_leaf INTEGER")
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS coles_category_discovery (
+          sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+          category_path TEXT NOT NULL UNIQUE,
+          completed INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT
+        )
+    """)
     return connection
 
 
@@ -663,9 +670,15 @@ def status() -> dict[str, Any]:
             FROM coles_category_collection WHERE is_leaf=1
         """).fetchone()
         product_summary = connection.execute("SELECT COUNT(*) products, MAX(refreshed_at) refreshed_at FROM coles_products").fetchone()
+        discovery = dict(connection.execute("""
+            SELECT COUNT(*) total, COUNT(*) FILTER (WHERE completed=1) completed,
+                   COUNT(*) FILTER (WHERE completed=0) pending,
+                   COUNT(*) FILTER (WHERE last_error IS NOT NULL) failed
+            FROM coles_category_discovery
+        """).fetchone())
     configured = bool(COLES_BROWSER_FETCH_URL) if COLES_BROWSER_ENGINE != "chromium-cdp" else bool(COLES_CDP_URL)
     mode = "verified-undetected-chromedriver" if COLES_BROWSER_ENGINE != "chromium-cdp" else "verified-browser"
-    return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
+    return {**dict(summary), "discovery": discovery, "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 
 def discover_children(
@@ -690,34 +703,61 @@ def refresh_all(
 ) -> None:
     """Discover the Coles browse tree and paginate only its leaf categories."""
     session = session or ColesBrowserSession()
-    queue = deque(COLES_ROOT_CATEGORIES)
-    discovered = set(queue)
-    leaves: list[str] = []
-    collection_nodes: list[tuple[str, int]] = []
-    while queue:
-        category = queue.popleft()
-        children = discover_children(session, category)
-        collection_nodes.append((category, int(not children)))
-        if children:
-            for child in children:
-                if child not in discovered:
-                    queue.append(child)
-                    discovered.add(child)
-        else:
-            leaves.append(category)
-
     with cache_session() as connection:
-        connection.execute("UPDATE coles_category_collection SET is_leaf=NULL")
-        connection.executemany(
-            """INSERT INTO coles_category_collection (category_path, state, is_leaf)
-               VALUES (?, 'pending', ?)
-               ON CONFLICT(category_path) DO UPDATE SET is_leaf=excluded.is_leaf""",
-            collection_nodes,
-        )
+        if not connection.execute("SELECT 1 FROM coles_category_discovery LIMIT 1").fetchone():
+            connection.execute("UPDATE coles_category_collection SET is_leaf=NULL")
+            connection.executemany(
+                "INSERT INTO coles_category_discovery (category_path) VALUES (?)",
+                [(category,) for category in COLES_ROOT_CATEGORIES],
+            )
+    while True:
+        with cache_session() as connection:
+            node = connection.execute(
+                "SELECT category_path FROM coles_category_discovery WHERE completed=0 ORDER BY sequence LIMIT 1"
+            ).fetchone()
+        if node is None:
+            break
+        category = node["category_path"]
+        try:
+            children = discover_children(session, category)
+        except Exception as error:
+            with cache_session() as connection:
+                connection.execute(
+                    "UPDATE coles_category_discovery SET last_error=? WHERE category_path=?",
+                    (str(error)[:1000], category),
+                )
+            raise
+        # Publish the node, its children, and its job atomically. An interruption
+        # can repeat this one fetch but cannot lose the remaining frontier.
+        with cache_session() as connection:
+            connection.executemany(
+                "INSERT OR IGNORE INTO coles_category_discovery (category_path) VALUES (?)",
+                [(child,) for child in children],
+            )
+            connection.execute(
+                """INSERT INTO coles_category_collection (category_path, state, is_leaf)
+                   VALUES (?, 'pending', ?)
+                   ON CONFLICT(category_path) DO UPDATE SET is_leaf=excluded.is_leaf""",
+                (category, int(not children)),
+            )
+            connection.execute(
+                "UPDATE coles_category_discovery SET completed=1, last_error=NULL WHERE category_path=?",
+                (category,),
+            )
+    with cache_session() as connection:
+        jobs = connection.execute(
+            """SELECT c.category_path, c.state FROM coles_category_discovery d
+               JOIN coles_category_collection c USING (category_path)
+               WHERE c.is_leaf=1 ORDER BY d.sequence"""
+        ).fetchall()
+    leaves = [job["category_path"] for job in jobs]
 
     start = leaves.index(resume_category) if resume_category else 0
-    for category in leaves[start:]:
-        session.browse(category, resume=category == resume_category)
+    for job in jobs[start:]:
+        category = job["category_path"]
+        if job["state"] == "completed" and category != resume_category:
+            continue
+        session.browse(category, resume=category == resume_category or job["state"] in ("running", "failed"))
 
 
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:
