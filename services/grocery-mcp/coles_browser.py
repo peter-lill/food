@@ -20,7 +20,24 @@ VNC_PORT = int(os.getenv("COLES_BROWSER_VNC_PORT", "5900"))
 FETCH_PORT = int(os.getenv("COLES_BROWSER_FETCH_PORT", "8788"))
 
 stopping = False
+browser_ready = False
+browser_failed = False
 requests: Queue[tuple[str, threading.Event, dict[str, object]]] = Queue()
+
+
+def fatal_browser_error(error: Exception) -> bool:
+    """Return True when Selenium's browser/session can no longer be reused."""
+    message = str(error).lower()
+    markers = (
+        "no such window",
+        "web view not found",
+        "invalid session id",
+        "session deleted",
+        "chrome not reachable",
+        "disconnected",
+        "not connected to devtools",
+    )
+    return any(marker in message for marker in markers)
 
 
 def coles_verification_error(body: str) -> str | None:
@@ -51,6 +68,20 @@ def stop(_signum: int, _frame: object) -> None:
 def start_process(command: list[str], name: str) -> subprocess.Popen:
     print(f"Starting {name}", flush=True)
     return subprocess.Popen(command, env={**os.environ, "DISPLAY": DISPLAY})
+
+
+def clear_stale_chromium_profile_locks() -> None:
+    """Remove Chromium singleton entries left behind by a previous container."""
+    profile = Path(PROFILE_DIR)
+    for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        path = profile / name
+        try:
+            if path.exists() or path.is_symlink():
+                target = os.readlink(path) if path.is_symlink() else "regular-file"
+                print(f"Removing stale Chromium profile entry: {path} -> {target}", flush=True)
+                path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def wait_for_x_display(timeout_seconds: int = 10) -> None:
@@ -92,7 +123,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"status": "ok", "browser": "undetected-chromedriver"})
+            if browser_ready and not browser_failed:
+                self.send_json(200, {"status": "ok", "browser": "undetected-chromedriver"})
+            else:
+                self.send_json(503, {"status": "error", "browser": "undetected-chromedriver"})
             return
         if parsed.path != "/fetch":
             self.send_json(404, {"status": "error", "error": "Not found"})
@@ -186,6 +220,7 @@ def main() -> None:
 
         options = uc.ChromeOptions()
         options.add_argument("--window-size=1365,768")
+        clear_stale_chromium_profile_locks()
         driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False)
         driver.set_page_load_timeout(45)
         try:
@@ -193,20 +228,34 @@ def main() -> None:
                 driver.get(START_URL)
             except Exception:  # noqa: BLE001
                 print("Initial Coles navigation timed out; the page remains open for verification", flush=True)
+            global browser_ready, browser_failed
+            browser_ready = True
+            browser_failed = False
             print(f"Coles undetected Chrome ready: noVNC={NOVNC_PORT}, fetch={FETCH_PORT}", flush=True)
             while not stopping:
                 try:
                     url, completed, result = requests.get(timeout=1)
                 except Empty:
                     continue
+                fatal_error = None
                 try:
                     next_data, browse_paths = fetch_page(driver, url)
                     result["nextData"] = next_data
                     result["browsePaths"] = browse_paths
                 except Exception as error:  # noqa: BLE001
                     result["error"] = str(error)
+                    if fatal_browser_error(error):
+                        browser_failed = True
+                        browser_ready = False
+                        fatal_error = error
                 finally:
                     completed.set()
+                if fatal_error is not None:
+                    print(
+                        f"Fatal Coles browser session error; exiting for Docker restart: {fatal_error}",
+                        flush=True,
+                    )
+                    raise RuntimeError("Coles browser session became unusable") from fatal_error
         finally:
             driver.quit()
     finally:
