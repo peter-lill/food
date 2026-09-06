@@ -556,6 +556,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             summary = self.coles_catalogue.status()
             self.assertEqual(summary["total"], 1)
             self.assertEqual(summary["discovery"], {"total": 3, "completed": 2, "pending": 1, "failed": 1})
+            session.browse.assert_called_once_with(oil, resume=False)
             recovered = unittest.mock.Mock()
             recovered.children.return_value = []
             self.coles_catalogue.refresh_all(session=recovered)
@@ -568,6 +569,48 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             self.coles_catalogue.refresh_all(session=resumed)
             resumed.children.assert_not_called()
             resumed.browse.assert_called_once_with(salt, resume=True)
+
+    def test_coles_collects_leaf_before_next_discovery_and_resumes_failed_page(self) -> None:
+        root = "/browse/pantry"
+        oil, salt = root + "/oil", root + "/salt"
+        events = []
+        session = unittest.mock.Mock()
+
+        def children(category):
+            events.append(("discover", category))
+            return [oil, salt] if category == root else []
+
+        def interrupted(category, resume=False):
+            events.append(("collect", category))
+            with self.coles_catalogue.cache_session() as connection:
+                connection.execute("UPDATE coles_category_collection SET state='failed', next_offset=48, next_page=2 WHERE category_path=?", (category,))
+            raise RuntimeError("page interrupted")
+
+        session.children.side_effect = children
+        session.browse.side_effect = interrupted
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            with self.assertRaisesRegex(RuntimeError, "page interrupted"):
+                self.coles_catalogue.refresh_all(session=session)
+            self.assertEqual(events, [("discover", root), ("discover", oil), ("collect", oil)])
+            self.assertEqual(self.coles_catalogue.status()["discovery"]["pending"], 1)
+            events.clear()
+
+            def collected(category, resume=False):
+                events.append(("collect", category))
+                if category == oil:
+                    self.assertTrue(resume)
+                    with self.coles_catalogue.cache_session() as connection:
+                        row = connection.execute("SELECT next_offset, next_page FROM coles_category_collection WHERE category_path=?", (oil,)).fetchone()
+                    self.assertEqual(tuple(row), (48, 2))
+                with self.coles_catalogue.cache_session() as connection:
+                    connection.execute("UPDATE coles_category_collection SET state='completed' WHERE category_path=?", (category,))
+
+            session.browse.side_effect = collected
+            self.coles_catalogue.refresh_all(session=session)
+            self.assertEqual(events, [("collect", oil), ("discover", salt), ("collect", salt)])
+            events.clear()
+            self.coles_catalogue.refresh_all(session=session)
+            self.assertEqual(events, [])
 
     def test_coles_refresh_resumes_at_discovered_leaf_checkpoint(self) -> None:
         root = "/browse/pantry"
