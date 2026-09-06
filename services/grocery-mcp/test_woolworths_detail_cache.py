@@ -43,6 +43,13 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temporary.cleanup()
 
+    def test_grocery_image_includes_coles_taxonomy_dependency(self) -> None:
+        dockerfile = Path(__file__).with_name("Dockerfile").read_text()
+        self.assertIn(
+            "COPY services/grocery-mcp/retailer_taxonomy.py /opt/grocery-mcp/retailer_taxonomy.py",
+            dockerfile,
+        )
+
     def test_navigation_only_category_can_seed_descendants_without_product_api(self) -> None:
         root = "/shop/browse/health-beauty"
         children = [
