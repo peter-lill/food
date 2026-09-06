@@ -14,6 +14,7 @@ import re
 import sqlite3
 import threading
 import time
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -22,6 +23,7 @@ from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
+from retailer_taxonomy import coles_browse_paths, deepest_paths
 
 
 COLES_CATALOGUE_DB = os.getenv("COLES_CATALOGUE_DB", "/data/coles-catalogue.sqlite3")
@@ -354,6 +356,7 @@ def cache_connection() -> sqlite3.Connection:
           state TEXT NOT NULL CHECK(state IN ('pending', 'running', 'completed', 'failed')),
           attempts INTEGER NOT NULL DEFAULT 0, products_cached INTEGER NOT NULL DEFAULT 0,
           next_offset INTEGER NOT NULL DEFAULT 0, next_page INTEGER NOT NULL DEFAULT 1,
+          is_leaf INTEGER,
           last_started_at INTEGER, last_completed_at INTEGER, last_error TEXT
         )
     """)
@@ -368,6 +371,8 @@ def cache_connection() -> sqlite3.Connection:
         connection.execute(
             "ALTER TABLE coles_category_collection ADD COLUMN next_page INTEGER NOT NULL DEFAULT 1"
         )
+    if "is_leaf" not in collection_columns:
+        connection.execute("ALTER TABLE coles_category_collection ADD COLUMN is_leaf INTEGER")
     return connection
 
 
@@ -395,7 +400,23 @@ def cache_page(category_path: str, result: dict[str, Any]) -> set[str]:
             pricing = item.get("pricing") if isinstance(item.get("pricing"), dict) else {}
             price = number(pricing.get("now"))
             was_price = number(pricing.get("was"))
-            paths = hierarchy_paths(item.get("onlineHeirs"), category_path)
+            paths = list(dict.fromkeys([
+                category_path,
+                *hierarchy_paths(item.get("onlineHeirs"), category_path),
+            ]))
+            existing = connection.execute(
+                "SELECT category_path, category_paths FROM coles_products WHERE external_id = ?",
+                (external_id,),
+            ).fetchone()
+            primary_path = category_path
+            if existing:
+                primary_path = existing["category_path"]
+                try:
+                    existing_paths = json.loads(existing["category_paths"])
+                except (TypeError, json.JSONDecodeError):
+                    existing_paths = []
+                if isinstance(existing_paths, list):
+                    paths = list(dict.fromkeys([*existing_paths, *paths]))
             connection.execute("""
                 INSERT INTO coles_products (
                   external_id, barcode, name, brand, description, long_description, pack_size,
@@ -413,7 +434,7 @@ def cache_page(category_path: str, result: dict[str, Any]) -> set[str]:
                 text(item.get("description")), text(item.get("longDescription")), text(item.get("size")),
                 price, was_price, int(bool(pricing.get("promotion")) or (price is not None and was_price is not None and price < was_price)),
                 int(item.get("availability") is not False and item.get("availabilityStatus") not in ("OUT_OF_STOCK", "Unavailable")),
-                image_url(item.get("imageUris")), category_path, json.dumps(paths), json_value(item.get("onlineHeirs")), now,
+                image_url(item.get("imageUris")), primary_path, json.dumps(paths), json_value(item.get("onlineHeirs")), now,
             ))
             cached.add(external_id)
     return cached
@@ -424,6 +445,50 @@ class ColesBrowserSession:
     cdp_url: str = COLES_CDP_URL
     browser_engine: str = COLES_BROWSER_ENGINE
     browser_fetch_url: str = COLES_BROWSER_FETCH_URL
+
+    def browser_payload(self, url: str) -> dict[str, Any]:
+        if not self.browser_fetch_url:
+            raise RuntimeError("Coles browser session is not configured; set COLES_BROWSER_FETCH_URL")
+        request_url = f"{self.browser_fetch_url}?{urlencode({'url': url})}"
+        try:
+            with urlopen(request_url, timeout=90) as response:
+                payload = json.loads(response.read())
+        except HTTPError as error:
+            try:
+                detail = json.loads(error.read())
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                detail = {}
+            message = detail.get("error") if isinstance(detail, dict) else None
+            raise RuntimeError(message or f"Coles browser session returned HTTP {error.code}") from error
+        except URLError as error:
+            raise RuntimeError(f"Coles browser session is unavailable: {error.reason}") from error
+        except (json.JSONDecodeError, UnicodeDecodeError) as error:
+            raise RuntimeError("Coles browser session returned an invalid response") from error
+        if payload.get("status") != "success":
+            raise RuntimeError(payload.get("error") or "Coles browser session did not return catalogue data")
+        if not isinstance(payload.get("nextData"), str) or not payload["nextData"]:
+            raise RuntimeError("Coles browser session did not return catalogue data")
+        return payload
+
+    def children(
+        self,
+        category_path: str,
+        fetch_payload: Callable[[str], dict[str, Any]] | None = None,
+    ) -> list[str]:
+        if not category_path.startswith("/browse/"):
+            raise ValueError("category must be a /browse/ path")
+        payload = (fetch_payload or self.browser_payload)(f"https://www.coles.com.au{category_path}")
+        parent = category_path.rstrip("/")
+        rendered = payload.get("browsePaths")
+        children: list[str] = []
+        if isinstance(rendered, list):
+            for value in rendered:
+                if not isinstance(value, str):
+                    continue
+                path = value.split("?", 1)[0].split("#", 1)[0].rstrip("/")
+                if path.startswith(f"{parent}/"):
+                    children.append(path)
+        return deepest_paths(children) if children else coles_browse_paths(payload["nextData"], category_path)
 
     def browse(
         self,
@@ -459,7 +524,7 @@ class ColesBrowserSession:
             now = int(time.time())
             with cache_session() as connection:
                 checkpoint = connection.execute(
-                    "SELECT state, next_offset, next_page FROM coles_category_collection WHERE category_path = ?",
+                    "SELECT state, products_cached, next_offset, next_page FROM coles_category_collection WHERE category_path = ?",
                     (category_path,),
                 ).fetchone()
                 can_resume = resume and checkpoint and checkpoint["state"] in ("running", "failed")
@@ -468,14 +533,16 @@ class ColesBrowserSession:
                 connection.execute("""
                     INSERT INTO coles_category_collection (
                       category_path, state, attempts, products_cached, next_offset, next_page,
-                      last_started_at, last_error
-                    ) VALUES (?, 'running', 1, 0, ?, ?, ?, NULL)
+                      is_leaf, last_started_at, last_error
+                    ) VALUES (?, 'running', 1, 0, ?, ?, 1, ?, NULL)
                     ON CONFLICT(category_path) DO UPDATE SET
                       state='running', attempts=attempts + 1,
                       products_cached=CASE WHEN ? THEN products_cached ELSE 0 END,
                       next_offset=excluded.next_offset, next_page=excluded.next_page,
-                      last_started_at=excluded.last_started_at, last_error=NULL
+                      last_started_at=excluded.last_started_at, last_error=NULL,
+                      is_leaf=1
                 """, (category_path, offset, page_number, now, int(bool(can_resume))))
+                cached_count = int(checkpoint["products_cached"]) if can_resume else 0
             try:
                 while True:
                     query = urlencode({"sortBy": "recommendedDescending", "start": offset, "page": page_number})
@@ -487,10 +554,7 @@ class ColesBrowserSession:
                     page_number += 1
                     complete = not result["results"] or offset >= total
                     with cache_session() as connection:
-                        products_cached = connection.execute(
-                            "SELECT COUNT(*) FROM coles_products WHERE category_path = ?",
-                            (category_path,),
-                        ).fetchone()[0]
+                        products_cached = cached_count + len(cached_ids)
                         connection.execute("""
                             UPDATE coles_category_collection
                             SET state=?, products_cached=?, next_offset=?, next_page=?,
@@ -519,27 +583,7 @@ class ColesBrowserSession:
                 raise RuntimeError("Coles browser session is not configured; set COLES_BROWSER_FETCH_URL")
 
             def read_browser(url: str) -> str:
-                request_url = f"{self.browser_fetch_url}?{urlencode({'url': url})}"
-                try:
-                    with urlopen(request_url, timeout=90) as response:
-                        payload = json.loads(response.read())
-                except HTTPError as error:
-                    try:
-                        detail = json.loads(error.read())
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        detail = {}
-                    message = detail.get("error") if isinstance(detail, dict) else None
-                    raise RuntimeError(message or f"Coles browser session returned HTTP {error.code}") from error
-                except URLError as error:
-                    raise RuntimeError(f"Coles browser session is unavailable: {error.reason}") from error
-                except (json.JSONDecodeError, UnicodeDecodeError) as error:
-                    raise RuntimeError("Coles browser session returned an invalid response") from error
-                if payload.get("status") != "success":
-                    raise RuntimeError(payload.get("error") or "Coles browser session did not return catalogue data")
-                next_data = payload.get("nextData")
-                if not isinstance(next_data, str) or not next_data:
-                    raise RuntimeError("Coles browser session did not return catalogue data")
-                return next_data
+                return self.browser_payload(url)["nextData"]
 
             return collect(read_browser)
 
@@ -607,23 +651,14 @@ class ColesBrowserSession:
                 browser.close()
 
 
-def seed_collection() -> None:
-    with cache_session() as connection:
-        connection.executemany(
-            "INSERT INTO coles_category_collection (category_path, state) VALUES (?, 'pending') ON CONFLICT(category_path) DO NOTHING",
-            [(path,) for path in COLES_ROOT_CATEGORIES],
-        )
-
-
 def status() -> dict[str, Any]:
-    seed_collection()
     with cache_session() as connection:
         summary = connection.execute("""
             SELECT COUNT(*) total, COUNT(*) FILTER (WHERE state='pending') pending,
                    COUNT(*) FILTER (WHERE state='running') running,
                    COUNT(*) FILTER (WHERE state='completed') completed,
                    COUNT(*) FILTER (WHERE state='failed') failed
-            FROM coles_category_collection
+            FROM coles_category_collection WHERE is_leaf=1
         """).fetchone()
         product_summary = connection.execute("SELECT COUNT(*) products, MAX(refreshed_at) refreshed_at FROM coles_products").fetchone()
     configured = bool(COLES_BROWSER_FETCH_URL) if COLES_BROWSER_ENGINE != "chromium-cdp" else bool(COLES_CDP_URL)
@@ -631,11 +666,40 @@ def status() -> dict[str, Any]:
     return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 
-def refresh_all(resume_category: str | None = None) -> None:
-    """Refresh every Coles category in order, preserving page checkpoints."""
-    start = COLES_ROOT_CATEGORIES.index(resume_category) if resume_category else 0
-    for category in COLES_ROOT_CATEGORIES[start:]:
-        ColesBrowserSession().browse(category, resume=category == resume_category)
+def refresh_all(
+    resume_category: str | None = None,
+    session: ColesBrowserSession | None = None,
+) -> None:
+    """Discover the Coles browse tree and paginate only its leaf categories."""
+    session = session or ColesBrowserSession()
+    queue = deque(COLES_ROOT_CATEGORIES)
+    discovered = set(queue)
+    leaves: list[str] = []
+    collection_nodes: list[tuple[str, int]] = []
+    while queue:
+        category = queue.popleft()
+        children = session.children(category)
+        collection_nodes.append((category, int(not children)))
+        if children:
+            for child in children:
+                if child not in discovered:
+                    queue.append(child)
+                    discovered.add(child)
+        else:
+            leaves.append(category)
+
+    with cache_session() as connection:
+        connection.execute("UPDATE coles_category_collection SET is_leaf=NULL")
+        connection.executemany(
+            """INSERT INTO coles_category_collection (category_path, state, is_leaf)
+               VALUES (?, 'pending', ?)
+               ON CONFLICT(category_path) DO UPDATE SET is_leaf=excluded.is_leaf""",
+            collection_nodes,
+        )
+
+    start = leaves.index(resume_category) if resume_category else 0
+    for category in leaves[start:]:
+        session.browse(category, resume=category == resume_category)
 
 
 def cached_products(limit: int, offset: int) -> list[dict[str, Any]]:
