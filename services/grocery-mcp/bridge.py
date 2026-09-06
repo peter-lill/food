@@ -52,6 +52,10 @@ _coles_refresh_lock = threading.Lock()
 _coles_refresh_thread: threading.Thread | None = None
 
 
+def valid_coles_collection_resume(category: str) -> bool:
+    return bool(re.fullmatch(r"/browse/[a-z0-9-]+(?:/[a-z0-9-]+)*", category))
+
+
 def _start_coles_refresh(resume_category: str | None = None) -> bool:
     global _coles_refresh_thread
     with _coles_refresh_lock:
@@ -1842,8 +1846,8 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path != "/search":
             if parsed.path == "/coles/catalogue/collection/start":
                 resume_category = (params.get("resumeCategory") or [""])[0].strip() or None
-                if resume_category and resume_category not in COLES_ROOT_CATEGORIES:
-                    self.send_json(400, {"status": "error", "error": "resumeCategory must be a known Coles browse path"})
+                if resume_category and not valid_coles_collection_resume(resume_category):
+                    self.send_json(400, {"status": "error", "error": "resumeCategory must be a Coles browse path"})
                     return
                 started = _start_coles_refresh(resume_category)
                 self.send_json(202 if started else 200, {"status": "success", "started": started, "collection": coles_catalogue_status()})
