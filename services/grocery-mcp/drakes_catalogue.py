@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.request import Request, urlopen
 
+from retailer_taxonomy import drakes_sidebar_nodes, leaf_taxonomy_paths
+
 
 DRAKES_CATALOGUE_DB = os.getenv("DRAKES_CATALOGUE_DB", "/data/drakes-catalogue.sqlite3")
 DRAKES_PAGE_LIMIT = 500
@@ -243,9 +245,16 @@ class DrakesCatalogueSession:
 
     def refresh_departments(self, store_id: str, max_pages: int | None = None) -> dict:
         store = valid_store_id(store_id)
-        categories = self.department_categories(store)
+        home = self.read(f"https://{store}.drakes.com.au/")
+        sidebar_url = sidebar_data_url(home)
+        sidebar = self.read(sidebar_url) if sidebar_url else None
+        categories = leaf_taxonomy_paths(drakes_sidebar_nodes(sidebar)) if sidebar else []
+        # Keep the public first-level menu as a compatibility fallback if a
+        # store temporarily omits the structured sidebar.
         if not categories:
-            raise RuntimeError("Drakes home page did not expose department category links")
+            categories = discover_department_categories(home, sidebar)
+        if not categories:
+            raise RuntimeError("Drakes home page did not expose leaf category links")
         refresh_generation = uuid.uuid4().hex
         outcomes = []
         for category in categories:

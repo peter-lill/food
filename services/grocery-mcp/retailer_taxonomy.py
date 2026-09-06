@@ -46,6 +46,19 @@ def deepest_paths(paths: Iterable[str]) -> list[str]:
     return sorted(unique, key=lambda path: (-_path_depth(path), path.casefold()))
 
 
+def leaf_paths(paths: Iterable[str]) -> list[str]:
+    """Return paths which have no deeper descendant in the same URL hierarchy.
+
+    Collectors use this when a retailer exposes hierarchy through nested public
+    URL paths. Parent paths are navigation evidence only, never product jobs.
+    """
+    unique = {_normalise_path(path) for path in paths if isinstance(path, str) and path.strip()}
+    return sorted(
+        (path for path in unique if not any(other.startswith(f"{path}/") for other in unique if other != path)),
+        key=str.casefold,
+    )
+
+
 def coles_browse_paths(raw_next_data: str, parent_path: str | None = None) -> list[str]:
     """Extract Coles browse paths from verified ``__NEXT_DATA__`` JSON.
 
@@ -159,3 +172,10 @@ def ancestry_for_node(nodes: Iterable[RetailerTaxonomyNode], path: str) -> list[
         current = by_path.get(current.parent_path) if current.parent_path else None
     ancestry.reverse()
     return ancestry
+
+
+def leaf_taxonomy_paths(nodes: Iterable[RetailerTaxonomyNode]) -> list[str]:
+    """Return explicit taxonomy nodes that are not parents of another node."""
+    materialised = list(nodes)
+    parents = {node.parent_path for node in materialised if node.parent_path}
+    return sorted((node.path for node in materialised if node.path not in parents), key=str.casefold)
