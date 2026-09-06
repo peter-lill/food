@@ -666,6 +666,22 @@ def status() -> dict[str, Any]:
     return {**dict(summary), "products": product_summary["products"], "lastRefreshedAt": product_summary["refreshed_at"], "acquisitionMode": mode if configured else "unconfigured"}
 
 
+def discover_children(
+    session: ColesBrowserSession,
+    category: str,
+    attempts: int = 3,
+) -> list[str]:
+    """Retry one discovery node after a watchdog-triggered browser restart."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return session.children(category)
+        except RuntimeError:
+            if attempt == attempts:
+                raise
+            time.sleep(5 * attempt)
+    raise RuntimeError("Coles child discovery exhausted its retry budget")
+
+
 def refresh_all(
     resume_category: str | None = None,
     session: ColesBrowserSession | None = None,
@@ -678,7 +694,7 @@ def refresh_all(
     collection_nodes: list[tuple[str, int]] = []
     while queue:
         category = queue.popleft()
-        children = session.children(category)
+        children = discover_children(session, category)
         collection_nodes.append((category, int(not children)))
         if children:
             for child in children:

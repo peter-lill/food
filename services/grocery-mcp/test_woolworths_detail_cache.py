@@ -450,6 +450,28 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             self.coles_catalogue.refresh_all(resume_category=leaves[1], session=session)
         self.assertEqual(session.browsed, [(leaves[1], True), (leaves[2], False)])
 
+    def test_coles_discovery_retries_the_failed_node_after_browser_restart(self) -> None:
+        category = "/browse/drinks/iced-tea"
+
+        class Session:
+            def __init__(self) -> None:
+                self.calls = 0
+
+            def children(self, requested: str) -> list[str]:
+                self.calls += 1
+                self.assert_category = requested
+                if self.calls == 1:
+                    raise RuntimeError("Undetected Chrome session did not return in time")
+                return [f"{requested}/black-tea"]
+
+        session = Session()
+        with patch.object(self.coles_catalogue.time, "sleep") as sleep:
+            children = self.coles_catalogue.discover_children(session, category)
+        self.assertEqual(children, [f"{category}/black-tea"])
+        self.assertEqual(session.assert_category, category)
+        self.assertEqual(session.calls, 2)
+        sleep.assert_called_once_with(5)
+
     def test_coles_cache_merges_paths_when_product_appears_in_multiple_leaves(self) -> None:
         product = {
             "id": 1234,
