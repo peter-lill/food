@@ -121,6 +121,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        global browser_ready, browser_failed
         parsed = urlparse(self.path)
         if parsed.path == "/health":
             if browser_ready and not browser_failed:
@@ -139,7 +140,20 @@ class Handler(BaseHTTPRequestHandler):
         result: dict[str, object] = {}
         requests.put((url, completed, result))
         if not completed.wait(timeout=90):
+            browser_failed = True
+            browser_ready = False
+            print(
+                f"Coles browser fetch watchdog expired after 90 seconds: {url}",
+                flush=True,
+            )
             self.send_json(504, {"status": "error", "error": "Undetected Chrome session did not return in time"})
+
+            def force_restart() -> None:
+                time.sleep(1)
+                print("Terminating wedged Coles browser service for Docker restart", flush=True)
+                os._exit(1)
+
+            threading.Thread(target=force_restart, daemon=True).start()
             return
         if result.get("error"):
             self.send_json(502, {"status": "error", "error": result["error"]})
