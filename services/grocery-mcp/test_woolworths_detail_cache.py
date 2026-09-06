@@ -286,6 +286,96 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertTrue(driver.closed)
         self.assertEqual(driver.current_window_handle, "verified-session")
 
+    def test_uc_browser_retries_a_blank_disposable_tab_before_failing_discovery(self) -> None:
+        class SwitchTo:
+            def __init__(self, driver: object) -> None:
+                self.driver = driver
+
+            def new_window(self, _kind: str) -> None:
+                self.driver.current_window_handle = "fetch-tab"
+
+            def window(self, handle: str) -> None:
+                self.driver.current_window_handle = handle
+
+        class Driver:
+            def __init__(self) -> None:
+                self.current_window_handle = "verified-session"
+                self.switch_to = SwitchTo(self)
+                self.navigations = []
+                self.closed = False
+
+            @property
+            def title(self) -> str:
+                return "" if len(self.navigations) == 1 else "Coles | Pantry"
+
+            def get(self, url: str) -> None:
+                self.navigations.append(url)
+
+            def execute_script(self, script: str) -> str | None:
+                if "__NEXT_DATA__" in script:
+                    return None if len(self.navigations) == 1 else '{"props":{"pageProps":{}}}'
+                if "querySelectorAll" in script:
+                    return []
+                return "" if len(self.navigations) == 1 else "Pantry products"
+
+            def close(self) -> None:
+                self.closed = True
+
+        driver = Driver()
+        url = "https://www.coles.com.au/browse/pantry"
+
+        self.assertEqual(
+            self.coles_browser.fetch_page(driver, url, page_wait_seconds=0),
+            ('{"props":{"pageProps":{}}}', []),
+        )
+        self.assertEqual(driver.navigations, [url, url])
+        self.assertTrue(driver.closed)
+        self.assertEqual(driver.current_window_handle, "verified-session")
+
+    def test_uc_browser_restarts_a_session_that_stays_blank_after_navigation_retry(self) -> None:
+        class SwitchTo:
+            def __init__(self, driver: object) -> None:
+                self.driver = driver
+
+            def new_window(self, _kind: str) -> None:
+                self.driver.current_window_handle = "fetch-tab"
+
+            def window(self, handle: str) -> None:
+                self.driver.current_window_handle = handle
+
+        class Driver:
+            def __init__(self) -> None:
+                self.current_window_handle = "verified-session"
+                self.switch_to = SwitchTo(self)
+                self.title = ""
+                self.navigations = []
+                self.closed = False
+
+            def get(self, url: str) -> None:
+                self.navigations.append(url)
+
+            def execute_script(self, script: str) -> str | None:
+                if "querySelectorAll" in script:
+                    return []
+                return None if "__NEXT_DATA__" in script else ""
+
+            def close(self) -> None:
+                self.closed = True
+
+        driver = Driver()
+        url = "https://www.coles.com.au/browse/pantry"
+
+        with self.assertRaisesRegex(
+            self.coles_browser.BlankColesPageError,
+            "blank page after retrying navigation",
+        ) as raised:
+            self.coles_browser.fetch_page(driver, url, page_wait_seconds=0)
+
+        self.assertTrue(self.coles_browser.fatal_browser_error(raised.exception))
+        self.assertEqual(driver.navigations, [url, url])
+        self.assertTrue(driver.closed)
+        self.assertEqual(driver.current_window_handle, "verified-session")
+
     def test_coles_product_document_requires_the_exact_retailer_id(self) -> None:
         raw = json.dumps({"props": {"pageProps": {
             "navigation": {"id": "not-a-product"},

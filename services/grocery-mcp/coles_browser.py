@@ -25,8 +25,14 @@ browser_failed = False
 requests: Queue[tuple[str, threading.Event, dict[str, object]]] = Queue()
 
 
+class BlankColesPageError(RuntimeError):
+    """Raised when Chrome returns a persistently empty disposable tab."""
+
+
 def fatal_browser_error(error: Exception) -> bool:
     """Return True when Selenium's browser/session can no longer be reused."""
+    if isinstance(error, BlankColesPageError):
+        return True
     message = str(error).lower()
     markers = (
         "no such window",
@@ -53,6 +59,12 @@ def missing_catalogue_data_error(title: str, body: str) -> str:
     return (
         "Coles browse page did not expose its catalogue data "
         f"(title={compact_title!r}, body={compact_body!r})"
+    )
+
+
+def blank_page_error(url: str) -> BlankColesPageError:
+    return BlankColesPageError(
+        f"Coles browser returned a blank page after retrying navigation: {url}"
     )
 
 
@@ -180,29 +192,64 @@ class Handler(BaseHTTPRequestHandler):
         print(f"coles-uc {self.address_string()} {format % args}", flush=True)
 
 
-def fetch_page(driver: object, url: str) -> tuple[str, list[str]]:
+def navigate_page(driver: object, url: str) -> bool:
+    """Navigate to a page, returning whether the renderer timed out."""
+    try:
+        driver.get(url)
+        return False
+    except Exception as error:  # noqa: BLE001
+        if (
+            "Timed out receiving message from renderer" not in str(error)
+            and "timeout" not in str(error).lower()
+        ):
+            raise
+        try:
+            driver.execute_script("window.stop();")
+        except Exception:  # noqa: BLE001
+            pass
+        return True
+
+
+def read_page_state(driver: object, wait_seconds: float) -> tuple[str, str, str | None]:
+    """Wait briefly for rendered text, verification, or Next.js data."""
+    deadline = time.monotonic() + wait_seconds
+    while True:
+        title = str(driver.title or "")
+        body = str(driver.execute_script("return document.body ? document.body.innerText : ''") or "")
+        raw_next_data = driver.execute_script(
+            "const node = document.querySelector('#__NEXT_DATA__'); return node ? node.textContent : null;"
+        )
+        next_data = str(raw_next_data) if raw_next_data else None
+        if next_data or coles_verification_error(body):
+            return title, body, next_data
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return title, body, next_data
+        time.sleep(min(0.25, remaining))
+
+
+def fetch_page(
+    driver: object, url: str, page_wait_seconds: float = 2.0
+) -> tuple[str, list[str]]:
     """Load a Coles page and return Next data plus rendered browse links."""
     original_window = driver.current_window_handle
     driver.switch_to.new_window("tab")
     try:
-        try:
-            driver.get(url)
-        except Exception as error:  # noqa: BLE001
-            if "Timed out receiving message from renderer" not in str(error) and "timeout" not in str(error).lower():
-                raise
-            try:
-                driver.execute_script("window.stop();")
-            except Exception:  # noqa: BLE001
-                pass
-        body = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
+        navigation_timed_out = navigate_page(driver, url)
+        title, body, next_data = read_page_state(driver, page_wait_seconds)
+        if not title.strip() and not body.strip() and not next_data:
+            if navigation_timed_out:
+                raise blank_page_error(url)
+            print(f"Coles browser opened a blank tab; retrying navigation: {url}", flush=True)
+            navigate_page(driver, url)
+            title, body, next_data = read_page_state(driver, page_wait_seconds)
+            if not title.strip() and not body.strip() and not next_data:
+                raise blank_page_error(url)
         verification_error = coles_verification_error(body)
         if verification_error:
             raise RuntimeError(verification_error)
-        next_data = driver.execute_script(
-            "const node = document.querySelector('#__NEXT_DATA__'); return node ? node.textContent : null;"
-        )
         if not next_data:
-            raise RuntimeError(missing_catalogue_data_error(driver.title, body))
+            raise RuntimeError(missing_catalogue_data_error(title, body))
         browse_paths = driver.execute_script("""
             return Array.from(document.querySelectorAll('a[href*="/browse/"]'))
               .map(a => {
