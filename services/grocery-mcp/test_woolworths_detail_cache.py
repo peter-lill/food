@@ -50,6 +50,13 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             dockerfile,
         )
 
+    def test_coles_collection_resume_accepts_leaf_paths_only(self) -> None:
+        self.assertTrue(self.bridge.valid_coles_collection_resume(
+            "/browse/pantry/cooking-ingredients/oils",
+        ))
+        self.assertFalse(self.bridge.valid_coles_collection_resume("/browse/pantry?start=48"))
+        self.assertFalse(self.bridge.valid_coles_collection_resume("/product/not-a-category"))
+
     def test_navigation_only_category_can_seed_descendants_without_product_api(self) -> None:
         root = "/shop/browse/health-beauty"
         children = [
