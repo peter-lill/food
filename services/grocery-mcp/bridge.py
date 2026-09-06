@@ -705,6 +705,7 @@ def catalogue_connection() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS woolworths_category_collection (
           category_path TEXT PRIMARY KEY,
           state TEXT NOT NULL CHECK(state IN ('pending', 'running', 'completed', 'failed')),
+          is_leaf INTEGER,
           attempts INTEGER NOT NULL DEFAULT 0,
           products_cached INTEGER NOT NULL DEFAULT 0,
           details_enriched INTEGER NOT NULL DEFAULT 0,
@@ -714,6 +715,9 @@ def catalogue_connection() -> sqlite3.Connection:
           last_error TEXT
         )
     """)
+    collection_columns = {row[1] for row in connection.execute("PRAGMA table_info(woolworths_category_collection)")}
+    if "is_leaf" not in collection_columns:
+        connection.execute("ALTER TABLE woolworths_category_collection ADD COLUMN is_leaf INTEGER")
     return connection
 
 
@@ -876,9 +880,8 @@ def cache_woolworths_details(results: object) -> tuple[int, int]:
     return enriched, failed
 
 
-def refresh_woolworths_category(category_path: str) -> dict:
-    """Cache one verified category and its rich product detail without clearing prior data."""
-    payload = woolworths_browser().browse(category_path)
+def collect_woolworths_leaf(category_path: str, payload: object) -> dict:
+    """Cache one verified leaf payload and its rich product detail."""
     count = cache_woolworths_category(category_path, payload)
     stockcodes = [
         clean_identifier(product.get("Stockcode"))
@@ -900,6 +903,14 @@ def refresh_woolworths_category(category_path: str) -> dict:
         "detailsEnriched": details_enriched,
         "detailsFailed": details_failed,
         "detailError": detail_error,
+    }
+
+
+def refresh_woolworths_category(category_path: str) -> dict:
+    """Compatibility wrapper for one explicit leaf refresh."""
+    payload = woolworths_browser().browse(category_path)
+    return {
+        **collect_woolworths_leaf(category_path, payload),
         "subcategories": woolworths_subcategory_paths(payload, category_path),
     }
 
@@ -1063,7 +1074,12 @@ class WoolworthsCatalogueCollector:
                     WHERE category_path = ?
                 """, (started_at, category))
             try:
-                outcome = refresh_woolworths_category(category)
+                payload = woolworths_browser().browse(category)
+                children = woolworths_subcategory_paths(payload, category)
+                if children:
+                    outcome = {"products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None}
+                else:
+                    outcome = collect_woolworths_leaf(category, payload)
             except Exception as error:  # noqa: BLE001
                 with catalogue_session() as connection:
                     connection.execute("""
@@ -1071,15 +1087,15 @@ class WoolworthsCatalogueCollector:
                         SET state = 'failed', last_error = ? WHERE category_path = ?
                     """, (str(error), category))
                 continue
-            enqueue_woolworths_collection_categories(outcome.get("subcategories", []))
+            enqueue_woolworths_collection_categories(children)
             with catalogue_session() as connection:
                 connection.execute("""
                     UPDATE woolworths_category_collection
-                    SET state = 'completed', products_cached = ?, details_enriched = ?,
+                    SET state = 'completed', is_leaf = ?, products_cached = ?, details_enriched = ?,
                         details_failed = ?, last_completed_at = ?, last_error = ?
                     WHERE category_path = ?
                 """, (
-                    outcome["products"], outcome["detailsEnriched"], outcome["detailsFailed"],
+                    int(not children), outcome["products"], outcome["detailsEnriched"], outcome["detailsFailed"],
                     int(time.time()), outcome["detailError"], category,
                 ))
 

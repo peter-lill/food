@@ -33,7 +33,8 @@ assert.match(bridge, /for _ in range\(WOOLWORTHS_CATEGORY_SCROLL_ROUNDS\):[\s\S]
 assert.match(bridge, /stable_rounds >= 4 and bool\(captured_responses or descendants\)/, "a stable navigation-only root must finish once descendant links are available");
 assert.match(bridge, /document\.querySelectorAll\('a\[href\]'\)[\s\S]*subcategories/, "category browsing must discover valid descendant browse paths");
 assert.match(bridge, /if not captured_responses:[\s\S]*if descendants:[\s\S]*categoryResponses["']:\s*\[\]/, "navigation-only category roots must seed their descendants without fabricating product responses");
-assert.match(bridge, /enqueue_woolworths_collection_categories\(outcome\.get\("subcategories", \[\]\)\)/, "the collector must enqueue discovered descendants during the same resumable run");
+assert.match(bridge, /children = woolworths_subcategory_paths\(payload, category\)[\s\S]*enqueue_woolworths_collection_categories\(children\)/, "the collector must enqueue discovered descendants during the same resumable run");
+assert.match(bridge, /if children:[\s\S]*"products": 0[\s\S]*else:[\s\S]*collect_woolworths_leaf\(category, payload\)/, "parents must remain discovery-only while leaf payloads alone are cached");
 assert.match(bridge, /def migrate_woolworths_collection_categories[\s\S]*DELETE FROM woolworths_category_collection WHERE category_path = \?/, "persisted obsolete roots must not leave collection status permanently failed");
 assert.match(bridge, /revisitCompletedRoots/, "previously completed roots must be safely revisitible to seed descendants");
 assert.match(bridge, /WHERE state = 'completed' AND category_path IN/, "revisiting roots must not reset completed descendants");
