@@ -20,7 +20,24 @@ VNC_PORT = int(os.getenv("COLES_BROWSER_VNC_PORT", "5900"))
 FETCH_PORT = int(os.getenv("COLES_BROWSER_FETCH_PORT", "8788"))
 
 stopping = False
+browser_ready = False
+browser_failed = False
 requests: Queue[tuple[str, threading.Event, dict[str, object]]] = Queue()
+
+
+def fatal_browser_error(error: Exception) -> bool:
+    """Return True when Selenium's browser/session can no longer be reused."""
+    message = str(error).lower()
+    markers = (
+        "no such window",
+        "web view not found",
+        "invalid session id",
+        "session deleted",
+        "chrome not reachable",
+        "disconnected",
+        "not connected to devtools",
+    )
+    return any(marker in message for marker in markers)
 
 
 def coles_verification_error(body: str) -> str | None:
@@ -31,7 +48,6 @@ def coles_verification_error(body: str) -> str | None:
 
 
 def missing_catalogue_data_error(title: str, body: str) -> str:
-    """Return a compact public-page diagnostic when Coles changes its markup."""
     compact_body = " ".join(body.split())[:600]
     compact_title = " ".join(title.split())[:120]
     return (
@@ -41,7 +57,6 @@ def missing_catalogue_data_error(title: str, body: str) -> str:
 
 
 def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
-    """Restore the LooseVersion API expected by UC on Python 3.12."""
     patcher_module.LooseVersion = parser_type
 
 
@@ -53,6 +68,20 @@ def stop(_signum: int, _frame: object) -> None:
 def start_process(command: list[str], name: str) -> subprocess.Popen:
     print(f"Starting {name}", flush=True)
     return subprocess.Popen(command, env={**os.environ, "DISPLAY": DISPLAY})
+
+
+def clear_stale_chromium_profile_locks() -> None:
+    """Remove Chromium singleton entries left behind by a previous container."""
+    profile = Path(PROFILE_DIR)
+    for name in ("SingletonLock", "SingletonSocket", "SingletonCookie"):
+        path = profile / name
+        try:
+            if path.exists() or path.is_symlink():
+                target = os.readlink(path) if path.is_symlink() else "regular-file"
+                print(f"Removing stale Chromium profile entry: {path} -> {target}", flush=True)
+                path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def wait_for_x_display(timeout_seconds: int = 10) -> None:
@@ -68,15 +97,10 @@ def wait_for_x_display(timeout_seconds: int = 10) -> None:
 
 def valid_coles_browse_url(value: str) -> bool:
     parsed = urlparse(value)
-    return (
-        parsed.scheme == "https"
-        and parsed.netloc == "www.coles.com.au"
-        and parsed.path.startswith("/browse/")
-    )
+    return parsed.scheme == "https" and parsed.netloc == "www.coles.com.au" and parsed.path.startswith("/browse/")
 
 
 def valid_coles_product_url(value: str) -> bool:
-    """Allow only a canonical, public Coles product page with a numeric ID."""
     parsed = urlparse(value)
     return (
         parsed.scheme == "https"
@@ -97,9 +121,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self) -> None:  # noqa: N802
+        global browser_ready, browser_failed
         parsed = urlparse(self.path)
         if parsed.path == "/health":
-            self.send_json(200, {"status": "ok", "browser": "undetected-chromedriver"})
+            if browser_ready and not browser_failed:
+                self.send_json(200, {"status": "ok", "browser": "undetected-chromedriver"})
+            else:
+                self.send_json(503, {"status": "error", "browser": "undetected-chromedriver"})
             return
         if parsed.path != "/fetch":
             self.send_json(404, {"status": "error", "error": "Not found"})
@@ -112,22 +140,48 @@ class Handler(BaseHTTPRequestHandler):
         result: dict[str, object] = {}
         requests.put((url, completed, result))
         if not completed.wait(timeout=90):
+            browser_failed = True
+            browser_ready = False
+            print(
+                f"Coles browser fetch watchdog expired after 90 seconds: {url}",
+                flush=True,
+            )
             self.send_json(504, {"status": "error", "error": "Undetected Chrome session did not return in time"})
+
+            def force_restart() -> None:
+                time.sleep(1)
+                print("Terminating wedged Coles browser service for Docker restart", flush=True)
+                os._exit(1)
+
+            threading.Thread(target=force_restart, daemon=True).start()
             return
         if result.get("error"):
             self.send_json(502, {"status": "error", "error": result["error"]})
             return
-        self.send_json(200, {"status": "success", "nextData": result["nextData"]})
+        self.send_json(200, {
+            "status": "success",
+            "nextData": result["nextData"],
+            "browsePaths": result.get("browsePaths", []),
+        })
 
     def log_message(self, format: str, *args: object) -> None:
         print(f"coles-uc {self.address_string()} {format % args}", flush=True)
 
 
-def fetch_page(driver: object, url: str) -> str:
+def fetch_page(driver: object, url: str) -> tuple[str, list[str]]:
+    """Load a Coles page and return Next data plus rendered browse links."""
     original_window = driver.current_window_handle
     driver.switch_to.new_window("tab")
     try:
-        driver.get(url)
+        try:
+            driver.get(url)
+        except Exception as error:  # noqa: BLE001
+            if "Timed out receiving message from renderer" not in str(error) and "timeout" not in str(error).lower():
+                raise
+            try:
+                driver.execute_script("window.stop();")
+            except Exception:  # noqa: BLE001
+                pass
         body = driver.execute_script("return document.body ? document.body.innerText : ''") or ""
         verification_error = coles_verification_error(body)
         if verification_error:
@@ -137,7 +191,16 @@ def fetch_page(driver: object, url: str) -> str:
         )
         if not next_data:
             raise RuntimeError(missing_catalogue_data_error(driver.title, body))
-        return next_data
+        browse_paths = driver.execute_script("""
+            return Array.from(document.querySelectorAll('a[href*="/browse/"]'))
+              .map(a => {
+                try { return new URL(a.href, window.location.origin).pathname; }
+                catch (_) { return null; }
+              })
+              .filter(Boolean);
+        """) or []
+        unique_paths = sorted({str(path).split("?", 1)[0].split("#", 1)[0].rstrip("/") for path in browse_paths if path})
+        return next_data, unique_paths
     finally:
         driver.close()
         driver.switch_to.window(original_window)
@@ -171,6 +234,7 @@ def main() -> None:
 
         options = uc.ChromeOptions()
         options.add_argument("--window-size=1365,768")
+        clear_stale_chromium_profile_locks()
         driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False)
         driver.set_page_load_timeout(45)
         try:
@@ -178,18 +242,34 @@ def main() -> None:
                 driver.get(START_URL)
             except Exception:  # noqa: BLE001
                 print("Initial Coles navigation timed out; the page remains open for verification", flush=True)
+            global browser_ready, browser_failed
+            browser_ready = True
+            browser_failed = False
             print(f"Coles undetected Chrome ready: noVNC={NOVNC_PORT}, fetch={FETCH_PORT}", flush=True)
             while not stopping:
                 try:
                     url, completed, result = requests.get(timeout=1)
                 except Empty:
                     continue
+                fatal_error = None
                 try:
-                    result["nextData"] = fetch_page(driver, url)
+                    next_data, browse_paths = fetch_page(driver, url)
+                    result["nextData"] = next_data
+                    result["browsePaths"] = browse_paths
                 except Exception as error:  # noqa: BLE001
                     result["error"] = str(error)
+                    if fatal_browser_error(error):
+                        browser_failed = True
+                        browser_ready = False
+                        fatal_error = error
                 finally:
                     completed.set()
+                if fatal_error is not None:
+                    print(
+                        f"Fatal Coles browser session error; exiting for Docker restart: {fatal_error}",
+                        flush=True,
+                    )
+                    raise RuntimeError("Coles browser session became unusable") from fatal_error
         finally:
             driver.quit()
     finally:

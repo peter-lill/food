@@ -82,7 +82,9 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(products[0]["external_id"], "8112449")
         self.assertEqual(products[0]["price"], 8.5)
         self.assertTrue(products[0]["is_special"])
-        self.assertEqual(products[0]["category_paths"], ["Meat & Seafood"])
+        self.assertEqual(products[0]["category_paths"], [
+            "/browse/meat-seafood", "Meat & Seafood",
+        ])
 
     def test_coles_search_preserves_the_nested_listing_image(self) -> None:
         payload = {
@@ -249,7 +251,11 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                 self.url = url
 
             def execute_script(self, script: str) -> str:
-                return '{"props":{"pageProps":{}}}' if "__NEXT_DATA__" in script else "Pantry products"
+                if "__NEXT_DATA__" in script:
+                    return '{"props":{"pageProps":{}}}'
+                if "querySelectorAll" in script:
+                    return []
+                return "Pantry products"
 
             def close(self) -> None:
                 self.closed = True
@@ -257,7 +263,10 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         driver = Driver()
         url = "https://www.coles.com.au/browse/pantry"
 
-        self.assertEqual(self.coles_browser.fetch_page(driver, url), '{"props":{"pageProps":{}}}')
+        self.assertEqual(
+            self.coles_browser.fetch_page(driver, url),
+            ('{"props":{"pageProps":{}}}', []),
+        )
         self.assertEqual(driver.url, url)
         self.assertTrue(driver.closed)
         self.assertEqual(driver.current_window_handle, "verified-session")
@@ -365,6 +374,83 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         with self.coles_catalogue.cache_session() as connection:
             connection.execute("DELETE FROM coles_products WHERE external_id IN ('1001', '1002')")
             connection.execute("DELETE FROM coles_category_collection WHERE category_path=?", (category,))
+
+    def test_coles_refresh_recursively_discovers_and_collects_only_leaves(self) -> None:
+        root = "/browse/pantry"
+        branch = f"{root}/cooking"
+        leaves = [f"{branch}/oil", f"{branch}/salt"]
+
+        class Session:
+            def __init__(self) -> None:
+                self.browsed = []
+
+            def children(self, category: str) -> list[str]:
+                return {root: [branch], branch: leaves}.get(category, [])
+
+            def browse(self, category: str, resume: bool = False) -> int:
+                self.browsed.append((category, resume))
+                return 0
+
+        session = Session()
+        stale = "/browse/obsolete/leaf"
+        with self.coles_catalogue.cache_session() as connection:
+            connection.execute(
+                "INSERT INTO coles_category_collection (category_path, state, is_leaf) VALUES (?, 'completed', 1)",
+                (stale,),
+            )
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            self.coles_catalogue.refresh_all(session=session)
+
+        self.assertEqual(session.browsed, [(leaves[0], False), (leaves[1], False)])
+        with self.coles_catalogue.cache_session() as connection:
+            rows = connection.execute(
+                "SELECT category_path, is_leaf FROM coles_category_collection WHERE is_leaf IS NOT NULL ORDER BY category_path"
+            ).fetchall()
+            stale_leaf = connection.execute(
+                "SELECT is_leaf FROM coles_category_collection WHERE category_path=?", (stale,)
+            ).fetchone()
+        self.assertEqual(
+            [(row["category_path"], row["is_leaf"]) for row in rows],
+            [(root, 0), (branch, 0), (leaves[0], 1), (leaves[1], 1)],
+        )
+        self.assertIsNone(stale_leaf["is_leaf"])
+        self.assertEqual(self.coles_catalogue.status()["total"], 2)
+
+    def test_coles_refresh_resumes_at_discovered_leaf_checkpoint(self) -> None:
+        root = "/browse/pantry"
+        leaves = [f"{root}/oil", f"{root}/salt", f"{root}/spices"]
+
+        class Session:
+            def __init__(self) -> None:
+                self.browsed = []
+
+            def children(self, category: str) -> list[str]:
+                return leaves if category == root else []
+
+            def browse(self, category: str, resume: bool = False) -> int:
+                self.browsed.append((category, resume))
+                return 0
+
+        session = Session()
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            self.coles_catalogue.refresh_all(resume_category=leaves[1], session=session)
+        self.assertEqual(session.browsed, [(leaves[1], True), (leaves[2], False)])
+
+    def test_coles_cache_merges_paths_when_product_appears_in_multiple_leaves(self) -> None:
+        product = {
+            "id": 1234,
+            "name": "Shared product",
+            "availability": True,
+            "pricing": {"now": 5.0},
+        }
+        first = "/browse/pantry/cooking/oil"
+        second = "/browse/pantry/health-food/oil"
+        self.coles_catalogue.cache_page(first, {"results": [product]})
+        self.coles_catalogue.cache_page(second, {"results": [product]})
+
+        cached = self.coles_catalogue.cached_products(10, 0)[0]
+        self.assertEqual(cached["category_path"], first)
+        self.assertEqual(cached["category_paths"], [first, second])
 
     def test_public_aldi_listing_keeps_product_identity_price_and_catalogue_path(self) -> None:
         listing = '''
