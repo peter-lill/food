@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 import drakes_catalogue
-from drakes_catalogue import cache_products, discover_department_categories, parse_drakes_listing, prune_stale_products, sidebar_data_url, valid_store_id
+from drakes_catalogue import DrakesCatalogueSession, cache_products, discover_department_categories, parse_drakes_listing, prune_stale_products, sidebar_data_url, valid_store_id
 
 
 class DrakesCatalogueTests(unittest.TestCase):
@@ -62,6 +62,30 @@ class DrakesCatalogueTests(unittest.TestCase):
         self.assertEqual(discover_department_categories(home, sidebar), [
             "/category/fruit-vegetables", "/category/bread-bakery",
         ])
+
+    def test_refresh_departments_collects_sidebar_leaves_not_parents(self):
+        home = '<nav data-data-url="https://cdn.example/sidebar.json?group=1&amp;type=store">'
+        sidebar = '''{"departments":[
+          {"id":"all","name":"All Departments","parent_id":"","slug":"all"},
+          {"id":"fruit","name":"Fruit & Vegetables","parent_id":"all","slug":"fruit-vegetables"},
+          {"id":"fresh","name":"Fresh Fruit","parent_id":"fruit","slug":"fresh-fruit"},
+          {"id":"bakery","name":"Bread & Bakery","parent_id":"all","slug":"bread-bakery"}
+        ]}'''
+        seen = []
+
+        def fetch(url):
+            if url == "https://087.drakes.com.au/":
+                return home
+            if url.startswith("https://cdn.example/sidebar.json"):
+                return sidebar
+            seen.append(url)
+            return ""
+
+        session = DrakesCatalogueSession(fetch_page=fetch)
+        session.refresh = lambda store, maximum, category, generation: {"category": category, "products": 0, "pages": 1, "truncated": False}  # type: ignore[method-assign]
+        outcome = session.refresh_departments("087")
+        self.assertEqual(outcome["categories"], ["/category/bread-bakery", "/category/fresh-fruit"])
+        self.assertEqual(seen, [])
 
     def test_rejects_arbitrary_store_hosts(self):
         with self.assertRaises(ValueError):

@@ -100,6 +100,22 @@ def discover_department_categories(document: str) -> list[str]:
     return paths
 
 
+def discover_leaf_categories(document: str) -> list[str]:
+    """Discover ALDI's deepest public catalogue paths from its category menu."""
+    paths = sorted({
+        html.unescape(match.group("href"))
+        for match in re.finditer(r'<a\s+[^>]*href="(?P<href>/products/[^"?#]+/k/\d+)[^"]*"', document, re.I | re.S)
+    })
+    # ALDI puts its opaque key after the path hierarchy, so `/products/pantry/k/…`
+    # is the parent of `/products/pantry/sauces/k/…`, despite not being a URL
+    # prefix of the latter.
+    hierarchy = {path: re.sub(r"/k/\d+$", "", path) for path in paths}
+    return [
+        path for path in paths
+        if not any(other.startswith(f"{hierarchy[path]}/") for other in hierarchy.values() if other != hierarchy[path])
+    ]
+
+
 def cache_connection() -> sqlite3.Connection:
     directory = os.path.dirname(ALDI_CATALOGUE_DB)
     if directory:
@@ -192,9 +208,10 @@ class AldiCatalogueSession:
         return discover_department_categories(self.read(ALDI_PRODUCTS_URL))
 
     def refresh_departments(self, max_pages: int | None = None) -> dict:
-        categories = self.department_categories()
+        document = self.read(ALDI_PRODUCTS_URL)
+        categories = discover_leaf_categories(document)
         if not categories:
-            raise RuntimeError("ALDI products page did not expose department category links")
+            raise RuntimeError("ALDI products page did not expose leaf category links")
         refresh_generation = uuid.uuid4().hex
         outcomes = []
         for category in categories:

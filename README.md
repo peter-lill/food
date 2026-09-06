@@ -120,6 +120,18 @@ then run the full controlled import. The importer selects a deterministic,
 specific Woolworths source path for each stockcode and reindexes its canonical
 department and shelf accordingly.
 
+### Retailer leaf-collection contract
+
+Every catalogue collector must discover the retailer's public category tree
+before it acquires products. Parent categories are navigation evidence only;
+only paths with no discovered children are product collection jobs. Retailers
+with durable collection state must persist both the discovery frontier and
+per-leaf pagination checkpoints, so a browser or network interruption resumes
+the failed leaf rather than restarting from broad roots. A new retailer must
+implement this discovery/leaf rule, source-path preservation, and a
+retailer-specific controlled importer before it is added to an automated
+catalogue refresh.
+
 ### Weekly specials refresh
 
 Food can revisit the verified Woolworths catalogue every Wednesday morning to

@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 import aldi_catalogue
-from aldi_catalogue import cache_products, discover_department_categories, prune_stale_products
+from aldi_catalogue import cache_products, discover_department_categories, discover_leaf_categories, prune_stale_products
 
 
 class AldiCatalogueTests(unittest.TestCase):
@@ -26,6 +26,19 @@ class AldiCatalogueTests(unittest.TestCase):
         self.assertEqual(discover_department_categories(document), [
             "/products/fruits-vegetables/k/950000000",
             "/products/dairy-eggs-fridge/k/960000000",
+        ])
+
+    def test_discovers_only_leaf_category_links_for_collection(self):
+        document = '''
+        <a href="/products/pantry/k/970000000">Pantry</a>
+        <a href="/products/pantry/pasta-rice-grains/k/1111111179">Pasta, Rice & Grains</a>
+        <a href="/products/pantry/sauces/k/1111111173">Sauces</a>
+        <a href="/products/bakery/k/920000000">Bakery</a>
+        '''
+        self.assertEqual(discover_leaf_categories(document), [
+            "/products/bakery/k/920000000",
+            "/products/pantry/pasta-rice-grains/k/1111111179",
+            "/products/pantry/sauces/k/1111111173",
         ])
 
     def test_prunes_products_not_seen_in_latest_complete_refresh(self):
