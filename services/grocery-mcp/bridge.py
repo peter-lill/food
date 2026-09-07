@@ -493,7 +493,11 @@ class WoolworthsBrowserSession:
                             )
                         if not category_path.startswith("/shop/browse/"):
                             raise ValueError("category must be a /shop/browse/ path")
-                        browse_page = context.new_page()
+                        # Reuse the verified page so category acquisition is
+                        # visible through noVNC.  A challenge must remain on
+                        # screen for a person to clear instead of disappearing
+                        # with a short-lived background tab.
+                        browse_page = page
                         captured_responses: list[object] = []
                         def capture_category(response: object) -> None:
                             try:
@@ -503,6 +507,7 @@ class WoolworthsBrowserSession:
                                 return
                         browse_page.on("response", capture_category)
                         try:
+                            browse_page.bring_to_front()
                             browse_page.goto(
                                 f"https://www.woolworths.com.au{category_path}",
                                 wait_until="domcontentloaded",
@@ -541,7 +546,6 @@ class WoolworthsBrowserSession:
                                     captured_responses, descendants, stable_rounds
                                 ):
                                     break
-                            browse_page.remove_listener("response", capture_category)
                             title = browse_page.title().casefold()
                             if "access denied" in title or "captcha" in title:
                                 raise RuntimeError("Woolworths requires browser verification")
@@ -550,7 +554,7 @@ class WoolworthsBrowserSession:
                             )))
                         finally:
                             if not browse_page.is_closed():
-                                browse_page.close()
+                                browse_page.remove_listener("response", capture_category)
                         continue
 
                     if operation == "details":
@@ -1086,6 +1090,10 @@ class WoolworthsCatalogueCollector:
                         UPDATE woolworths_category_collection
                         SET state = 'failed', last_error = ? WHERE category_path = ?
                     """, (str(error), category))
+                if "requires browser verification" in str(error).casefold():
+                    # Leave the challenged page visible and preserve every
+                    # remaining checkpoint until a person clears it.
+                    return
                 continue
             enqueue_woolworths_collection_categories(children)
             with catalogue_session() as connection:
