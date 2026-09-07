@@ -1,5 +1,6 @@
 import { ProductType } from "@prisma/client";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
+import { produceProductType } from "../src/lib/products/generic-produce";
 
 export type CachedWoolworthsProduct = {
   stockcode: string;
@@ -103,7 +104,7 @@ export function categoryForWoolworthsPath(path: string, productName = ""): { cat
   const productOverride = productDepartmentOverride(productName);
   if (productOverride) return productOverride;
 
-  if (root === "fruit-veg") return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
+  if (root === "fruit-veg") return { category: "Fruit & vegetables", productType: produceProductType(productName) };
   if (root === "meat-seafood-deli") {
     if (descendantSegments.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment))) return { category: "Deli", productType: ProductType.PACKAGED };
     if (descendantSegments.some((segment) => /(?:^|-)seafood(?:-|$)/.test(segment))) return { category: "Meat & seafood", productType: ProductType.SEAFOOD };

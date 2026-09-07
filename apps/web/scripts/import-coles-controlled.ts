@@ -104,7 +104,7 @@ async function attachPage(plans: Plan[]) {
   await prisma.$transaction(async (tx) => {
     if (creates.length) {
       await tx.product.createMany({ data: creates.map((plan) => {
-        const product = plan.product; const mapped = categoryForColesPath(product.category_path);
+        const product = plan.product; const mapped = categoryForColesPath(product.category_path, product.name);
         return {
           id: plan.productId!, name: product.name, canonicalName: product.name,
           slug: `${slugifyProductName(product.name)}-coles-${product.external_id}`,
@@ -126,7 +126,7 @@ async function attachPage(plans: Plan[]) {
       await tx.storeProduct.update({ where: { id: plan.storeProductId! }, data: listingData(plan) });
     }
     for (const plan of applicable) {
-      const mapped = categoryForColesPath(plan.product.category_path);
+      const mapped = categoryForColesPath(plan.product.category_path, plan.product.name);
       if (mapped.category !== "Other") await tx.product.update({ where: { id: plan.productId! }, data: { category: mapped.category, productType: mapped.productType } });
     }
     const priced = applicable.filter((plan) => plan.product.price !== null);
