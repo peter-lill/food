@@ -876,6 +876,31 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         states = {item["category_path"]: item["state"] for item in self.bridge.woolworths_collection_status()["categories"]}
         self.assertEqual(states, {root: "completed", child: "completed"})
 
+    def test_collector_pauses_queue_when_visible_browser_requires_verification(self) -> None:
+        first = "/shop/browse/baby/baby-food"
+        second = "/shop/browse/bakery/bread"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (first, second)
+        calls = []
+
+        def browse(category: str) -> dict:
+            calls.append(category)
+            raise RuntimeError("Woolworths requires browser verification")
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        collector = self.bridge.WoolworthsCatalogueCollector()
+        self.assertTrue(collector.start(None, False))
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(calls, [first])
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertEqual(states[first], "failed")
+        self.assertEqual(states[second], "pending")
+
     def test_revisit_completed_roots_does_not_reset_completed_descendants(self) -> None:
         root = "/shop/browse/dairy-eggs-fridge"
         child = "/shop/browse/dairy-eggs-fridge/milk"
