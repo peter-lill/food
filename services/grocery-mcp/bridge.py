@@ -56,14 +56,20 @@ def valid_coles_collection_resume(category: str) -> bool:
     return bool(re.fullmatch(r"/browse/[a-z0-9-]+(?:/[a-z0-9-]+)*", category))
 
 
-def _start_coles_refresh(resume_category: str | None = None) -> bool:
+def _start_coles_refresh(
+    resume_category: str | None = None,
+    revisit_all_completed: bool = False,
+) -> bool:
     global _coles_refresh_thread
     with _coles_refresh_lock:
         if _coles_refresh_thread and _coles_refresh_thread.is_alive():
             return False
         def run() -> None:
             try:
-                refresh_coles_catalogue(resume_category)
+                refresh_coles_catalogue(
+                    resume_category,
+                    revisit_all_completed=revisit_all_completed,
+                )
             except Exception as error:
                 print(f"Coles catalogue refresh failed: {error}", file=sys.stderr, flush=True)
         _coles_refresh_thread = threading.Thread(target=run, name="coles-catalogue-refresh", daemon=True)
@@ -1870,10 +1876,14 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path != "/search":
             if parsed.path == "/coles/catalogue/collection/start":
                 resume_category = (params.get("resumeCategory") or [""])[0].strip() or None
+                revisit_all_completed = (params.get("revisitAllCompleted") or ["0"])[0].strip().lower() in ("1", "true", "yes")
                 if resume_category and not valid_coles_collection_resume(resume_category):
                     self.send_json(400, {"status": "error", "error": "resumeCategory must be a Coles browse path"})
                     return
-                started = _start_coles_refresh(resume_category)
+                if resume_category and revisit_all_completed:
+                    self.send_json(400, {"status": "error", "error": "resumeCategory and revisitAllCompleted cannot be combined"})
+                    return
+                started = _start_coles_refresh(resume_category, revisit_all_completed)
                 self.send_json(202 if started else 200, {"status": "success", "started": started, "collection": coles_catalogue_status()})
                 return
             if parsed.path == "/coles/catalogue/collection/status":

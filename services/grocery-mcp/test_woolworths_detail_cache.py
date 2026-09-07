@@ -632,6 +632,41 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             self.coles_catalogue.refresh_all(resume_category=leaves[1], session=session)
         self.assertEqual(session.browsed, [(leaves[1], True), (leaves[2], False)])
 
+    def test_coles_revisit_rediscovers_taxonomy_and_restarts_completed_leaves(self) -> None:
+        root = "/browse/pantry"
+        observations = []
+
+        class Session:
+            def children(inner_self, category: str) -> list[str]:
+                observations.append(("discover", category))
+                return []
+
+            def browse(inner_self, category: str, resume: bool = False) -> int:
+                with self.coles_catalogue.cache_session() as connection:
+                    checkpoint = connection.execute(
+                        "SELECT state, products_cached, next_offset, next_page FROM coles_category_collection WHERE category_path=?",
+                        (category,),
+                    ).fetchone()
+                    observations.append(("collect", category, resume, tuple(checkpoint)))
+                    connection.execute(
+                        "UPDATE coles_category_collection SET state='completed', products_cached=12, next_offset=96, next_page=3 WHERE category_path=?",
+                        (category,),
+                    )
+                return 12
+
+        session = Session()
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            self.coles_catalogue.refresh_all(session=session)
+            self.coles_catalogue.refresh_all(session=session)
+            self.coles_catalogue.refresh_all(session=session, revisit_all_completed=True)
+
+        self.assertEqual(observations, [
+            ("discover", root),
+            ("collect", root, False, ("pending", 0, 0, 1)),
+            ("discover", root),
+            ("collect", root, False, ("pending", 0, 0, 1)),
+        ])
+
     def test_coles_discovery_retries_the_failed_node_after_browser_restart(self) -> None:
         category = "/browse/drinks/iced-tea"
 

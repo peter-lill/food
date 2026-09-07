@@ -159,6 +159,31 @@ sweep refreshes the authoritative Woolworths catalogue; Coles remains covered
 by the subsequent stale-listing queue rather than an unverified Coles catalogue
 scrape.
 
+### Concurrent Coles and Woolworths catalogue pipelines
+
+The browser-backed Coles and Woolworths collectors can run at the same time.
+Each service imports the existing verified cache once during the initial
+population, waits for its own complete discovery/collection run, and then runs
+a final reconciliation import. A shared lock serialises database imports so
+cross-retailer product matching cannot race and create duplicate canonical
+products. Subsequent service runs revisit the retailer taxonomy and import only
+after collection completes.
+
+Install the service template once on Coffee:
+
+```bash
+sudo install -m 0644 deploy/food-retailer-catalogue@.service /etc/systemd/system/food-retailer-catalogue@.service
+sudo systemctl daemon-reload
+sudo systemctl start food-retailer-catalogue@coles.service food-retailer-catalogue@woolworths.service
+```
+
+Follow either independent pipeline with:
+
+```bash
+journalctl -fu food-retailer-catalogue@coles.service
+journalctl -fu food-retailer-catalogue@woolworths.service
+```
+
 ### Controlled Woolworths canonical import
 
 The verified Woolworths cache is not automatically treated as Food's canonical

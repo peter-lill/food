@@ -700,6 +700,7 @@ def discover_children(
 def refresh_all(
     resume_category: str | None = None,
     session: ColesBrowserSession | None = None,
+    revisit_all_completed: bool = False,
 ) -> None:
     """Collect known leaves first, then collect each newly discovered leaf."""
     session = session or ColesBrowserSession()
@@ -714,6 +715,16 @@ def refresh_all(
         session.browse(category, resume=category == resume_category or state in ("running", "failed"))
 
     with cache_session() as connection:
+        if revisit_all_completed:
+            connection.execute(
+                "UPDATE coles_category_discovery SET completed=0, last_error=NULL"
+            )
+            connection.execute("""
+                UPDATE coles_category_collection
+                SET state='pending', products_cached=0, next_offset=0, next_page=1,
+                    last_error=NULL
+                WHERE is_leaf=1 AND state='completed'
+            """)
         if not connection.execute("SELECT 1 FROM coles_category_discovery LIMIT 1").fetchone():
             connection.execute("UPDATE coles_category_collection SET is_leaf=NULL")
             connection.executemany(
