@@ -165,10 +165,22 @@ function extractPreparation(value: string, evidence: string[]) {
     }
     phrase.pattern.lastIndex = 0;
     result = result.replace(phrase.pattern, " ");
+    // If removing a preparation phrase strands the conjunction that joined
+    // it to the remaining product identity, remove that conjunction too.
+    // Examples:
+    //   "roasted and salted cashews" -> "salted cashews"
+    //   "on the go roasted and salted cashews" -> "on the go salted cashews"
+    result = result.replace(/(^|\s)(?:and|or|with)\s+/i, "$1");
     preparation.push(phrase.label);
     evidence.push("preparation phrase separated from identity");
   }
-  return { cleaned: result.replace(/\s+/g, " ").trim(), preparation: [...new Set(preparation)] };
+  const cleaned = result
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^(?:and|or|with)\s+/i, "")
+    .trim();
+
+  return { cleaned, preparation: [...new Set(preparation)] };
 }
 
 function extractLeadingSize(value: string, evidence: string[]) {

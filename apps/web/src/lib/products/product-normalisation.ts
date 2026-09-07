@@ -296,7 +296,20 @@ function canonicalCore(value: string, variants: string[], attributes: ProductAtt
   const variantTokens = new Set(variants.flatMap((variant) => normaliseProductText(variant).split(" ")));
   const reducedFat = variants.includes("reduced fat") || variants.includes("fat free");
   tokens = tokens
-    .filter((token) => !removableWords.has(token))
+    .filter((token, index, allTokens) => {
+      if (!removableWords.has(token)) return true;
+
+      // Recipe-oriented removable words can also be legitimate parts of
+      // authoritative product names, e.g. "Fresh & Fast" and "On The Go".
+      // Do not remove a leading token when that would orphan a conjunction
+      // or article-led phrase.
+      if (
+        index === 0
+        && ["and", "or", "with", "the"].includes(allTokens[index + 1] ?? "")
+      ) return true;
+
+      return false;
+    })
     .filter((token) => !containerWords.has(token))
     .filter((token) => !retailerWords.has(token))
     .filter((token) => !variantTokens.has(token))

@@ -214,6 +214,36 @@ assert.notEqual(identifyGrocery("Cadbury Dairy Milk Chocolate Block 180g")?.fami
 assert.equal(identifyGrocery("Arnott's Flatbread Dippers Feta & Olive 130g")?.family, "Flatbread Dippers");
 assert.notEqual(identifyGrocery("Arnott's Flatbread Dippers Feta & Olive 130g")?.canonicalName, "Feta");
 assert.equal(identifyGrocery("Rosemary Crackers With Parmesan 150g")?.family, "Crackers");
+
+// Authoritative retailer names must not be damaged by recipe-oriented
+// normalisation. In particular, leading words must not be removed when doing
+// so strands a conjunction/article, and preparation removal must not leave a
+// leading conjunction.
+assert.equal(
+  identifyGrocery("Fresh & Fast Stir Fry 400g")?.canonicalName,
+  "Fresh And Fast Stir Fry",
+  "Fresh & Fast must not collapse to And Fast",
+);
+assert.equal(
+  identifyGrocery("On The Go Salted Mixed Nuts 45g")?.canonicalName,
+  "On The Go Salted Mixed Nuts",
+  "On The Go must retain its leading On",
+);
+assert.equal(
+  identifyGrocery("Roasted & Salted Cashews 200g")?.canonicalName,
+  "Salted Cashews",
+  "preparation removal must not leave a leading And",
+);
+assert.equal(
+  identifyGrocery("On The Go Roasted & Salted Cashews 5 Pack 175g")?.canonicalName,
+  "On The Go Salted Cashews",
+  "preparation removal must not strand And inside a retailer product name",
+);
+assert.equal(
+  identifyGrocery("Salted Mixed Nuts 375g")?.canonicalName,
+  "Salted Mixed Nuts",
+  "ordinary salted nut identity must remain stable",
+);
 assert.notEqual(identifyGrocery("Rosemary Crackers With Parmesan 150g")?.canonicalName, "Parmesan");
 assert.equal(isRecipeInstructionResidue("To Serve"), true);
 assert.equal(isRecipeInstructionResidue("For garnish"), true);
