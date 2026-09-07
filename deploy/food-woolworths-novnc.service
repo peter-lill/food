@@ -1,0 +1,8 @@
+[Unit]
+Description=Food Woolworths noVNC TCP proxy
+Requires=food-woolworths-novnc.socket
+Wants=food-woolworths-browser.service
+After=network-online.target food-woolworths-browser.service
+
+[Service]
+ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:6084
