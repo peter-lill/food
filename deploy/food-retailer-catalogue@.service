@@ -1,0 +1,16 @@
+[Unit]
+Description=Food %i catalogue collection and controlled import
+After=network-online.target docker.service food-web.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=peter
+Environment=HOME=/home/peter
+WorkingDirectory=/home/peter/Development/food
+StateDirectory=food-retailer-catalogue
+ExecStart=/home/peter/Development/food/scripts/run-retailer-catalogue-pipeline.sh %i
+TimeoutStartSec=infinity
+
+[Install]
+WantedBy=multi-user.target
