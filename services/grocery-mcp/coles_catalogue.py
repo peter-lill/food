@@ -697,6 +697,37 @@ def discover_children(
     raise RuntimeError("Coles child discovery exhausted its retry budget")
 
 
+def retryable_coles_browser_error(error: RuntimeError) -> bool:
+    """Return whether a catalogue request may recover after the browser sidecar restarts."""
+    message = str(error).casefold()
+    return any(marker in message for marker in (
+        "blank page after retrying navigation",
+        "undetected chrome session did not return in time",
+        "coles browser session is unavailable",
+        "coles browser session became unusable",
+    ))
+
+
+def collect_leaf_with_retry(
+    session: ColesBrowserSession,
+    category: str,
+    resume: bool = False,
+    attempts: int = 3,
+) -> int:
+    """Retry a leaf from its durable page checkpoint after a browser restart."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return session.browse(
+                category,
+                resume=resume or attempt > 1,
+            )
+        except RuntimeError as error:
+            if not retryable_coles_browser_error(error) or attempt == attempts:
+                raise
+            time.sleep(5 * attempt)
+    raise RuntimeError("Coles leaf collection exhausted its retry budget")
+
+
 def refresh_all(
     resume_category: str | None = None,
     session: ColesBrowserSession | None = None,
@@ -712,7 +743,11 @@ def refresh_all(
             resume_reached = True
         if not resume_reached or (state == "completed" and category != resume_category):
             return
-        session.browse(category, resume=category == resume_category or state in ("running", "failed"))
+        collect_leaf_with_retry(
+            session,
+            category,
+            resume=category == resume_category or state in ("running", "failed"),
+        )
 
     with cache_session() as connection:
         if revisit_all_completed:

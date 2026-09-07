@@ -2,6 +2,7 @@ import { ProductType } from "@prisma/client";
 import { identifyGrocery } from "../src/lib/grocery-intelligence/identity";
 import { inferProductCategory, retailerPathDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
+import { produceProductType } from "../src/lib/products/generic-produce";
 
 export type ImportedCategoryResolution = {
   category: SupermarketDepartment;
@@ -9,9 +10,9 @@ export type ImportedCategoryResolution = {
   source: "retailer-path" | "comparable-product" | "unclassified";
 };
 
-function productTypeForDepartment(category: SupermarketDepartment): ProductType {
+function productTypeForDepartment(category: SupermarketDepartment, productName: string): ProductType {
   switch (category) {
-    case "Fruit & vegetables": return ProductType.GENERIC_PRODUCE;
+    case "Fruit & vegetables": return produceProductType(productName);
     case "Bakery": return ProductType.BAKERY;
     case "Meat & seafood": return ProductType.FRESH_MEAT;
     case "Dairy & eggs": return ProductType.DAIRY;
@@ -51,7 +52,7 @@ export function categoryResolutionForImport(
   if (retailerPathCategory) {
     return {
       category: retailerPathCategory,
-      productType: productTypeForDepartment(retailerPathCategory),
+      productType: productTypeForDepartment(retailerPathCategory, productName),
       source: "retailer-path",
     };
   }
@@ -60,7 +61,7 @@ export function categoryResolutionForImport(
   if (candidates?.size === 1) {
     const [category] = candidates;
     if (category && category !== "Other") {
-      return { category, productType: productTypeForDepartment(category), source: "comparable-product" };
+      return { category, productType: productTypeForDepartment(category, productName), source: "comparable-product" };
     }
   }
 

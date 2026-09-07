@@ -1,5 +1,6 @@
 import { ProductType } from "@prisma/client";
 import { normaliseProductText } from "../src/lib/products/product-normalisation";
+import { produceProductType } from "../src/lib/products/generic-produce";
 import { hasSuspiciousLabelTail } from "./woolworths-controlled-import-matching";
 
 export type CachedColesProduct = {
@@ -9,9 +10,9 @@ export type CachedColesProduct = {
   in_stock: number | boolean; image_url: string | null; category_path: string; category_paths: string[];
 };
 
-export function categoryForColesPath(path: string) {
+export function categoryForColesPath(path: string, productName = "") {
   const root = path.toLocaleLowerCase("en-AU").split(/[/?#]/).filter(Boolean).at(1) ?? "";
-  if (root === "fruit-vegetables") return { category: "Fruit & vegetables", productType: ProductType.GENERIC_PRODUCE };
+  if (root === "fruit-vegetables") return { category: "Fruit & vegetables", productType: produceProductType(productName) };
   if (root === "meat-seafood") return { category: "Meat & seafood", productType: ProductType.FRESH_MEAT };
   if (root === "deli") return { category: "Deli", productType: ProductType.PACKAGED };
   if (root === "dairy-eggs-fridge") return { category: "Dairy & eggs", productType: ProductType.DAIRY };

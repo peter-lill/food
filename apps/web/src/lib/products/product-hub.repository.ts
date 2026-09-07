@@ -274,36 +274,92 @@ export function productFamilyName(value: string) {
   return cleaned ? titleCase(removeTrailingUnitQualifier(cleaned)) : titleCase(removeTrailingUnitQualifier(value));
 }
 
+function packagedCatalogueFamilyName(value: string) {
+  const cleaned = value
+    .replace(/\b\d+(?:\.\d+)?\s*(?:g|kg|gram|grams|ml|l)\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return cleaned
+    ? removeTrailingUnitQualifier(cleaned)
+    : removeTrailingUnitQualifier(value);
+}
+
 function identityText(product: { name: string; canonicalName: string | null }) {
   return product.canonicalName?.trim() || product.name;
 }
 
-function productVarietyName(product: { name: string; canonicalName: string | null }) {
-  return identifyGrocery(identityText(product))?.canonicalName ?? productFamilyName(identityText(product));
+function productVarietyName(product: {
+  name: string;
+  canonicalName: string | null;
+  productType: string;
+}) {
+  const identity = identityText(product);
+
+  if (product.productType === "PACKAGED") {
+    return packagedCatalogueFamilyName(identity);
+  }
+
+  return identifyGrocery(identity)?.canonicalName ?? productFamilyName(identity);
 }
 
 function normaliseFamily(value: string) {
   return value.toLocaleLowerCase("en-AU").replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function genericFamilyNames(products: Array<{ name: string; canonicalName: string | null; brand: string | null; barcode: string | null }>) {
+type FamilyProduct = {
+  name: string;
+  canonicalName: string | null;
+  brand: string | null;
+  barcode: string | null;
+  productType: string;
+};
+
+export function productHubFamilyName(product: FamilyProduct) {
+  const identity = identityText(product);
+
+  if (product.productType === "PACKAGED") {
+    return packagedCatalogueFamilyName(identity);
+  }
+
+  return productFamilyName(identity);
+}
+
+function familyNameForProduct(product: FamilyProduct) {
+  return productHubFamilyName(product);
+}
+
+function genericFamilyNames(products: FamilyProduct[]) {
   return [...new Set(products
-    .filter((product) => !product.brand && !product.barcode)
-    .map((product) => productFamilyName(identityText(product)))
+    .filter((product) =>
+      product.productType !== "PACKAGED"
+      && !product.brand
+      && !product.barcode
+    )
+    .map((product) => familyNameForProduct(product))
     .filter(Boolean)
   )].sort((left, right) => right.length - left.length);
 }
 
 function resolvedFamilyName(
-  product: { name: string; canonicalName: string | null; brand: string | null; barcode: string | null },
+  product: FamilyProduct,
   genericFamilies: string[],
 ) {
-  const ownFamily = productFamilyName(identityText(product));
+  const ownFamily = familyNameForProduct(product);
+
+  // Packaged retailer catalogue products retain their catalogue identity.
+  // Generic ingredient normalisation must not turn names such as
+  // "Fresh & Fast Stir Fry" into "And Fast Stir Fry".
+  if (product.productType === "PACKAGED") return ownFamily;
+
   if (!product.brand && !product.barcode) return ownFamily;
+
   const normalisedOwnFamily = normaliseFamily(ownFamily);
+
   return genericFamilies.find((family) => {
     const normalisedGeneric = normaliseFamily(family);
-    return normalisedOwnFamily === normalisedGeneric || normalisedOwnFamily.endsWith(` ${normalisedGeneric}`);
+    return normalisedOwnFamily === normalisedGeneric
+      || normalisedOwnFamily.endsWith(` ${normalisedGeneric}`);
   }) ?? ownFamily;
 }
 

@@ -667,6 +667,38 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             ("collect", root, False, ("pending", 0, 0, 1)),
         ])
 
+    def test_coles_leaf_retries_from_checkpoint_after_browser_failure(self) -> None:
+        category = "/browse/pantry/vinegar/wine"
+
+        class Session:
+            def __init__(self) -> None:
+                self.calls = []
+
+            def browse(self, requested: str, resume: bool = False) -> int:
+                self.calls.append((requested, resume))
+                if len(self.calls) == 1:
+                    raise RuntimeError(
+                        "Coles browser returned a blank page after retrying navigation"
+                    )
+                return 12
+
+        session = Session()
+        with patch.object(self.coles_catalogue.time, "sleep") as sleep:
+            result = self.coles_catalogue.collect_leaf_with_retry(
+                session,
+                category,
+            )
+
+        self.assertEqual(result, 12)
+        self.assertEqual(
+            session.calls,
+            [
+                (category, False),
+                (category, True),
+            ],
+        )
+        sleep.assert_called_once_with(5)
+
     def test_coles_discovery_retries_the_failed_node_after_browser_restart(self) -> None:
         category = "/browse/drinks/iced-tea"
 

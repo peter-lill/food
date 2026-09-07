@@ -1,3 +1,4 @@
+import { ProductType } from "@prisma/client";
 import assert from "node:assert/strict";
 import type { SupermarketDepartment } from "../src/lib/products/product-category";
 import { canRepairImportedCategory, categoryResolutionForImport, comparableProductCategoryKey, supportedRetailerCategoryPath, unanimousRetailerCategoryPath } from "./catalogue-import-category-evidence";
@@ -71,3 +72,14 @@ assert.equal(canRepairImportedCategory(categoryResolutionForImport("Any retailer
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("10K Powerbank", new Map(), "/category/general-merchandise"), "Dairy & eggs"), true);
 
 console.log("catalogue import category evidence tests passed");
+
+// Packaged products sold in the produce department must retain packaged identity.
+{
+  const result = categoryResolutionForImport(
+    "Fresh & Fast Stir Fry 400g",
+    new Map(),
+    "/products/fruit-vegetables",
+  );
+  assert.equal(result.category, "Fruit & vegetables");
+  assert.equal(result.productType, ProductType.PACKAGED);
+}

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, productHubFamilyName, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
@@ -72,6 +72,70 @@ assert.equal(
   "Capsicum Yellow Each",
   "different capsicum varieties must remain separate product families",
 );
+// Packaged retailer catalogue products must preserve meaningful catalogue
+// wording while dropping only the package-size qualifier.
+assert.equal(
+  productHubFamilyName({
+    name: "Fresh & Fast Stir Fry 400g",
+    canonicalName: "Fresh & Fast Stir Fry 400g",
+    brand: null,
+    barcode: null,
+    productType: "PACKAGED",
+  }),
+  "Fresh & Fast Stir Fry",
+  "packaged catalogue identity must preserve Fresh & Fast rather than recipe-normalising it to And Fast Stir Fry",
+);
+
+assert.equal(
+  productHubFamilyName({
+    name: "Asian Style Salad Kit 350g",
+    canonicalName: "Asian Style Salad Kit 350g",
+    brand: null,
+    barcode: null,
+    productType: "PACKAGED",
+  }),
+  "Asian Style Salad Kit",
+  "packaged prepared produce must preserve its catalogue identity",
+);
+
+// Ordinary fresh produce continues through generic grocery-family
+// normalisation rather than packaged catalogue naming.
+assert.equal(
+  productHubFamilyName({
+    name: "Broccoli Loose",
+    canonicalName: "Broccoli Loose",
+    brand: null,
+    barcode: null,
+    productType: "GENERIC_PRODUCE",
+  }),
+  "Broccoli",
+  "loose broccoli must retain generic produce family normalisation",
+);
+
+assert.equal(
+  productHubFamilyName({
+    name: "Carrots 1kg",
+    canonicalName: "Carrots 1kg",
+    brand: null,
+    barcode: null,
+    productType: "GENERIC_PRODUCE",
+  }),
+  "Carrot",
+  "simple weighted carrots must retain generic produce family normalisation",
+);
+
+assert.equal(
+  productHubFamilyName({
+    name: "Apple Cosmic Crisp each",
+    canonicalName: "Apple Cosmic Crisp each",
+    brand: null,
+    barcode: null,
+    productType: "GENERIC_PRODUCE",
+  }),
+  "Apple",
+  "retailer apple varieties must retain existing generic family behaviour",
+);
+
 assert.equal(
   departmentFromLegacyWoolworthsPath("/shop/browse/pantry/cooking-sauces/stock"),
   "Pantry",
