@@ -10,7 +10,7 @@ import departmentStyles from "./department-artwork.module.css";
 
 export const dynamic = "force-dynamic";
 
-type ProductView = "all" | "pantry" | "priced" | "recipes" | "needs-details";
+type ProductView = "all" | "pantry" | "priced" | "recipes";
 type ProductsPageProps = { searchParams: Promise<{ department?: string; q?: string; shelf?: string; view?: string }> };
 
 const departmentArtwork: Record<string, string> = {
@@ -34,7 +34,7 @@ const departmentArtwork: Record<string, string> = {
 function artworkForDepartment(department: string) {
   return `/category-artwork/${departmentArtwork[department] ?? departmentArtwork.Other}`;
 }
-type CompletionProduct = {
+type ProductDisplayInput = {
   name: string;
   canonicalName: string | null;
   imageUrl: string | null;
@@ -68,7 +68,7 @@ function imageVersion(value: string) {
 }
 
 function normaliseView(value: string | undefined): ProductView {
-  return ["pantry", "priced", "recipes", "needs-details"].includes(value ?? "") ? value as ProductView : "all";
+  return ["pantry", "priced", "recipes"].includes(value ?? "") ? value as ProductView : "all";
 }
 
 function normaliseDepartment(value: string | undefined): SupermarketDepartment | null {
@@ -113,7 +113,7 @@ function productDisplay(product: { name: string; canonicalName: string | null; c
   return { title, receiptName, category };
 }
 
-function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName" | "brand" | "barcode" | "category" | "recipeCount" | "productType">) {
+function isGenericFood(product: Pick<ProductDisplayInput, "name" | "canonicalName" | "brand" | "barcode" | "category" | "recipeCount" | "productType">) {
   if (product.productType === "GENERIC_PRODUCE") return true;
   if (product.brand || product.barcode) return false;
   if (product.recipeCount > 0) return true;
@@ -121,21 +121,6 @@ function isGenericFood(product: Pick<CompletionProduct, "name" | "canonicalName"
   if (/produce|fruit|vegetable|fresh food/.test(category)) return true;
   const name = normaliseName(product.name || product.canonicalName || "");
   return genericFoodTerms.some((term) => name === term || name.endsWith(` ${term}`) || name.startsWith(`${term} `));
-}
-
-function needsDetails(product: CompletionProduct) {
-  if (product.variantCount > 1) return false;
-  if (product.barcode) return false;
-  if (isGenericFood(product)) return !product.name.trim();
-  return !product.imageUrl || !product.category || !product.brand;
-}
-
-function completionScore(product: CompletionProduct) {
-  if (product.variantCount > 1) return 100;
-  if (product.barcode) return 100;
-  if (isGenericFood(product)) return product.name.trim() ? 100 : 0;
-  const checks = [Boolean(product.name), Boolean(product.category), Boolean(product.brand), Boolean(product.imageUrl)];
-  return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 }
 
 function CatalogueIcon({ name }: { name: "library" | "scan" | "receipt" | "manage" | "pantry" | "price" | "recipe" | "store" }) {
@@ -164,7 +149,6 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
   const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
   const { title, receiptName, category } = productDisplay(product);
   const latestPrice = money(product.latestPrice);
-  const completeness = completionScore(product);
   const observed = observedLabel(product.latestObservedAt);
   const family = product.variantCount > 1;
   const generic = isGenericFood(product);
@@ -184,13 +168,11 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
         </span>
         <div className={styles.badges}>
           {product.pantryQuantity > 0 ? <span className={styles.pantryBadge}>In pantry</span> : null}
-          {needsDetails(product) ? <span className={styles.attentionBadge}>Needs details</span> : null}
         </div>
       </div>
       <div className={styles.cardBody}>
         <div className={styles.cardTopline}>
           <span>{category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised")}</span>
-          {completeness < 100 ? <span>{completeness}% complete</span> : null}
         </div>
         <div className={styles.priceSummary}>
           <small>Best price</small>
@@ -245,14 +227,12 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     pantry: shelfProducts.filter((product) => product.pantryQuantity > 0).length,
     priced: shelfProducts.filter((product) => product.latestPrice !== null).length,
     recipes: shelfProducts.filter((product) => product.recipeCount > 0).length,
-    "needs-details": shelfProducts.filter(needsDetails).length,
   };
 
   const products = shelfProducts.filter((product) => {
     if (view === "pantry") return product.pantryQuantity > 0;
     if (view === "priced") return product.latestPrice !== null;
     if (view === "recipes") return product.recipeCount > 0;
-    if (view === "needs-details") return needsDetails(product);
     return true;
   });
 
@@ -280,7 +260,6 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
     { value: "pantry", label: "In pantry" },
     { value: "priced", label: "Priced" },
     { value: "recipes", label: "In recipes" },
-    { value: "needs-details", label: "Needs attention" },
   ];
 
   return (
