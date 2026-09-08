@@ -713,3 +713,298 @@
     display: none;
   }
 }
+
+/* Dark kitchen-dashboard treatment shared by saved and trusted-source recipes. */
+.catalogueSection,
+.savedSection {
+  gap: 13px;
+}
+
+.savedSection {
+  border-color: rgba(246, 241, 229, .16);
+}
+
+.sectionHeading h2,
+.cardContent h2,
+.modalTitle,
+.recipeSection h3 {
+  color: #fff;
+}
+
+.gallery {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 10px;
+}
+
+.card {
+  min-height: 174px;
+  border-color: rgba(246, 241, 229, .25);
+  border-radius: 17px;
+  background: rgba(24, 27, 26, .91);
+  color: #fff;
+  box-shadow: 0 15px 38px rgba(0, 0, 0, .23);
+  backdrop-filter: blur(16px);
+}
+
+.card:hover,
+.card:focus-within {
+  border-color: rgba(40, 184, 223, .65);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, .3);
+}
+
+.cardImage,
+.imageFallback,
+.externalImage {
+  min-height: 174px;
+  background-color: rgba(255, 255, 255, .06);
+}
+
+.cardContent {
+  padding: 16px;
+}
+
+.description,
+.count,
+.resultCount,
+.signInHint,
+.attribution {
+  color: #aeb5b1;
+}
+
+.source,
+.openLabel,
+.attribution a,
+.signInHint a {
+  color: #69d6f2;
+}
+
+.meta span {
+  background: rgba(40, 184, 223, .14);
+  color: #b5effc;
+}
+
+.recipeTools {
+  padding: 14px;
+  border-color: rgba(246, 241, 229, .22);
+  border-radius: 16px;
+  background: rgba(18, 21, 20, .88);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(16px);
+}
+
+.searchField {
+  color: #8edff3;
+}
+
+.searchField input,
+.sourceFilter,
+.favouriteFilter {
+  border-color: rgba(246, 241, 229, .22);
+  background: rgba(255, 255, 255, .065);
+  color: #e7e9e7;
+}
+
+.searchField input::placeholder {
+  color: #929995;
+}
+
+.sourceFilterActive,
+.favouriteFilterActive {
+  border-color: rgba(40, 184, 223, .72);
+  background: rgba(40, 184, 223, .22);
+  color: #fff;
+}
+
+.favouriteFilter,
+.favouriteFilterActive {
+  color: #ffb7bf;
+}
+
+.backdrop {
+  padding: 22px;
+  background:
+    linear-gradient(rgba(4, 7, 6, .67), rgba(4, 7, 6, .83)),
+    url("/recipes/salmon-rice-greens.webp") center / cover;
+  backdrop-filter: blur(12px);
+}
+
+.modal {
+  display: grid;
+  grid-template-columns: minmax(310px, .68fr) minmax(0, 1.32fr);
+  width: min(1480px, 100%);
+  max-height: calc(100dvh - 44px);
+  overflow: hidden;
+  border: 1px solid rgba(246, 241, 229, .42);
+  border-radius: 20px;
+  background: rgba(18, 21, 20, .95);
+  color: #fff;
+  box-shadow: 0 36px 100px rgba(0, 0, 0, .55);
+}
+
+.hero,
+.heroFallback {
+  min-height: calc(100dvh - 46px);
+  border-radius: 19px 0 0 19px;
+  background: rgba(255, 255, 255, .06);
+}
+
+.hero::after {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  content: "";
+  background: linear-gradient(180deg, transparent 48%, rgba(3, 5, 4, .78));
+  pointer-events: none;
+}
+
+.modalContent {
+  gap: 16px;
+  padding: 28px;
+  overflow-y: auto;
+}
+
+.modalContent :global(.subtle) {
+  color: #b3b9b5;
+}
+
+.summary span,
+.shoppingAction {
+  background: rgba(255, 255, 255, .065);
+  color: #b5bbb7;
+}
+
+.summary strong {
+  color: #fff;
+}
+
+.recipeSection {
+  padding: 18px;
+  border: 1px solid rgba(246, 241, 229, .22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .035);
+}
+
+.recipeSection h3 {
+  margin-top: 0;
+}
+
+.ingredients li {
+  min-height: 45px;
+  align-items: center;
+  border-color: rgba(246, 241, 229, .13);
+}
+
+.shoppingAction select,
+.shoppingAction button {
+  min-height: 44px;
+  border-color: rgba(246, 241, 229, .22);
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+}
+
+.shoppingAction select option {
+  background: #171a19;
+}
+
+.shoppingAction button {
+  border-color: #178eae;
+  background: linear-gradient(135deg, #0c8cb4, #28b8df);
+}
+
+.close {
+  border: 1px solid rgba(246, 241, 229, .24);
+  background: rgba(18, 21, 20, .88);
+  color: #fff;
+}
+
+.favouriteButton {
+  border-color: rgba(246, 241, 229, .28);
+  background: rgba(18, 21, 20, .86);
+  color: #ffadb7;
+}
+
+@media (max-width: 760px) {
+  .gallery {
+    grid-template-columns: 1fr;
+  }
+
+  .recipeTools {
+    padding: 12px;
+  }
+
+  .backdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .modal {
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-height: 100dvh;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .hero,
+  .heroFallback {
+    min-height: 34dvh;
+    border-radius: 0;
+  }
+
+  .modalContent {
+    padding: 20px 15px calc(92px + env(safe-area-inset-bottom));
+    overflow: visible;
+  }
+
+  .recipeSection {
+    padding: 15px;
+  }
+
+  .close {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+  }
+}
+
+@media (max-width: 520px) {
+  .sectionHeading {
+    gap: 8px;
+  }
+
+  .card {
+    grid-template-columns: 1fr;
+  }
+
+  .cardImage,
+  .imageFallback,
+  .externalImage {
+    min-height: 190px;
+  }
+
+  .cardContent {
+    min-height: 170px;
+  }
+
+  .description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+  }
+
+  .meta span:nth-child(n + 3) {
+    display: inline-flex;
+  }
+
+  .sourceFilters {
+    margin-inline: -12px;
+    padding-inline: 12px;
+  }
+
+  .shoppingAction,
+  .shoppingAction label,
+  .shoppingAction select,
+  .shoppingAction button {
+    width: 100%;
+  }
+}

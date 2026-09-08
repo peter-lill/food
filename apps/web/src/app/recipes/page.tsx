@@ -72,7 +72,7 @@ export default async function RecipesPage() {
     : [];
 
   return (
-    <div>
+    <div className="kitchen-page kitchen-recipes-page">
       <header className="pantry-page-heading">
         <div>
           <p className="eyebrow">RECIPE LIBRARY</p>

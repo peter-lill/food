@@ -636,3 +636,434 @@
     gap: 24px;
   }
 }
+
+/* Kitchen dashboard visual system. These rules intentionally sit after the
+   original layout so the planner keeps all of its existing behaviour while
+   adopting the high-density, touchscreen-first composition. */
+.workspace {
+  gap: 16px;
+  color: var(--ink);
+}
+
+.summaryGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.summaryGrid > article {
+  min-height: 92px;
+  padding: 16px 18px;
+  border-radius: 17px;
+}
+
+.metricLabel {
+  margin-bottom: 7px;
+  color: #8eddf1;
+}
+
+.metric {
+  display: inline;
+  margin-right: 9px;
+  color: #fff;
+  font-size: 26px;
+}
+
+.layout {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+  gap: 14px;
+}
+
+.planPanel {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(18, 21, 20, .86);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .24);
+  backdrop-filter: blur(18px);
+}
+
+.sectionHeading {
+  margin-bottom: 12px;
+}
+
+.sectionHeading h2,
+.sidebar h2 {
+  color: #fff;
+}
+
+.dayGrid {
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 9px;
+}
+
+.dayCard,
+.dayCard:last-child {
+  grid-column: auto;
+}
+
+.dayCard {
+  padding: 0;
+  overflow: hidden;
+  border-color: rgba(246, 241, 229, .28);
+  border-radius: 17px;
+  background: rgba(24, 27, 26, .92);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .2);
+}
+
+.dayCardPlanned {
+  border-color: rgba(246, 241, 229, .38);
+  box-shadow: 0 15px 38px rgba(0, 0, 0, .25);
+}
+
+.dayCardToday {
+  border-color: rgba(40, 184, 223, .85);
+  box-shadow: 0 0 0 1px rgba(40, 184, 223, .32), 0 16px 40px rgba(0, 0, 0, .28);
+}
+
+.dayHeading {
+  min-height: 48px;
+  margin: 0;
+  padding: 0 13px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, .035);
+}
+
+.dayCardToday .dayHeading {
+  background: rgba(40, 184, 223, .15);
+}
+
+.dayHeading strong {
+  color: #fff;
+  font-size: 15px;
+}
+
+.dayHeading > small {
+  color: #aeb5b1;
+}
+
+.mealSlots {
+  gap: 0;
+}
+
+.mealSlot,
+.mealSlot:first-child,
+.mealSlotPlanned,
+.mealSlotPlanned:first-child {
+  gap: 8px;
+  padding: 11px;
+  border-top: 1px solid rgba(246, 241, 229, .12);
+  border-radius: 0;
+  background: transparent;
+}
+
+.mealSlot:first-child {
+  border-top: 0;
+}
+
+.mealSlotLabel {
+  color: #f8f7f2 !important;
+  font-size: 12px !important;
+}
+
+.mealSlotLabel small {
+  color: #6cdaf5;
+}
+
+.selectLabel > span,
+.servingsField > span,
+.shoppingForm label > span {
+  color: #b6bcb8;
+}
+
+.selectLabel select,
+.servingsField input,
+.shoppingForm select {
+  min-height: 42px;
+  border-color: rgba(246, 241, 229, .22);
+  background: rgba(255, 255, 255, .07);
+  color: #f8f7f2;
+}
+
+.selectLabel select option,
+.shoppingForm select option {
+  background: #171a19;
+  color: #fff;
+}
+
+.recipeDetail {
+  grid-template-columns: 104px minmax(0, 1fr);
+  min-height: 116px;
+  border-color: rgba(246, 241, 229, .16);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .045);
+  color: #fff;
+  box-shadow: none;
+}
+
+.recipeDetail:has(.recipeCardAction:hover),
+.recipeDetail:has(.recipeCardAction:focus-visible) {
+  border-color: rgba(40, 184, 223, .7);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, .25);
+}
+
+.plannedRecipeImage,
+.plannedRecipeImageFallback {
+  min-height: 116px;
+  background-color: rgba(255, 255, 255, .06);
+}
+
+.plannedRecipeBody {
+  gap: 5px;
+  padding: 10px;
+}
+
+.recipeSource,
+.openRecipeLabel,
+.pantryStatus strong {
+  color: #69d6f2;
+}
+
+.plannedRecipeTitle {
+  color: #fff;
+  font-size: 14px;
+}
+
+.plannedRecipeBody p,
+.emptyDay,
+.pantryStatus {
+  color: #adb4b0;
+}
+
+.recipeMeta span {
+  padding: 4px 7px;
+  background: rgba(40, 184, 223, .14);
+  color: #b5effc;
+}
+
+.plannedRecipeControls {
+  margin-top: 2px;
+}
+
+.emptyRecipeSlot {
+  min-height: 46px;
+  border-color: rgba(246, 241, 229, .19);
+  background: rgba(255, 255, 255, .035);
+}
+
+.emptyRecipeSlot > span {
+  background: rgba(255, 255, 255, .08);
+  color: #67d7f2;
+  box-shadow: none;
+}
+
+.emptyRecipeSlot small,
+.ingredientList small,
+.readyState span {
+  color: #aeb5b1;
+}
+
+.sidebar {
+  gap: 10px;
+}
+
+.readyState {
+  background: rgba(255, 255, 255, .06);
+}
+
+.ingredientList > div {
+  border-color: rgba(246, 241, 229, .13);
+}
+
+.recipeBackdrop {
+  padding: 22px;
+  background:
+    linear-gradient(rgba(4, 7, 6, .68), rgba(4, 7, 6, .82)),
+    url("/recipes/salmon-rice-greens.webp") center / cover;
+  backdrop-filter: blur(12px);
+}
+
+.recipeModal {
+  display: grid;
+  grid-template-columns: minmax(310px, .68fr) minmax(0, 1.32fr);
+  width: min(1420px, 100%);
+  max-height: calc(100dvh - 44px);
+  overflow: hidden;
+  border: 1px solid rgba(246, 241, 229, .42);
+  border-radius: 20px;
+  background: rgba(18, 21, 20, .95);
+  color: #fff;
+  box-shadow: 0 36px 100px rgba(0, 0, 0, .55);
+}
+
+.recipeImage,
+.recipeImageFallback {
+  min-height: calc(100dvh - 46px);
+  border-radius: 19px 0 0 19px;
+  background: rgba(255, 255, 255, .06);
+}
+
+.recipeImage::after {
+  position: absolute;
+  inset: 0;
+  content: "";
+  background: linear-gradient(180deg, transparent 48%, rgba(3, 5, 4, .76));
+}
+
+.recipeContent {
+  gap: 16px;
+  padding: 28px;
+  overflow-y: auto;
+}
+
+.recipeContent h2 {
+  color: #fff;
+}
+
+.recipeDescription,
+.recipeSummary span {
+  color: #b4bab6;
+}
+
+.recipeSummary span {
+  background: rgba(255, 255, 255, .065);
+}
+
+.recipeSummary strong,
+.recipeColumns h3 {
+  color: #fff;
+}
+
+.recipeColumns {
+  grid-template-columns: minmax(240px, .82fr) minmax(0, 1.18fr);
+  gap: 14px;
+}
+
+.recipeColumns > section {
+  padding: 18px;
+  border: 1px solid rgba(246, 241, 229, .22);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .035);
+}
+
+.recipeIngredients li {
+  border-color: rgba(246, 241, 229, .13);
+}
+
+.closeRecipe {
+  border: 1px solid rgba(246, 241, 229, .24);
+  background: rgba(18, 21, 20, .88);
+  color: #fff;
+}
+
+@media (max-width: 1280px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .summaryGrid,
+  .sidebar {
+    grid-template-columns: 1fr;
+  }
+
+  .summaryGrid {
+    gap: 8px;
+  }
+
+  .summaryGrid > article {
+    min-height: 72px;
+    padding: 13px 15px;
+  }
+
+  .metric {
+    font-size: 22px;
+  }
+
+  .planPanel {
+    padding: 10px;
+    border-radius: 17px;
+  }
+
+  .dayGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .dayCard {
+    border-radius: 15px;
+  }
+
+  .recipeDetail {
+    grid-template-columns: 92px minmax(0, 1fr);
+  }
+
+  .plannedRecipeImage,
+  .plannedRecipeImageFallback {
+    min-height: 112px;
+  }
+
+  .recipeBackdrop {
+    align-items: stretch;
+    padding: 0;
+  }
+
+  .recipeModal {
+    grid-template-columns: 1fr;
+    width: 100%;
+    max-height: 100dvh;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .recipeImage,
+  .recipeImageFallback {
+    min-height: 34dvh;
+    border-radius: 0;
+  }
+
+  .recipeContent {
+    padding: 20px 15px calc(92px + env(safe-area-inset-bottom));
+    overflow: visible;
+  }
+
+  .recipeColumns {
+    grid-template-columns: 1fr;
+  }
+
+  .recipeColumns > section {
+    padding: 15px;
+  }
+
+  .closeRecipe {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: 12px;
+  }
+}
+
+@media (max-width: 430px) {
+  .headerActions,
+  .headerActions a {
+    width: 100%;
+  }
+
+  .mealSlot,
+  .mealSlot:first-child,
+  .mealSlotPlanned,
+  .mealSlotPlanned:first-child {
+    padding-inline: 9px;
+  }
+
+  .plannedRecipeControls {
+    align-items: stretch;
+  }
+
+  .servingsField {
+    width: 84px;
+  }
+}
