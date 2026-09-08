@@ -301,14 +301,17 @@ def coles_browser_verification_error(body_text: object) -> str | None:
 
 def image_url(value: object) -> str | None:
     if isinstance(value, str):
-        return text(value)
+        found = text(value)
+        if found and found.startswith("/"):
+            return "https://cdn.productimages.coles.com.au/productimages" + found
+        return found
     if isinstance(value, list):
         for candidate in value:
             found = image_url(candidate)
             if found:
                 return found
     if isinstance(value, dict):
-        for key in ("large", "medium", "thumbnail", "url", "src"):
+        for key in ("large", "medium", "thumbnail", "url", "src", "uri"):
             found = image_url(value.get(key))
             if found:
                 return found
@@ -403,6 +406,13 @@ def cache_page(category_path: str, result: dict[str, Any]) -> set[str]:
                 continue
             external_id = identifier(item.get("id"))
             name = text(item.get("name")) or text(item.get("description"))
+            pack_size = text(item.get("size"))
+            brand = text(item.get("brand"))
+            if name and brand and (
+                (pack_size and name.casefold() == pack_size.casefold())
+                or re.fullmatch(r"\s*\d+(?:\.\d+)?\s*(?:g|kg|mg|ml|l)\s*", name, re.I)
+            ):
+                name = brand
             if not external_id or not name:
                 continue
             pricing = item.get("pricing") if isinstance(item.get("pricing"), dict) else {}

@@ -177,7 +177,7 @@ def nested_image_url(item: object) -> str | None:
                     return image
             return None
         if isinstance(candidate, dict):
-            for key in ("large", "medium", "thumbnail", "url", "src"):
+            for key in ("large", "medium", "thumbnail", "url", "src", "uri"):
                 image = find_image(candidate.get(key))
                 if image:
                     return image
@@ -187,7 +187,10 @@ def nested_image_url(item: object) -> str | None:
                     return image
         return None
 
-    return find_image(value)
+    image = find_image(value)
+    if image and image.startswith("/"):
+        return "https://cdn.productimages.coles.com.au/productimages" + image
+    return image
 
 
 def nested_identifier(item: object, keys: tuple[str, ...]) -> str | None:

@@ -36,6 +36,7 @@ export function cleanColesBarcode(value: string | null) {
 export function colesImportEligibility(product: CachedColesProduct) {
   if (!/^\d{4,12}$/.test(product.external_id)) return { eligible: false, reason: "missing authoritative Coles product ID" };
   if (normaliseProductText(product.name).length < 3) return { eligible: false, reason: "missing usable product name" };
+  if (/^\s*\d+(?:\.\d+)?\s*(?:g|kg|mg|ml|l)\s*$/i.test(product.name)) return { eligible: false, reason: "product name is only a pack measurement" };
   if (hasSuspiciousLabelTail(product.name)) return { eligible: false, reason: "product name ends with a suspicious truncated label fragment" };
   if (!product.category_path.startsWith("/browse/")) return { eligible: false, reason: "missing authoritative Coles category path" };
   if (product.in_stock === false || product.in_stock === 0) return { eligible: false, reason: "product is out of stock" };

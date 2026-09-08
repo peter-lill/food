@@ -13,3 +13,7 @@ assert.equal(colesImportEligibility({ ...product, category_path: "/search" }).el
 assert.equal(colesImportEligibility({ ...product, in_stock: false }).eligible, false);
 
 console.log("Coles controlled import tests passed");
+assert.equal(colesImportEligibility({ ...product, name: "750g" }).eligible, false);
+assert.equal(colesImportEligibility({ ...product, name: "750ml" }).eligible, false);
+assert.equal(colesImportEligibility({ ...product, name: "1 L" }).eligible, false);
+assert.equal(colesImportEligibility({ ...product, name: "Coles Lemon Meringue Tart 750g" }).eligible, true);
