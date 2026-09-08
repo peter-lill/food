@@ -75,6 +75,42 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "subcategories": children,
         })
 
+    def test_woolworths_leaf_requests_every_page_reported_by_the_api(self) -> None:
+        request = {"pageNumber": 1, "pageSize": 36}
+
+        self.assertEqual(
+            self.bridge.woolworths_remaining_category_pages(
+                request, [{"TotalRecordCount": 38}]
+            ),
+            [2],
+        )
+        self.assertEqual(
+            self.bridge.woolworths_remaining_category_pages(
+                request, [{"TotalRecordCount": 73}]
+            ),
+            [2, 3],
+        )
+        self.assertEqual(
+            self.bridge.woolworths_remaining_category_pages(
+                request, [{"TotalRecordCount": 36}]
+            ),
+            [],
+        )
+
+    def test_woolworths_category_cache_counts_duplicate_pages_once(self) -> None:
+        product = {"Stockcode": 123, "DisplayName": "Test flour", "Price": 2.5}
+        payload = {"categoryResponses": [
+            {"Bundles": [{"Products": [product]}]},
+            {"Bundles": [{"Products": [product]}]},
+        ]}
+
+        self.assertEqual(
+            self.bridge.cache_woolworths_category(
+                "/shop/browse/pantry/baking/flour", payload
+            ),
+            1,
+        )
+
     def test_coles_ssr_page_is_cached_with_the_visible_catalogue_total(self) -> None:
         raw = json.dumps({"props": {"pageProps": {"searchResults": {
             "noOfResults": 492,
