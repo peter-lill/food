@@ -32,6 +32,8 @@ assert.doesNotMatch(bridge, /browse_page\.close\(\)/, "a challenged Woolworths p
 assert.match(bridge, /requires browser verification[\s\S]*return[\s\S]*continue/, "browser verification must pause the serial queue before later checkpoints are consumed");
 assert.match(bridge, /WOOLWORTHS_CATEGORY_SESSION_SECONDS = \([\s\S]*WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS[\s\S]*WOOLWORTHS_CATEGORY_SCROLL_ROUNDS[\s\S]*\+ 30/, "the caller timeout must exceed the maximum navigation and scrolling work");
 assert.match(bridge, /for _ in range\(WOOLWORTHS_CATEGORY_SCROLL_ROUNDS\):[\s\S]*wait_for_timeout\(WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS\)/, "category capture must allow lazy pages to request every observed response");
+assert.match(bridge, /TotalRecordCount[\s\S]*pageSize[\s\S]*range\(2, total_pages \+ 1\)/, "leaf collection must derive every remaining API page from the authoritative result total");
+assert.match(bridge, /JSON\.stringify\(\{\.\.\.requestPayload, pageNumber\}\)/, "remaining category pages must reuse the accepted browser request context");
 assert.match(bridge, /stable_rounds >= 4 and bool\(captured_responses or descendants\)/, "a stable navigation-only root must finish once descendant links are available");
 assert.match(bridge, /document\.querySelectorAll\('a\[href\]'\)[\s\S]*subcategories/, "category browsing must discover valid descendant browse paths");
 assert.match(bridge, /if not captured_responses:[\s\S]*if descendants:[\s\S]*categoryResponses["']:\s*\[\]/, "navigation-only category roots must seed their descendants without fabricating product responses");

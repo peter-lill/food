@@ -329,6 +329,7 @@ WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS",
 WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
 WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
 WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
+WOOLWORTHS_CATEGORY_PAGE_LIMIT = 250
 WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
     WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
     + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
@@ -402,6 +403,42 @@ def woolworths_browse_page_is_ready(
 ) -> bool:
     """Stop a stable browse page once it has products or navigable children."""
     return stable_rounds >= 4 and bool(captured_responses or descendants)
+
+
+def woolworths_remaining_category_pages(
+    request_payload: object, category_payloads: list[object]
+) -> list[int]:
+    """Return every API page still required after the visible first page."""
+    if not isinstance(request_payload, dict):
+        return []
+    try:
+        page_number = int(request_payload.get("pageNumber") or 1)
+        page_size = int(request_payload.get("pageSize") or 0)
+    except (TypeError, ValueError):
+        return []
+    if page_number != 1 or page_size < 1:
+        return []
+    totals = [
+        int(payload.get("TotalRecordCount") or 0)
+        for payload in category_payloads
+        if isinstance(payload, dict)
+    ]
+    total = max(totals, default=0)
+    total_pages = (total + page_size - 1) // page_size
+    if total_pages > WOOLWORTHS_CATEGORY_PAGE_LIMIT:
+        raise RuntimeError(
+            f"Woolworths category requires {total_pages} pages, exceeding the safe limit"
+        )
+    return list(range(2, total_pages + 1))
+
+
+def woolworths_category_request_payload(response: object) -> dict | None:
+    """Recover the storefront's exact first-page request for authenticated paging."""
+    try:
+        payload = response.request.post_data_json
+    except Exception:
+        return None
+    return dict(payload) if isinstance(payload, dict) else None
 
 
 class WoolworthsBrowserSession:
@@ -558,9 +595,46 @@ class WoolworthsBrowserSession:
                             title = browse_page.title().casefold()
                             if "access denied" in title or "captcha" in title:
                                 raise RuntimeError("Woolworths requires browser verification")
-                            completed.put((True, completed_woolworths_browse_payload(
+                            payload = completed_woolworths_browse_payload(
                                 captured_responses, descendants
-                            )))
+                            )
+                            if captured_responses and not descendants:
+                                request_payload = woolworths_category_request_payload(
+                                    captured_responses[0]
+                                )
+                                remaining_pages = woolworths_remaining_category_pages(
+                                    request_payload, payload["categoryResponses"]
+                                )
+                                if request_payload and remaining_pages:
+                                    additional_payloads = browse_page.evaluate(
+                                        """async ({url, requestPayload, pageNumbers}) => {
+                                          const payloads = [];
+                                          for (const pageNumber of pageNumbers) {
+                                            const response = await fetch(url, {
+                                              method: 'POST',
+                                              credentials: 'include',
+                                              headers: {
+                                                'accept': 'application/json, text/plain, */*',
+                                                'content-type': 'application/json'
+                                              },
+                                              body: JSON.stringify({...requestPayload, pageNumber})
+                                            });
+                                            if (!response.ok) {
+                                              throw new Error(`Woolworths category page ${pageNumber} returned HTTP ${response.status}`);
+                                            }
+                                            payloads.push(await response.json());
+                                            await new Promise((resolve) => setTimeout(resolve, 250));
+                                          }
+                                          return payloads;
+                                        }""",
+                                        {
+                                            "url": WOOLWORTHS_CATEGORY_API_PATH,
+                                            "requestPayload": request_payload,
+                                            "pageNumbers": remaining_pages,
+                                        },
+                                    )
+                                    payload["categoryResponses"].extend(additional_payloads)
+                            completed.put((True, payload))
                         finally:
                             if not browse_page.is_closed():
                                 browse_page.remove_listener("response", capture_category)
@@ -748,12 +822,14 @@ def cache_woolworths_category(category_path: str, payload: object) -> int:
     products = woolworths_product_nodes(payload)
     refreshed_at = int(time.time())
     cached = 0
+    seen_stockcodes: set[str] = set()
     with catalogue_session() as connection:
         for source in products:
             stockcode = clean_identifier(source.get("Stockcode"))
             name = first_text(source, ("DisplayName", "Name"))
-            if not stockcode or not name:
+            if not stockcode or not name or stockcode in seen_stockcodes:
                 continue
+            seen_stockcodes.add(stockcode)
             connection.execute("""
                 INSERT INTO woolworths_products
                   (stockcode, barcode, name, search_text, price, was_price, pack_size, unit_price,
