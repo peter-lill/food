@@ -17,6 +17,7 @@ CDP_PORT = int(os.getenv("WOOLWORTHS_BROWSER_CDP_PORT", "9222"))
 CDP_RELAY_PORT = int(os.getenv("WOOLWORTHS_BROWSER_CDP_RELAY_PORT", "9223"))
 NOVNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_NOVNC_PORT", "6080"))
 VNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_VNC_PORT", "5900"))
+SCREEN = os.getenv("WOOLWORTHS_BROWSER_SCREEN", "1920x1080x24")
 
 stopping = False
 
@@ -50,7 +51,7 @@ def main() -> None:
     processes: list[subprocess.Popen] = []
     try:
         processes.append(start_process(
-            ["Xvfb", DISPLAY, "-screen", "0", "1365x768x24", "-ac"],
+            ["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-ac"],
             "Xvfb",
         ))
         wait_for_x_display()

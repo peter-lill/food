@@ -60,6 +60,7 @@ services:
     environment:
       DISPLAY: ":99"
       WOOLWORTHS_BROWSER_PROFILE: /browser-profile
+      WOOLWORTHS_BROWSER_SCREEN: ${WOOLWORTHS_BROWSER_SCREEN:-1920x1080x24}
     volumes:
       - food_woolworths_browser_profile:/browser-profile
     ports:
@@ -83,6 +84,8 @@ services:
     environment:
       DISPLAY: ":99"
       COLES_BROWSER_PROFILE: /browser-profile
+      COLES_BROWSER_SCREEN: ${COLES_BROWSER_SCREEN:-1920x1080x24}
+      COLES_BROWSER_WINDOW_SIZE: ${COLES_BROWSER_WINDOW_SIZE:-1920,1080}
     volumes:
       - food_coles_uc_profile:/browser-profile
     ports:
