@@ -56,9 +56,12 @@ assert.match(bridge, /def woolworths_category_priority[\s\S]*"pet": 100[\s\S]*"f
 assert.match(bridge, /create_function\("woolworths_category_priority", 1, woolworths_category_priority\)/, "the category-priority function must be available to the SQLite upsert");
 assert.match(bridge, /WOOLWORTHS_DETAIL_API_PATH = "\/apis\/ui\/product\/detail"/, "details must come from Woolworths's authoritative product endpoint");
 assert.match(bridge, /def cache_woolworths_details[\s\S]*brand[\s\S]*long_description[\s\S]*ingredients[\s\S]*allergens[\s\S]*nutrition[\s\S]*dietary_claims[\s\S]*country_of_origin[\s\S]*storage_instructions[\s\S]*preparation_instructions[\s\S]*additional_images/, "all requested detail fields must be persisted");
-assert.match(bridge, /detail_results = woolworths_browser\(\)\.details[\s\S]*cache_woolworths_details/, "category refresh must enrich each authoritative stockcode");
+assert.match(bridge, /else:\s*\r?\n\s*outcome = cache_woolworths_leaf\(category, payload\)/, "leaf collection must checkpoint the complete category without waiting for per-product details");
+assert.match(bridge, /class WoolworthsDetailCollector[\s\S]*woolworths_browser\(\)\.details\(stockcodes\)[\s\S]*cache_woolworths_details\(results\)/, "rich details must run through a separate resumable collector");
+assert.match(bridge, /if row is None:[\s\S]*_woolworths_detail_collector\.start\(\)[\s\S]*return/, "detail enrichment must begin only after catalogue navigation has finished");
 assert.match(bridge, /detailsEnriched[\s\S]*detailsFailed/, "partial detail coverage must be observable");
-assert.match(bridge, /detail_error = None[\s\S]*except Exception as error:[\s\S]*details_failed = 0, len\(stockcodes\)/, "temporary detail failures must not discard a successful category refresh");
+assert.match(bridge, /def woolworths_detail_collection_status[\s\S]*detail_refreshed_at IS NULL[\s\S]*detail_error IS NOT NULL[\s\S]*pending/, "deferred detail progress and failures must be observable");
+assert.match(bridge, /\/woolworths\/catalogue\/details\/start/, "deferred detail enrichment must be explicitly resumable after a bridge restart");
 assert.match(bridge, /\/woolworths\/catalogue\/product/, "cached rich product details must be readable without another live request");
 assert.match(bridge, /def woolworths_cached_products[\s\S]*locally verified cache only/, "controlled imports must enumerate only the verified local cache");
 assert.match(bridge, /\/woolworths\/catalogue\/products/, "controlled imports need a bounded cached catalogue endpoint");
