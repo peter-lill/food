@@ -18,6 +18,8 @@ START_URL = os.getenv("COLES_BROWSER_START_URL", "https://www.coles.com.au/")
 NOVNC_PORT = int(os.getenv("COLES_BROWSER_NOVNC_PORT", "6080"))
 VNC_PORT = int(os.getenv("COLES_BROWSER_VNC_PORT", "5900"))
 FETCH_PORT = int(os.getenv("COLES_BROWSER_FETCH_PORT", "8788"))
+SCREEN = os.getenv("COLES_BROWSER_SCREEN", "1920x1080x24")
+WINDOW_SIZE = os.getenv("COLES_BROWSER_WINDOW_SIZE", "1920,1080")
 
 stopping = False
 browser_ready = False
@@ -274,7 +276,7 @@ def main() -> None:
     processes: list[subprocess.Popen] = []
     server: ThreadingHTTPServer | None = None
     try:
-        processes.append(start_process(["Xvfb", DISPLAY, "-screen", "0", "1365x768x24", "-ac"], "Xvfb"))
+        processes.append(start_process(["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-ac"], "Xvfb"))
         wait_for_x_display()
         processes.append(start_process(["openbox"], "Openbox"))
         processes.append(start_process([
@@ -293,7 +295,7 @@ def main() -> None:
         configure_uc_version_parser(uc_patcher, LooseVersion)
 
         options = uc.ChromeOptions()
-        options.add_argument("--window-size=1365,768")
+        options.add_argument(f"--window-size={WINDOW_SIZE}")
         clear_stale_chromium_profile_locks()
         driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False)
         driver.set_page_load_timeout(45)

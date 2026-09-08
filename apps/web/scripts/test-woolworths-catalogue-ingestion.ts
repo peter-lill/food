@@ -5,6 +5,7 @@ const bridge = readFileSync(new URL("../../../services/grocery-mcp/bridge.py", i
 const compose = readFileSync(new URL("../../../docker-compose.yml", import.meta.url), "utf8");
 const hostBrowserCompose = readFileSync(new URL("../../../docker-compose.host-browser.yml", import.meta.url), "utf8");
 const browserSidecar = readFileSync(new URL("../../../services/grocery-mcp/woolworths_browser.py", import.meta.url), "utf8");
+const colesBrowserSidecar = readFileSync(new URL("../../../services/grocery-mcp/coles_browser.py", import.meta.url), "utf8");
 const hostBrowser = readFileSync(new URL("../../../scripts/run-woolworths-host-browser.sh", import.meta.url), "utf8");
 const hostBrowserService = readFileSync(new URL("../../../deploy/food-woolworths-browser.service", import.meta.url), "utf8");
 const labelEnrichment = readFileSync(new URL("../src/lib/product-intelligence/retailer-label-enrichment.ts", import.meta.url), "utf8");
@@ -79,6 +80,11 @@ assert.match(browserSidecar, /remote-debugging-address=0\.0\.0\.0/, "CDP must be
 assert.match(browserSidecar, /TCP-LISTEN:\{CDP_RELAY_PORT\}/, "the sidecar must relay Chromium's loopback CDP socket to the private Compose network");
 assert.match(browserSidecar, /TCP:127\.0\.0\.1:\{CDP_PORT\}/, "the CDP relay must terminate at Chromium's loopback socket");
 assert.match(browserSidecar, /websockify/, "the verified browser must be visible through noVNC");
+assert.match(browserSidecar, /WOOLWORTHS_BROWSER_SCREEN", "1920x1080x24"/, "the Woolworths VNC desktop must expose a full-HD page by default");
+assert.match(browserSidecar, /"-screen", "0", SCREEN/, "the Woolworths virtual display must use the configurable desktop size");
+assert.match(colesBrowserSidecar, /COLES_BROWSER_SCREEN", "1920x1080x24"/, "the Coles VNC desktop must expose a full-HD page by default");
+assert.match(colesBrowserSidecar, /COLES_BROWSER_WINDOW_SIZE", "1920,1080"/, "the Coles browser window must fill the full-HD virtual desktop by default");
+assert.match(hostBrowser, /WOOLWORTHS_HOST_SCREEN:-1920x1080x24/, "the accepted host Woolworths browser must also use a full-HD desktop by default");
 assert.match(hostBrowserCompose, /network_mode: host/, "the grocery bridge must reach host loopback without publishing CDP");
 assert.match(hostBrowserCompose, /ports: !reset \[\]/, "host mode must not retain redundant published ports");
 assert.match(hostBrowserCompose, /WOOLWORTHS_CDP_URL:.*http:\/\/127\.0\.0\.1:9224/, "host browser mode must use loopback CDP");
