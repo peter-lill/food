@@ -9,6 +9,11 @@ import {
   recipeProductQueryCandidates,
   type RecipeProductIdentity,
 } from "../src/lib/recipes/recipe-pantry";
+import {
+  canResolveShoppingItem,
+  shoppingItemMergeKey,
+  type ShoppingRecord,
+} from "../src/lib/shopping/shopping-consolidation";
 
 const products: RecipeProductIdentity[] = [
   {
@@ -34,6 +39,27 @@ const products: RecipeProductIdentity[] = [
   },
 ];
 const productIndex = createRecipeProductIndex(products);
+
+const unresolvedShoppingItem: ShoppingRecord = {
+  id: "crushed-1",
+  shoppingListId: "weekly",
+  productId: null,
+  name: "Crushed",
+  quantity: 1,
+  unit: "item",
+  checked: false,
+  product: null,
+};
+assert.equal(
+  canResolveShoppingItem(unresolvedShoppingItem),
+  false,
+  "an incomplete preparation fragment must remain unmatched instead of aborting Shopping and Prices consolidation",
+);
+assert.notEqual(
+  shoppingItemMergeKey(unresolvedShoppingItem),
+  shoppingItemMergeKey({ ...unresolvedShoppingItem, id: "crushed-2" }),
+  "unresolved shopping rows must not be grouped and sent to canonical product resolution",
+);
 
 assert.equal(productIndex.byId.size, products.length, "the product index should contain each canonical product once");
 
