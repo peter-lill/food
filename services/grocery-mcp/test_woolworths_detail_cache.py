@@ -33,6 +33,8 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         assert spec and spec.loader
         self.bridge = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(self.bridge)
+        self.bridge._woolworths_detail_collector = MagicMock()
+        self.bridge._woolworths_detail_collector.is_running.return_value = False
         self.coles_catalogue = sys.modules["coles_catalogue"]
         self.coles_db_patch = patch.object(self.coles_catalogue, "COLES_CATALOGUE_DB", os.environ["COLES_CATALOGUE_DB"])
         self.coles_db_patch.start()
@@ -891,6 +893,47 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(listed[0]["ingredients"], "Australian cow's milk.")
         self.assertEqual(listed[0]["allergens"], {"contains": "Milk", "mayContain": "Soy"})
 
+    def test_leaf_checkpoint_does_not_wait_for_rich_detail_requests(self) -> None:
+        payload = {"Products": [{
+            "Stockcode": 123456,
+            "DisplayName": "Example Full Cream Milk 2L",
+            "Price": 3.50,
+        }]}
+
+        outcome = self.bridge.cache_woolworths_leaf(
+            "/shop/browse/dairy-eggs-fridge/milk", payload
+        )
+
+        self.assertEqual(outcome["products"], 1)
+        self.assertEqual(outcome["detailsEnriched"], 0)
+        self.assertIsNone(self.bridge.woolworths_cached_detail("123456")["detail_refreshed_at"])
+
+    def test_deferred_detail_collector_resumes_from_undetailed_products(self) -> None:
+        self.bridge.cache_woolworths_category("/shop/browse/pantry/example", {
+            "Products": [
+                {"Stockcode": 100001, "DisplayName": "Example one", "Price": 1.0},
+                {"Stockcode": 100002, "DisplayName": "Example two", "Price": 2.0},
+            ],
+        })
+
+        def details(stockcodes: list[str]) -> list[dict]:
+            return [
+                {"stockcode": stockcode, "payload": {"Product": {"Brand": "Example"}}}
+                for stockcode in stockcodes
+            ]
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(details=details)
+        collector = self.bridge.WoolworthsDetailCollector()
+        self.bridge._woolworths_detail_collector = collector
+        self.assertTrue(collector.start())
+        assert collector._thread is not None
+        collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(self.bridge.woolworths_detail_collection_status(), {
+            "total": 2, "completed": 2, "failed": 0, "pending": 0, "running": False,
+        })
+
     def test_collection_plan_is_seeded_and_reports_restart_safe_progress(self) -> None:
         self.bridge.seed_woolworths_category_collection()
         before = self.bridge.woolworths_collection_status()
@@ -931,9 +974,10 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         category = "/shop/browse/dairy-eggs-fridge/milk"
         self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
         self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=lambda _: {"subcategories": []})
-        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+        self.bridge.cache_woolworths_leaf = lambda _category, _payload: {
             "products": 7, "detailsEnriched": 7, "detailsFailed": 0, "detailError": None,
         }
+        self.bridge._woolworths_detail_collector = MagicMock()
         collector = self.bridge.WoolworthsCatalogueCollector()
 
         self.assertTrue(collector.start(None, False))
@@ -946,6 +990,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(result["state"], "completed")
         self.assertEqual(result["attempts"], 1)
         self.assertEqual(result["products_cached"], 7)
+        self.bridge._woolworths_detail_collector.start.assert_called_once_with()
 
         # Starting a second non-retry run finds no pending work, so no product
         # is reacquired merely because the bridge remains alive.
@@ -967,7 +1012,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             }
 
         self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
-        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+        self.bridge.cache_woolworths_leaf = lambda _category, _payload: {
             "products": 3, "detailsEnriched": 3, "detailsFailed": 0, "detailError": None,
         }
         collector = self.bridge.WoolworthsCatalogueCollector()
@@ -1014,7 +1059,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
 
         collector = self.bridge.WoolworthsCatalogueCollector()
         self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=lambda _: {"subcategories": []})
-        self.bridge.collect_woolworths_leaf = lambda _category, _payload: {
+        self.bridge.cache_woolworths_leaf = lambda _category, _payload: {
             "products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None,
         }
         self.assertTrue(collector.start(1, False, revisit_completed_roots=True))

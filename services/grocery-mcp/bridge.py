@@ -330,6 +330,7 @@ WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
 WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
 WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
 WOOLWORTHS_CATEGORY_PAGE_LIMIT = 250
+WOOLWORTHS_DETAIL_BATCH_SIZE = 24
 WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
     WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
     + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
@@ -995,6 +996,17 @@ def collect_woolworths_leaf(category_path: str, payload: object) -> dict:
     }
 
 
+def cache_woolworths_leaf(category_path: str, payload: object) -> dict:
+    """Checkpoint a complete leaf without blocking on per-product enrichment."""
+    return {
+        "category": category_path,
+        "products": cache_woolworths_category(category_path, payload),
+        "detailsEnriched": 0,
+        "detailsFailed": 0,
+        "detailError": None,
+    }
+
+
 def refresh_woolworths_category(category_path: str) -> dict:
     """Compatibility wrapper for one explicit leaf refresh."""
     payload = woolworths_browser().browse(category_path)
@@ -1096,6 +1108,82 @@ def woolworths_collection_status() -> dict:
     return {**dict(summary), "categories": categories}
 
 
+def woolworths_detail_collection_status() -> dict:
+    with catalogue_session() as connection:
+        summary = connection.execute("""
+            SELECT COUNT(*) total,
+                   COUNT(*) FILTER (WHERE detail_refreshed_at IS NOT NULL) completed,
+                   COUNT(*) FILTER (
+                       WHERE detail_refreshed_at IS NULL AND detail_error IS NOT NULL
+                   ) failed,
+                   COUNT(*) FILTER (
+                       WHERE detail_refreshed_at IS NULL AND detail_error IS NULL
+                   ) pending
+            FROM woolworths_products
+        """).fetchone()
+    return {**dict(summary), "running": _woolworths_detail_collector.is_running()}
+
+
+class WoolworthsDetailCollector:
+    """Resumable detail enrichment that runs after catalogue acquisition."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._thread: threading.Thread | None = None
+
+    def is_running(self) -> bool:
+        with self._lock:
+            return self._thread is not None and self._thread.is_alive()
+
+    def start(self, max_products: int | None = None, retry_failed: bool = False) -> bool:
+        with self._lock:
+            if self._thread is not None and self._thread.is_alive():
+                return False
+            if retry_failed:
+                with catalogue_session() as connection:
+                    connection.execute("""
+                        UPDATE woolworths_products SET detail_error = NULL
+                        WHERE detail_refreshed_at IS NULL
+                    """)
+            self._thread = threading.Thread(
+                target=self._collect,
+                args=(max_products,),
+                daemon=True,
+                name="woolworths-detail-collector",
+            )
+            self._thread.start()
+            return True
+
+    def _collect(self, max_products: int | None) -> None:
+        processed = 0
+        while max_products is None or processed < max_products:
+            remaining = WOOLWORTHS_DETAIL_BATCH_SIZE
+            if max_products is not None:
+                remaining = min(remaining, max_products - processed)
+            with catalogue_session() as connection:
+                rows = connection.execute("""
+                    SELECT stockcode FROM woolworths_products
+                    WHERE detail_refreshed_at IS NULL AND detail_error IS NULL
+                    ORDER BY stockcode LIMIT ?
+                """, (remaining,)).fetchall()
+            stockcodes = [row["stockcode"] for row in rows]
+            if not stockcodes:
+                return
+            try:
+                results = woolworths_browser().details(stockcodes)
+                cache_woolworths_details(results)
+            except Exception as error:  # noqa: BLE001
+                with catalogue_session() as connection:
+                    connection.executemany(
+                        "UPDATE woolworths_products SET detail_error = ? WHERE stockcode = ?",
+                        [(str(error), stockcode) for stockcode in stockcodes],
+                    )
+            processed += len(stockcodes)
+
+
+_woolworths_detail_collector = WoolworthsDetailCollector()
+
+
 class WoolworthsCatalogueCollector:
     """Serial, restart-safe browser acquisition for the known top-level catalogue."""
 
@@ -1151,6 +1239,7 @@ class WoolworthsCatalogueCollector:
                     WHERE state = 'pending' ORDER BY category_path LIMIT 1
                 """).fetchone()
             if row is None:
+                _woolworths_detail_collector.start()
                 return
             category = row["category_path"]
             processed += 1
@@ -1168,7 +1257,7 @@ class WoolworthsCatalogueCollector:
                 if children:
                     outcome = {"products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None}
                 else:
-                    outcome = collect_woolworths_leaf(category, payload)
+                    outcome = cache_woolworths_leaf(category, payload)
             except Exception as error:  # noqa: BLE001
                 with catalogue_session() as connection:
                     connection.execute("""
@@ -1839,11 +1928,13 @@ class Handler(BaseHTTPRequestHandler):
         if parsed.path == "/woolworths/catalogue/status":
             acquisition_mode = "verified-browser" if WOOLWORTHS_CDP_URL else "unconfigured"
             collection = woolworths_collection_status()
+            detail_collection = woolworths_detail_collection_status()
             if not os.path.exists(WOOLWORTHS_CATALOGUE_DB):
                 self.send_json(200, {
                     "status": "success", "products": 0, "categories": 0, "lastRefreshedAt": None,
                     "acquisitionMode": acquisition_mode, "detailedProducts": 0,
                     "detailFailures": 0, "lastDetailRefreshedAt": None, "collection": collection,
+                    "detailCollection": detail_collection,
                 })
                 return
             with catalogue_session() as connection:
@@ -1860,6 +1951,7 @@ class Handler(BaseHTTPRequestHandler):
                 "lastRefreshedAt": row["refreshed_at"], "acquisitionMode": acquisition_mode,
                 "detailedProducts": row["detailed_products"], "detailFailures": row["detail_failures"],
                 "lastDetailRefreshedAt": row["detail_refreshed_at"], "collection": collection,
+                "detailCollection": detail_collection,
             })
             return
         if parsed.path == "/coles/catalogue/status":
@@ -2070,7 +2162,32 @@ class Handler(BaseHTTPRequestHandler):
                 })
                 return
             if parsed.path == "/woolworths/catalogue/collection/status":
-                self.send_json(200, {"status": "success", "collection": woolworths_collection_status()})
+                self.send_json(200, {
+                    "status": "success",
+                    "collection": woolworths_collection_status(),
+                    "detailCollection": woolworths_detail_collection_status(),
+                })
+                return
+            if parsed.path == "/woolworths/catalogue/details/start":
+                if not WOOLWORTHS_CDP_URL:
+                    self.send_json(409, {"status": "error", "error": "verified browser session is not configured; set WOOLWORTHS_CDP_URL"})
+                    return
+                try:
+                    requested_max = int((params.get("maxProducts") or ["0"])[0])
+                    if requested_max < 0:
+                        raise ValueError
+                except ValueError:
+                    self.send_json(400, {"status": "error", "error": "maxProducts must be zero or a positive whole number"})
+                    return
+                retry_failed = (params.get("retryFailed") or ["0"])[0].strip().lower() in ("1", "true", "yes")
+                started = _woolworths_detail_collector.start(requested_max or None, retry_failed)
+                self.send_json(202 if started else 409, {
+                    "status": "accepted" if started else "error",
+                    "error": None if started else "Woolworths detail enrichment is already running",
+                    "maxProducts": requested_max or None,
+                    "retryFailed": retry_failed,
+                    "detailCollection": woolworths_detail_collection_status(),
+                })
                 return
             if parsed.path == "/drakes/catalogue/refresh":
                 store_id = (params.get("storeId") or [""])[0].strip()
