@@ -78,6 +78,10 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
     [plan],
   );
   const missingIngredients = data.missingIngredients;
+  const todayKey = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Brisbane",
+    weekday: "long",
+  }).format(new Date()).toLocaleLowerCase();
 
   function mealStateKey(dayKey: string, slot: PlannerMealSlot) {
     return `${dayKey}:${slot}`;
@@ -176,7 +180,7 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
   }
 
   return (
-    <div className={styles.workspace}>
+    <div className={`${styles.workspace} kitchen-page kitchen-planner-page`}>
       <header className="pantry-page-heading">
         <div>
           <p className="eyebrow">MEAL PLANNING</p>
@@ -237,9 +241,9 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               const dayPlan = plan[day.key] ?? {};
               const dayMealCount = Object.keys(dayPlan).length;
               return (
-                <article className={`${styles.dayCard}${dayMealCount ? ` ${styles.dayCardPlanned}` : ""}`} key={day.key}>
+                <article className={`${styles.dayCard}${dayMealCount ? ` ${styles.dayCardPlanned}` : ""}${day.key === todayKey ? ` ${styles.dayCardToday}` : ""}`} key={day.key}>
                   <div className={styles.dayHeading}>
-                    <strong>{day.label}</strong>
+                    <strong>{day.key === todayKey ? `Today · ${day.label}` : day.label}</strong>
                     <small>{dayMealCount}/4 planned</small>
                   </div>
                   <div className={styles.mealSlots}>

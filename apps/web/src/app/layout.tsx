@@ -12,6 +12,7 @@ import "./design-system.css";
 import "./home-editorial.css";
 import "./home-v3.css";
 import "./logo-render.css";
+import "./kitchen-dashboard.css";
 import { AppShell } from "@/components/AppShell";
 import { PlannerCopyCorrection } from "@/components/PlannerCopyCorrection";
 import { ProductQualityController } from "@/components/products/ProductQualityController";
