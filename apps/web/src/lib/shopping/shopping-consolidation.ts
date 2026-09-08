@@ -13,7 +13,7 @@ import { normaliseProductText } from "@/lib/products/product-normalisation";
 import { parseRecipeIngredientLine } from "@/lib/recipes/recipe-pantry";
 import { optimiseShoppingFulfilment } from "./shopping-optimisation";
 
-type ShoppingRecord = {
+export type ShoppingRecord = {
   id: string;
   shoppingListId: string;
   productId: string | null;
@@ -43,8 +43,14 @@ function mergeUnit(item: ShoppingRecord) {
   return unit;
 }
 
-function mergeKey(item: ShoppingRecord) {
-  return `${item.shoppingListId}|${canonicalIdentity(item)}|${mergeUnit(item)}`;
+export function shoppingItemMergeKey(item: ShoppingRecord) {
+  const identity = canonicalIdentity(item);
+  if (!identity) return `${item.shoppingListId}|unresolved:${item.id}`;
+  return `${item.shoppingListId}|${identity}|${mergeUnit(item)}`;
+}
+
+export function canResolveShoppingItem(item: ShoppingRecord) {
+  return Boolean(canonicalIdentity(item));
 }
 
 function splitCompoundName(item: ShoppingRecord) {
@@ -149,7 +155,7 @@ async function mergeDuplicateItems(items: ShoppingRecord[]) {
   const groups = new Map<string, ShoppingRecord[]>();
 
   for (const item of items) {
-    const key = mergeKey(item);
+    const key = shoppingItemMergeKey(item);
     const group = groups.get(key) ?? [];
     group.push(item);
     groups.set(key, group);
@@ -195,6 +201,10 @@ async function normaliseSingleItems(items: ShoppingRecord[]) {
   let changed = false;
 
   for (const item of items) {
+    // Preserve incomplete user-entered or recipe-derived text as an unmatched
+    // shopping item. One unresolved row must not prevent every valid Shopping
+    // and Prices record from being consolidated and displayed.
+    if (!canResolveShoppingItem(item)) continue;
     const canonicalProduct = await resolveCanonicalProduct(sourceName(item));
     const displayName = formatProductName(canonicalProduct.canonicalName ?? canonicalProduct.name);
     const unit = mergeUnit(item);
