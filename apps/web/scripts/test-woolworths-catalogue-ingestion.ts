@@ -30,11 +30,14 @@ assert.match(bridge, /category API response was observed but could not be decode
 assert.match(bridge, /browse_page = page[\s\S]*browse_page\.bring_to_front\(\)[\s\S]*browse_page\.goto\(/, "category acquisition must navigate the visible verified page so progress and challenges remain observable through noVNC");
 assert.doesNotMatch(bridge, /browse_page\.close\(\)/, "a challenged Woolworths page must remain visible for manual verification");
 assert.match(bridge, /requires browser verification[\s\S]*return[\s\S]*continue/, "browser verification must pause the serial queue before later checkpoints are consumed");
-assert.match(bridge, /WOOLWORTHS_CATEGORY_SESSION_SECONDS = \([\s\S]*WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS[\s\S]*WOOLWORTHS_CATEGORY_SCROLL_ROUNDS[\s\S]*\+ 30/, "the caller timeout must exceed the maximum navigation and scrolling work");
+assert.match(bridge, /WOOLWORTHS_CATEGORY_SESSION_SECONDS = \([\s\S]*WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS[\s\S]*WOOLWORTHS_CATEGORY_SCROLL_ROUNDS[\s\S]*\+ 180/, "the caller timeout must include a bounded allowance for broad-category pagination");
 assert.match(bridge, /for _ in range\(WOOLWORTHS_CATEGORY_SCROLL_ROUNDS\):[\s\S]*wait_for_timeout\(WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS\)/, "category capture must allow lazy pages to request every observed response");
 assert.match(bridge, /page_size = int\(request_payload\.get\("pageSize"\)/, "leaf collection must preserve the storefront page size");
 assert.match(bridge, /TotalRecordCount[\s\S]*total_pages = \(total \+ page_size - 1\) \/\/ page_size[\s\S]*range\(2, total_pages \+ 1\)/, "leaf collection must derive every remaining API page from the authoritative result total");
 assert.match(bridge, /JSON\.stringify\(\{\.\.\.requestPayload, pageNumber\}\)/, "remaining category pages must reuse the accepted browser request context");
+assert.match(bridge, /WOOLWORTHS_CATEGORY_PAGE_CONCURRENCY = 3[\s\S]*Promise\.all\(batch\.map/, "broad category pages must use conservative bounded concurrency");
+assert.match(bridge, /AbortController\(\)[\s\S]*signal: controller\.signal[\s\S]*clearTimeout\(timeout\)/, "every background category page must have a browser-side timeout");
+assert.match(bridge, /completed\.sort\(\(left, right\) => left\.pageNumber - right\.pageNumber\)/, "concurrent category responses must be restored to deterministic page order");
 assert.match(bridge, /stable_rounds >= 4 and bool\(captured_responses or descendants\)/, "a stable navigation-only root must finish once descendant links are available");
 assert.match(bridge, /document\.querySelectorAll\('a\[href\]'\)[\s\S]*subcategories/, "category browsing must discover valid descendant browse paths");
 assert.match(bridge, /if not captured_responses:[\s\S]*if descendants:[\s\S]*categoryResponses["']:\s*\[\]/, "navigation-only category roots must seed their descendants without fabricating product responses");

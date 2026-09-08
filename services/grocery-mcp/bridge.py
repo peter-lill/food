@@ -330,11 +330,13 @@ WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
 WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
 WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
 WOOLWORTHS_CATEGORY_PAGE_LIMIT = 250
+WOOLWORTHS_CATEGORY_PAGE_CONCURRENCY = 3
+WOOLWORTHS_CATEGORY_PAGE_TIMEOUT_MS = (WOOLWORTHS_TIMEOUT_SECONDS + 5) * 1000
 WOOLWORTHS_DETAIL_BATCH_SIZE = 24
 WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
     WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
     + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
-    + 30
+    + 180
 )
 WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS = {
     "/shop/browse/health-beauty": "/shop/browse/beauty",
@@ -608,22 +610,34 @@ class WoolworthsBrowserSession:
                                 )
                                 if request_payload and remaining_pages:
                                     additional_payloads = browse_page.evaluate(
-                                        """async ({url, requestPayload, pageNumbers}) => {
+                                        """async ({url, requestPayload, pageNumbers, concurrency, timeoutMs}) => {
                                           const payloads = [];
-                                          for (const pageNumber of pageNumbers) {
-                                            const response = await fetch(url, {
-                                              method: 'POST',
-                                              credentials: 'include',
-                                              headers: {
-                                                'accept': 'application/json, text/plain, */*',
-                                                'content-type': 'application/json'
-                                              },
-                                              body: JSON.stringify({...requestPayload, pageNumber})
-                                            });
-                                            if (!response.ok) {
-                                              throw new Error(`Woolworths category page ${pageNumber} returned HTTP ${response.status}`);
-                                            }
-                                            payloads.push(await response.json());
+                                          for (let index = 0; index < pageNumbers.length; index += concurrency) {
+                                            const batch = pageNumbers.slice(index, index + concurrency);
+                                            const completed = await Promise.all(batch.map(async (pageNumber) => {
+                                              const controller = new AbortController();
+                                              const timeout = setTimeout(() => controller.abort(), timeoutMs);
+                                              try {
+                                                const response = await fetch(url, {
+                                                  method: 'POST',
+                                                  credentials: 'include',
+                                                  signal: controller.signal,
+                                                  headers: {
+                                                    'accept': 'application/json, text/plain, */*',
+                                                    'content-type': 'application/json'
+                                                  },
+                                                  body: JSON.stringify({...requestPayload, pageNumber})
+                                                });
+                                                if (!response.ok) {
+                                                  throw new Error(`Woolworths category page ${pageNumber} returned HTTP ${response.status}`);
+                                                }
+                                                return {pageNumber, payload: await response.json()};
+                                              } finally {
+                                                clearTimeout(timeout);
+                                              }
+                                            }));
+                                            completed.sort((left, right) => left.pageNumber - right.pageNumber);
+                                            payloads.push(...completed.map((item) => item.payload));
                                             await new Promise((resolve) => setTimeout(resolve, 250));
                                           }
                                           return payloads;
@@ -632,6 +646,8 @@ class WoolworthsBrowserSession:
                                             "url": WOOLWORTHS_CATEGORY_API_PATH,
                                             "requestPayload": request_payload,
                                             "pageNumbers": remaining_pages,
+                                            "concurrency": WOOLWORTHS_CATEGORY_PAGE_CONCURRENCY,
+                                            "timeoutMs": WOOLWORTHS_CATEGORY_PAGE_TIMEOUT_MS,
                                         },
                                     )
                                     payload["categoryResponses"].extend(additional_payloads)
