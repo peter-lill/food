@@ -5,6 +5,7 @@ import { ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import { categoryResolutionForImport, comparableProductCategoryKey, type ImportedCategoryResolution } from "./catalogue-import-category-evidence";
 import { hasSuspiciousLabelTail, type ImportDisposition } from "./woolworths-controlled-import-matching";
 
@@ -85,8 +86,10 @@ async function attach(plans: Plan[]) {
     }
     if (newListings.length) await tx.storeProduct.createMany({ data: newListings.map((plan) => ({ id: plan.storeProductId!, productId: plan.productId!, retailer: "ALDI", externalId: plan.product.externalId, ...listing(plan) })) });
     for (const plan of retained) await tx.storeProduct.update({ where: { id: plan.storeProductId! }, data: listing(plan) });
+    await promoteCatalogueProductImages(tx, applicable.map((plan) => ({ productId: plan.productId!, imageUrl: plan.product.imageUrl })));
     if (applicable.length) await tx.priceObservation.createMany({ data: applicable.map((plan) => ({ productId: plan.productId!, storeProductId: plan.storeProductId!, retailer: "ALDI", price: plan.product.price, isSpecial: false, source: "aldi-controlled-import", sourceUrl: plan.product.productUrl })) });
   }, { maxWait: 5_000, timeout: 60_000 });
+  await enqueueMissingCatalogueProductImages(applicable.map((plan) => plan.productId!), "aldi");
 }
 
 async function main() {

@@ -154,5 +154,16 @@ export async function resolveCanonicalProduct(
     },
   );
 
+  if (!resolution.product.imageUrl) {
+    await enqueueBackgroundJob(
+      backgroundJobTypes.productImageEnrichment,
+      { productId: resolution.product.id, provider: "coles-woolworths", allowGenerated: false },
+      {
+        priority: 140,
+        deduplicationKey: `catalogue-product-image:${resolution.product.id}`,
+      },
+    );
+  }
+
   return resolution;
 }
