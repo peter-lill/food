@@ -120,3 +120,83 @@
    product name, retailer footer, or any neighbouring card out of alignment. */
 .specialImageSlot{position:absolute;top:10px;left:10px;z-index:2;display:grid;place-items:center;min-width:72px;min-height:24px;padding:0 9px;border:1px solid transparent;border-radius:999px;color:transparent;font-size:.64rem;font-weight:850;line-height:1;pointer-events:none}
 .specialImageSlot:not(:empty){border-color:#f0d4bd;background:#fff0e5;color:#a84912;box-shadow:0 3px 10px rgba(154,77,22,.1)}
+
+:global(.kitchen-mode) .page {
+  --text: #f8f7f2;
+  --text-soft: #b3b7b4;
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .desktopHero,
+:global(.kitchen-mode) .mobileHero,
+:global(.kitchen-mode) .summaryCard,
+:global(.kitchen-mode) .cataloguePanel,
+:global(.kitchen-mode) .card,
+:global(.kitchen-mode) .empty,
+:global(.kitchen-mode) .shelfFilter,
+:global(.kitchen-mode) .shelfFilterActive {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(24, 27, 26, .91);
+  color: #f8f7f2;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(18px);
+}
+
+:global(.kitchen-mode) .desktopHero {
+  background:
+    linear-gradient(90deg, rgba(8, 12, 10, .96), rgba(8, 12, 10, .6)),
+    url("/recipes/lean-beef-burrito-bowl.webp") center / cover;
+}
+
+:global(.kitchen-mode) .secondaryAction,
+:global(.kitchen-mode) .searchField,
+:global(.kitchen-mode) .filter {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(255, 255, 255, .065);
+  color: #d8ddda;
+}
+
+:global(.kitchen-mode) .filterActive,
+:global(.kitchen-mode) .shelfFilterActive {
+  border-color: rgba(40, 184, 223, .38);
+  background: rgba(40, 184, 223, .14);
+  color: #9fe8fa;
+}
+
+:global(.kitchen-mode) .thumb,
+:global(.kitchen-mode) .priceRow > div,
+:global(.kitchen-mode) .meta span,
+:global(.kitchen-mode) .cardTopline > span:first-child,
+:global(.kitchen-mode) .shelfFilter strong,
+:global(.kitchen-mode) .shelfFilterActive strong {
+  border-color: rgba(246, 241, 229, .12);
+  background: rgba(255, 255, 255, .055);
+}
+
+:global(.kitchen-mode) .thumb img {
+  background: #fff !important;
+}
+
+:global(.kitchen-mode) .cardBody h2,
+:global(.kitchen-mode) .priceSummary strong,
+:global(.kitchen-mode) .productFacts strong {
+  color: #fff;
+}
+
+:global(.kitchen-mode) .brandLine,
+:global(.kitchen-mode) .priceSummary small,
+:global(.kitchen-mode) .priceSummary > span:not(.specialBadge),
+:global(.kitchen-mode) .productFacts small,
+:global(.kitchen-mode) .productFacts > div > span,
+:global(.kitchen-mode) .cardFooter {
+  color: #b3b7b4;
+}
+
+:global(.kitchen-mode) .cardFooter {
+  border-top-color: rgba(246, 241, 229, .14);
+}
+
+:global(.kitchen-mode) .openLabel,
+:global(.kitchen-mode) .toolbarTitle p:first-child {
+  color: #72dcf6;
+}

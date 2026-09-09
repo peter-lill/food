@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
   canonicalColesDescription, categoryForColesPath, cleanColesBarcode,
   colesImportEligibility, type CachedColesProduct,
@@ -125,6 +126,7 @@ async function attachPage(plans: Plan[]) {
     for (const plan of applicable.filter((candidate) => candidate.disposition === "retain")) {
       await tx.storeProduct.update({ where: { id: plan.storeProductId! }, data: listingData(plan) });
     }
+    await promoteCatalogueProductImages(tx, applicable.map((plan) => ({ productId: plan.productId!, imageUrl: plan.product.image_url })));
     for (const plan of applicable) {
       const mapped = categoryForColesPath(plan.product.category_path, plan.product.name);
       if (mapped.category !== "Other") await tx.product.update({ where: { id: plan.productId! }, data: { category: mapped.category, productType: mapped.productType } });
@@ -136,6 +138,7 @@ async function attachPage(plans: Plan[]) {
       sourceUrl: colesProductUrl(plan.product),
     })) });
   }, { maxWait: 5_000, timeout: 60_000 });
+  await enqueueMissingCatalogueProductImages(applicable.map((plan) => plan.productId!), "coles");
 }
 
 async function main() {

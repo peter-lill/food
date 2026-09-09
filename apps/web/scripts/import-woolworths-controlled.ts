@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
   categoryForWoolworthsPaths,
   shelfForWoolworthsPaths,
@@ -209,7 +210,7 @@ async function attachPage(plans: Plan[]) {
   const createdListings = applicable.filter((plan) => plan.disposition !== "retain");
   const existingListings = applicable.filter((plan) => plan.disposition === "retain");
   const existingProducts = applicable.filter((plan) => plan.disposition !== "create");
-  return prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     if (createdProducts.length) {
       await tx.product.createMany({
         data: createdProducts.map((plan) => {
@@ -234,6 +235,7 @@ async function attachPage(plans: Plan[]) {
       });
     }
     await updateExistingListings(tx, existingListings);
+    await promoteCatalogueProductImages(tx, applicable.map((plan) => ({ productId: plan.productId!, imageUrl: plan.product.image_url })));
     await updateExistingProductClassifications(tx, existingProducts);
     const priceObservations = applicable.filter((plan) => plan.product.price !== null);
     if (priceObservations.length) {
@@ -246,6 +248,7 @@ async function attachPage(plans: Plan[]) {
       });
     }
   }, { maxWait: 5_000, timeout: 60_000 });
+  await enqueueMissingCatalogueProductImages(applicable.map((plan) => plan.productId!), "woolworths");
 }
 
 async function main() {

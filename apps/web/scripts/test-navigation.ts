@@ -36,6 +36,9 @@ assert.equal(
 const appShellSource = readFileSync(new URL("../src/components/AppShell.tsx", import.meta.url), "utf8");
 assert.match(appShellSource, /aria-label="Open camera"/);
 assert.doesNotMatch(appShellSource, /scan-choice-dialog/, "the camera action should open the scanner, not a separate modal");
+assert.match(appShellSource, /app-frame kitchen-mode/, "the kitchen visual system should be applied by the shared shell on every standard page");
+assert.match(appShellSource, /content-shell kitchen-page/, "standard page content should inherit shared kitchen surfaces and typography");
+assert.match(appShellSource, /livePathname\.startsWith\("\/scan"\)[\s\S]*?return <main>/, "the full-screen scanner must remain outside the decorative application shell");
 
 const scanPageSource = readFileSync(new URL("../src/app/scan/page.tsx", import.meta.url), "utf8");
 assert.match(scanPageSource, /scanTarget=\{target\}/);

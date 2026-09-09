@@ -19,6 +19,7 @@ type ImportProductImagePayload = {
 
 type ProductImageEnrichmentPayload = {
   productId: string;
+  allowGenerated?: boolean;
 };
 
 function requireString(payload: Record<string, unknown>, key: string) {
@@ -74,8 +75,9 @@ export async function handleBackgroundJob(job: BackgroundJob) {
     case workerJobTypes.productImageEnrichment: {
       const typed: ProductImageEnrichmentPayload = {
         productId: requireString(payload, "productId"),
+        allowGenerated: payload.allowGenerated !== false,
       };
-      const result = await recoverProductImage(typed.productId, { allowGenerated: true });
+      const result = await recoverProductImage(typed.productId, { allowGenerated: typed.allowGenerated });
       return {
         productId: typed.productId,
         status: result.status,

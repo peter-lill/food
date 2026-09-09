@@ -121,10 +121,8 @@ export function AppShell({
 
   const mobileMoreActive = mobileMoreNavigation.some((item) => item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
   const hideMobileScanAction = pathname.startsWith("/scan");
-  const kitchenMode = livePathname.startsWith("/recipes") || livePathname.startsWith("/planner");
-
   return (
-    <div className={`app-frame${sidebarCollapsed ? " sidebar-collapsed" : ""}${kitchenMode ? " kitchen-mode" : ""}`}>
+    <div className={`app-frame kitchen-mode${sidebarCollapsed ? " sidebar-collapsed" : ""}`}>
       <aside aria-label="Food navigation panel" className="sidebar">
         <Link href={owner ? "/" : "/recipes"} className="wordmark" aria-label="Food home" title={sidebarCollapsed ? "Food home" : undefined}>
           <span className="wordmark-mark"><FoodMark /></span>
@@ -184,7 +182,7 @@ export function AppShell({
         </div>
       </aside>
       <div className="workspace">
-        <main className="content-shell">{children}</main>
+        <main className="content-shell kitchen-page">{children}</main>
       </div>
       {mobileMenuOpen ? (
         <div className="mobile-more-backdrop" onClick={() => setMobileMenuOpen(false)}>
