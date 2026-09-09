@@ -3,6 +3,14 @@
   gap: 18px;
 }
 
+:global(.kitchen-mode) .empty,
+:global(.kitchen-mode) .comparison,
+:global(.kitchen-mode) .retailerCard {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(24, 27, 26, .91);
+  color: #f8f7f2;
+}
+
 .summaryGrid,
 .totalGrid {
   display: grid;

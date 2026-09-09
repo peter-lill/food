@@ -3,6 +3,27 @@
   gap: 16px;
 }
 
+:global(.kitchen-mode) .profileHero {
+  border-color: rgba(246, 241, 229, .22);
+  background: linear-gradient(135deg, rgba(20, 25, 23, .96), rgba(31, 46, 40, .9), rgba(53, 39, 27, .82));
+  box-shadow: 0 18px 48px rgba(0, 0, 0, .24);
+}
+
+:global(.kitchen-mode) .collapsibleCard,
+:global(.kitchen-mode) .retailerPanel {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(24, 27, 26, .91);
+  color: #f8f7f2;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+}
+
+:global(.kitchen-mode) .setupNotice,
+:global(.kitchen-mode) .storePrompt {
+  border-color: rgba(255, 190, 92, .3);
+  background: rgba(255, 174, 63, .11);
+  color: #ffe0af;
+}
+
 .profileHero {
   display: flex;
   align-items: center;

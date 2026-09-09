@@ -9,11 +9,48 @@
   --accent-dark: #9fe8fa;
   --accent-pale: rgba(40, 184, 223, .16);
   --danger: #ff8e82;
+  --text: #f8f7f2;
+  --text-soft: #b3b7b4;
+  --card-background: rgba(24, 27, 26, .91);
+  --border-color: rgba(246, 241, 229, .24);
+  --muted-color: #b3b7b4;
   min-height: 100dvh;
   background:
     linear-gradient(rgba(5, 8, 7, .62), rgba(5, 8, 7, .78)),
     url("/recipes/salmon-rice-greens.webp") center / cover fixed;
   color: var(--ink);
+}
+
+.app-frame.kitchen-mode .kitchen-page {
+  color: var(--ink);
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(h1, h2, h3, h4, h5, h6, strong) {
+  color: inherit;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(input, select, textarea) {
+  border-color: rgba(246, 241, 229, .24);
+  background: rgba(8, 11, 10, .72);
+  color: #fff;
+  color-scheme: dark;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(input, select, textarea)::placeholder {
+  color: #8f9692;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(input, select, textarea):focus {
+  border-color: #5ed5f3;
+  outline: 3px solid rgba(40, 184, 223, .2);
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(.notice-panel, .dashboard-card, .stat-card) {
+  border-color: var(--line);
+  background: rgba(24, 27, 26, .9);
+  color: var(--ink);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(18px);
 }
 
 .app-frame.kitchen-mode .workspace {
@@ -141,6 +178,60 @@
   color: #d9ddda;
 }
 
+.app-frame.kitchen-mode .kitchen-page .section-title,
+.app-frame.kitchen-mode .kitchen-page .dashboard-card-heading h2 {
+  color: #fff;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(.shopping-list-links a, .shopping-pantry-suggestion) {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, .055);
+  color: #d9ddda;
+}
+
+.app-frame.kitchen-mode .kitchen-page .shopping-list-links a:hover,
+.app-frame.kitchen-mode .kitchen-page .shopping-list-links a.active {
+  border-color: rgba(40, 184, 223, .38);
+  background: rgba(40, 184, 223, .14);
+  color: #72dcf6;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(.shopping-rename summary, .shopping-item-edit summary) {
+  color: #72dcf6;
+}
+
+.app-frame.kitchen-mode .kitchen-page .shopping-remove-button {
+  background: rgba(255, 142, 130, .15);
+  color: #ffaaa1;
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(
+  [class^="admin_hero__"],
+  [class^="admin_metricCard__"],
+  [class^="admin_toolCard__"],
+  [class^="admin_healingPanel__"],
+  [class^="settings_panel__"],
+  [class^="catalogue-health_hero__"],
+  [class^="catalogue-health_card__"],
+  [class^="review-queue_hero__"],
+  [class^="review-queue_item__"],
+  [class^="review-queue_filters__"] a
+) {
+  border-color: var(--line);
+  background: rgba(24, 27, 26, .91);
+  color: var(--ink);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+}
+
+.app-frame.kitchen-mode .kitchen-page :where(
+  [class^="review-queue_tags__"] span,
+  [class^="review-queue_breakdown__"] div,
+  [class^="admin_healingForm__"]
+) {
+  background: rgba(255, 255, 255, .06);
+  color: #d9ddda;
+}
+
 @media (max-width: 900px) {
   .app-frame.kitchen-mode {
     background-attachment: scroll;
@@ -177,6 +268,10 @@
     align-items: stretch;
     padding: 15px;
     flex-direction: column;
+  }
+
+  .app-frame.kitchen-mode .kitchen-page :where(button, .button, .primary-button, .secondary-button) {
+    min-height: 46px;
   }
 }
 
