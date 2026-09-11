@@ -64,8 +64,13 @@ pids+=("$!")
 for _ in $(seq 1 30); do
   if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${cdp_port}/json/version', timeout=2)" 2>/dev/null; then
     echo "Woolworths host browser ready: CDP 127.0.0.1:${cdp_port}, noVNC 127.0.0.1:${novnc_port}"
-    wait "${browser_pid}"
-    exit $?
+    python3 "$(dirname "$0")/../services/grocery-mcp/browser_health.py" \
+      --cdp-port "${cdp_port}" --vnc-port "${vnc_port}" --novnc-port "${novnc_port}" &
+    pids+=("$!")
+    # Any child exiting, including VNC, must restart the whole display session.
+    wait -n "${pids[@]}" || true
+    echo "Woolworths browser or VNC supervision ended; restarting the session" >&2
+    exit 1
   fi
   sleep 1
 done

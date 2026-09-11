@@ -190,7 +190,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
           {!family && !generic && !product.imageUrl && !product.barcode ? <span>Image missing</span> : null}
         </div>
         <div className={styles.cardFooter}>
-          <span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} /> : "No retailer linked"}</span>
+          <span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} surface="dark" /> : "No retailer linked"}</span>
           <small>{observed ? `Checked ${observed}` : "Not checked"}</small>
         </div>
       </div>

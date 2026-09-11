@@ -271,6 +271,59 @@
   }
 }
 
+/* Department cards are part of the products hub and must follow the kitchen
+ * surface tokens when the shell is in its dark presentation. */
+:global(.kitchen-mode) .department {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(24, 27, 26, .91);
+  color: #f8f7f2;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+  backdrop-filter: blur(18px);
+}
+
+:global(.kitchen-mode) .departmentArtwork {
+  border-color: rgba(246, 241, 229, .12);
+  background: rgba(255, 255, 255, .055);
+}
+
+:global(.kitchen-mode) .departmentHeading strong {
+  color: #fff;
+}
+
+:global(.kitchen-mode) .departmentCount {
+  background: rgba(40, 184, 223, .14);
+  color: #9fe8fa;
+}
+
+:global(.kitchen-mode) .departmentSummary::after {
+  background: rgba(255, 255, 255, .1);
+  color: #9fe8fa;
+  box-shadow: none;
+}
+
+:global(.kitchen-mode) .departmentLink:hover {
+  border-color: rgba(94, 213, 243, .4);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
+}
+
+:global(.kitchen-mode) .shelfGroup summary {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+:global(.kitchen-mode) .shelfGroup h3 {
+  color: var(--ink);
+}
+
+:global(.kitchen-mode) .shelfGroup summary span {
+  color: var(--muted);
+}
+
+:global(.kitchen-mode) .shelfGroup summary::after {
+  color: var(--accent-dark);
+}
+
 /* The department picker is an editorial browse surface, not a collection of
  * empty dashboard cards.  Give the artwork a deliberate frame and keep each
  * choice compact enough for the next row to remain visible. */

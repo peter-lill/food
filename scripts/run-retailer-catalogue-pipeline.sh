@@ -62,25 +62,22 @@ print(
 
 first_population=0
 start_query="?retryFailed=1"
+read -r initial_pending current_running initial_completed initial_total initial_failed initial_discovery_pending initial_discovery_failed initial_products < <(
+  collection_status | status_fields
+)
 if [[ ! -e "$initial_marker" ]]; then
   first_population=1
-elif [[ "$retailer" == "coles" ]]; then
-  start_query="?revisitAllCompleted=1"
-else
+elif [[ "$initial_total" -gt 0 && "$initial_pending" == "0" && "$current_running" == "0" && "$initial_completed" == "$initial_total" && "$initial_failed" == "0" && "$initial_discovery_pending" == "0" && "$initial_discovery_failed" == "0" ]]; then
+  # An initial import marker does not mean collection finished. Restart an
+  # interrupted collection from checkpoints; revisit only a completed sweep.
   start_query="?revisitAllCompleted=1&retryFailed=1"
 fi
 
-current_running="$(collection_status | python3 -c 'import json, sys; print(int(json.load(sys.stdin)["collection"].get("running", 0)))')"
 if [[ "$current_running" == "0" ]]; then
   echo "Starting or resuming the $retailer catalogue collection."
   request "/$retailer/catalogue/collection/start$start_query" >/dev/null
 else
   echo "The $retailer collector is already running; attaching the import pipeline to it."
-fi
-
-if [[ "$first_population" == "1" ]]; then
-  import_catalogue "initial-population"
-  touch "$initial_marker"
 fi
 
 deadline=$((SECONDS + max_wait_minutes * 60))
@@ -90,7 +87,15 @@ while true; do
   )
   echo "$retailer catalogue: completed=$completed/$total pending=$pending running=$running failed=$failed discovery_pending=$discovery_pending discovery_failed=$discovery_failed cached_products=$products"
 
-  if [[ "$pending" == "0" && "$running" == "0" && "$failed" == "0" && "$completed" == "$total" && "$discovery_pending" == "0" && "$discovery_failed" == "0" ]]; then
+  # A rebuilt installation has no cache yet. Wait for its first products
+  # instead of failing the initial import before discovery can finish.
+  if [[ "$first_population" == "1" && "$products" -gt 0 ]]; then
+    import_catalogue "initial-population"
+    touch "$initial_marker"
+    first_population=0
+  fi
+
+  if [[ "$total" -gt 0 && "$pending" == "0" && "$running" == "0" && "$failed" == "0" && "$completed" == "$total" && "$discovery_pending" == "0" && "$discovery_failed" == "0" ]]; then
     import_catalogue "final-reconciliation"
     echo "$retailer catalogue pipeline completed at $(date --iso-8601=seconds)."
     exit 0

@@ -174,7 +174,34 @@
 }
 
 :global(.kitchen-mode) .thumb img {
-  background: #fff !important;
+  background: transparent !important;
+}
+
+:global(.kitchen-mode) .summaryIcon,
+:global(.kitchen-mode) .filter strong,
+:global(.kitchen-mode) .filterActive strong {
+  background: var(--accent-pale);
+  color: var(--accent-dark);
+}
+
+:global(.kitchen-mode) .primaryAction,
+:global(.kitchen-mode) .searchButton {
+  background: linear-gradient(135deg, #0c8cb4, #28b8df);
+  color: #fff;
+}
+
+:global(.kitchen-mode) .cardTopline > span:first-child,
+:global(.kitchen-mode) .meta span {
+  color: var(--muted);
+}
+
+:global(.kitchen-mode) .searchField input {
+  background: transparent;
+}
+
+.page :is(a, button, summary):focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
 }
 
 :global(.kitchen-mode) .cardBody h2,
