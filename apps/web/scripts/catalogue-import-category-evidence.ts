@@ -46,9 +46,11 @@ export function comparableProductCategoryKey(productName: string) {
 export function categoryResolutionForImport(
   productName: string,
   comparableCategories: ReadonlyMap<string, ReadonlySet<SupermarketDepartment>>,
-  retailerCategoryPath?: string | null,
+  retailerCategoryPath?: string | ReadonlyArray<string> | null,
 ): ImportedCategoryResolution {
-  const retailerPathCategory = retailerPathDepartment(retailerCategoryPath);
+  const retailerPathCategory = (Array.isArray(retailerCategoryPath) ? retailerCategoryPath : [retailerCategoryPath])
+    .map((path) => retailerPathDepartment(path))
+    .find((category): category is SupermarketDepartment => Boolean(category));
   if (retailerPathCategory) {
     return {
       category: retailerPathCategory,

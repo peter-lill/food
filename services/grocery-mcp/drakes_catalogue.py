@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Callable
 from urllib.request import Request, urlopen
 
-from retailer_taxonomy import drakes_sidebar_nodes, leaf_taxonomy_paths
+from retailer_taxonomy import ancestry_for_node, drakes_sidebar_nodes, leaf_taxonomy_paths
 
 
 DRAKES_CATALOGUE_DB = os.getenv("DRAKES_CATALOGUE_DB", "/data/drakes-catalogue.sqlite3")
@@ -152,7 +152,7 @@ def cache_connection() -> sqlite3.Connection:
           store_id TEXT NOT NULL, external_id TEXT NOT NULL, name TEXT NOT NULL,
           brand TEXT, pack_size TEXT, unit_price TEXT, price REAL NOT NULL,
           was_price REAL, image_url TEXT, product_url TEXT NOT NULL,
-          category_path TEXT NOT NULL, refreshed_at INTEGER NOT NULL,
+          category_path TEXT NOT NULL, category_paths TEXT NOT NULL DEFAULT '[]', refreshed_at INTEGER NOT NULL,
           refresh_generation TEXT,
           PRIMARY KEY (store_id, external_id)
         )
@@ -160,6 +160,8 @@ def cache_connection() -> sqlite3.Connection:
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(drakes_products)")}
     if "refresh_generation" not in columns:
         connection.execute("ALTER TABLE drakes_products ADD COLUMN refresh_generation TEXT")
+    if "category_paths" not in columns:
+        connection.execute("ALTER TABLE drakes_products ADD COLUMN category_paths TEXT NOT NULL DEFAULT '[]'")
     connection.execute("CREATE INDEX IF NOT EXISTS drakes_products_store_name ON drakes_products(store_id, name)")
     return connection
 
@@ -181,19 +183,19 @@ def cache_products(products: list[dict], refreshed_at: int | None = None, refres
             connection.execute("""
                 INSERT INTO drakes_products (
                   store_id, external_id, name, brand, pack_size, unit_price, price,
-                  was_price, image_url, product_url, category_path, refreshed_at,
+                  was_price, image_url, product_url, category_path, category_paths, refreshed_at,
                   refresh_generation
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(store_id, external_id) DO UPDATE SET
                   name=excluded.name, brand=excluded.brand, pack_size=excluded.pack_size,
                   unit_price=excluded.unit_price, price=excluded.price, was_price=excluded.was_price,
                   image_url=excluded.image_url, product_url=excluded.product_url,
-                  category_path=excluded.category_path, refreshed_at=excluded.refreshed_at,
+                  category_path=excluded.category_path, category_paths=excluded.category_paths, refreshed_at=excluded.refreshed_at,
                   refresh_generation=excluded.refresh_generation
             """, tuple(product[key] for key in (
                 "store_id", "external_id", "name", "brand", "pack_size", "unit_price",
                 "price", "was_price", "image_url", "product_url", "category_path",
-            )) + (now, refresh_generation))
+            )) + (json.dumps(product.get("category_paths", [product["category_path"]])), now, refresh_generation))
     return len(products)
 
 
@@ -217,7 +219,7 @@ class DrakesCatalogueSession:
         with urlopen(request, timeout=30) as response:
             return response.read().decode("utf-8", errors="replace")
 
-    def refresh(self, store_id: str, max_pages: int | None = None, category_path: str | None = None, refresh_generation: str | None = None) -> dict:
+    def refresh(self, store_id: str, max_pages: int | None = None, category_path: str | None = None, refresh_generation: str | None = None, category_paths: list[str] | None = None) -> dict:
         store = valid_store_id(store_id)
         if category_path and not re.fullmatch(r"/category/[a-z0-9-]+", category_path):
             raise ValueError("category must be a public Drakes /category/<slug> path")
@@ -232,6 +234,8 @@ class DrakesCatalogueSession:
                 self.read(f"https://{store}.drakes.com.au{base_path}{suffix}"), store,
                 category_path or "/search?sort_by=name",
             )
+            for product in products:
+                product["category_paths"] = category_paths or [product["category_path"]]
             all_products.extend(products)
             page += 1
         return {"storeId": store, "category": category_path, "products": cache_products(all_products, refresh_generation=refresh_generation), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
@@ -258,7 +262,7 @@ class DrakesCatalogueSession:
         refresh_generation = uuid.uuid4().hex
         outcomes = []
         for category in categories:
-            outcomes.append(self.refresh(store, max_pages, category, refresh_generation))
+            outcomes.append(self.refresh(store, max_pages, category, refresh_generation, ancestry_for_node(drakes_sidebar_nodes(sidebar), category)))
         truncated = [outcome["category"] for outcome in outcomes if outcome["truncated"]]
         retired = 0 if truncated else prune_stale_products(store, refresh_generation)
         return {
@@ -283,4 +287,10 @@ def status(store_id: str | None = None) -> dict:
 def cached_products(store_id: str, limit: int, offset: int) -> list[dict]:
     with cache_session() as connection:
         rows = connection.execute("SELECT * FROM drakes_products WHERE store_id = ? ORDER BY name COLLATE NOCASE, external_id LIMIT ? OFFSET ?", (valid_store_id(store_id), limit, offset)).fetchall()
-    return [dict(row) for row in rows]
+    products = [dict(row) for row in rows]
+    for product in products:
+        try:
+            product["category_paths"] = json.loads(product["category_paths"])
+        except (TypeError, json.JSONDecodeError):
+            product["category_paths"] = [product["category_path"]]
+    return products

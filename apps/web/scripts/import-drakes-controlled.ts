@@ -20,7 +20,7 @@ const pageSize = Number.isInteger(importAll ? requestedPageSize : requestedLimit
   ? (importAll ? requestedPageSize : requestedLimit) : (importAll ? 500 : 30);
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
-type DrakesProduct = { externalId: string; name: string; brand: string | null; packSize: string | null; unitPrice: string | null; price: number; imageUrl: string | null; productUrl: string; categoryPath: string };
+type DrakesProduct = { externalId: string; name: string; brand: string | null; packSize: string | null; unitPrice: string | null; price: number; imageUrl: string | null; productUrl: string; categoryPath: string; categoryPaths: string[] };
 type Plan = { product: DrakesProduct; disposition: ImportDisposition; reason: string; productId: string | null; storeProductId: string | null; category: ImportedCategoryResolution | null };
 
 function text(value: unknown) { return typeof value === "string" && value.trim() ? value.trim() : null; }
@@ -31,7 +31,11 @@ function cachedProduct(value: unknown): DrakesProduct | null {
   const input = value as Record<string, unknown>;
   const externalId = text(input.external_id); const name = text(input.name); const productUrl = text(input.product_url); const price = productPrice(input.price);
   if (!externalId || !name || !productUrl || price === null) return null;
-  return { externalId, name, productUrl, price, brand: text(input.brand), packSize: text(input.pack_size), unitPrice: text(input.unit_price), imageUrl: text(input.image_url), categoryPath: text(input.category_path) ?? "/search?sort_by=name" };
+  const categoryPath = text(input.category_path) ?? "/search?sort_by=name";
+  const categoryPaths = Array.isArray(input.category_paths)
+    ? input.category_paths.flatMap((path) => text(path) ? [text(path)!] : [])
+    : [categoryPath];
+  return { externalId, name, productUrl, price, brand: text(input.brand), packSize: text(input.pack_size), unitPrice: text(input.unit_price), imageUrl: text(input.image_url), categoryPath, categoryPaths };
 }
 
 async function readPage(offset: number) {
@@ -76,7 +80,7 @@ async function plansForPage(products: DrakesProduct[], aliasesSeen: Set<string>)
     if (productId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId, storeProductId: randomUUID(), category: null };
     if (aliasesSeen.has(alias)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name", productId: null, storeProductId: null, category: null };
     aliasesSeen.add(alias);
-    return { product, disposition: "create", reason: "unique selected-store Drakes catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category: categoryResolutionForImport(product.name, comparableCategories, product.categoryPath) };
+    return { product, disposition: "create", reason: "unique selected-store Drakes catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category: categoryResolutionForImport(product.name, comparableCategories, product.categoryPaths) };
   });
 }
 

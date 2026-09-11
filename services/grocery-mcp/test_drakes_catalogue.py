@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 import drakes_catalogue
-from drakes_catalogue import DrakesCatalogueSession, cache_products, discover_department_categories, parse_drakes_listing, prune_stale_products, sidebar_data_url, valid_store_id
+from drakes_catalogue import DrakesCatalogueSession, cache_products, cached_products, discover_department_categories, parse_drakes_listing, prune_stale_products, sidebar_data_url, valid_store_id
 
 
 class DrakesCatalogueTests(unittest.TestCase):
@@ -82,7 +82,7 @@ class DrakesCatalogueTests(unittest.TestCase):
             return ""
 
         session = DrakesCatalogueSession(fetch_page=fetch)
-        session.refresh = lambda store, maximum, category, generation: {"category": category, "products": 0, "pages": 1, "truncated": False}  # type: ignore[method-assign]
+        session.refresh = lambda store, maximum, category, generation, category_paths=None: {"category": category, "products": 0, "pages": 1, "truncated": False}  # type: ignore[method-assign]
         outcome = session.refresh_departments("087")
         self.assertEqual(outcome["categories"], ["/category/bread-bakery", "/category/fresh-fruit"])
         self.assertEqual(seen, [])
@@ -106,6 +106,19 @@ class DrakesCatalogueTests(unittest.TestCase):
         with drakes_catalogue.cache_session() as connection:
             rows = connection.execute("SELECT store_id, external_id FROM drakes_products ORDER BY store_id, external_id").fetchall()
             self.assertEqual([tuple(row) for row in rows], [("087", "current"), ("088", "old")])
+
+    def test_preserves_leaf_ancestry_with_cached_listing(self):
+        product = {
+            "store_id": "087", "external_id": "baby-wash", "name": "Baby Wash",
+            "brand": None, "pack_size": None, "unit_price": None, "price": 4.0,
+            "was_price": None, "image_url": None,
+            "product_url": "https://087.drakes.com.au/lines/baby-wash",
+            "category_path": "/category/baby-needs",
+            "category_paths": ["/category/baby", "/category/baby-needs"],
+        }
+        cache_products([product])
+        cached = cached_products("087", 10, 0)
+        self.assertEqual(cached[0]["category_paths"], ["/category/baby", "/category/baby-needs"])
 
 
 if __name__ == "__main__":
