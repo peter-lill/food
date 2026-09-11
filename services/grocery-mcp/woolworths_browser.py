@@ -8,6 +8,7 @@ from pathlib import Path
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 from playwright.sync_api import sync_playwright
+from browser_health import BrowserWatchdog, probe_connections
 
 
 DISPLAY = os.getenv("DISPLAY", ":99")
@@ -49,6 +50,7 @@ def main() -> None:
     Path(PROFILE_DIR).mkdir(parents=True, exist_ok=True)
 
     processes: list[subprocess.Popen] = []
+    watchdog = None
     try:
         processes.append(start_process(
             ["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-ac"],
@@ -69,6 +71,8 @@ def main() -> None:
             f"TCP-LISTEN:{CDP_RELAY_PORT},fork,reuseaddr,bind=0.0.0.0",
             f"TCP:127.0.0.1:{CDP_PORT}",
         ], "private CDP relay"))
+        watchdog = BrowserWatchdog(processes, lambda: probe_connections(VNC_PORT, NOVNC_PORT, CDP_PORT))
+        watchdog.start()
 
         with sync_playwright() as playwright:
             context = playwright.chromium.launch_persistent_context(
@@ -100,11 +104,15 @@ def main() -> None:
             )
             while not stopping:
                 if context.pages:
+                    context.pages[0].evaluate("1")
+                    watchdog.beat()
                     context.pages[0].wait_for_timeout(1_000)
                 else:
-                    time.sleep(1)
+                    raise RuntimeError('Woolworths browser lost every page')
             context.close()
     finally:
+        if watchdog:
+            watchdog.stop()
         for process in reversed(processes):
             if process.poll() is None:
                 process.terminate()

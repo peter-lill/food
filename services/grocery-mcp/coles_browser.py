@@ -11,6 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Empty, Queue
 from urllib.parse import parse_qs, urlparse
+from browser_health import BrowserWatchdog, probe_connections
 
 DISPLAY = os.getenv("DISPLAY", ":99")
 PROFILE_DIR = os.getenv("COLES_BROWSER_PROFILE", "/browser-profile")
@@ -44,6 +45,8 @@ def fatal_browser_error(error: Exception) -> bool:
         "chrome not reachable",
         "disconnected",
         "not connected to devtools",
+        "tab crashed",
+        "target crashed",
     )
     return any(marker in message for marker in markers)
 
@@ -72,6 +75,14 @@ def blank_page_error(url: str) -> BlankColesPageError:
 
 def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
     patcher_module.LooseVersion = parser_type
+
+
+def chromium_major_version(executable: str) -> int:
+    result = subprocess.run([executable, "--version"], capture_output=True, text=True, check=True, timeout=10)
+    match = re.search(r"\b(\d+)\.", result.stdout)
+    if not match:
+        raise RuntimeError("Unable to determine installed Chromium version")
+    return int(match.group(1))
 
 
 def stop(_signum: int, _frame: object) -> None:
@@ -275,6 +286,7 @@ def main() -> None:
 
     processes: list[subprocess.Popen] = []
     server: ThreadingHTTPServer | None = None
+    watchdog = None
     try:
         processes.append(start_process(["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-ac"], "Xvfb"))
         wait_for_x_display()
@@ -287,6 +299,8 @@ def main() -> None:
         ], "noVNC"))
         server = ThreadingHTTPServer(("0.0.0.0", FETCH_PORT), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
+        watchdog = BrowserWatchdog(processes, lambda: probe_connections(VNC_PORT, NOVNC_PORT))
+        watchdog.start()
 
         import undetected_chromedriver as uc
         import undetected_chromedriver.patcher as uc_patcher
@@ -297,7 +311,9 @@ def main() -> None:
         options = uc.ChromeOptions()
         options.add_argument(f"--window-size={WINDOW_SIZE}")
         clear_stale_chromium_profile_locks()
-        driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False)
+        executable = uc.find_chrome_executable()
+        driver = uc.Chrome(options=options, user_data_dir=PROFILE_DIR, headless=False,
+                           browser_executable_path=executable, version_main=chromium_major_version(executable))
         driver.set_page_load_timeout(45)
         try:
             try:
@@ -307,11 +323,21 @@ def main() -> None:
             global browser_ready, browser_failed
             browser_ready = True
             browser_failed = False
+            watchdog.beat()
             print(f"Coles undetected Chrome ready: noVNC={NOVNC_PORT}, fetch={FETCH_PORT}", flush=True)
             while not stopping:
                 try:
                     url, completed, result = requests.get(timeout=1)
                 except Empty:
+                    # Exercise the renderer while idle; /health must not keep
+                    # reporting success after the visible browser has crashed.
+                    try:
+                        driver.execute_script("return 1")
+                        watchdog.beat()
+                    except Exception as error:
+                        browser_failed = True
+                        browser_ready = False
+                        watchdog.exit_for_restart(str(error))
                     continue
                 fatal_error = None
                 try:
@@ -326,6 +352,7 @@ def main() -> None:
                         fatal_error = error
                 finally:
                     completed.set()
+                    watchdog.beat()
                 if fatal_error is not None:
                     print(
                         f"Fatal Coles browser session error; exiting for Docker restart: {fatal_error}",
@@ -335,6 +362,8 @@ def main() -> None:
         finally:
             driver.quit()
     finally:
+        if watchdog:
+            watchdog.stop()
         if server:
             server.shutdown()
             server.server_close()

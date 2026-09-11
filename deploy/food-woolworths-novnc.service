@@ -5,4 +5,6 @@ Wants=food-woolworths-browser.service
 After=network-online.target food-woolworths-browser.service
 
 [Service]
+Restart=on-failure
+RestartSec=5
 ExecStart=/usr/lib/systemd/systemd-socket-proxyd 127.0.0.1:6084

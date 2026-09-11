@@ -13,9 +13,14 @@ with tempfile.TemporaryDirectory() as directory:
     bin_dir.mkdir()
     mocks = {
         "curl": """#!/usr/bin/env python3
-import json, os
+import json, os, sys
 from pathlib import Path
 root = Path(os.environ['FOOD_ROOT'])
+if '/collection/start' in sys.argv[-1]:
+    with (root / 'starts').open('a') as output:
+        output.write(sys.argv[-1] + '\\n')
+    print('{"status":"accepted"}')
+    sys.exit(0)
 counter = root / 'requests'
 n = int(counter.read_text()) + 1 if counter.exists() else 1
 counter.write_text(str(n))
@@ -24,7 +29,7 @@ products = 0 if n < 3 else 2
 complete = n >= 4
 if products:
     (root / 'ready').touch()
-print(json.dumps({'collection': {'total': 1, 'running': int(not complete),
+print(json.dumps({'collection': {'total': 1, 'running': int(n > 1 and not complete),
     'pending': int(not complete), 'completed': int(complete), 'failed': 0,
     'products': products, 'discovery': {'pending': 0, 'failed': 0}}}))
 """,
@@ -52,4 +57,13 @@ printf '%s\\n' "$*" >> "$FOOD_ROOT/imports"
     assert "cached_products=0" in result.stdout
     assert "initial-population" in result.stdout
     assert "final-reconciliation" in result.stdout
+    # The saved initial import must not cause an interrupted sweep to restart
+    # all completed categories when its runner is relaunched.
+    for name in ('requests', 'imports', 'ready'):
+        (root / name).unlink()
+    result = subprocess.run(["bash", str(pipeline), "coles"], env=env,
+                            text=True, capture_output=True, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert len((root / 'imports').read_text().splitlines()) == 1
+    assert 'revisitAllCompleted' not in (root / 'starts').read_text()
 print("Empty-cache catalogue pipeline regression passed.")

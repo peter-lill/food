@@ -49,5 +49,8 @@ jobs:
       - name: Test empty catalogue recovery
         run: python3 scripts/test-retailer-catalogue-pipeline.py
 
+      - name: Test browser and VNC recovery
+        run: python3 -m unittest discover -s services/grocery-mcp -p test_browser_health.py
+
       - name: Build
         run: npm run build

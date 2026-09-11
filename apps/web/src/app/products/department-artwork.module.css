@@ -306,6 +306,24 @@
   box-shadow: 0 16px 42px rgba(0, 0, 0, .2);
 }
 
+:global(.kitchen-mode) .shelfGroup summary {
+  border-color: var(--line);
+  background: var(--surface-soft);
+  color: var(--ink);
+}
+
+:global(.kitchen-mode) .shelfGroup h3 {
+  color: var(--ink);
+}
+
+:global(.kitchen-mode) .shelfGroup summary span {
+  color: var(--muted);
+}
+
+:global(.kitchen-mode) .shelfGroup summary::after {
+  color: var(--accent-dark);
+}
+
 /* The department picker is an editorial browse surface, not a collection of
  * empty dashboard cards.  Give the artwork a deliberate frame and keep each
  * choice compact enough for the next row to remain visible. */
