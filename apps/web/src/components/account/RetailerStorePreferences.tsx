@@ -119,7 +119,7 @@ export function RetailerStorePreferences({ homePostcode, initialEnabled, initial
           return (
             <article className={styles.retailerPanel} key={retailer}>
               <div className={styles.retailerHeading}>
-                <div><strong><RetailerLogo retailer={retailer} /></strong><small>{isEnabled ? "Included in your prices" : "Hidden from your prices"}</small></div>
+                <div><strong><RetailerLogo retailer={retailer} surface="dark" /></strong><small>{isEnabled ? "Included in your prices" : "Hidden from your prices"}</small></div>
                 <label className={styles.switchLabel}>
                   <input checked={isEnabled} onChange={(event) => void toggleRetailer(retailer, event.target.checked)} type="checkbox" />
                   <span>{isEnabled ? "Enabled" : "Disabled"}</span>
@@ -189,7 +189,7 @@ function StoreMap({ store }: { store: Store }) {
     <div><strong>{store.name}</strong><small>Interactive map</small></div>
     <div className={styles.storeMapFrame}>
       <iframe allowFullScreen loading="lazy" referrerPolicy="no-referrer-when-downgrade" src={mapUrl(store)} title={`Map for ${store.name}`} />
-      <span aria-label={`${store.retailer} store location`} className={styles.storeMapMarker} role="img"><RetailerLogo compact retailer={store.retailer} /></span>
+      <span aria-label={`${store.retailer} store location`} className={styles.storeMapMarker} role="img"><RetailerLogo compact retailer={store.retailer} surface="light" /></span>
     </div>
   </div>;
 }
