@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 import aldi_catalogue
-from aldi_catalogue import cache_products, discover_department_categories, discover_leaf_categories, prune_stale_products
+from aldi_catalogue import cache_products, cached_products, category_path_ancestry, discover_department_categories, discover_leaf_categories, prune_stale_products
 
 
 class AldiCatalogueTests(unittest.TestCase):
@@ -15,6 +15,10 @@ class AldiCatalogueTests(unittest.TestCase):
     def tearDown(self):
         aldi_catalogue.ALDI_CATALOGUE_DB = self.original_database
         self.temporary_directory.cleanup()
+
+    def test_preserves_complete_leaf_ancestry(self):
+        path = "/products/meat-seafood/sausage/k/1111111147"
+        self.assertEqual(category_path_ancestry(path), ["/products", "/products/meat-seafood", "/products/meat-seafood/sausage", path])
 
     def test_discovers_only_top_level_department_links(self):
         document = '''

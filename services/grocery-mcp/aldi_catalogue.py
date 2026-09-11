@@ -116,6 +116,16 @@ def discover_leaf_categories(document: str) -> list[str]:
     ]
 
 
+def category_path_ancestry(category_path: str) -> list[str]:
+    """Return the retailer-owned hierarchy for an ALDI leaf URL."""
+    without_key = re.sub(r"/k/\d+$", "", category_path.rstrip("/"))
+    segments = [segment for segment in without_key.split("/") if segment]
+    if not segments or segments[0] != "products":
+        return [category_path]
+    paths = ["/" + "/".join(segments[:index]) for index in range(1, len(segments) + 1)]
+    return paths + ([category_path] if category_path not in paths else [])
+
+
 def cache_connection() -> sqlite3.Connection:
     directory = os.path.dirname(ALDI_CATALOGUE_DB)
     if directory:
@@ -126,13 +136,15 @@ def cache_connection() -> sqlite3.Connection:
         CREATE TABLE IF NOT EXISTS aldi_products (
           external_id TEXT PRIMARY KEY, name TEXT NOT NULL, brand TEXT, pack_size TEXT,
           unit_price TEXT, price REAL NOT NULL, image_url TEXT, product_url TEXT NOT NULL,
-          category_path TEXT NOT NULL, refreshed_at INTEGER NOT NULL,
+          category_path TEXT NOT NULL, category_paths TEXT NOT NULL DEFAULT '[]', refreshed_at INTEGER NOT NULL,
           refresh_generation TEXT
         )
     """)
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(aldi_products)")}
     if "refresh_generation" not in columns:
         connection.execute("ALTER TABLE aldi_products ADD COLUMN refresh_generation TEXT")
+    if "category_paths" not in columns:
+        connection.execute("ALTER TABLE aldi_products ADD COLUMN category_paths TEXT NOT NULL DEFAULT '[]'")
     connection.execute("CREATE INDEX IF NOT EXISTS aldi_products_category ON aldi_products(category_path, name)")
     return connection
 
@@ -154,18 +166,18 @@ def cache_products(products: list[dict], refreshed_at: int | None = None, refres
             connection.execute("""
                 INSERT INTO aldi_products (
                   external_id, name, brand, pack_size, unit_price, price, image_url,
-                  product_url, category_path, refreshed_at, refresh_generation
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  product_url, category_path, category_paths, refreshed_at, refresh_generation
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(external_id) DO UPDATE SET
                   name=excluded.name, brand=excluded.brand, pack_size=excluded.pack_size,
                   unit_price=excluded.unit_price, price=excluded.price, image_url=excluded.image_url,
-                  product_url=excluded.product_url, category_path=excluded.category_path,
+                  product_url=excluded.product_url, category_path=excluded.category_path, category_paths=excluded.category_paths,
                   refreshed_at=excluded.refreshed_at,
                   refresh_generation=excluded.refresh_generation
             """, (
                 product["external_id"], product["name"], product["brand"], product["pack_size"],
                 product["unit_price"], product["price"], product["image_url"], product["product_url"],
-                product["category_path"], now, refresh_generation,
+                product["category_path"], json.dumps(product.get("category_paths", category_path_ancestry(product["category_path"]))), now, refresh_generation,
             ))
     return len(products)
 
@@ -200,6 +212,8 @@ class AldiCatalogueSession:
         while page <= total_pages and page <= maximum:
             suffix = "" if page == 1 else f"?page={page}"
             products, total_pages = parse_aldi_listing(self.read(f"https://www.aldi.com.au{category_path}{suffix}"), category_path)
+            for product in products:
+                product["category_paths"] = category_path_ancestry(product["category_path"])
             all_products.extend(products)
             page += 1
         return {"category": category_path, "products": cache_products(all_products, refresh_generation=refresh_generation), "pages": min(total_pages, maximum), "truncated": total_pages > maximum}
@@ -236,7 +250,13 @@ def status() -> dict:
 def cached_products(limit: int, offset: int) -> list[dict]:
     with cache_session() as connection:
         rows = connection.execute("SELECT * FROM aldi_products ORDER BY category_path, name COLLATE NOCASE, external_id LIMIT ? OFFSET ?", (limit, offset)).fetchall()
-    return [dict(row) for row in rows]
+    products = [dict(row) for row in rows]
+    for product in products:
+        try:
+            product["category_paths"] = json.loads(product["category_paths"])
+        except (TypeError, json.JSONDecodeError):
+            product["category_paths"] = category_path_ancestry(product["category_path"])
+    return products
 
 
 def search_cached_products(query: str, limit: int) -> list[dict]:

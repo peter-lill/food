@@ -24,6 +24,11 @@ assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), 
   productType: "DAIRY",
   source: "retailer-path",
 });
+assert.deepEqual(categoryResolutionForImport("Baby bath wash", new Map(), ["/category/baby", "/category/baby-needs"]), {
+  category: "Baby",
+  productType: "PACKAGED",
+  source: "retailer-path",
+});
 assert.deepEqual(categoryResolutionForImport("Any retailer product", new Map(), "Fruit & Veg"), {
   category: "Fruit & vegetables",
   productType: "GENERIC_PRODUCE",
