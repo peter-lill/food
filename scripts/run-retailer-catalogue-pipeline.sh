@@ -78,11 +78,6 @@ else
   echo "The $retailer collector is already running; attaching the import pipeline to it."
 fi
 
-if [[ "$first_population" == "1" ]]; then
-  import_catalogue "initial-population"
-  touch "$initial_marker"
-fi
-
 deadline=$((SECONDS + max_wait_minutes * 60))
 while true; do
   read -r pending running completed total failed discovery_pending discovery_failed products < <(
@@ -90,7 +85,15 @@ while true; do
   )
   echo "$retailer catalogue: completed=$completed/$total pending=$pending running=$running failed=$failed discovery_pending=$discovery_pending discovery_failed=$discovery_failed cached_products=$products"
 
-  if [[ "$pending" == "0" && "$running" == "0" && "$failed" == "0" && "$completed" == "$total" && "$discovery_pending" == "0" && "$discovery_failed" == "0" ]]; then
+  # A rebuilt installation has no cache yet. Wait for its first products
+  # instead of failing the initial import before discovery can finish.
+  if [[ "$first_population" == "1" && "$products" -gt 0 ]]; then
+    import_catalogue "initial-population"
+    touch "$initial_marker"
+    first_population=0
+  fi
+
+  if [[ "$total" -gt 0 && "$pending" == "0" && "$running" == "0" && "$failed" == "0" && "$completed" == "$total" && "$discovery_pending" == "0" && "$discovery_failed" == "0" ]]; then
     import_catalogue "final-reconciliation"
     echo "$retailer catalogue pipeline completed at $(date --iso-8601=seconds)."
     exit 0

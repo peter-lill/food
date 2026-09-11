@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 
 const apply = process.argv.includes("--apply");
+const skipImports = process.argv.includes("--skip-imports");
 const drakesStore = process.argv.find((argument) => argument.startsWith("--drakes-store="))?.slice("--drakes-store=".length).toLowerCase() ?? "";
 
 if (!apply) throw new Error("This command changes catalogue records. Pass --apply after refreshing the ALDI and selected Drakes catalogue caches.");
@@ -35,8 +36,12 @@ function main() {
   console.log(`Synchronising ALDI and Drakes catalogue categories for Drakes store ${drakesStore}.`);
   // Importers update retained listings as well as new ones. This writes the
   // retailer category path before the category reconciler evaluates it.
-  run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
-  run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
+  // The mass-import workflow publishes each ready cache before it waits for
+  // other retailers. Do not write duplicate price observations at audit time.
+  if (!skipImports) {
+    run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
+    run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
+  }
   run("scripts/retire-stale-imported-catalogue-products.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
   run("scripts/backfill-imported-catalogue-paths.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
   run("scripts/reconcile-imported-categories.ts", ["--apply"]);

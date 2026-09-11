@@ -2,6 +2,7 @@ type RetailerLogoProps = {
   retailer: string;
   compact?: boolean;
   className?: string;
+  surface?: "light" | "dark";
 };
 
 type RetailerLogoDefinition = {
@@ -53,10 +54,10 @@ const logoSources: Record<string, RetailerLogoDefinition> = {
     compactMaxWidth: 70,
   },
   drakes: {
-    src: "https://drakes.com.au/wp-content/themes/drakes/dist/images/logo_f58734b9.png",
+    src: "/retailer-logos/drakes-dark.png",
     alt: "Drakes Supermarkets",
-    width: 320,
-    height: 120,
+    width: 432,
+    height: 110,
     compactMaxHeight: 34,
     compactMaxWidth: 112,
     maxHeight: 42,
@@ -102,7 +103,7 @@ function normaliseRetailer(value: string) {
     .trim();
 }
 
-export function RetailerLogo({ retailer, compact = false, className }: RetailerLogoProps) {
+export function RetailerLogo({ retailer, compact = false, className, surface = "light" }: RetailerLogoProps) {
   const sourceKey = aliases[normaliseRetailer(retailer)];
   const logo = sourceKey ? logoSources[sourceKey] : null;
 
@@ -139,7 +140,7 @@ export function RetailerLogo({ retailer, compact = false, className }: RetailerL
         height={height}
         loading="lazy"
         referrerPolicy="no-referrer"
-        src={logo.src}
+        src={sourceKey === "drakes" && surface === "dark" ? "/retailer-logos/drakes-light.svg" : logo.src}
         style={{
           background: "transparent",
           display: "block",

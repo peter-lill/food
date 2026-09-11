@@ -3,6 +3,7 @@ import "dotenv/config";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { requestCatalogueJson } from "./catalogue-bridge-request";
 
 const apply = process.argv.includes("--apply");
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
@@ -15,13 +16,10 @@ const bridgeUrl = process.env.GROCERY_MCP_BRIDGE_URL?.trim();
 if (!bridgeUrl) throw new Error("GROCERY_MCP_BRIDGE_URL is required.");
 
 type JsonObject = Record<string, unknown>;
-async function request(pathname: string, parameters: Record<string, string> = {}) {
+async function request(pathname: string, parameters: Record<string, string> = {}, timeoutMs = 30_000) {
   const url = new URL(pathname, bridgeUrl);
   for (const [key, value] of Object.entries(parameters)) url.searchParams.set(key, value);
-  const response = await fetch(url, { cache: "no-store", headers: { Accept: "application/json" } });
-  const payload = await response.json().catch(() => ({})) as JsonObject;
-  if (!response.ok || payload.status === "error") throw new Error(`${pathname} failed: ${String(payload.error ?? `HTTP ${response.status}`)}`);
-  return payload;
+  return requestCatalogueJson(url, timeoutMs);
 }
 
 const tsxCli = [
@@ -80,19 +78,22 @@ async function main() {
   await request("/health");
   if (!resumeColes) {
     console.log("Refreshing complete ALDI catalogue.");
-    await request("/aldi/catalogue/refresh", { allDepartments: "true" });
+    await request("/aldi/catalogue/refresh", { allDepartments: "true" }, 60 * 60 * 1000);
     console.log(`Refreshing complete Drakes catalogue for store ${drakesStore}.`);
-    await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" });
+    await request("/drakes/catalogue/refresh", { storeId: drakesStore, allDepartments: "true" }, 60 * 60 * 1000);
   } else {
     console.log(`Resuming Coles at ${resumeColes}; retaining the completed ALDI and Drakes cache refreshes.`);
   }
 
-  await waitForColes(resumeColes);
-  await waitForWoolworths();
+  // Publish the ready caches before waiting on browser-backed retailers.
+  run("scripts/import-aldi-controlled.ts", ["--all", "--apply"]);
+  run("scripts/import-drakes-controlled.ts", [`--store=${drakesStore}`, "--all", "--apply"]);
 
+  await waitForColes(resumeColes);
   run("scripts/import-coles-controlled.ts", ["--all", "--apply"]);
+  await waitForWoolworths();
   run("scripts/import-woolworths-controlled.ts", ["--all", "--apply"]);
-  run("scripts/sync-imported-retailer-catalogues.ts", [`--drakes-store=${drakesStore}`, "--apply"]);
+  run("scripts/sync-imported-retailer-catalogues.ts", [`--drakes-store=${drakesStore}`, "--skip-imports", "--apply"]);
   run("scripts/audit-product-categories.ts", ["--strict", "--limit=200"]);
   console.log("Supported retailer mass import completed: Coles, Woolworths, ALDI and Drakes.");
   console.log("IGA was not included because no verified selected-store IGA catalogue provider is implemented.");
