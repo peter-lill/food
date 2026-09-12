@@ -16,7 +16,8 @@ assert.doesNotMatch(
   /Â|Ã|â€|â†/,
   "the product page must not contain mojibake artefacts",
 );
-assert.match(productHubSource, /category: product\.category \?\? sourceDepartment/, "a family must start from its canonical category, not an incidental retailer aisle");
+assert.match(productHubSource, /const category = product\.category \?\? sourceDepartment/, "a family must start from its canonical category, not an incidental retailer aisle");
+assert.match(productHubSource, /category,\n        shelfLabel:/, "a family must retain that canonical category while adding a separate retailer shelf");
 assert.match(productHubSource, /current\.category = product\.category \?\? departmentFromLegacyWoolworthsPath\(woolworthsAisle\) \?\? current\.category/, "every family variant must be able to replace an older incidental category with its canonical category");
 
 assert.equal(
