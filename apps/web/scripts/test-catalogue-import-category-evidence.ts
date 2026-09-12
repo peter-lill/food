@@ -73,6 +73,31 @@ assert.equal(supportedRetailerCategoryPath("Remedy Kombucha Sparkling Live Cultu
 assert.equal(supportedRetailerCategoryPath("Sara Lee Carrot Cake", ["/category/bakery", "/category/freezer"], "Bakery"), "/category/bakery");
 assert.equal(supportedRetailerCategoryPath("Brussels Sprouts 500g", ["/category/freezer", "/category/fruit-vegetables"], "Other"), "/category/fruit-vegetables");
 assert.equal(supportedRetailerCategoryPath("Unknown product", ["/category/dairy", "/category/pantry"], "Other"), null);
+// ALDI promotional collections are navigation/marketing evidence, not Food
+// departments. When a product is also observed in a genuine taxonomy leaf,
+// the genuine leaf must win regardless of catalogue observation order.
+assert.equal(
+  supportedRetailerCategoryPath(
+    "Goat's Cheese Barrel Spreadable",
+    [
+      "/products/lower-prices/k/1588161420755353",
+      "/products/dairy-eggs-fridge/cheese/k/1111111163",
+    ],
+    "Other",
+  ),
+  "/products/dairy-eggs-fridge/cheese/k/1111111163",
+);
+assert.equal(
+  supportedRetailerCategoryPath(
+    "Goat's Cheese Barrel Spreadable",
+    [
+      "/products/dairy-eggs-fridge/cheese/k/1111111163",
+      "/products/lower-prices/k/1588161420755353",
+    ],
+    "Other",
+  ),
+  "/products/dairy-eggs-fridge/cheese/k/1111111163",
+);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("Any retailer product", new Map(), "Household"), "Other"), true);
 assert.equal(canRepairImportedCategory(categoryResolutionForImport("10K Powerbank", new Map(), "/category/general-merchandise"), "Dairy & eggs"), true);
 

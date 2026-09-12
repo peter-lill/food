@@ -17,10 +17,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-from aldi_catalogue import ALDI_PRODUCTS_URL, AldiCatalogueSession
+from aldi_catalogue import AldiCatalogueSession
 from catalogue_taxonomy_evidence import record_coles_category_observations, coles_taxonomy_evidence_status
 from drakes_catalogue import DrakesCatalogueSession, sidebar_data_url, valid_store_id
-from retailer_taxonomy import aldi_category_nodes, coles_browse_paths, deepest_paths, drakes_sidebar_nodes
+from retailer_taxonomy import coles_browse_paths, deepest_paths
 
 
 COLES_ROOT_CATEGORIES = (
@@ -191,67 +191,45 @@ def scan_coles(root: str | None, max_categories: int | None) -> dict:
 
 
 def scan_aldi(max_categories: int | None) -> dict:
+    if max_categories is not None:
+        raise ValueError("ALDI leaf refresh must run as a complete taxonomy scan; --max-categories is not supported")
     session = AldiCatalogueSession()
-    first_document = session.read(ALDI_PRODUCTS_URL)
-    queue: deque[str] = deque(node.path for node in aldi_category_nodes(first_document))
-    queued = set(queue)
-    completed: list[str] = []
-    failures: list[dict[str, str]] = []
 
-    while queue and (max_categories is None or len(completed) < max_categories):
-        category = queue.popleft()
-        try:
-            outcome = session.refresh(category)
-            document = session.read(f"https://www.aldi.com.au{category}")
-            children = aldi_category_nodes(document)
-        except Exception as error:  # noqa: BLE001
-            failures.append({"category": category, "error": str(error)})
-            continue
-        completed.append(category)
-        print(f"ALDI {category}: {outcome['products']} cached products; {len(children)} category links observed.")
-        for child in children:
-            if child.path not in queued:
-                queue.append(child.path)
-                queued.add(child.path)
+    # ALDI's catalogue collector discovers leaf paths before refreshing
+    # products. Parent/"All" categories are navigation evidence only.
+    outcome = session.refresh_departments()
 
     return {
         "retailer": "ALDI",
-        "completedCategories": len(completed),
-        "discoveredCategories": len(queued),
-        "failedCategories": failures,
-        "remainingCategories": len(queue),
+        "completedCategories": len(outcome["categories"]),
+        "discoveredCategories": len(outcome["categories"]),
+        "failedCategories": [],
+        "remainingCategories": 0,
+        "truncatedCategories": outcome.get("truncatedCategories", []),
+        "products": outcome.get("products", 0),
     }
 
 
 def scan_drakes(store_id: str, max_categories: int | None) -> dict:
+    if max_categories is not None:
+        raise ValueError("Drakes leaf refresh must run as a complete taxonomy scan; --max-categories is not supported")
     store = valid_store_id(store_id)
     session = DrakesCatalogueSession()
-    home = session.read(f"https://{store}.drakes.com.au/")
-    sidebar_url = sidebar_data_url(home)
-    if not sidebar_url:
-        raise RuntimeError("Drakes did not expose its category sidebar data URL")
-    nodes = drakes_sidebar_nodes(session.read(sidebar_url))
-    queue = deque(node.path for node in nodes)
-    completed: list[str] = []
-    failures: list[dict[str, str]] = []
 
-    while queue and (max_categories is None or len(completed) < max_categories):
-        category = queue.popleft()
-        try:
-            outcome = session.refresh(store, category_path=category)
-        except Exception as error:  # noqa: BLE001
-            failures.append({"category": category, "error": str(error)})
-            continue
-        completed.append(category)
-        print(f"Drakes {category}: {outcome['products']} cached products.")
+    # Drakes' catalogue collector selects explicit leaves and supplies their
+    # root-to-leaf ancestry. Parent/"All departments" nodes are navigation
+    # evidence only.
+    outcome = session.refresh_departments(store)
 
     return {
         "retailer": "Drakes",
         "storeId": store,
-        "completedCategories": len(completed),
-        "discoveredCategories": len(nodes),
-        "failedCategories": failures,
-        "remainingCategories": len(queue),
+        "completedCategories": len(outcome["categories"]),
+        "discoveredCategories": len(outcome["categories"]),
+        "failedCategories": [],
+        "remainingCategories": 0,
+        "truncatedCategories": outcome.get("truncatedCategories", []),
+        "products": outcome.get("products", 0),
     }
 
 
