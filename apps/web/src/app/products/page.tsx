@@ -100,6 +100,10 @@ function collapseRepeatedPhrase(value: string) {
   return value.trim();
 }
 
+function shelfMonogram(label: string) {
+  return label.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toLocaleUpperCase("en-AU");
+}
+
 function productDisplay(product: { name: string; canonicalName: string | null; category: string | null }) {
   const rawName = collapseRepeatedPhrase(product.name);
   const canonicalName = product.canonicalName ? collapseRepeatedPhrase(product.canonicalName) : null;
@@ -310,11 +314,9 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </Link>;
           }) : department && products.length ? <div className={`${departmentStyles.fullWidth} ${styles.departmentBrowse}`}>
             <nav aria-label={`${department} categories`} className={styles.shelfFilters}>
-              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span className={styles.shelfFilterImage}><img alt="" src={artworkForDepartment(department)} /></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
+              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(`All ${department}`)}</b></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
               {shelfGroups.map(([label, shelfGroupProducts]) => {
-                const representative = shelfGroupProducts.find((product) => product.imageUrl) ?? null;
-                const image = representative?.imageUrl ? `/api/products/${encodeURIComponent(representative.id)}/image?v=${encodeURIComponent(imageVersion(representative.imageUrl))}` : artworkForDepartment(department);
-                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span className={styles.shelfFilterImage}><img alt="" loading="lazy" src={image} /></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
+                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(label)}</b></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
               })}
             </nav>
             <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>

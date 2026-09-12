@@ -39,6 +39,16 @@ assert.equal(
   "a persisted retailer ancestry chain must display its final shelf rather than the encoded path",
 );
 assert.equal(
+  displayShelfLabel("/products/pantry/sauces/k/1111111173"),
+  "Sauces",
+  "ALDI taxonomy keys must not become customer-facing shelf labels",
+);
+assert.equal(
+  displayShelfLabel("/products/drinks/tea-coffee-hot-chocolate/k/1111111211"),
+  "Tea Coffee Hot Chocolate",
+  "retailer shelf slugs must render with customer-facing capitalisation",
+);
+assert.equal(
   preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
   "Deli Meat",
   "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",
