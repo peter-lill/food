@@ -130,7 +130,7 @@ export function displayShelfLabel(aisle: string | null | undefined) {
 
 /**
  * A product family can have several retailer variants. Keep the most specific
- * Woolworths shelf rather than whichever variant happens to sort first: for
+ * imported retailer shelf rather than whichever variant happens to sort first: for
  * example, `Deli meat` must replace the intermediate `Deli` shelf.
  */
 export function preferMoreSpecificShelfLabel(
@@ -156,6 +156,16 @@ export function preferMoreSpecificShelfLabel(
     return value.split(" ").filter(Boolean).length;
   };
   return specificity(candidateNormalised) > specificity(currentNormalised) ? candidate : current;
+}
+
+export function shelfLabelFromRetailerListings(
+  listings: Array<{ aisle: string | null }>,
+  department: string | null | undefined,
+) {
+  return listings.reduce<string | null>(
+    (current, listing) => preferMoreSpecificShelfLabel(current, displayShelfLabel(listing.aisle), department),
+    null,
+  );
 }
 
 /**
@@ -512,6 +522,7 @@ export async function getProductHubList(query?: string, department?: Supermarket
     if (!current) {
       const woolworthsAisle = product.storeProducts.find((listing) => listing.retailer === "Woolworths")?.aisle;
       const sourceDepartment = departmentFromLegacyWoolworthsPath(woolworthsAisle);
+      const category = product.category ?? sourceDepartment;
       grouped.set(familyKey, {
         id: product.id,
         name: product.name,
@@ -519,8 +530,8 @@ export async function getProductHubList(query?: string, department?: Supermarket
         slug: product.slug,
         brand: product.brand,
         description: heroProductDescription(product.description, product.brand),
-        category: product.category ?? sourceDepartment,
-        shelfLabel: displayShelfLabel(woolworthsAisle),
+        category,
+        shelfLabel: shelfLabelFromRetailerListings(product.storeProducts, category),
         productType: product.productType,
         imageUrl: familyImage ?? bestProductImage(product.imageUrl, product.storeProducts, storedImageProducts.has(product.id)),
         barcode: product.barcode,
@@ -550,7 +561,7 @@ export async function getProductHubList(query?: string, department?: Supermarket
     current.category = product.category ?? departmentFromLegacyWoolworthsPath(woolworthsAisle) ?? current.category;
     current.shelfLabel = preferMoreSpecificShelfLabel(
       current.shelfLabel,
-      displayShelfLabel(woolworthsAisle),
+      shelfLabelFromRetailerListings(product.storeProducts, current.category),
       current.category,
     );
     if (isGeneric) {
