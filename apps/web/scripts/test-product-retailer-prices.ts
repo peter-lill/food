@@ -38,9 +38,9 @@ assert.equal(
   "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",
 );
 assert.equal(
-  shelfLabelFromRetailerListings([{ aisle: "Pantry" }, { aisle: "Asian Sauces & Seasonings" }], "Pantry"),
+  shelfLabelFromRetailerListings([{ aisle: "Pantry" }, { aisle: "Asian Sauces & Seasonings" }, { aisle: "/shop/browse/pantry/cooking-sauces" }], "Pantry"),
   "Asian Sauces & Seasonings",
-  "ALDI and Drakes leaf aisles must contribute shelves alongside Woolworths paths",
+  "ALDI, Coles and Drakes aisle data must contribute shelves alongside Woolworths paths",
 );
 assert.equal(
   productFamilyName("D'Orsogna Premium Ham The Bone Shaved From The Deli Per 100g"),
