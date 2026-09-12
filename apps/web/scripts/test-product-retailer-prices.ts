@@ -34,6 +34,11 @@ assert.equal(
   "legacy Woolworths browse paths must render as a human shelf label",
 );
 assert.equal(
+  displayShelfLabel("/category/baby | /category/baby-needs"),
+  "Baby Needs",
+  "a persisted retailer ancestry chain must display its final shelf rather than the encoded path",
+);
+assert.equal(
   preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
   "Deli Meat",
   "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",

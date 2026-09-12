@@ -7,7 +7,6 @@ import { normaliseProductText, slugifyProductName } from "../src/lib/products/pr
 import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
   categoryForWoolworthsPaths,
-  shelfForWoolworthsPaths,
   canonicalWoolworthsDescription,
   cleanBarcode,
   importEligibility,
@@ -145,7 +144,7 @@ function listingData(plan: Plan) {
   return {
     retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
     productUrl: `https://www.woolworths.com.au/shop/productdetails/${product.stockcode}`,
-    imageUrl: product.image_url, aisle: shelfForWoolworthsPaths(product.category_paths), active: true, lastSeenAt: new Date(),
+    imageUrl: product.image_url, aisle: product.category_paths.join(" | "), active: true, lastSeenAt: new Date(),
   };
 }
 

@@ -81,7 +81,7 @@ async function plansForPage(products: AldiProduct[], aliasesSeen: Set<string>) {
   });
 }
 
-function listing(plan: Plan) { const product = plan.product; return { retailerProductName: product.name, brand: product.brand, packSize: product.packSize, productUrl: product.productUrl, imageUrl: product.imageUrl, aisle: product.categoryPath, active: true, lastSeenAt: new Date() }; }
+function listing(plan: Plan) { const product = plan.product; return { retailerProductName: product.name, brand: product.brand, packSize: product.packSize, productUrl: product.productUrl, imageUrl: product.imageUrl, aisle: (product.categoryPaths.length ? product.categoryPaths : [product.categoryPath]).join(" | "), active: true, lastSeenAt: new Date() }; }
 async function attach(plans: Plan[]) {
   const applicable = plans.filter((plan) => plan.disposition !== "skip"); const creates = applicable.filter((plan) => plan.disposition === "create"); const newListings = applicable.filter((plan) => plan.disposition !== "retain"); const retained = applicable.filter((plan) => plan.disposition === "retain");
   await prisma.$transaction(async (tx) => {

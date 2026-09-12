@@ -64,7 +64,7 @@ assert.match(importerSource, /canonicalWoolworthsDescription/, "the importer mus
 assert.match(importerSource, /UPDATE "Product" AS target/, "retained listings must repair blank or brand-only canonical descriptions");
 assert.match(importerSource, /updateExistingProductClassifications/, "bulk apply must repair categories on retained Woolworths products");
 assert.match(importerSource, /categoryForWoolworthsPaths\(plan\.product\.category_paths/, "category reindexing must use every observed Woolworths source path");
-assert.match(importerSource, /shelfForWoolworthsPaths\(product\.category_paths\)/, "retailer shelves must use the selected source path");
+assert.match(importerSource, /aisle: product\.category_paths\.join\(" \| "\)/, "retailer listings must retain every authoritative Woolworths category path");
 assert.match(
   importerSource,
   /tx\.product\.updateMany\([\s\S]*data: \{ category: group\.category, productType: group\.productType \}/,
