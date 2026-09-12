@@ -315,7 +315,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
           }) : department && products.length ? <div className={`${departmentStyles.fullWidth} ${styles.departmentBrowse}`}>
             <nav aria-label={`${department} categories`} className={styles.shelfFilters}>
               <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(`All ${department}`)}</b></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
-              {shelfGroups.map(([label]) => {
+              {shelfGroups.map(([label, shelfGroupProducts]) => {
                 return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(label)}</b></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
               })}
             </nav>
