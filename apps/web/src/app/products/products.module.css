@@ -618,3 +618,13 @@
 }
 
 .priceComparisonPanel{grid-column:span 1}.priceComparison{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.retailerPriceOption,.bestRetailerPrice{display:grid;gap:7px;padding:16px;border:1px solid var(--border);border-radius:18px;background:var(--surface-muted)}.bestRetailerPrice{border-color:color-mix(in srgb,var(--accent) 42%,var(--border));background:#edf8f0}.retailerPriceOption [data-retailer-logo],.bestRetailerPrice [data-retailer-logo]{display:inline-flex;align-items:center;max-width:150px;max-height:32px}.retailerPriceOption [data-retailer-logo] img,.bestRetailerPrice [data-retailer-logo] img{width:100%!important;height:100%!important;max-width:100%!important;max-height:100%!important;object-fit:contain!important}.retailerPriceOption strong,.bestRetailerPrice strong{font-size:1.35rem}.retailerPriceOption small,.bestRetailerPrice small{color:var(--text-soft)}.bestRetailerPrice>span{width:max-content;padding:5px 8px;border-radius:999px;background:var(--accent);color:#fff;font-size:.7rem;font-weight:800}@media (max-width:760px){.priceComparison{grid-template-columns:1fr}}
+
+/* Retailer cards keep their identity in the dark theme while preserving
+   readable price and date text. */
+.priceComparison [data-retailer="coles"] { background: #e8f6ed; border-color: #a8d6b5; color: #173d27; }
+.priceComparison [data-retailer="drakes"] { background: #282923; border-color: #6c6d53; color: #f7f4e9; }
+.priceComparison [data-retailer="woolworths"] { background: #e9f4df; border-color: #b7d59d; color: #23411b; }
+.priceComparison [data-retailer="aldi"] { background: #e8f0fb; border-color: #a8c3e9; color: #17345f; }
+.priceComparison [data-retailer] strong { color: inherit; }
+.priceComparison [data-retailer] small { color: color-mix(in srgb, currentColor 72%, transparent); }
+.priceComparison [data-retailer] .bestRetailerPrice>span { background: #1bafd2; color: #fff; }

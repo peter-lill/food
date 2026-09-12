@@ -30,6 +30,33 @@ function date(value: Date | null) {
   return value ? new Intl.DateTimeFormat("en-AU", { dateStyle: "medium" }).format(value) : "Not recorded";
 }
 
+function priceHistoryDate(value: Date, includeTime: boolean) {
+  return new Intl.DateTimeFormat("en-AU", includeTime
+    ? { dateStyle: "medium", timeStyle: "short" }
+    : { dateStyle: "medium" }).format(value);
+}
+
+function compactPriceHistory<T extends { retailer: string; price: number; isSpecial: boolean; observedAt: Date }>(observations: T[]) {
+  const sameDay = new Map<string, Set<string>>();
+  const dayKey = (observation: T) => `${observation.retailer}|${observation.observedAt.toLocaleDateString("en-AU")}`;
+  for (const observation of observations) {
+    const key = dayKey(observation);
+    const prices = sameDay.get(key) ?? new Set<string>();
+    prices.add(`${observation.price}|${observation.isSpecial}`);
+    sameDay.set(key, prices);
+  }
+  const seen = new Set<string>();
+  return observations.filter((observation) => {
+    const key = `${dayKey(observation)}|${observation.price}|${observation.isSpecial}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).map((observation) => ({
+    observation,
+    showTime: (sameDay.get(dayKey(observation))?.size ?? 0) > 1,
+  }));
+}
+
 function oneDecimal(value: number) {
   return new Intl.NumberFormat("en-AU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
 }
@@ -195,15 +222,16 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             {currentRetailerPrices.map((price, index) => {
               const listingUrl = price.sourceUrl ?? product.storeProducts.find((listing) => listing.retailer === price.retailer)?.productUrl;
               const content = <>
-                <div className={styles.retailerPriceHeading}><RetailerLogo compact retailer={price.retailer} />{listingUrl ? <span aria-label={`Open ${price.retailer} product page`} role="img">↗</span> : null}</div>
+                <div className={styles.retailerPriceHeading}><RetailerLogo compact retailer={price.retailer} surface={price.retailer.toLowerCase() === "drakes" ? "dark" : "light"} />{listingUrl ? <span aria-label={`Open ${price.retailer} product page`} role="img">↗</span> : null}</div>
                 <strong>{money(price.price)}</strong>
                 <small>{price.isSpecial ? "On special" : "Current price"} · {date(price.observedAt)}</small>
                 {index === 0 ? <span>Best price</span> : null}
               </>;
               const className = index === 0 ? styles.bestRetailerPrice : styles.retailerPriceOption;
+              const retailerKey = price.retailer.toLowerCase();
               return listingUrl
-                ? <a className={`${className} ${styles.retailerPriceLink}`} href={listingUrl} key={price.retailer} rel="noopener noreferrer" target="_blank">{content}</a>
-                : <div className={className} key={price.retailer}>{content}</div>;
+                ? <a className={`${className} ${styles.retailerPriceLink}`} data-retailer={retailerKey} href={listingUrl} key={price.retailer} rel="noopener noreferrer" target="_blank">{content}</a>
+                : <div className={className} data-retailer={retailerKey} key={price.retailer}>{content}</div>;
             })}
           </div>
         </article> : null}
@@ -295,7 +323,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
             <div>{listing.productUrl ? <a className={styles.retailerPriceLink} href={listing.productUrl} rel="noopener noreferrer" target="_blank"><span className={styles.retailerPriceHeading}><RetailerLogo compact retailer={listing.retailer} /><span aria-label={`Open ${listing.retailer} product page`} role="img">↗</span></span><strong>{priceValue}</strong><small>{priceDetail} · View retailer product</small></a> : <><strong>{priceValue}</strong><small>{priceDetail}</small></>}</div>
           </li>;
         })}</ul></article> : null}
-        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{product.priceObservations.slice(0, 12).map((observation) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{priceObservationKind(observation.source)}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{date(observation.observedAt)}</small></div></li>)}</ul></article> : null}
+        {product.priceObservations.length ? <article className={styles.panel}><h2>Recent price history</h2><ul className={styles.list}>{compactPriceHistory(product.priceObservations).slice(0, 12).map(({ observation, showTime }) => <li className={styles.listItem} key={observation.id}><div><strong>{observation.retailer}</strong><small>{priceObservationKind(observation.source)}{observation.isSpecial ? " · special" : " · regular"}</small></div><div><strong>{money(observation.price)}</strong><small>{priceHistoryDate(observation.observedAt, showTime)}</small></div></li>)}</ul></article> : null}
         {product.recipes.length ? <article className={styles.panel}><h2>Used in recipes</h2><div className={styles.recipeGrid}>{product.recipes.map((recipe) => <a className={styles.recipeCard} href={recipe.sourceUrl ?? "/recipes"} key={recipe.id} rel={recipe.sourceUrl ? "noopener noreferrer" : undefined} target={recipe.sourceUrl ? "_blank" : undefined}>{recipe.imageUrl ? <img alt={`Finished ${recipe.name}`} src={recipe.imageUrl} /> : <span aria-hidden="true">&#9671;</span>}<div><h3>{recipe.name}</h3>{recipe.description ? <p>{recipe.description}</p> : null}<small>{[recipe.minutes ? `${recipe.minutes} min` : null, recipe.sourceName ?? "Food recipe"].filter(Boolean).join(" · ")}</small><strong>View recipe →</strong></div></a>)}</div></article> : null}
 
         {!isGenericProduct ? <article className={`${styles.panel} ${styles.nutritionPanel}`}>
