@@ -152,6 +152,9 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
   const observed = observedLabel(product.latestObservedAt);
   const family = product.variantCount > 1;
   const generic = isGenericFood(product);
+  const categoryLabel = category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised");
+  const shelf = shelfGroupForDepartment(product.shelfLabel, category ?? "Other");
+  const showShelf = Boolean(product.shelfLabel) && shelf !== categoryLabel;
   const detailLine = family || generic ? null : product.brand;
   const productImage = product.imageUrl
     ? `/api/products/${encodeURIComponent(product.id)}/image?v=${encodeURIComponent(imageVersion(product.imageUrl))}`
@@ -172,7 +175,8 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
       </div>
       <div className={styles.cardBody}>
         <div className={styles.cardTopline}>
-          <span>{category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised")}</span>
+          <span>{categoryLabel}</span>
+          {showShelf ? <small>{shelf}</small> : null}
         </div>
         <div className={styles.priceSummary}>
           <small>Best price</small>

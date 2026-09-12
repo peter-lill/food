@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, productHubFamilyName, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, productHubFamilyName, shelfLabelFromRetailerListings, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
@@ -36,6 +36,11 @@ assert.equal(
   preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
   "Deli Meat",
   "a family must replace an intermediate Deli shelf with the meaningful Deli Meat leaf",
+);
+assert.equal(
+  shelfLabelFromRetailerListings([{ aisle: "Pantry" }, { aisle: "Asian Sauces & Seasonings" }], "Pantry"),
+  "Asian Sauces & Seasonings",
+  "ALDI and Drakes leaf aisles must contribute shelves alongside Woolworths paths",
 );
 assert.equal(
   productFamilyName("D'Orsogna Premium Ham The Bone Shaved From The Deli Per 100g"),
@@ -207,6 +212,8 @@ assert.match(productPageSource, /<RetailerLogo compact retailer=\{listing\.retai
 assert.match(productPageSource, /priceObservationKind\(observation\.source\)/, "recent price history must translate internal ingestion identifiers before rendering");
 assert.doesNotMatch(productPageSource, /<small>\{observation\.source\}/, "recent price history must never render internal ingestion identifiers");
 assert.match(productHubSource, /getProductDepartmentCounts/, "the default catalogue must build a complete department index instead of relying on its first page of products");
+assert.match(productHubSource, /shelfLabelFromRetailerListings\(product\.storeProducts, category\)/, "the first family variant must use shelves from every imported retailer");
+assert.match(productHubSource, /shelfLabelFromRetailerListings\(product\.storeProducts, current\.category\)/, "later family variants must use shelves from every imported retailer");
 assert.doesNotMatch(productCatalogueSource, /getProductHubRecordCount/, "the compact catalogue should not fetch an unused record-count banner metric");
 assert.doesNotMatch(productCatalogueSource, /productRecordCount\.toLocaleString\("en-AU"\)/, "the compact catalogue should not render the removed record-count banner");
 assert.match(productCatalogueSource, /<ProductActions \/>/, "catalogue actions must remain available in the compact toolbar");
@@ -235,6 +242,7 @@ assert.match(productHubStyles, /\.grid\{align-items:start\}/, "desktop product c
 assert.match(productHubStyles, /\.card\{grid-template-rows:132px auto\}/, "desktop product cards must use a compact image band");
 assert.match(productCatalogueSource, /className=\{styles\.priceSummary\}/, "product cards must present one prominent best-price summary");
 assert.match(productCatalogueSource, /className=\{styles\.cardFooter\}/, "product cards must retain retailer and checked details in a compact footer");
+assert.match(productCatalogueSource, /\{showShelf \? <small>\{shelf\}<\/small> : null\}/, "product cards must identify the selected retailer shelf as well as their department");
 assert.match(productCatalogueSource, /className=\{styles\.specialImageSlot\}/, "special indicators must occupy the image band without shifting product details");
 assert.match(productHubStyles, /\.specialImageSlot\{position:absolute/, "special indicators must use a fixed image-band position");
 assert.match(productHubStyles, /\.priceSummary strong\{[^}]*font-size:1\.38rem/, "product card prices must remain visually prominent in the dense catalogue layout");
