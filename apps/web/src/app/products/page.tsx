@@ -100,10 +100,6 @@ function collapseRepeatedPhrase(value: string) {
   return value.trim();
 }
 
-function shelfMonogram(label: string) {
-  return label.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]).join("").toLocaleUpperCase("en-AU");
-}
-
 function productDisplay(product: { name: string; canonicalName: string | null; category: string | null }) {
   const rawName = collapseRepeatedPhrase(product.name);
   const canonicalName = product.canonicalName ? collapseRepeatedPhrase(product.canonicalName) : null;
@@ -127,7 +123,7 @@ function isGenericFood(product: Pick<ProductDisplayInput, "name" | "canonicalNam
   return genericFoodTerms.some((term) => name === term || name.endsWith(` ${term}`) || name.startsWith(`${term} `));
 }
 
-function CatalogueIcon({ name }: { name: "library" | "scan" | "receipt" | "manage" | "pantry" | "price" | "recipe" | "store" }) {
+function CatalogueIcon({ name }: { name: "library" | "scan" | "receipt" | "manage" | "pantry" | "price" | "recipe" | "search" | "store" }) {
   const common = { fill: "none", height: 20, stroke: "currentColor", strokeLinecap: "round" as const, strokeLinejoin: "round" as const, strokeWidth: 1.9, viewBox: "0 0 24 24", width: 20 };
   if (name === "library") return <svg {...common}><path d="M4 6.5 12 3l8 3.5v11L12 21l-8-3.5v-11Z" /><path d="M4 6.5 12 10l8-3.5M12 10v11" /></svg>;
   if (name === "scan") return <svg {...common}><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" /><path d="M8 9v6M11 9v6M14 9v6M16 9v6" /></svg>;
@@ -136,6 +132,7 @@ function CatalogueIcon({ name }: { name: "library" | "scan" | "receipt" | "manag
   if (name === "pantry") return <svg {...common}><path d="M5 9h14v11H5zM7 9V5h10v4M9 13h6" /></svg>;
   if (name === "price") return <svg {...common}><path d="m4 4 11.5 0L20 8.5 8.5 20 4 15.5V4Z" /><circle cx="9" cy="9" r="1" /></svg>;
   if (name === "recipe") return <svg {...common}><path d="M7 3h10v18H7zM10 3v4h4V3M10 12h4M10 16h4" /></svg>;
+  if (name === "search") return <svg {...common}><circle cx="10.8" cy="10.8" r="5.8" /><path d="m15.2 15.2 4.3 4.3" /></svg>;
   return <svg {...common}><path d="M4 10h16v10H4zM6 10V6h12v4M8 14h.01M12 14h.01M16 14h.01" /></svg>;
 }
 
@@ -314,9 +311,13 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </Link>;
           }) : department && products.length ? <div className={`${departmentStyles.fullWidth} ${styles.departmentBrowse}`}>
             <nav aria-label={`${department} categories`} className={styles.shelfFilters}>
-              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(`All ${department}`)}</b></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
+              <Link className={!shelf ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref()}><span aria-hidden="true" className={styles.shelfFilterImage}><img alt="" src={artworkForDepartment(department)} /></span><span>All {department}</span><strong>{allProducts.length}</strong></Link>
               {shelfGroups.map(([label, shelfGroupProducts]) => {
-                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><b>{shelfMonogram(label)}</b></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
+                const representative = shelfGroupProducts.find((product) => product.imageUrl) ?? null;
+                const image = representative?.imageUrl
+                  ? `/api/products/${encodeURIComponent(representative.id)}/image?v=${encodeURIComponent(imageVersion(representative.imageUrl))}`
+                  : artworkForDepartment(department);
+                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><img alt="" loading="lazy" src={image} /></span><span>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
               })}
             </nav>
             <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
@@ -351,7 +352,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
             </details>
           )) : (
             <div className={styles.empty}>
-              <span aria-hidden="true">âŒ•</span><strong>No products found</strong><p>Try another search or filter.</p>
+              <span aria-hidden="true" className={styles.emptyIcon}><CatalogueIcon name="search" /></span><strong>No products found</strong><p>Try another search or filter.</p>
             </div>
           )}
         </div>
