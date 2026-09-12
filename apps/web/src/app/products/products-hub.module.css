@@ -186,6 +186,19 @@
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .16));
 }
 
+/* Use an explicit label element so image framing can never suppress the name. */
+.shelfFilterLabel {
+  display: -webkit-box !important;
+  min-height: 2.56em;
+  overflow: hidden;
+  color: inherit;
+  font-size: .74rem;
+  font-weight: 800;
+  line-height: 1.28;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 /* The empty search state is informational, so it stays neutral rather than
    competing with the search action's cyan emphasis. */
 .emptyIcon {
