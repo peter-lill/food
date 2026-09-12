@@ -120,6 +120,57 @@ class DrakesCatalogueTests(unittest.TestCase):
         cached = cached_products("087", 10, 0)
         self.assertEqual(cached[0]["category_paths"], ["/category/baby", "/category/baby-needs"])
 
+    def test_same_product_in_two_leaves_same_generation_retains_both_paths(self):
+        product = {
+            "store_id": "087", "external_id": "shared-product", "name": "Shared Product",
+            "brand": None, "pack_size": None, "unit_price": None, "price": 5.0,
+            "was_price": None, "image_url": None,
+            "product_url": "https://087.drakes.com.au/lines/shared-product",
+            "category_path": "/category/first-leaf",
+            "category_paths": ["/category/first-parent", "/category/first-leaf"],
+        }
+
+        cache_products([product], 100, "same-run")
+        cache_products([{
+            **product,
+            "category_path": "/category/second-leaf",
+            "category_paths": ["/category/second-parent", "/category/second-leaf"],
+        }], 101, "same-run")
+
+        cached = cached_products("087", 10, 0)
+        self.assertEqual(
+            cached[0]["category_paths"],
+            [
+                "/category/first-parent",
+                "/category/first-leaf",
+                "/category/second-parent",
+                "/category/second-leaf",
+            ],
+        )
+
+    def test_new_generation_does_not_retain_old_category_paths(self):
+        product = {
+            "store_id": "087", "external_id": "moving-product", "name": "Moving Product",
+            "brand": None, "pack_size": None, "unit_price": None, "price": 5.0,
+            "was_price": None, "image_url": None,
+            "product_url": "https://087.drakes.com.au/lines/moving-product",
+            "category_path": "/category/old-leaf",
+            "category_paths": ["/category/old-parent", "/category/old-leaf"],
+        }
+
+        cache_products([product], 100, "old-run")
+        cache_products([{
+            **product,
+            "category_path": "/category/new-leaf",
+            "category_paths": ["/category/new-parent", "/category/new-leaf"],
+        }], 200, "new-run")
+
+        cached = cached_products("087", 10, 0)
+        self.assertEqual(
+            cached[0]["category_paths"],
+            ["/category/new-parent", "/category/new-leaf"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

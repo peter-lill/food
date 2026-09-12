@@ -180,6 +180,21 @@ def cache_products(products: list[dict], refreshed_at: int | None = None, refres
     now = refreshed_at if refreshed_at is not None else int(time.time())
     with cache_session() as connection:
         for product in products:
+            category_paths = product.get("category_paths", [product["category_path"]])
+
+            if refresh_generation is not None:
+                existing = connection.execute(
+                    """
+                    SELECT category_paths, refresh_generation
+                    FROM drakes_products
+                    WHERE store_id = ? AND external_id = ?
+                    """,
+                    (product["store_id"], product["external_id"]),
+                ).fetchone()
+                if existing and existing["refresh_generation"] == refresh_generation:
+                    previous_paths = json.loads(existing["category_paths"] or "[]")
+                    category_paths = list(dict.fromkeys(previous_paths + category_paths))
+
             connection.execute("""
                 INSERT INTO drakes_products (
                   store_id, external_id, name, brand, pack_size, unit_price, price,
@@ -195,7 +210,7 @@ def cache_products(products: list[dict], refreshed_at: int | None = None, refres
             """, tuple(product[key] for key in (
                 "store_id", "external_id", "name", "brand", "pack_size", "unit_price",
                 "price", "was_price", "image_url", "product_url", "category_path",
-            )) + (json.dumps(product.get("category_paths", [product["category_path"]])), now, refresh_generation))
+            )) + (json.dumps(category_paths), now, refresh_generation))
     return len(products)
 
 

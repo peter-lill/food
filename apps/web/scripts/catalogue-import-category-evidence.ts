@@ -105,17 +105,29 @@ export function supportedRetailerCategoryPath(
   });
   if (!recognised.length) return null;
 
+  const deepestPath = (candidates: typeof recognised) =>
+    candidates
+      .map((candidate, index) => ({ ...candidate, index }))
+      .sort((a, b) => {
+        const depthDifference =
+          b.path.split("/").filter(Boolean).length
+          - a.path.split("/").filter(Boolean).length;
+        return depthDifference || a.index - b.index;
+      })[0]?.path ?? null;
+
   if (currentCategory && currentCategory !== "Other") {
-    const existing = recognised.find((candidate) => candidate.category === currentCategory);
-    if (existing) return existing.path;
+    const existing = recognised.filter((candidate) => candidate.category === currentCategory);
+    if (existing.length) return deepestPath(existing);
   }
 
   const categories = new Set(recognised.map((candidate) => candidate.category));
-  if (categories.size === 1) return recognised[0]?.path ?? null;
+  if (categories.size === 1) return deepestPath(recognised);
 
   const inferred = inferProductCategory(productName);
-  const tieBreak = inferred ? recognised.find((candidate) => candidate.category === inferred) : null;
-  return tieBreak?.path ?? null;
+  const tieBreak = inferred
+    ? recognised.filter((candidate) => candidate.category === inferred)
+    : [];
+  return tieBreak.length ? deepestPath(tieBreak) : null;
 }
 
 /** Existing data is repaired only from an authoritative path or corroborating comparable products. */

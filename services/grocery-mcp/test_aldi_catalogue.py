@@ -45,6 +45,67 @@ class AldiCatalogueTests(unittest.TestCase):
             "/products/pantry/sauces/k/1111111173",
         ])
 
+    def test_accumulates_category_paths_within_same_refresh_generation(self):
+        product = {
+            "external_id": "shared", "name": "Shared product", "brand": None,
+            "pack_size": None, "unit_price": None, "price": 1.0,
+            "image_url": None, "product_url": "https://example.test/shared",
+            "category_path": "/products/pantry/jams-spreads/k/1",
+        }
+        cache_products([{
+            **product,
+            "category_paths": category_path_ancestry(product["category_path"]),
+        }], 100, "current-run")
+
+        second_path = "/products/pantry/health-foods/k/2"
+        cache_products([{
+            **product,
+            "category_path": second_path,
+            "category_paths": category_path_ancestry(second_path),
+        }], 101, "current-run")
+
+        with aldi_catalogue.cache_session() as connection:
+            row = connection.execute(
+                "SELECT category_paths FROM aldi_products WHERE external_id = ?",
+                ("shared",),
+            ).fetchone()
+
+        import json
+        paths = json.loads(row[0])
+        self.assertIn("/products/pantry/jams-spreads/k/1", paths)
+        self.assertIn("/products/pantry/health-foods/k/2", paths)
+
+
+    def test_does_not_carry_category_paths_between_refresh_generations(self):
+        product = {
+            "external_id": "shared", "name": "Shared product", "brand": None,
+            "pack_size": None, "unit_price": None, "price": 1.0,
+            "image_url": None, "product_url": "https://example.test/shared",
+            "category_path": "/products/pantry/jams-spreads/k/1",
+        }
+        cache_products([{
+            **product,
+            "category_paths": category_path_ancestry(product["category_path"]),
+        }], 100, "old-run")
+
+        new_path = "/products/drinks/juices-cordials/k/2"
+        cache_products([{
+            **product,
+            "category_path": new_path,
+            "category_paths": category_path_ancestry(new_path),
+        }], 200, "new-run")
+
+        with aldi_catalogue.cache_session() as connection:
+            row = connection.execute(
+                "SELECT category_paths FROM aldi_products WHERE external_id = ?",
+                ("shared",),
+            ).fetchone()
+
+        import json
+        paths = json.loads(row[0])
+        self.assertEqual(paths, category_path_ancestry(new_path))
+
+
     def test_prunes_products_not_seen_in_latest_complete_refresh(self):
         product = {
             "external_id": "old", "name": "Old product", "brand": None,
