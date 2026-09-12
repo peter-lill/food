@@ -163,6 +163,41 @@
   color: #9fe8fa;
 }
 
+/* Shelf photos sit on one neutral canvas, regardless of the source image's own
+   white, black, or transparent edge treatment. */
+.shelfFilterImage {
+  isolation: isolate;
+  background: #f4f2eb;
+}
+.shelfFilterImage img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 5px;
+  box-sizing: border-box;
+  object-fit: contain;
+  object-position: center;
+  mix-blend-mode: multiply;
+}
+:global(.kitchen-mode) .shelfFilterImage {
+  background: #ece9df;
+}
+:global(.kitchen-mode) .shelfFilterImage img {
+  filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .16));
+}
+
+/* The empty search state is informational, so it stays neutral rather than
+   competing with the search action's cyan emphasis. */
+.emptyIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--text-soft);
+}
+.emptyIcon svg { width: 30px; height: 30px; }
+:global(.kitchen-mode) .emptyIcon { color: #b3b7b4; }
+
 :global(.kitchen-mode) .thumb,
 :global(.kitchen-mode) .priceRow > div,
 :global(.kitchen-mode) .meta span,
