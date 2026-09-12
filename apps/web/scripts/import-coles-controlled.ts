@@ -90,7 +90,7 @@ function listingData(plan: Plan) {
   return {
     retailerProductName: product.name, brand: product.brand, packSize: product.pack_size,
     productUrl: colesProductUrl(product), imageUrl: product.image_url,
-    aisle: product.category_path, active: true, lastSeenAt: new Date(),
+    aisle: (product.category_paths.length ? product.category_paths : [product.category_path]).join(" | "), active: true, lastSeenAt: new Date(),
   };
 }
 

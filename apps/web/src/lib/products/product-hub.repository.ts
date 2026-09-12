@@ -115,7 +115,7 @@ export type ProductHubDetail = {
  * The catalogue must never render that implementation detail as a heading.
  */
 export function displayShelfLabel(aisle: string | null | undefined) {
-  const value = aisle?.trim() ?? "";
+  const value = (aisle?.trim() ?? "").split("|").at(-1)?.trim() ?? "";
   if (!value) return null;
   if (!value.includes("/")) return value;
 
