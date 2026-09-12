@@ -121,7 +121,7 @@ export function displayShelfLabel(aisle: string | null | undefined) {
 
   const segments = value.split("/").map((segment) => segment.trim()).filter(Boolean);
   const browseIndex = segments.findIndex((segment) => segment.toLocaleLowerCase("en-AU") === "browse");
-  const terminalSegment = browseIndex >= 0 ? segments.slice(browseIndex + 2).at(-1) : null;
+  const terminalSegment = browseIndex >= 0 ? segments.slice(browseIndex + 2).at(-1) : segments.at(-1);
   if (!terminalSegment) return value;
   return terminalSegment
     .replace(/[-_]+/g, " ")
