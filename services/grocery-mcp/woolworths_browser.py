@@ -371,8 +371,6 @@ def wait_for_x_display(timeout_seconds: int = 10) -> None:
 
 def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[str, object]:
     """Navigate the visible UC browser and return category API data plus descendants."""
-    import base64
-
     category_path = urlparse(url).path.rstrip("/")
     capture.clear()
 
@@ -454,22 +452,12 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
             continue
         seen_request_ids.add(request_id)
 
-        raw = driver.execute_cdp_cmd(
-            "Network.getResponseBody",
-            {"requestId": request_id},
+        catalogue_response = fetch_woolworths_catalogue_response(
+            driver,
+            request,
         )
-        body = str(raw.get("body") or "")
-        if raw.get("base64Encoded"):
-            body = base64.b64decode(body).decode("utf-8")
-
-        payload = json.loads(body)
-        if isinstance(payload, dict):
-            catalogue_response = fetch_woolworths_catalogue_response(
-                driver,
-                request,
-            )
-            responses.append(catalogue_response)
-            category_requests.append(request)
+        responses.append(catalogue_response)
+        category_requests.append(request)
 
     unique_descendants = sorted(
         {
