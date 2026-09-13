@@ -247,6 +247,7 @@ function canonicalProduceFamily(value: string) {
 
   if (/\bmushrooms?\b/.test(normalised)) return "Button Mushroom";
   if (/\brocket\b/.test(normalised)) return "Rocket Leaves";
+  if (/\bapple\b/.test(normalised)) return "Apple";
 
   const cabbagePortion = normalised.match(/^(.*\bcabbage)\s+(?:whole|half)(?:\s+(?:each|ea))?$/);
   if (cabbagePortion) return titleCase(cabbagePortion[1]);
