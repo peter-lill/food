@@ -106,6 +106,11 @@ assert.deepEqual(
   "ingredient alternatives should select one searchable grocery name instead of searching the full choice text",
 );
 assert.deepEqual(
+  parseRecipeIngredientLine("¼ red or green chilli deseeded and finely chopped (or to taste)"),
+  { name: "Chilli", quantity: 0.25, unit: "each" },
+  "colour alternatives must retain the shared grocery ingredient rather than becoming a colour",
+);
+assert.deepEqual(
   parseRecipeIngredientLine("To Serve"),
   { name: "", quantity: null, unit: null },
   "recipe section headings must not become shopping items",

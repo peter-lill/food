@@ -153,6 +153,11 @@ export function parseRecipeIngredientLine(line: string): RecipeIngredientInput {
     .split(",")[0]?.trim() ?? alternative)
     .replace(/\s+(?:made from|mixed with|tossed with|plus)\b.*$/i, "")
     .replace(/\s+cut into\b.*$/i, "")
+    // "red or green chilli" describes alternative colours of the same
+    // ingredient, not two alternative grocery products. Preserve the shared
+    // ingredient rather than allowing the generic alternative rule to leave
+    // the meaningless product name "Red".
+    .replace(/\b(?:red\s+or\s+green|green\s+or\s+red)\s+(chilli(?:es)?|pepper(?:s)?)\b/i, "$1")
     .replace(/\s+or\s+.*$/i, "")
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?cloves?\s+of\s+/i, (match) => match.replace(/cloves?\s+of\s+/i, ""))
     .replace(/^\s*(?:\d+(?:\.\d+)?\s*)?(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, (match) => match.replace(/(?:fillets?|pieces?|items?)\s+(?:of\s+)?/i, ""))

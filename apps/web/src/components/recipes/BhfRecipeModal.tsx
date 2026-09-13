@@ -40,7 +40,7 @@ export function BhfRecipeModal({ recipe, onClose, availability, shoppingLists }:
   const ingredients = fullRecipe?.ingredients ?? [];
   const instructions = fullRecipe?.instructions ?? [];
   const nutrition = fullRecipe?.nutrition ?? recipe.nutrition ?? null;
-  const imageUrl = fullRecipe?.imageUrl ?? recipe.imageUrl;
+  const imageUrl = recipe.imageUrl;
 
   return (
     <div className={styles.backdrop} onClick={onClose}>
@@ -61,17 +61,13 @@ export function BhfRecipeModal({ recipe, onClose, availability, shoppingLists }:
         </button>
 
         {imageUrl ? (
-          <div
-            aria-label={`Finished ${recipe.name}`}
-            className={styles.hero}
-            role="img"
-            style={{
-              backgroundImage: `url("${imageUrl}")`,
-              backgroundPosition: "center",
-              backgroundRepeat: "no-repeat",
-              backgroundSize: "cover",
-            }}
-          />
+          <div className={styles.hero}>
+            <img
+              alt={`Finished ${recipe.name}`}
+              className={styles.localRecipeImage}
+              src={imageUrl}
+            />
+          </div>
         ) : (
           <div aria-hidden="true" className={styles.heroFallback}>◇</div>
         )}

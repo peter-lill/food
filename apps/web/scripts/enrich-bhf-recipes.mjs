@@ -18,6 +18,17 @@ function decodeHtml(value = "") {
     .replace(/&#39;|&apos;/gi, "'")
     .replace(/&ndash;/gi, "–")
     .replace(/&mdash;/gi, "—")
+    .replace(/&deg;/gi, "°")
+    .replace(/&ordm;/gi, "º")
+    .replace(/&eacute;/gi, "é")
+    .replace(/&egrave;/gi, "è")
+    .replace(/&icirc;/gi, "î")
+    .replace(/&acirc;/gi, "â")
+    .replace(/&lsquo;/gi, "‘")
+    .replace(/&rsquo;/gi, "’")
+    .replace(/&ldquo;/gi, "“")
+    .replace(/&rdquo;/gi, "”")
+    .replace(/&frasl;/gi, "⁄")
     .replace(/&frac14;/gi, "¼")
     .replace(/&frac12;/gi, "½")
     .replace(/&frac34;/gi, "¾")
@@ -126,12 +137,12 @@ function instructionTexts(value) {
 
 function sectionLines(text, startLabel, endLabels) {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-  const start = lines.findIndex((line) => new RegExp(`^${startLabel}\b`, "i").test(line));
+  const start = lines.findIndex((line) => new RegExp(`^${startLabel}\\b`, "i").test(line));
   if (start < 0) return [];
 
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index++) {
-    if (endLabels.some((label) => new RegExp(`^${label}\b`, "i").test(lines[index]))) {
+    if (endLabels.some((label) => new RegExp(`^${label}\\b`, "i").test(lines[index]))) {
       end = index;
       break;
     }
@@ -141,6 +152,70 @@ function sectionLines(text, startLabel, endLabels) {
     .slice(start + 1, end)
     .map((line) => line.replace(/^Step\s*\d+\s*:?\s*/i, "").trim())
     .filter(Boolean);
+}
+
+function recipeDetailInstructions(html) {
+  const section = html.match(
+    /<section[^>]*class=["'][^"']*\brecipe-details-page\b[^"']*["'][^>]*>([\s\S]*?)<\/section>/i,
+  )?.[1];
+
+  if (!section) return [];
+
+  const list = section.match(/<ol\b[^>]*>([\s\S]*?)<\/ol>/i)?.[1];
+
+  if (list) {
+    return [...list.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+      .map((match) => stripHtml(match[1]).replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+  }
+
+  const methodHeading = section.match(
+    /<h2\b[^>]*>\s*(?:Method|Preparation)\s*<\/h2>/i,
+  );
+
+  if (methodHeading?.index !== undefined) {
+    const afterHeading = section.slice(
+      methodHeading.index + methodHeading[0].length,
+    );
+    const beforeNextHeading = afterHeading.split(/<h2\b/i, 1)[0];
+
+    const methodText = stripHtml(beforeNextHeading);
+
+    const numberedSteps = methodText
+      .split(/(?:^|\n)\s*(?=\d+\.?\s+)/)
+      .map((step) => step.replace(/^\s*\d+\.?\s*/, "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    if (numberedSteps.length > 1) {
+      return numberedSteps;
+    }
+  }
+
+  const numberedDivs = [...section.matchAll(/<div\b[^>]*>([\s\S]*?)<\/div>/gi)]
+    .map((match) => stripHtml(match[1]).replace(/\s+/g, " ").trim())
+    .filter((text) => /^\d+\.?\s+/.test(text))
+    .map((text) => text.replace(/^\d+\.?\s*/, "").trim());
+
+  if (numberedDivs.length > 1) {
+    return numberedDivs;
+  }
+
+  const paragraphs = [...section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((match) => stripHtml(match[1]))
+    .filter(Boolean);
+
+  const paragraphSteps = paragraphs.flatMap((paragraph) => {
+    const numbered = paragraph
+      .split(/\n\s*(?=\d+\.?\s+)/)
+      .map((step) => step.replace(/^\s*\d+\.?\s*/, "").replace(/\s+/g, " ").trim())
+      .filter(Boolean);
+
+    return numbered.length > 1
+      ? numbered
+      : [paragraph.replace(/^\s*\d+\.?\s*/, "").replace(/\s+/g, " ").trim()];
+  });
+
+  return paragraphSteps.filter(Boolean);
 }
 
 async function fetchHtml(url, attempts = 3) {
@@ -176,9 +251,13 @@ async function enrich(recipe) {
     ? schemaIngredients
     : sectionLines(text, "Ingredients", ["Method", "Directions", "Instructions", "Nutritional Information"]);
 
-  const instructions = schemaInstructions.length
-    ? schemaInstructions
-    : sectionLines(text, "Method", ["Nutritional Information", "How we made it healthier", "Cook's tip", "You might also"]);
+  const visibleInstructions = recipeDetailInstructions(html);
+
+  const instructions = visibleInstructions.length
+    ? visibleInstructions
+    : schemaInstructions.length
+      ? schemaInstructions
+      : sectionLines(text, "Method", ["Nutritional Information", "How we made it healthier", "Cook's tip", "You might also"]);
 
   const imageUrl =
     imageFromSchema(schema?.image) ??
