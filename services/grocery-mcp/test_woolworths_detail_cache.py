@@ -629,6 +629,77 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertIsNone(stale_leaf["is_leaf"])
         self.assertEqual(self.coles_catalogue.status()["total"], 2)
 
+    def test_coles_browse_shell_without_search_results_is_category_unavailable(self) -> None:
+        raw = json.dumps({
+            "props": {
+                "pageProps": {
+                    "serverSideOutageConfig": None,
+                    "assetsUrl": "https://cdn.productimages.coles.com.au/productimages",
+                }
+            }
+        })
+
+        with self.assertRaisesRegex(
+            self.coles_catalogue.ColesCategoryUnavailableError,
+            "no longer exposes catalogue data",
+        ):
+            self.coles_catalogue.parse_coles_browse_document(raw)
+
+    def test_coles_unavailable_leaf_does_not_block_remaining_discovery(self) -> None:
+        root = "/browse/deli"
+        obsolete = root + "/obsolete"
+        current = root + "/current"
+
+        class Session:
+            def __init__(inner_self) -> None:
+                inner_self.browsed = []
+
+            def children(inner_self, category: str) -> list[str]:
+                if category == root:
+                    return [obsolete, current]
+                return []
+
+            def browse(inner_self, category: str, resume: bool = False) -> int:
+                inner_self.browsed.append((category, resume))
+                if category == obsolete:
+                    raise self.coles_catalogue.ColesCategoryUnavailableError(
+                        "Coles browse category no longer exposes catalogue data"
+                    )
+                with self.coles_catalogue.cache_session() as connection:
+                    connection.execute(
+                        "UPDATE coles_category_collection SET state='completed' WHERE category_path=?",
+                        (category,),
+                    )
+                return 0
+
+        session = Session()
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            self.coles_catalogue.refresh_all(session=session)
+
+        self.assertEqual(
+            session.browsed,
+            [
+                (obsolete, False),
+                (current, False),
+            ],
+        )
+        with self.coles_catalogue.cache_session() as connection:
+            rows = connection.execute(
+                """SELECT category_path, state
+                   FROM coles_category_collection
+                   WHERE category_path IN (?, ?)
+                   ORDER BY category_path""",
+                (obsolete, current),
+            ).fetchall()
+
+        self.assertEqual(
+            {row["category_path"]: row["state"] for row in rows},
+            {
+                obsolete: "pending",
+                current: "completed",
+            },
+        )
+
     def test_coles_discovery_survives_failure_and_publishes_leaf_jobs(self) -> None:
         root = "/browse/pantry"
         oil, salt = root + "/oil", root + "/salt"
