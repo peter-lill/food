@@ -1,14 +1,16 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
-import { ProductLifecycle } from "@prisma/client";
+import { ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
+import { classifyGenericProduce } from "../src/lib/products/generic-produce-classification";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
   canonicalColesDescription, categoryForColesPath, cleanColesBarcode,
   colesImportEligibility, type CachedColesProduct,
 } from "./coles-controlled-import-matching";
+import { genericProduceComparisonKey, indexGenericProduceCandidates } from "./generic-produce-import-matching";
 
 const apply = process.argv.includes("--apply");
 const importAll = process.argv.includes("--all");
@@ -16,7 +18,7 @@ const argument = (name: string) => process.argv.find((value) => value.startsWith
 const requested = Number(argument(importAll ? "--page-size" : "--limit") ?? (importAll ? "500" : "30"));
 const pageSize = Number.isInteger(requested) && requested >= 1 && requested <= 1000 ? requested : importAll ? 500 : 30;
 
-type Disposition = "retain" | "link-barcode" | "link-name" | "create" | "skip";
+type Disposition = "retain" | "link-barcode" | "link-name" | "link-produce" | "create" | "skip";
 type Plan = { product: CachedColesProduct; disposition: Disposition; reason: string; productId: string | null; storeProductId: string | null };
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
 
@@ -56,7 +58,12 @@ async function readPage(offset: number) {
   };
 }
 
-async function plansForPage(products: CachedColesProduct[], plannedNames: Set<string>, plannedBarcodes: Set<string>): Promise<Plan[]> {
+async function plansForPage(
+  products: CachedColesProduct[],
+  plannedNames: Set<string>,
+  plannedBarcodes: Set<string>,
+  genericProduceByKey: Map<string, string>,
+): Promise<Plan[]> {
   const ids = products.map((product) => product.external_id);
   const barcodes = products.flatMap((product) => { const barcode = cleanColesBarcode(product.barcode); return barcode ? [barcode] : []; });
   const names = products.map((product) => normaliseProductText(product.name));
@@ -77,11 +84,17 @@ async function plansForPage(products: CachedColesProduct[], plannedNames: Set<st
     if (barcodeProduct) return { product, disposition: "link-barcode", reason: "exact barcode matches an existing Food product", productId: barcodeProduct, storeProductId: randomUUID() };
     const nameProduct = productByName.get(normaliseProductText(product.name));
     if (nameProduct) return { product, disposition: "link-name", reason: "exact normalised name matches an existing Food alias", productId: nameProduct, storeProductId: randomUUID() };
+    const mapped = categoryForColesPath(product.category_path);
+    const produceKey = genericProduceComparisonKey(product.name, product.pack_size, mapped.productType === ProductType.GENERIC_PRODUCE);
+    const produceProduct = produceKey ? genericProduceByKey.get(produceKey) : null;
+    if (produceProduct) return { product, disposition: "link-produce", reason: "same generic produce and sellable presentation", productId: produceProduct, storeProductId: randomUUID() };
     const normalisedName = normaliseProductText(product.name);
     if (plannedNames.has(normalisedName)) return { product, disposition: "skip", reason: "duplicate normalised name in this import", productId: null, storeProductId: null };
     if (barcode && plannedBarcodes.has(barcode)) return { product, disposition: "skip", reason: "duplicate barcode in this import", productId: null, storeProductId: null };
     plannedNames.add(normalisedName); if (barcode) plannedBarcodes.add(barcode);
-    return { product, disposition: "create", reason: "unique verified Coles catalogue identity", productId: randomUUID(), storeProductId: randomUUID() };
+    const productId = randomUUID();
+    if (produceKey) genericProduceByKey.set(produceKey, productId);
+    return { product, disposition: "create", reason: "unique verified Coles catalogue identity", productId, storeProductId: randomUUID() };
   });
 }
 
@@ -102,23 +115,27 @@ async function attachPage(plans: Plan[]) {
   const applicable = plans.filter((plan) => plan.disposition !== "skip");
   const creates = applicable.filter((plan) => plan.disposition === "create");
   const newListings = applicable.filter((plan) => plan.disposition !== "retain");
+  const newAliases = applicable.filter((plan) => plan.disposition === "create" || plan.disposition === "link-produce");
   await prisma.$transaction(async (tx) => {
     if (creates.length) {
       await tx.product.createMany({ data: creates.map((plan) => {
         const product = plan.product; const mapped = categoryForColesPath(product.category_path, product.name);
         return {
-          id: plan.productId!, name: product.name, canonicalName: product.name,
+          id: plan.productId!, name: product.name,
+          canonicalName: mapped.productType === ProductType.GENERIC_PRODUCE
+            ? classifyGenericProduce(product.name, product.pack_size)?.variantName ?? product.name
+            : product.name,
           slug: `${slugifyProductName(product.name)}-coles-${product.external_id}`,
           barcode: cleanColesBarcode(product.barcode), brand: product.brand, category: mapped.category,
           description: canonicalColesDescription(product), imageUrl: product.image_url, packSize: product.pack_size,
           productType: mapped.productType, lifecycle: ProductLifecycle.REVIEW_REQUIRED, confidenceScore: 0.85,
         };
       }) });
-      await tx.productAlias.createMany({ data: creates.map((plan) => ({
-        productId: plan.productId!, alias: plan.product.name,
-        normalised: normaliseProductText(plan.product.name), source: "coles-controlled-import",
-      })) });
     }
+    if (newAliases.length) await tx.productAlias.createMany({ data: newAliases.map((plan) => ({
+      productId: plan.productId!, alias: plan.product.name,
+      normalised: normaliseProductText(plan.product.name), source: "coles-controlled-import",
+    })), skipDuplicates: true });
     if (newListings.length) await tx.storeProduct.createMany({ data: newListings.map((plan) => ({
       id: plan.storeProductId!, productId: plan.productId!, retailer: "Coles",
       externalId: plan.product.external_id, ...listingData(plan),
@@ -142,13 +159,19 @@ async function attachPage(plans: Plan[]) {
 }
 
 async function main() {
-  const counts: Record<Disposition, number> = { retain: 0, "link-barcode": 0, "link-name": 0, create: 0, skip: 0 };
+  const counts: Record<Disposition, number> = { retain: 0, "link-barcode": 0, "link-name": 0, "link-produce": 0, create: 0, skip: 0 };
   const reasons = new Map<string, number>(); const plannedNames = new Set<string>(); const plannedBarcodes = new Set<string>();
+  const existingGenericProduce = await prisma.product.findMany({
+    where: { OR: [{ productType: ProductType.GENERIC_PRODUCE }, { category: { in: ["Fresh produce", "Fruit & vegetables"] } }] },
+    select: { id: true, name: true, canonicalName: true, packSize: true },
+    orderBy: [{ confidenceScore: "desc" }, { createdAt: "asc" }],
+  });
+  const genericProduceByKey = indexGenericProduceCandidates(existingGenericProduce);
   let offset = 0; let processed = 0; let pages = 0;
   while (true) {
     const page = await readPage(offset);
     if (!page.products.length && pages === 0) throw new Error("No verified Coles cache records were returned.");
-    const plans = await plansForPage(page.products, plannedNames, plannedBarcodes);
+    const plans = await plansForPage(page.products, plannedNames, plannedBarcodes, genericProduceByKey);
     for (const plan of plans) { counts[plan.disposition] += 1; if (plan.disposition === "skip") reasons.set(plan.reason, (reasons.get(plan.reason) ?? 0) + 1); }
     if (apply) await attachPage(plans);
     processed += plans.length; pages += 1;

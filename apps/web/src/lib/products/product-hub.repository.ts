@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { identifyGrocery } from "@/lib/grocery-intelligence/identity";
 import { genericImageIdentity } from "@/lib/products/generic-image-policy";
+import { classifyGenericProduce } from "@/lib/products/generic-produce-classification";
 import { heroProductDescription } from "@/lib/products/product-description";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
@@ -252,6 +253,9 @@ function canonicalProduceFamily(value: string) {
 
   const preparedSalad = normalised.match(/^(.+\bsalad)\s+(?:bowl|kit|tub)(?:\s+(?:entertainer|family|large|each))?$/);
   if (preparedSalad) return titleCase(preparedSalad[1]);
+
+  const classified = classifyGenericProduce(value);
+  if (classified) return classified.familyName;
 
   return null;
 }
