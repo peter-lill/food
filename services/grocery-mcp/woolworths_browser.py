@@ -304,6 +304,10 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
     capture.clear()
 
     driver.get(url)
+    # UC can navigate its controlled target in a background Chromium tab while
+    # leaving the initial blank tab focused.  Make the collection target the
+    # foreground tab so the visible noVNC session faithfully shows navigation.
+    driver.execute_cdp_cmd("Page.bringToFront", {})
 
     deadline = time.monotonic() + CATEGORY_NAVIGATION_SECONDS
     stable_rounds = 0
