@@ -56,6 +56,7 @@ export function classifyGenericProduce(
   let working = normaliseProductText(name)
     .replace(/^(?:coles|woolworths|aldi|drakes)\s+/, "")
     .replace(/\bsliced\s+mushrooms?\b/g, "button mushroom")
+    .replace(/\bcarrots\b/g, "carrot")
     .replace(/\brocket\b(?!\s+leaves)/g, "rocket leaves")
     .replace(/\bapprox(?:imately)?\.?\s+\d+(?:\.\d+)?\s*(?:kg|g)\s+per\s+(?:piece|each)\b/g, " ")
     .replace(/\bper\s+(?:piece|each)\b/g, " ")
