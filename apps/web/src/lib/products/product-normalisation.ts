@@ -96,7 +96,7 @@ const variantGroups: Array<{ canonical: string; aliases: string[] }> = [
 const preparationTerms = [
   "coarsely chopped", "finely chopped", "roughly chopped", "thinly sliced",
   "thickly sliced", "chopped", "diced", "sliced", "grated", "shredded",
-  "crushed", "drained", "rinsed", "trimmed", "peeled", "seeded",
+  "crushed", "drained", "rinsed", "trimmed", "peeled", "seeded", "deseeded",
   "halved", "quartered", "melted", "softened", "cooked",
 ] as const;
 
@@ -110,7 +110,7 @@ const recipePreparationSuffixes = [
 const removableWords = new Set([
   "coarsely", "finely", "roughly", "thinly", "thickly", "chopped", "diced",
   "sliced", "grated", "shredded", "crushed", "drained", "rinsed", "trimmed",
-  "peeled", "seeded", "halved", "quartered", "optional", "divided", "melted",
+  "peeled", "seeded", "deseeded", "halved", "quartered", "optional", "divided", "melted",
   "softened", "cooked", "fresh", "frozen", "dried", "skinless", "skin-on",
   "skin", "on", "off", "fillet", "fillets", "portion", "portions",
 ]);

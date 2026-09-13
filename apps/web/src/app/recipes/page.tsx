@@ -16,14 +16,15 @@ export const metadata = {
   description: "Browse complete recipes, ingredients and cooking methods.",
 };
 
-function isAustralianHeartFoundationRecipe(recipe: {
+function isHeartFoundationCatalogueRecipe(recipe: {
   sourceKey?: string | null;
   originalSourceName?: string | null;
 }) {
   return (
     recipe.sourceKey?.startsWith("heart-foundation:") === true ||
     recipe.originalSourceName === "Heart Foundation" ||
-    recipe.originalSourceName === "Australian Heart Foundation"
+    recipe.originalSourceName === "Australian Heart Foundation" ||
+    recipe.originalSourceName === "British Heart Foundation"
   );
 }
 
@@ -32,16 +33,7 @@ function prepareCatalogueRecipe(recipe: ExternalRecipe): ExternalRecipe {
     return recipe;
   }
 
-  const preparedRecipe = withSourceImage(recipe);
-
-  if (preparedRecipe.sourceName !== "Heart Foundation") {
-    return preparedRecipe;
-  }
-
-  return {
-    ...preparedRecipe,
-    sourceName: "Australian Heart Foundation",
-  };
+  return withSourceImage(recipe);
 }
 
 export default async function RecipesPage() {
@@ -50,7 +42,7 @@ export default async function RecipesPage() {
   const { recipes: plannerRecipes, shoppingLists } = await getPlannerWorkspace();
   const databaseRecipes = plannerRecipes.filter((recipe) => recipe.source !== "external");
   const completeRecipes = databaseRecipes.filter(
-    (recipe) => !isAustralianHeartFoundationRecipe(recipe),
+    (recipe) => !isHeartFoundationCatalogueRecipe(recipe),
   );
 
   const catalogueRecipes: ExternalRecipe[] = [

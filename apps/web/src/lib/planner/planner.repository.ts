@@ -4,7 +4,7 @@ import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { hwqSnackRecipes } from "@/lib/recipes/hwq-snacks";
 import { parseRecipeIngredientLine } from "@/lib/recipes/recipe-pantry";
 import { getRecipeProductCatalogue } from "@/lib/recipes/recipe-pantry.repository";
-import { withSourceImage } from "@/lib/recipes/recipe-image";
+import { sourceImageUrl, withSourceImage } from "@/lib/recipes/recipe-image";
 import { getRecipeMealType } from "@/lib/recipes/recipe-meal-types";
 import {
   sanitiseIngredientName,
@@ -129,7 +129,7 @@ export const fullCatalogueRecipes: PlannerRecipe[] = [
     minutes: recipe.minutes,
     proteinGrams: null,
     servings: recipe.servings,
-    imageUrl: recipe.imageUrl,
+    imageUrl: sourceImageUrl(recipe.id),
     mealType: getRecipeMealType(recipe),
     instructions: recipe.instructions,
     ingredients: recipe.ingredients.map(parseRecipeIngredientLine).filter((ingredient) => ingredient.name.length > 0),
