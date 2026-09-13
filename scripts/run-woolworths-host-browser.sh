@@ -18,4 +18,5 @@ export WOOLWORTHS_BROWSER_FETCH_BIND_ADDRESS="127.0.0.1"
 export WOOLWORTHS_BROWSER_NOVNC_BIND_ADDRESS="127.0.0.1"
 export WOOLWORTHS_BROWSER_CDP_RELAY_BIND_ADDRESS="127.0.0.1"
 
-exec python3 "$(dirname "$0")/../services/grocery-mcp/woolworths_browser.py"
+python_bin="${WOOLWORTHS_BROWSER_PYTHON:-python3}"
+exec "${python_bin}" "$(dirname "$0")/../services/grocery-mcp/woolworths_browser.py"

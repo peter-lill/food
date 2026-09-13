@@ -99,7 +99,9 @@ assert.match(hostBrowser, /food-woolworths-profile/, "host UC must retain its ac
 assert.match(hostBrowser, /WOOLWORTHS_BROWSER_NOVNC_BIND_ADDRESS="127\.0\.0\.1"/, "host noVNC must remain loopback-only");
 assert.match(hostBrowser, /WOOLWORTHS_BROWSER_FETCH_BIND_ADDRESS="127\.0\.0\.1"/, "host category fetch must remain loopback-only");
 assert.match(hostBrowser, /WOOLWORTHS_HOST_FETCH_PORT:-8791/, "host UC fetch must not collide with the legacy Docker sidecar");
+assert.match(hostBrowser, /WOOLWORTHS_BROWSER_PYTHON:-python3/, "host sidecar must support an isolated Python runtime");
 assert.match(hostBrowserService, /ExecStart=.*run-woolworths-host-browser\.sh/, "the accepted host browser must restart with the server");
+assert.match(hostBrowserService, /WOOLWORTHS_BROWSER_PYTHON=.*\.venv-woolworths-browser\/bin\/python/, "the host UC service must not modify Coffee's system Python");
 assert.match(bridge, /page\.evaluate\("window\.scrollTo/, "category discovery must load paginated or lazy product bundles");
 assert.match(compose, /WOOLWORTHS_CATALOGUE_DB: \/data\/woolworths-catalogue\.sqlite3/);
 assert.match(compose, /food_grocery_catalogue_data:\/data/);
