@@ -8,6 +8,12 @@ import time
 from urllib.request import urlopen
 
 
+
+def transient_navigation_error(error):
+    """Return True for the normal Playwright race caused by page navigation."""
+    return "execution context was destroyed" in str(error).casefold()
+
+
 def probe_connections(vnc_port, novnc_port, cdp_port=None):
     with socket.create_connection(('127.0.0.1', vnc_port), timeout=3) as stream:
         stream.settimeout(3)

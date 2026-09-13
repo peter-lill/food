@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from browser_health import BrowserWatchdog
+from browser_health import BrowserWatchdog, transient_navigation_error
 from coles_browser import chromium_major_version, fatal_browser_error
 
 
@@ -47,6 +47,19 @@ class BrowserHealthTests(unittest.TestCase):
         self.now = 181
         self.watchdog.check_once()
         self.assertIn('startup exceeded', self.failures[0])
+
+    def test_woolworths_navigation_does_not_trigger_restart(self):
+        self.assertTrue(
+            transient_navigation_error(
+                RuntimeError(
+                    "Page.evaluate: Execution context was destroyed, "
+                    "most likely because of a navigation"
+                )
+            )
+        )
+        self.assertFalse(
+            transient_navigation_error(RuntimeError("Page crashed"))
+        )
 
     def test_renderer_crash_requires_restart_but_verification_does_not(self):
         self.assertTrue(fatal_browser_error(RuntimeError('tab crashed')))
