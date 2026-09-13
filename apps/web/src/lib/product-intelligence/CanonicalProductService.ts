@@ -1,6 +1,7 @@
 import { ProductLifecycle, ProductType, type Prisma, type Product } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseProductName } from "@/lib/products/product-normalisation";
+import { classifyGenericProduce } from "@/lib/products/generic-produce-classification";
 import { normaliseProductIdentity } from "./ProductResolver";
 
 type ProductDatabase = Prisma.TransactionClient | typeof prisma;
@@ -13,7 +14,7 @@ const genericProduceNames = new Set([
 ]);
 
 function isGenericProduce(canonicalName: string) {
-  return genericProduceNames.has(canonicalName);
+  return genericProduceNames.has(canonicalName) || Boolean(classifyGenericProduce(canonicalName));
 }
 
 function canonicalImage(canonicalName: string) {
@@ -126,49 +127,54 @@ export class CanonicalProductService {
       : run(database);
   }
 
-  static async consolidateGenericProduce() {
-    const products = await prisma.product.findMany({ orderBy: { createdAt: "asc" } });
+  static async consolidateGenericProduce(options: { apply?: boolean } = {}) {
+    const apply = options.apply ?? true;
+    const products = await prisma.product.findMany({
+      where: { OR: [{ productType: ProductType.GENERIC_PRODUCE }, { category: { in: ["Fresh produce", "Fruit & vegetables"] } }] },
+      orderBy: [{ confidenceScore: "desc" }, { createdAt: "asc" }],
+    });
     const groups = new Map<string, Product[]>();
 
     for (const product of products) {
-      const rawIdentity = parseProductName(product.name);
-      const canonicalIdentity = parseProductName(product.canonicalName ?? product.name);
-      const canonicalName = isGenericProduce(rawIdentity.canonicalName)
-        ? rawIdentity.canonicalName
-        : canonicalIdentity.canonicalName;
-      if (!isGenericProduce(canonicalName)) continue;
-      const key = normaliseProductIdentity(canonicalName);
-      groups.set(key, [...(groups.get(key) ?? []), product]);
+      const identity = classifyGenericProduce(product.canonicalName ?? product.name, product.packSize)
+        ?? classifyGenericProduce(product.name, product.packSize);
+      if (!identity) continue;
+      groups.set(identity.comparisonKey, [...(groups.get(identity.comparisonKey) ?? []), product]);
     }
 
     let merged = 0;
     const consolidated: Array<{ canonicalName: string; productId: string; merged: number }> = [];
 
     for (const group of groups.values()) {
-      const canonicalName = parseProductName(group[0].name).canonicalName;
+      const identity = classifyGenericProduce(group[0].canonicalName ?? group[0].name, group[0].packSize)
+        ?? classifyGenericProduce(group[0].name, group[0].packSize);
+      if (!identity) continue;
+      const canonicalName = identity.variantName;
       let target = preferredTarget(group, canonicalName);
       let groupMerged = 0;
 
       for (const source of group) {
         if (source.id === target.id) continue;
-        await this.merge(target.id, source.id);
+        if (apply) await this.merge(target.id, source.id);
         groupMerged += 1;
         merged += 1;
       }
 
-      await prisma.product.update({
-        where: { id: target.id },
-        data: {
-          name: canonicalName,
-          canonicalName,
-          productType: ProductType.GENERIC_PRODUCE,
-          lifecycle: ProductLifecycle.MATCHED,
-          confidenceScore: { set: Math.max(target.confidenceScore, 0.95) },
-          category: target.category ?? "Fresh produce",
-          imageUrl: canonicalImage(canonicalName) ?? target.imageUrl,
-        },
-      });
-      await attachAlias(prisma, target.id, canonicalName, "canonical-name");
+      if (apply) {
+        await prisma.product.update({
+          where: { id: target.id },
+          data: {
+            name: canonicalName,
+            canonicalName,
+            productType: ProductType.GENERIC_PRODUCE,
+            lifecycle: ProductLifecycle.MATCHED,
+            confidenceScore: { set: Math.max(target.confidenceScore, 0.95) },
+            category: target.category ?? "Fresh produce",
+            imageUrl: canonicalImage(canonicalName) ?? target.imageUrl,
+          },
+        });
+        await attachAlias(prisma, target.id, canonicalName, "canonical-name");
+      }
       consolidated.push({ canonicalName, productId: target.id, merged: groupMerged });
     }
 

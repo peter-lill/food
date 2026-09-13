@@ -717,7 +717,6 @@ def retryable_coles_browser_error(error: RuntimeError) -> bool:
         "coles browser session became unusable",
     ))
 
-
 def collect_leaf_with_retry(
     session: ColesBrowserSession,
     category: str,

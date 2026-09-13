@@ -90,8 +90,8 @@ assert.equal(
 );
 assert.equal(
   productFamilyName("Capsicum Yellow Each"),
-  "Capsicum Yellow Each",
-  "different capsicum varieties must remain separate product families",
+  "Capsicum Yellow",
+  "each is a sellable presentation while the yellow capsicum variety remains distinct",
 );
 // Packaged retailer catalogue products must preserve meaningful catalogue
 // wording while dropping only the package-size qualifier.
