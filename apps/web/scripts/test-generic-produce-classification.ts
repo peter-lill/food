@@ -4,6 +4,8 @@ import {
   isPreparedProduceName,
   produceProductType,
 } from "../src/lib/products/generic-produce";
+import { classifyGenericProduce } from "../src/lib/products/generic-produce-classification";
+import { genericProduceComparisonKey, indexGenericProduceCandidates } from "./generic-produce-import-matching";
 
 // No name evidence preserves the produce-department default.
 assert.equal(produceProductType(""), ProductType.GENERIC_PRODUCE);
@@ -25,12 +27,12 @@ for (const name of [
   "Orange Navel",
   "Kestrel Washed Potatoes",
   "Cocktail Truss Tomatoes 250g",
-"Garlic",
-"Fresh Garlic",
-"Garlic Bulb",
-"Ginger",
-"Fresh Ginger",
-"Ginger Root",
+  "Garlic",
+  "Fresh Garlic",
+  "Garlic Bulb",
+  "Ginger",
+  "Fresh Ginger",
+  "Ginger Root",
 ]) {
   assert.equal(
     produceProductType(name),
@@ -60,8 +62,6 @@ for (const name of [
 }
 
 console.log("Generic produce classification safeguards passed.");
-import { classifyGenericProduce } from "../src/lib/products/generic-produce-classification";
-import { genericProduceComparisonKey, indexGenericProduceCandidates } from "./generic-produce-import-matching";
 
 const drakesMandarins = classifyGenericProduce("Afourer Mandarins");
 const aldiMandarins = classifyGenericProduce("Afourer Mandarins Loose", "approx. 0.13 kg per piece");
@@ -99,7 +99,9 @@ assert.equal(genericProduceComparisonKey("Afourer Mandarins Loose", null, false)
 const existing = indexGenericProduceCandidates([
   { id: "preferred", name: "Afourer Mandarins", canonicalName: null, packSize: null },
   { id: "duplicate", name: "Afourer Mandarins Loose", canonicalName: null, packSize: null },
+  { id: "prepared", name: "Garlic Szechuan Stir Fry Kit", canonicalName: null, packSize: "350g" },
 ]);
 assert.equal(existing.get(aldiMandarins.comparisonKey), "preferred", "the importer must deterministically attach later retailer listings to the preferred existing product");
+assert.equal(existing.has(classifyGenericProduce("Garlic")!.comparisonKey), false, "prepared produce must never become a generic-produce merge candidate");
 
 console.log("Generic produce family and sellable-variant regressions passed.");

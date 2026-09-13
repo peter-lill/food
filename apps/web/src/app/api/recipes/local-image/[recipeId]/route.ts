@@ -3,6 +3,7 @@ import {
   cacheExternalRecipeImage,
   readCachedRecipeImage,
 } from "@/lib/recipes/local-recipe-image";
+import { externalRecipes } from "@/lib/recipes/external-recipes";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,11 @@ export async function GET(
   }
 
   if (!cached || cached.bytes.length === 0) {
+    // The local cache is an optimisation, never the only way to render a
+    // published recipe. A temporary source fetch or cache-volume failure must
+    // not turn a known image into a broken panel in Planner or Recipes.
+    const sourceImage = externalRecipes.find((recipe) => recipe.id === recipeId)?.imageUrl;
+    if (sourceImage) return NextResponse.redirect(sourceImage, 307);
     return new NextResponse(null, { status: 404 });
   }
 
