@@ -240,6 +240,79 @@ class CategoryCapture:
             ]
 
 
+def woolworths_catalogue_request_payload(request: object) -> dict[str, object] | None:
+    """Clone a captured category request while excluding Everyday Market."""
+    if not isinstance(request, dict):
+        return None
+
+    payload = request.get("payload")
+    if not isinstance(payload, dict):
+        return None
+
+    catalogue_payload = dict(payload)
+    catalogue_payload["isHideEverydayMarketProducts"] = True
+    return catalogue_payload
+
+
+def fetch_woolworths_catalogue_response(
+    driver: object,
+    request: dict[str, object],
+) -> dict[str, object]:
+    """Replay a captured category request while excluding Everyday Market."""
+    payload = woolworths_catalogue_request_payload(request)
+    if payload is None:
+        raise RuntimeError("Woolworths category request payload was not captured")
+
+    result = driver.execute_async_script(
+        r"""
+        const done = arguments[arguments.length - 1];
+        const payload = arguments[0];
+
+        fetch('/apis/ui/browse/category', {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'accept': 'application/json, text/plain, */*',
+            'content-type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        })
+          .then(async (response) => {
+            const body = await response.json();
+            done({
+              ok: response.ok,
+              status: response.status,
+              body
+            });
+          })
+          .catch((error) => {
+            done({
+              ok: false,
+              status: 0,
+              error: String(error)
+            });
+          });
+        """,
+        payload,
+    )
+
+    if not isinstance(result, dict):
+        raise RuntimeError("Woolworths catalogue API returned an invalid result")
+
+    if not result.get("ok"):
+        status = result.get("status")
+        error = result.get("error") or "request failed"
+        raise RuntimeError(
+            f"Woolworths catalogue API request failed ({status}): {error}"
+        )
+
+    body = result.get("body")
+    if not isinstance(body, dict):
+        raise RuntimeError("Woolworths catalogue API returned an invalid response")
+
+    return body
+
+
 def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
     patcher_module.LooseVersion = parser_type
 
@@ -391,7 +464,11 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
 
         payload = json.loads(body)
         if isinstance(payload, dict):
-            responses.append(payload)
+            catalogue_response = fetch_woolworths_catalogue_response(
+                driver,
+                request,
+            )
+            responses.append(catalogue_response)
             category_requests.append(request)
 
     unique_descendants = sorted(

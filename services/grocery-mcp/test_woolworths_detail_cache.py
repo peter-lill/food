@@ -99,6 +99,33 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             [],
         )
 
+    def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
+        import woolworths_browser
+
+        captured = {
+            "method": "POST",
+            "payload": {
+                "categoryId": "1_03B0EB8",
+                "categoryVersion": "v2",
+                "pageNumber": 1,
+                "pageSize": 36,
+                "location": "/shop/browse/cleaning-maintenance/hardware/extension-cords-adapters",
+                "isHideEverydayMarketProducts": False,
+            },
+        }
+
+        result = woolworths_browser.woolworths_catalogue_request_payload(captured)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["isHideEverydayMarketProducts"])
+        self.assertEqual(result["categoryId"], "1_03B0EB8")
+        self.assertEqual(result["pageNumber"], 1)
+        self.assertEqual(result["pageSize"], 36)
+        self.assertFalse(
+            captured["payload"]["isHideEverydayMarketProducts"],
+            "captured storefront request must not be mutated",
+        )
+
     def test_visible_woolworths_fetch_requires_paired_capture_metadata(self) -> None:
         response = MagicMock()
         response.read.return_value = json.dumps({
