@@ -24,7 +24,20 @@ NOVNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_NOVNC_PORT", "6080"))
 VNC_PORT = int(os.getenv("WOOLWORTHS_BROWSER_VNC_PORT", "5900"))
 SCREEN = os.getenv("WOOLWORTHS_BROWSER_SCREEN", "1920x1080x24")
 FETCH_PORT = int(os.getenv("WOOLWORTHS_BROWSER_FETCH_PORT", "8789"))
+FETCH_BIND_ADDRESS = os.getenv("WOOLWORTHS_BROWSER_FETCH_BIND_ADDRESS", "0.0.0.0")
+NOVNC_BIND_ADDRESS = os.getenv("WOOLWORTHS_BROWSER_NOVNC_BIND_ADDRESS", "0.0.0.0")
+CDP_RELAY_BIND_ADDRESS = os.getenv("WOOLWORTHS_BROWSER_CDP_RELAY_BIND_ADDRESS", "0.0.0.0")
 CATEGORY_API_PATH = "/apis/ui/browse/category"
+CATEGORY_NAVIGATION_SECONDS = 45
+CATEGORY_SCROLL_ROUNDS = 60
+CATEGORY_SCROLL_WAIT_SECONDS = 0.75
+# A single visible browse navigation may take the page-load budget, all lazy
+# scroll rounds, and a bounded margin for the browser's category response.
+CATEGORY_SESSION_SECONDS = (
+    CATEGORY_NAVIGATION_SECONDS
+    + int(CATEGORY_SCROLL_ROUNDS * CATEGORY_SCROLL_WAIT_SECONDS + 0.999)
+    + 180
+)
 
 stopping = False
 browser_ready = False
@@ -90,7 +103,7 @@ class Handler(BaseHTTPRequestHandler):
         result: dict[str, object] = {}
         requests.put((url, completed, result))
 
-        if not completed.wait(timeout=300):
+        if not completed.wait(timeout=CATEGORY_SESSION_SECONDS):
             self.send_json(
                 504,
                 {
@@ -112,6 +125,7 @@ class Handler(BaseHTTPRequestHandler):
             {
                 "status": "success",
                 "categoryResponses": result.get("categoryResponses", []),
+                "categoryRequests": result.get("categoryRequests", []),
                 "subcategories": result.get("subcategories", []),
             },
         )
@@ -218,7 +232,11 @@ class CategoryCapture:
                     dict(self.requests.get(request_id, {})),
                 )
                 for request_id in self.finished
-                if request_id in self.responses
+                # A response without its matching request metadata cannot be
+                # safely used for pagination.  CDP reports request creation
+                # before its response, so this also prevents a stale partial
+                # capture from being returned as an unpaired response.
+                if request_id in self.responses and request_id in self.requests
             ]
 
 
@@ -287,7 +305,7 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
 
     driver.get(url)
 
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + CATEGORY_NAVIGATION_SECONDS
     stable_rounds = 0
     previous_height = 0
     descendants: list[str] = []
@@ -336,7 +354,7 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
         before = len(capture.completed())
 
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
-        time.sleep(0.75)
+        time.sleep(CATEGORY_SCROLL_WAIT_SECONDS)
 
         after = len(capture.completed())
         new_height = int(
@@ -410,15 +428,15 @@ def main() -> None:
             "-nopw", "-rfbport", str(VNC_PORT),
         ], "x11vnc"))
         processes.append(start_process([
-            "websockify", "--web=/usr/share/novnc/", f"0.0.0.0:{NOVNC_PORT}",
+            "websockify", "--web=/usr/share/novnc/", f"{NOVNC_BIND_ADDRESS}:{NOVNC_PORT}",
             f"127.0.0.1:{VNC_PORT}",
         ], "noVNC"))
         processes.append(start_process([
             "socat",
-            f"TCP-LISTEN:{CDP_RELAY_PORT},fork,reuseaddr,bind=0.0.0.0",
+            f"TCP-LISTEN:{CDP_RELAY_PORT},fork,reuseaddr,bind={CDP_RELAY_BIND_ADDRESS}",
             f"TCP:127.0.0.1:{CDP_PORT}",
         ], "private CDP relay"))
-        server = ThreadingHTTPServer(("0.0.0.0", FETCH_PORT), Handler)
+        server = ThreadingHTTPServer((FETCH_BIND_ADDRESS, FETCH_PORT), Handler)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         watchdog = BrowserWatchdog(
             processes,

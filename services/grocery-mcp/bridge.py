@@ -11,6 +11,7 @@ import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
@@ -324,11 +325,19 @@ WOOLWORTHS_CATEGORY_API_PATH = "/apis/ui/browse/category"
 WOOLWORTHS_DETAIL_API_PATH = "/apis/ui/product/detail"
 WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths-catalogue.sqlite3")
 WOOLWORTHS_CDP_URL = os.getenv("WOOLWORTHS_CDP_URL", "").strip()
+WOOLWORTHS_BROWSER_FETCH_URL = os.getenv("WOOLWORTHS_BROWSER_FETCH_URL", "").strip()
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
 WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
 WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
 WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
 WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
+# Each visible sidecar navigation is finite: one page load, the fixed lazy
+# scrolling window, and a bounded allowance for the storefront category API.
+WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
+    WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
+    + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
+    + 180
+)
 WOOLWORTHS_DETAIL_BATCH_SIZE = 24
 WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS = {
     "/shop/browse/health-beauty": "/shop/browse/beauty",
@@ -400,13 +409,81 @@ def woolworths_browse_page_is_ready(
     return stable_rounds >= 4 and bool(captured_responses or descendants)
 
 
-def woolworths_category_request_payload(response: object) -> dict | None:
-    """Recover the storefront's exact first-page request for authenticated paging."""
-    try:
-        payload = response.request.post_data_json
-    except Exception:
+def woolworths_category_request_payload(request: object) -> dict | None:
+    """Read the paired UC-captured request payload used for category paging."""
+    if not isinstance(request, dict):
         return None
+    payload = request.get("payload")
     return dict(payload) if isinstance(payload, dict) else None
+
+
+def woolworths_visible_category_fetch(category_path: str) -> dict:
+    """Ask the visible UC sidecar to navigate and capture one browse page."""
+    if not WOOLWORTHS_BROWSER_FETCH_URL:
+        raise RuntimeError(
+            "verified browser fetch session is not configured; "
+            "set WOOLWORTHS_BROWSER_FETCH_URL"
+        )
+    if not category_path.startswith("/shop/browse/"):
+        raise ValueError("category must be a /shop/browse/ path")
+
+    target_url = f"https://www.woolworths.com.au{category_path}"
+    separator = "&" if "?" in WOOLWORTHS_BROWSER_FETCH_URL else "?"
+    request = Request(
+        f"{WOOLWORTHS_BROWSER_FETCH_URL}{separator}{urlencode({'url': target_url})}",
+        headers={"Accept": "application/json"},
+    )
+    try:
+        with urlopen(request, timeout=WOOLWORTHS_CATEGORY_SESSION_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        try:
+            failure = json.loads(error.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            failure = {}
+        message = failure.get("error") if isinstance(failure, dict) else None
+        raise RuntimeError(str(message or "visible browser category request failed")) from error
+    except Exception as error:  # noqa: BLE001
+        raise RuntimeError("visible browser category session did not return in time") from error
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("visible browser returned an invalid category payload")
+    if payload.get("status") != "success":
+        raise RuntimeError(str(payload.get("error") or "visible browser category request failed"))
+
+    responses = payload.get("categoryResponses")
+    requests = payload.get("categoryRequests")
+    if not isinstance(responses, list) or not isinstance(requests, list):
+        raise RuntimeError("visible browser returned invalid category capture data")
+    if len(responses) != len(requests):
+        raise RuntimeError("visible browser returned unpaired category capture data")
+    return payload
+
+
+def woolworths_visible_category_page(category_path: str, page_number: int) -> str:
+    separator = "&" if "?" in category_path else "?"
+    return f"{category_path}{separator}{urlencode({'pageNumber': page_number})}"
+
+
+def woolworths_remaining_category_pages(
+    request_payload: dict, responses: list[object]
+) -> list[int]:
+    """Derive the finite visible-page plan from the storefront response."""
+    try:
+        current_page = max(1, int(request_payload.get("pageNumber") or 1))
+        page_size = int(request_payload.get("pageSize") or 0)
+    except (TypeError, ValueError):
+        return []
+    total = max(
+        (
+            int(response.get("TotalRecordCount") or 0)
+            for response in responses
+            if isinstance(response, dict)
+        ),
+        default=0,
+    )
+    total_pages = (total + page_size - 1) // page_size if page_size > 0 else 1
+    return list(range(current_page + 1, total_pages + 1))
 
 
 class WoolworthsBrowserSession:
@@ -429,25 +506,65 @@ class WoolworthsBrowserSession:
         return value
 
     def browse(self, category_path: str) -> object:
-        completed: Queue = Queue(maxsize=1)
-        print(
-            f"Woolworths browse: queueing {category_path}",
-            flush=True,
+        # Category browsing belongs to the undetected-Chrome sidecar.  The
+        # Playwright worker below remains responsible only for search and
+        # product-detail enrichment.
+        payload = woolworths_visible_category_fetch(category_path)
+        responses = list(payload["categoryResponses"])
+        requests = list(payload["categoryRequests"])
+        descendants = payload.get("subcategories")
+        if descendants:
+            return {
+                "categoryResponses": responses,
+                "categoryRequests": requests,
+                "subcategories": descendants,
+            }
+
+        request_payload = next(
+            (
+                candidate
+                for request in requests
+                if (candidate := woolworths_category_request_payload(request))
+            ),
+            None,
         )
-        self._requests.put(("browse", category_path, completed))
-        print(
-            f"Woolworths browse: queued {category_path}; waiting for worker",
-            flush=True,
-        )
-        success, value = completed.get()
-        print(
-            f"Woolworths browse: worker returned {category_path}; "
-            f"success={success}",
-            flush=True,
-        )
-        if not success:
-            raise RuntimeError(str(value))
-        return value
+        if not request_payload:
+            return {
+                "categoryResponses": responses,
+                "categoryRequests": requests,
+                "subcategories": [],
+            }
+        for page_number in woolworths_remaining_category_pages(
+            request_payload, responses
+        ):
+            page_payload = woolworths_visible_category_fetch(
+                woolworths_visible_category_page(category_path, page_number)
+            )
+            page_responses = page_payload["categoryResponses"]
+            page_requests = page_payload["categoryRequests"]
+            if not page_responses or not page_requests:
+                raise RuntimeError(
+                    f"visible browser did not capture category page {page_number}"
+                )
+            matched = any(
+                woolworths_category_request_payload(request)
+                and int(
+                    woolworths_category_request_payload(request).get("pageNumber") or 1
+                ) == page_number
+                for request in page_requests
+            )
+            if not matched:
+                raise RuntimeError(
+                    f"visible browser did not capture request metadata for category page {page_number}"
+                )
+            responses.extend(page_responses)
+            requests.extend(page_requests)
+
+        return {
+            "categoryResponses": responses,
+            "categoryRequests": requests,
+            "subcategories": [],
+        }
 
     def details(self, stockcodes: list[str]) -> object:
         completed: Queue = Queue(maxsize=1)
@@ -475,10 +592,17 @@ class WoolworthsBrowserSession:
                     f"Woolworths worker: received operation={request[0]!r}",
                     flush=True,
                 )
-                if len(request) == 3 and request[0] in ("browse", "details"):
+                if len(request) == 3 and request[0] == "browse":
+                    # browse() above is deliberately synchronous with the UC
+                    # sidecar.  Never fall back to Playwright navigation.
+                    request[2].put((False, RuntimeError(
+                        "Woolworths category browse must use the visible browser sidecar"
+                    )))
+                    continue
+                if len(request) == 3 and request[0] == "details":
                     operation, operation_value, completed = request
-                    category_path = operation_value if operation == "browse" else None
-                    stockcodes = operation_value if operation == "details" else []
+                    category_path = None
+                    stockcodes = operation_value
                     query = None
                     limit = 0
                 else:

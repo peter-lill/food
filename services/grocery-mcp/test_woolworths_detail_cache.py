@@ -99,6 +99,52 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             [],
         )
 
+    def test_visible_woolworths_fetch_requires_paired_capture_metadata(self) -> None:
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "status": "success",
+            "categoryResponses": [{"TotalRecordCount": 36}],
+            "categoryRequests": [{
+                "method": "POST",
+                "payload": {"pageNumber": 1, "pageSize": 36, "categoryId": "fruit"},
+            }],
+            "subcategories": [],
+        }).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(
+            self.bridge, "WOOLWORTHS_BROWSER_FETCH_URL", "http://browser:8789/fetch"
+        ), patch.object(self.bridge, "urlopen", return_value=response) as open_request:
+            payload = self.bridge.woolworths_visible_category_fetch(
+                "/shop/browse/fruit-veg"
+            )
+
+        self.assertEqual(payload["categoryRequests"][0]["payload"]["categoryId"], "fruit")
+        self.assertIn(
+            "url=https%3A%2F%2Fwww.woolworths.com.au%2Fshop%2Fbrowse%2Ffruit-veg",
+            open_request.call_args.args[0].full_url,
+        )
+        self.assertEqual(
+            open_request.call_args.kwargs["timeout"],
+            self.bridge.WOOLWORTHS_CATEGORY_SESSION_SECONDS,
+        )
+
+    def test_visible_woolworths_fetch_rejects_unpaired_capture_metadata(self) -> None:
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "status": "success",
+            "categoryResponses": [{"TotalRecordCount": 36}],
+            "categoryRequests": [],
+            "subcategories": [],
+        }).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(
+            self.bridge, "WOOLWORTHS_BROWSER_FETCH_URL", "http://browser:8789/fetch"
+        ), patch.object(self.bridge, "urlopen", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "unpaired category capture"):
+                self.bridge.woolworths_visible_category_fetch(
+                    "/shop/browse/fruit-veg"
+                )
+
     def test_woolworths_category_cache_counts_duplicate_pages_once(self) -> None:
         product = {"Stockcode": 123, "DisplayName": "Test flour", "Price": 2.5}
         payload = {"categoryResponses": [

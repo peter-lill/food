@@ -1,79 +1,19 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-display="${WOOLWORTHS_HOST_DISPLAY:-:100}"
-screen="${WOOLWORTHS_HOST_SCREEN:-1920x1080x24}"
-cdp_port="${WOOLWORTHS_HOST_CDP_PORT:-9224}"
-vnc_port="${WOOLWORTHS_HOST_VNC_PORT:-5901}"
-novnc_port="${WOOLWORTHS_HOST_NOVNC_PORT:-6084}"
-profile="${WOOLWORTHS_HOST_PROFILE:-${HOME}/snap/chromium/common/food-woolworths-profile}"
+# The host service deliberately uses the same undetected-Chrome sidecar as
+# Compose. Keeping one owner for visible navigation means the bridge's
+# /fetch calls, CDP search/detail work and the noVNC screen always describe
+# the same browser session.
+export DISPLAY="${WOOLWORTHS_HOST_DISPLAY:-:100}"
+export WOOLWORTHS_BROWSER_SCREEN="${WOOLWORTHS_HOST_SCREEN:-1920x1080x24}"
+export WOOLWORTHS_BROWSER_CDP_PORT="${WOOLWORTHS_HOST_CDP_PORT:-9224}"
+export WOOLWORTHS_BROWSER_VNC_PORT="${WOOLWORTHS_HOST_VNC_PORT:-5901}"
+export WOOLWORTHS_BROWSER_NOVNC_PORT="${WOOLWORTHS_HOST_NOVNC_PORT:-6084}"
+export WOOLWORTHS_BROWSER_FETCH_PORT="${WOOLWORTHS_HOST_FETCH_PORT:-8789}"
+export WOOLWORTHS_BROWSER_PROFILE="${WOOLWORTHS_HOST_PROFILE:-${HOME}/snap/chromium/common/food-woolworths-profile}"
+export WOOLWORTHS_BROWSER_FETCH_BIND_ADDRESS="127.0.0.1"
+export WOOLWORTHS_BROWSER_NOVNC_BIND_ADDRESS="127.0.0.1"
+export WOOLWORTHS_BROWSER_CDP_RELAY_BIND_ADDRESS="127.0.0.1"
 
-for command_name in Xvfb openbox chromium-browser x11vnc websockify; do
-  command -v "${command_name}" >/dev/null || {
-    echo "Required command not found: ${command_name}" >&2
-    exit 1
-  }
-done
-
-mkdir -p "${profile}"
-
-pids=()
-cleanup() {
-  for pid in "${pids[@]}"; do
-    kill "${pid}" 2>/dev/null || true
-  done
-  wait 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
-
-Xvfb "${display}" -screen 0 "${screen}" -ac &
-pids+=("$!")
-sleep 2
-
-DISPLAY="${display}" openbox &
-pids+=("$!")
-
-DISPLAY="${display}" chromium-browser \
-  --disable-gpu \
-  --no-proxy-server \
-  --no-first-run \
-  --no-default-browser-check \
-  --start-maximized \
-  --user-data-dir="${profile}" \
-  --remote-debugging-address=127.0.0.1 \
-  --remote-debugging-port="${cdp_port}" \
-  https://www.woolworths.com.au/ &
-browser_pid="$!"
-pids+=("${browser_pid}")
-
-x11vnc \
-  -display "${display}" \
-  -rfbport "${vnc_port}" \
-  -localhost \
-  -forever \
-  -shared \
-  -nopw &
-pids+=("$!")
-
-websockify \
-  --web=/usr/share/novnc/ \
-  "127.0.0.1:${novnc_port}" \
-  "127.0.0.1:${vnc_port}" &
-pids+=("$!")
-
-for _ in $(seq 1 30); do
-  if python3 -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${cdp_port}/json/version', timeout=2)" 2>/dev/null; then
-    echo "Woolworths host browser ready: CDP 127.0.0.1:${cdp_port}, noVNC 127.0.0.1:${novnc_port}"
-    python3 "$(dirname "$0")/../services/grocery-mcp/browser_health.py" \
-      --cdp-port "${cdp_port}" --vnc-port "${vnc_port}" --novnc-port "${novnc_port}" &
-    pids+=("$!")
-    # Any child exiting, including VNC, must restart the whole display session.
-    wait -n "${pids[@]}" || true
-    echo "Woolworths browser or VNC supervision ended; restarting the session" >&2
-    exit 1
-  fi
-  sleep 1
-done
-
-echo "Chromium CDP did not become ready on 127.0.0.1:${cdp_port}" >&2
-exit 1
+exec python3 "$(dirname "$0")/../services/grocery-mcp/woolworths_browser.py"

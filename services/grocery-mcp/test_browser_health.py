@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 from browser_health import BrowserWatchdog, transient_navigation_error
 from coles_browser import chromium_major_version, fatal_browser_error
+from woolworths_browser import CategoryCapture
 
 
 class BrowserHealthTests(unittest.TestCase):
@@ -69,6 +70,43 @@ class BrowserHealthTests(unittest.TestCase):
     def test_driver_major_tracks_installed_chromium_after_rebuild(self):
         with patch('coles_browser.subprocess.run', return_value=Mock(stdout='Chromium 152.0.7977.82')):
             self.assertEqual(chromium_major_version('/usr/bin/chromium'), 152)
+
+    def test_woolworths_category_capture_returns_only_paired_request_metadata(self):
+        capture = CategoryCapture()
+        request_id = "category-1"
+        capture.request_will_be_sent({"params": {
+            "requestId": request_id,
+            "request": {
+                "url": "https://www.woolworths.com.au/apis/ui/browse/category",
+                "method": "POST",
+                "postData": '{"pageNumber":2,"pageSize":36,"categoryId":"fruit"}',
+            },
+        }})
+        capture.response_received({"params": {
+            "requestId": request_id,
+            "response": {
+                "url": "https://www.woolworths.com.au/apis/ui/browse/category",
+                "status": 200,
+            },
+        }})
+        capture.loading_finished({"params": {"requestId": request_id}})
+        capture.response_received({"params": {
+            "requestId": "unpaired-response",
+            "response": {
+                "url": "https://www.woolworths.com.au/apis/ui/browse/category",
+                "status": 200,
+            },
+        }})
+        capture.loading_finished({"params": {"requestId": "unpaired-response"}})
+
+        self.assertEqual(capture.completed(), [(
+            request_id,
+            {
+                "url": "https://www.woolworths.com.au/apis/ui/browse/category",
+                "method": "POST",
+                "payload": {"pageNumber": 2, "pageSize": 36, "categoryId": "fruit"},
+            },
+        )])
 
 
 if __name__ == '__main__':
