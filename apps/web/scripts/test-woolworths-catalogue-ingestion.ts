@@ -92,11 +92,13 @@ assert.match(hostBrowser, /WOOLWORTHS_HOST_SCREEN:-1920x1080x24/, "the accepted 
 assert.match(hostBrowserCompose, /network_mode: host/, "the grocery bridge must reach host loopback without publishing CDP");
 assert.match(hostBrowserCompose, /ports: !reset \[\]/, "host mode must not retain redundant published ports");
 assert.match(hostBrowserCompose, /WOOLWORTHS_CDP_URL:.*http:\/\/127\.0\.0\.1:9224/, "host browser mode must use loopback CDP");
+assert.match(hostBrowserCompose, /WOOLWORTHS_BROWSER_FETCH_URL:.*http:\/\/127\.0\.0\.1:8791\/fetch/, "host browser mode must use its dedicated loopback UC fetch endpoint");
 assert.match(hostBrowser, /woolworths_browser\.py/, "host browser mode must run the UC sidecar that serves visible category fetches");
 assert.match(hostBrowser, /WOOLWORTHS_BROWSER_CDP_PORT="\$\{WOOLWORTHS_HOST_CDP_PORT:-9224\}"/, "host UC CDP must retain the configured loopback port");
 assert.match(hostBrowser, /food-woolworths-profile/, "host UC must retain its accepted profile");
 assert.match(hostBrowser, /WOOLWORTHS_BROWSER_NOVNC_BIND_ADDRESS="127\.0\.0\.1"/, "host noVNC must remain loopback-only");
 assert.match(hostBrowser, /WOOLWORTHS_BROWSER_FETCH_BIND_ADDRESS="127\.0\.0\.1"/, "host category fetch must remain loopback-only");
+assert.match(hostBrowser, /WOOLWORTHS_HOST_FETCH_PORT:-8791/, "host UC fetch must not collide with the legacy Docker sidecar");
 assert.match(hostBrowserService, /ExecStart=.*run-woolworths-host-browser\.sh/, "the accepted host browser must restart with the server");
 assert.match(bridge, /page\.evaluate\("window\.scrollTo/, "category discovery must load paginated or lazy product bundles");
 assert.match(compose, /WOOLWORTHS_CATALOGUE_DB: \/data\/woolworths-catalogue\.sqlite3/);

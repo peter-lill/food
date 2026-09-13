@@ -11,5 +11,5 @@ services:
       WOOLWORTHS_CDP_URL: ${WOOLWORTHS_CDP_URL:-http://127.0.0.1:9224}
       # This bridge has host networking, so reach the loopback-only browser
       # catalogue proxies through their published host ports rather than Docker DNS.
-      WOOLWORTHS_BROWSER_FETCH_URL: ${WOOLWORTHS_BROWSER_FETCH_URL:-http://127.0.0.1:8789/fetch}
+      WOOLWORTHS_BROWSER_FETCH_URL: ${WOOLWORTHS_BROWSER_FETCH_URL:-http://127.0.0.1:8791/fetch}
       COLES_BROWSER_FETCH_URL: ${COLES_BROWSER_FETCH_URL:-http://127.0.0.1:8788/fetch}
