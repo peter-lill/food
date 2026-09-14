@@ -149,6 +149,36 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
                         object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
                 visible_fetch.assert_called_once_with(category)
 
+    def test_woolworths_browse_ignores_previous_category_pages(self) -> None:
+        category = "/shop/browse/beauty/cosmetics/cosmetics-specials"
+        requests = [
+            {"payload": {"pageNumber": 5, "pageSize": 36,
+                         "location": "/shop/browse/beauty/cosmetics/complexion"}},
+            *[{"payload": {"pageNumber": page, "pageSize": 36,
+                           "location": category}} for page in (1, 2, 3)],
+        ]
+        responses = [{"TotalRecordCount": 157},
+                     *[{"TotalRecordCount": 104} for _ in range(3)]]
+        with patch.object(self.bridge, "woolworths_visible_category_fetch",
+                          return_value={"categoryRequests": requests,
+                                        "categoryResponses": responses}) as fetch:
+            result = object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+        fetch.assert_called_once_with(category)
+        self.assertEqual(result["categoryRequests"], requests[1:])
+        self.assertEqual(result["categoryResponses"], responses[1:])
+
+    def test_woolworths_capture_matches_category_path(self) -> None:
+        from woolworths_browser import woolworths_request_matches_category
+        category = "/shop/browse/beauty/cosmetics"
+        self.assertTrue(woolworths_request_matches_category(
+            {"payload": {"url": "https://www.woolworths.com.au" + category + "/?pageNumber=2"}},
+            category,
+        ))
+        self.assertFalse(woolworths_request_matches_category(
+            {"payload": {"location": category + "/complexion"}}, category,
+        ))
+        self.assertFalse(woolworths_request_matches_category(None, category))
+
     def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
         import woolworths_browser
 

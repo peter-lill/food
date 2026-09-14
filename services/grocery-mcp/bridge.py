@@ -16,6 +16,7 @@ from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
+from woolworths_browser import woolworths_request_matches_category
 
 from coles_catalogue import (
     ColesBrowserSession,
@@ -510,8 +511,17 @@ class WoolworthsBrowserSession:
         # Playwright worker below remains responsible only for search and
         # product-detail enrichment.
         payload = woolworths_visible_category_fetch(category_path)
-        responses = list(payload["categoryResponses"])
-        requests = list(payload["categoryRequests"])
+        pairs = [
+            (request, response)
+            for request, response in zip(
+                payload["categoryRequests"], payload["categoryResponses"]
+            )
+            if woolworths_request_matches_category(request, category_path)
+        ]
+        requests = [request for request, _ in pairs]
+        responses = [response for _, response in pairs]
+        if payload["categoryResponses"] and not pairs:
+            raise RuntimeError("visible browser did not capture the requested category")
         descendants = payload.get("subcategories")
         if descendants:
             return {

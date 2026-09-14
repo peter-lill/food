@@ -257,6 +257,20 @@ def woolworths_catalogue_request_payload(request: object) -> dict[str, object] |
     return catalogue_payload
 
 
+def woolworths_request_matches_category(request: object, category_path: str) -> bool:
+    """Exclude delayed CDP captures belonging to a different browse category."""
+    payload = woolworths_catalogue_request_payload(request)
+    if payload is None:
+        return False
+    expected = urlparse(category_path).path.rstrip("/")
+    paths = [
+        urlparse(value).path.rstrip("/")
+        for key in ("url", "location")
+        if isinstance(value := payload.get(key), str) and value
+    ]
+    return all(path == expected for path in paths)
+
+
 def fetch_woolworths_catalogue_response(
     driver: object,
     request: dict[str, object],
@@ -508,7 +522,9 @@ def fetch_category(
     seen_request_ids: set[str] = set()
 
     for request_id, request in capture.completed():
-        if request_id in seen_request_ids:
+        if request_id in seen_request_ids or not woolworths_request_matches_category(
+            request, category_path
+        ):
             continue
         seen_request_ids.add(request_id)
 
