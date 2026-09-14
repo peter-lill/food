@@ -99,6 +99,56 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             [],
         )
 
+    def test_woolworths_browse_does_not_renavigate_when_sidecar_returns_all_pages(self) -> None:
+        category = "/shop/browse/beauty/beauty-specials"
+        payload = {
+            "status": "success",
+            "categoryResponses": [
+                {"TotalRecordCount": 73},
+                {"TotalRecordCount": 73},
+                {"TotalRecordCount": 73},
+            ],
+            "categoryRequests": [
+                {"payload": {"pageNumber": 1, "pageSize": 36, "categoryId": "beauty"}},
+                {"payload": {"pageNumber": 2, "pageSize": 36, "categoryId": "beauty"}},
+                {"payload": {"pageNumber": 3, "pageSize": 36, "categoryId": "beauty"}},
+            ],
+            "subcategories": [],
+        }
+
+        with patch.object(
+            self.bridge,
+            "woolworths_visible_category_fetch",
+            return_value=payload,
+        ) as visible_fetch:
+            result = object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+
+        visible_fetch.assert_called_once_with(category)
+        self.assertEqual(result["categoryResponses"], payload["categoryResponses"])
+        self.assertEqual(result["categoryRequests"], payload["categoryRequests"])
+
+    def test_woolworths_browse_rejects_missing_sidecar_pages(self) -> None:
+        category = "/shop/browse/beauty/beauty-specials"
+        for page in (3, "invalid"):
+            with self.subTest(page=page):
+                payload = {
+                    "categoryResponses": [
+                        {"TotalRecordCount": 73}, {"TotalRecordCount": 73},
+                    ],
+                    "categoryRequests": [
+                        {"payload": {"pageNumber": page, "pageSize": 36}},
+                        {"payload": {"pageNumber": 1, "pageSize": 36}},
+                    ],
+                    "subcategories": [],
+                }
+                with patch.object(
+                    self.bridge, "woolworths_visible_category_fetch",
+                    return_value=payload,
+                ) as visible_fetch:
+                    with self.assertRaisesRegex(RuntimeError, "category page 2"):
+                        object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+                visible_fetch.assert_called_once_with(category)
+
     def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
         import woolworths_browser
 

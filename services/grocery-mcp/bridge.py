@@ -534,31 +534,26 @@ class WoolworthsBrowserSession:
                 "categoryRequests": requests,
                 "subcategories": [],
             }
-        for page_number in woolworths_remaining_category_pages(
-            request_payload, responses
-        ):
-            page_payload = woolworths_visible_category_fetch(
-                woolworths_visible_category_page(category_path, page_number)
-            )
-            page_responses = page_payload["categoryResponses"]
-            page_requests = page_payload["categoryRequests"]
-            if not page_responses or not page_requests:
+        # The sidecar replays every catalogue page in the authenticated
+        # session. Missing pages must fail collection instead of navigating
+        # again or silently accepting a partial catalogue.
+        expected_pages = woolworths_remaining_category_pages(
+            {**request_payload, "pageNumber": 1}, responses
+        )
+        captured_pages: set[int] = set()
+        for request, response in zip(requests, responses):
+            candidate = woolworths_category_request_payload(request)
+            if not candidate or not isinstance(response, dict):
+                continue
+            try:
+                captured_pages.add(int(candidate.get("pageNumber") or 1))
+            except (TypeError, ValueError):
+                continue
+        for page_number in [1, *expected_pages]:
+            if page_number not in captured_pages:
                 raise RuntimeError(
                     f"visible browser did not capture category page {page_number}"
                 )
-            matched = any(
-                woolworths_category_request_payload(request)
-                and int(
-                    woolworths_category_request_payload(request).get("pageNumber") or 1
-                ) == page_number
-                for request in page_requests
-            )
-            if not matched:
-                raise RuntimeError(
-                    f"visible browser did not capture request metadata for category page {page_number}"
-                )
-            responses.extend(page_responses)
-            requests.extend(page_requests)
 
         return {
             "categoryResponses": responses,

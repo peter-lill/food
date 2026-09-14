@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import Mock, patch
 
-from browser_health import BrowserWatchdog, transient_navigation_error
+from browser_health import BrowserWatchdog, probe_connections, transient_navigation_error
 from coles_browser import chromium_major_version, fatal_browser_error
 from woolworths_browser import CategoryCapture
 
@@ -15,6 +15,12 @@ class BrowserHealthTests(unittest.TestCase):
         self.probe = Mock()
         self.watchdog = BrowserWatchdog([self.process], self.probe, self.failures.append, lambda: self.now)
 
+    @patch("browser_health.socket.create_connection")
+    def test_probe_connections_labels_vnc_failure(self, create_connection):
+        create_connection.side_effect = TimeoutError("timed out")
+        with self.assertRaisesRegex(RuntimeError, "VNC probe failed: timed out"):
+            probe_connections(5901, 6084, 9224)
+
     def test_failed_vnc_requires_three_failures_and_recovers_between_them(self):
         self.watchdog.beat()
         self.probe.side_effect = OSError('VNC connection refused')
@@ -27,6 +33,22 @@ class BrowserHealthTests(unittest.TestCase):
         for _ in range(3):
             self.watchdog.check_once()
         self.assertEqual(self.failures, ['VNC connection refused'])
+
+    def test_cdp_probe_failure_waits_for_heartbeat_timeout(self):
+        self.watchdog.beat()
+        self.probe.side_effect = RuntimeError("Browser CDP probe failed: timed out")
+
+        for _ in range(3):
+            self.watchdog.check_once()
+
+        self.assertEqual(self.failures, [])
+
+        self.now = 91
+        self.watchdog.check_once()
+        self.assertEqual(
+            self.failures,
+            ["browser command heartbeat stalled for 90 seconds"],
+        )
 
     def test_child_process_exits_even_successfully_trigger_recovery(self):
         self.watchdog.beat()

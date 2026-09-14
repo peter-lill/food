@@ -7,6 +7,7 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from queue import Empty, Queue
@@ -31,6 +32,8 @@ CATEGORY_API_PATH = "/apis/ui/browse/category"
 CATEGORY_NAVIGATION_SECONDS = 45
 CATEGORY_SCROLL_ROUNDS = 60
 CATEGORY_SCROLL_WAIT_SECONDS = 0.75
+CATEGORY_SCRIPT_TIMEOUT_SECONDS = 60
+CATEGORY_API_TIMEOUT_MS = 45_000
 # A single visible browse navigation may take the page-load budget, all lazy
 # scroll rounds, and a bounded margin for the browser's category response.
 CATEGORY_SESSION_SECONDS = (
@@ -267,10 +270,14 @@ def fetch_woolworths_catalogue_response(
         r"""
         const done = arguments[arguments.length - 1];
         const payload = arguments[0];
+        const timeoutMs = arguments[1];
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
         fetch('/apis/ui/browse/category', {
           method: 'POST',
           credentials: 'include',
+          signal: controller.signal,
           headers: {
             'accept': 'application/json, text/plain, */*',
             'content-type': 'application/json'
@@ -279,6 +286,7 @@ def fetch_woolworths_catalogue_response(
         })
           .then(async (response) => {
             const body = await response.json();
+            clearTimeout(timeout);
             done({
               ok: response.ok,
               status: response.status,
@@ -286,6 +294,7 @@ def fetch_woolworths_catalogue_response(
             });
           })
           .catch((error) => {
+            clearTimeout(timeout);
             done({
               ok: false,
               status: 0,
@@ -294,6 +303,7 @@ def fetch_woolworths_catalogue_response(
           });
         """,
         payload,
+        CATEGORY_API_TIMEOUT_MS,
     )
 
     if not isinstance(result, dict):
@@ -369,30 +379,55 @@ def wait_for_x_display(timeout_seconds: int = 10) -> None:
 
 
 
-def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[str, object]:
+def fetch_category(
+    driver: object,
+    capture: CategoryCapture,
+    url: str,
+    heartbeat: Callable[[], None],
+) -> dict[str, object]:
     """Navigate the visible UC browser and return category API data plus descendants."""
     category_path = urlparse(url).path.rstrip("/")
     capture.clear()
 
+    print(f"Woolworths category {category_path}: navigate", flush=True)
     driver.get(url)
+    heartbeat()
     # UC can navigate its controlled target in a background Chromium tab while
     # leaving the initial blank tab focused.  Make the collection target the
     # foreground tab so the visible noVNC session faithfully shows navigation.
+    print(f"Woolworths category {category_path}: bring-to-front", flush=True)
     driver.execute_cdp_cmd("Page.bringToFront", {})
+    heartbeat()
 
     deadline = time.monotonic() + CATEGORY_NAVIGATION_SECONDS
     stable_rounds = 0
     previous_height = 0
     descendants: list[str] = []
 
+    round_number = 0
     while time.monotonic() < deadline:
+        round_number += 1
+
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} title",
+            flush=True,
+        )
         title = str(driver.title or "").casefold()
+        heartbeat()
+
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} body",
+            flush=True,
+        )
         body = str(
             driver.execute_script(
                 "return document.body ? document.body.innerText : ''"
             )
             or ""
         ).casefold()
+        heartbeat()
 
         verification_markers = (
             "access denied",
@@ -404,6 +439,11 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
         if any(marker in title or marker in body for marker in verification_markers):
             raise RuntimeError("Woolworths requires browser verification")
 
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} descendants",
+            flush=True,
+        )
         descendants = driver.execute_script(
             r"""
             const base = arguments[0].replace(/\/+$/, '');
@@ -422,19 +462,39 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
             """,
             category_path,
         ) or []
+        heartbeat()
 
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} current-height",
+            flush=True,
+        )
         current_height = int(
             driver.execute_script("return document.body.scrollHeight") or 0
         )
+        heartbeat()
         before = len(capture.completed())
 
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} scroll",
+            flush=True,
+        )
         driver.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+        heartbeat()
         time.sleep(CATEGORY_SCROLL_WAIT_SECONDS)
 
         after = len(capture.completed())
+
+        print(
+            f"Woolworths category {category_path}: "
+            f"round {round_number} new-height",
+            flush=True,
+        )
         new_height = int(
             driver.execute_script("return document.body.scrollHeight") or 0
         )
+        heartbeat()
 
         changed = after > before or new_height > current_height or current_height > previous_height
         stable_rounds = 0 if changed else stable_rounds + 1
@@ -452,12 +512,81 @@ def fetch_category(driver: object, capture: CategoryCapture, url: str) -> dict[s
             continue
         seen_request_ids.add(request_id)
 
+        heartbeat()
+        print(
+            f"Woolworths category {category_path}: "
+            f"catalogue-api {request_id}",
+            flush=True,
+        )
         catalogue_response = fetch_woolworths_catalogue_response(
             driver,
             request,
         )
+        heartbeat()
         responses.append(catalogue_response)
         category_requests.append(request)
+
+    # A visible navigation establishes the authenticated Woolworths category
+    # session.  Fetch any remaining product pages through the captured category
+    # request rather than navigating Chromium back to the same category for
+    # every page.
+    paging_seed: tuple[dict[str, object], dict[str, object]] | None = None
+    for request, response in zip(category_requests, responses):
+        payload = woolworths_catalogue_request_payload(request)
+        if payload is None:
+            continue
+        try:
+            page_number = max(1, int(payload.get("pageNumber") or 1))
+            page_size = int(payload.get("pageSize") or 0)
+            total = int(response.get("TotalRecordCount") or 0)
+        except (TypeError, ValueError):
+            continue
+        if page_number == 1 and page_size > 0 and total > 0:
+            if paging_seed is None or total > int(
+                paging_seed[1].get("TotalRecordCount") or 0
+            ):
+                paging_seed = (request, response)
+
+    if paging_seed is not None:
+        seed_request, seed_response = paging_seed
+        seed_payload = woolworths_catalogue_request_payload(seed_request)
+        assert seed_payload is not None
+        page_size = int(seed_payload.get("pageSize") or 0)
+        total = int(seed_response.get("TotalRecordCount") or 0)
+        total_pages = (total + page_size - 1) // page_size if page_size > 0 else 1
+
+        existing_pages: set[int] = set()
+        for request in category_requests:
+            payload = woolworths_catalogue_request_payload(request)
+            if payload is None:
+                continue
+            try:
+                existing_pages.add(max(1, int(payload.get("pageNumber") or 1)))
+            except (TypeError, ValueError):
+                pass
+
+        for page_number in range(2, total_pages + 1):
+            if page_number in existing_pages:
+                continue
+
+            page_request = dict(seed_request)
+            page_payload = dict(seed_request.get("payload") or {})
+            page_payload["pageNumber"] = page_number
+            page_request["payload"] = page_payload
+
+            print(
+                f"Woolworths category {category_path}: "
+                f"catalogue-page {page_number}/{total_pages}",
+                flush=True,
+            )
+            heartbeat()
+            page_response = fetch_woolworths_catalogue_response(
+                driver,
+                page_request,
+            )
+            heartbeat()
+            responses.append(page_response)
+            category_requests.append(page_request)
 
     unique_descendants = sorted(
         {
@@ -536,6 +665,7 @@ def main() -> None:
             enable_cdp_events=True,
         )
         driver.set_page_load_timeout(45)
+        driver.set_script_timeout(CATEGORY_SCRIPT_TIMEOUT_SECONDS)
 
         capture = CategoryCapture()
         driver.execute_cdp_cmd("Network.enable", {})
@@ -587,7 +717,12 @@ def main() -> None:
                     continue
 
                 try:
-                    fetched = fetch_category(driver, capture, url)
+                    fetched = fetch_category(
+                        driver,
+                        capture,
+                        url,
+                        watchdog.beat,
+                    )
                     result.update(fetched)
                 except Exception as error:  # noqa: BLE001
                     result["error"] = str(error)

@@ -15,17 +15,28 @@ def transient_navigation_error(error):
 
 
 def probe_connections(vnc_port, novnc_port, cdp_port=None):
-    with socket.create_connection(('127.0.0.1', vnc_port), timeout=3) as stream:
-        stream.settimeout(3)
-        if not stream.recv(12).startswith(b'RFB '):
-            raise RuntimeError('VNC did not return an RFB greeting')
-    with urlopen(f'http://127.0.0.1:{novnc_port}/vnc.html', timeout=3) as response:
-        if response.status != 200:
-            raise RuntimeError('noVNC page is unavailable')
+    try:
+        with socket.create_connection(('127.0.0.1', vnc_port), timeout=3) as stream:
+            stream.settimeout(3)
+            if not stream.recv(12).startswith(b'RFB '):
+                raise RuntimeError('did not return an RFB greeting')
+    except Exception as error:
+        raise RuntimeError(f'VNC probe failed: {error}') from error
+
+    try:
+        with urlopen(f'http://127.0.0.1:{novnc_port}/vnc.html', timeout=3) as response:
+            if response.status != 200:
+                raise RuntimeError(f'HTTP {response.status}')
+    except Exception as error:
+        raise RuntimeError(f'noVNC probe failed: {error}') from error
+
     if cdp_port:
-        with urlopen(f'http://127.0.0.1:{cdp_port}/json/version', timeout=3) as response:
-            if not json.load(response).get('webSocketDebuggerUrl'):
-                raise RuntimeError('Browser CDP is unavailable')
+        try:
+            with urlopen(f'http://127.0.0.1:{cdp_port}/json/version', timeout=3) as response:
+                if not json.load(response).get('webSocketDebuggerUrl'):
+                    raise RuntimeError('missing webSocketDebuggerUrl')
+        except Exception as error:
+            raise RuntimeError(f'Browser CDP probe failed: {error}') from error
 
 
 class BrowserWatchdog:
@@ -62,6 +73,9 @@ class BrowserWatchdog:
             self.probe()
             self.failures = 0
         except Exception as error:
+            if str(error).startswith('Browser CDP probe failed:'):
+                self.failures = 0
+                return
             self.failures += 1
             if self.failures >= 3:
                 self.fail(str(error))
