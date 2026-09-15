@@ -292,7 +292,8 @@ def main() -> None:
         wait_for_x_display()
         processes.append(start_process(["openbox"], "Openbox"))
         processes.append(start_process([
-            "x11vnc", "-display", DISPLAY, "-forever", "-shared", "-nopw", "-rfbport", str(VNC_PORT),
+            "x11vnc", "-display", DISPLAY, "-forever", "-shared",
+            "-nopw", "-rfbport", str(VNC_PORT),
         ], "x11vnc"))
         processes.append(start_process([
             "websockify", "--web=/usr/share/novnc/", f"0.0.0.0:{NOVNC_PORT}", f"127.0.0.1:{VNC_PORT}",

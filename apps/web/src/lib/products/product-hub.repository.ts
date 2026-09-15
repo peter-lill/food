@@ -132,6 +132,26 @@ export function displayShelfLabel(aisle: string | null | undefined) {
 }
 
 /**
+ * Turn imported retailer shelf names into concise customer-facing labels without
+ * changing the underlying taxonomy value used for filtering.
+ */
+export function customerShelfLabel(label: string) {
+  const aliases: Record<string, string> = {
+    "Alternative Confec": "Alternative confectionery",
+    "Bars Dried Fruits": "Dried fruit bars",
+    "Boxed Chocolates 1": "Boxed Chocolates",
+    "Chips 1": "Chips & snacks",
+    "Choc Sharepacks": "Chocolate sharepacks",
+    "Confectionery 2": "Other confectionery",
+    "Corn Chips Salsa 1": "Corn chips & salsa",
+    "Nuts 4": "Nuts",
+    "Popcorn 1": "Popcorn",
+  };
+
+  return aliases[label] ?? label;
+}
+
+/**
  * A product family can have several retailer variants. Keep the most specific
  * imported retailer shelf rather than whichever variant happens to sort first: for
  * example, `Deli meat` must replace the intermediate `Deli` shelf.
