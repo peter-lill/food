@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getProductDepartmentCounts, getProductHubList, type ProductHubListItem } from "@/lib/products/product-hub.repository";
+import { customerShelfLabel, getProductDepartmentCounts, getProductHubList, type ProductHubListItem } from "@/lib/products/product-hub.repository";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
 import { requireAuthSession } from "@/lib/auth-session";
@@ -317,7 +317,7 @@ export default async function ProductsPage({ searchParams }: ProductsPageProps) 
                 const image = representative?.imageUrl
                   ? `/api/products/${encodeURIComponent(representative.id)}/image?v=${encodeURIComponent(imageVersion(representative.imageUrl))}`
                   : artworkForDepartment(department);
-                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><img alt="" loading="lazy" src={image} /></span><span className={styles.shelfFilterLabel}>{label}</span><strong>{shelfGroupProducts.length}</strong></Link>;
+                return <Link className={shelf === label ? styles.shelfFilterActive : styles.shelfFilter} href={departmentShelfHref(label)} key={label}><span aria-hidden="true" className={styles.shelfFilterImage}><img alt="" loading="lazy" src={image} /></span><span className={styles.shelfFilterLabel}>{customerShelfLabel(label)}</span><strong>{shelfGroupProducts.length}</strong></Link>;
               })}
             </nav>
             <div className={styles.grid}>{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
