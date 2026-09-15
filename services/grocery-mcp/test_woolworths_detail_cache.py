@@ -77,6 +77,25 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "subcategories": children,
         })
 
+    def test_woolworths_subcategory_paths_excludes_everyday_market(self) -> None:
+        parent = "/shop/browse/pet"
+        payload = {
+            "subcategories": [
+                "/shop/browse/pet/cat-kitten",
+                "/shop/browse/pet/everyday-market",
+                "/shop/browse/pet/everyday-market/pet-supplies",
+                "/shop/browse/pet/dog-puppy",
+            ]
+        }
+
+        self.assertEqual(
+            self.bridge.woolworths_subcategory_paths(payload, parent),
+            [
+                "/shop/browse/pet/cat-kitten",
+                "/shop/browse/pet/dog-puppy",
+            ],
+        )
+
     def test_woolworths_leaf_requests_every_page_reported_by_the_api(self) -> None:
         request = {"pageNumber": 1, "pageSize": 36}
 

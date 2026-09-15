@@ -1316,7 +1316,11 @@ def woolworths_subcategory_paths(payload: object, parent_path: str) -> list[str]
     return list(dict.fromkeys(
         candidate.rstrip("/")
         for candidate in candidates
-        if isinstance(candidate, str) and candidate.startswith(f"{base}/")
+        if (
+            isinstance(candidate, str)
+            and candidate.startswith(f"{base}/")
+            and "everyday-market" not in candidate.rstrip("/").split("/")
+        )
     ))
 
 
