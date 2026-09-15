@@ -221,6 +221,73 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         driver.execute_async_script.assert_called_once()
         driver.execute_script.assert_not_called()
 
+    def test_catalogue_api_status_zero_failure_is_retryable(self) -> None:
+        import woolworths_browser
+
+        error = RuntimeError(
+            "Woolworths catalogue API request failed (0): TypeError: Failed to fetch"
+        )
+
+        self.assertTrue(
+            woolworths_browser.retryable_woolworths_catalogue_error(error)
+        )
+
+    def test_catalogue_api_http_failure_is_not_retryable(self) -> None:
+        import woolworths_browser
+
+        error = RuntimeError(
+            "Woolworths catalogue API request failed (400): request failed"
+        )
+
+        self.assertFalse(
+            woolworths_browser.retryable_woolworths_catalogue_error(error)
+        )
+
+    def test_catalogue_page_retries_transient_fetch_failure(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        request = {"payload": {"pageNumber": 68, "pageSize": 36}}
+        transient = RuntimeError(
+            "Woolworths catalogue API request failed (0): TypeError: Failed to fetch"
+        )
+        expected = {"TotalRecordCount": 5328}
+
+        with patch.object(
+            woolworths_browser,
+            "fetch_woolworths_catalogue_response",
+            side_effect=[transient, expected],
+        ) as fetch, patch.object(woolworths_browser.time, "sleep") as sleep:
+            result = woolworths_browser.fetch_woolworths_catalogue_page(
+                driver, request
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(fetch.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_catalogue_page_does_not_retry_http_failure(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        request = {"payload": {"pageNumber": 2, "pageSize": 36}}
+        failure = RuntimeError(
+            "Woolworths catalogue API request failed (400): request failed"
+        )
+
+        with patch.object(
+            woolworths_browser,
+            "fetch_woolworths_catalogue_response",
+            side_effect=failure,
+        ) as fetch, patch.object(woolworths_browser.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, r"failed \(400\)"):
+                woolworths_browser.fetch_woolworths_catalogue_page(
+                    driver, request
+                )
+
+        fetch.assert_called_once()
+        sleep.assert_not_called()
+
     def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
         import woolworths_browser
 

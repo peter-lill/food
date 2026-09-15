@@ -271,6 +271,11 @@ def woolworths_request_matches_category(request: object, category_path: str) -> 
     return all(path == expected for path in paths)
 
 
+def retryable_woolworths_catalogue_error(error: Exception) -> bool:
+    """Return whether a catalogue API failure is transient and safe to retry."""
+    return "Woolworths catalogue API request failed (0):" in str(error)
+
+
 def fetch_woolworths_catalogue_response(
     driver: object,
     request: dict[str, object],
@@ -335,6 +340,26 @@ def fetch_woolworths_catalogue_response(
         raise RuntimeError("Woolworths catalogue API returned an invalid response")
 
     return body
+
+
+def fetch_woolworths_catalogue_page(
+    driver: object,
+    request: dict[str, object],
+    attempts: int = 3,
+) -> dict[str, object]:
+    """Fetch one catalogue page with bounded retries for transient failures."""
+    for attempt in range(1, attempts + 1):
+        try:
+            return fetch_woolworths_catalogue_response(driver, request)
+        except Exception as error:
+            if (
+                not retryable_woolworths_catalogue_error(error)
+                or attempt >= attempts
+            ):
+                raise
+            time.sleep(2)
+
+    raise RuntimeError("Woolworths catalogue page retry exhausted")
 
 
 def configure_uc_version_parser(patcher_module: object, parser_type: object) -> None:
@@ -613,7 +638,7 @@ def fetch_category(
                 flush=True,
             )
             heartbeat()
-            page_response = fetch_woolworths_catalogue_response(
+            page_response = fetch_woolworths_catalogue_page(
                 driver,
                 page_request,
             )
