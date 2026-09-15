@@ -393,6 +393,28 @@ def wait_for_x_display(timeout_seconds: int = 10) -> None:
 
 
 
+def read_woolworths_page_title(driver: object) -> str:
+    """Read the page title through Selenium's bounded async-script path."""
+    result = driver.execute_async_script(
+        """
+        const done = arguments[arguments.length - 1];
+        done(document.title || '');
+        """
+    )
+    return str(result or "").casefold()
+
+
+def read_woolworths_page_body(driver: object) -> str:
+    """Read visible page text through Selenium's bounded async-script path."""
+    result = driver.execute_async_script(
+        """
+        const done = arguments[arguments.length - 1];
+        done(document.body ? document.body.innerText : '');
+        """
+    )
+    return str(result or "").casefold()
+
+
 def fetch_category(
     driver: object,
     capture: CategoryCapture,
@@ -427,7 +449,7 @@ def fetch_category(
             f"round {round_number} title",
             flush=True,
         )
-        title = str(driver.title or "").casefold()
+        title = read_woolworths_page_title(driver)
         heartbeat()
 
         print(
@@ -435,12 +457,7 @@ def fetch_category(
             f"round {round_number} body",
             flush=True,
         )
-        body = str(
-            driver.execute_script(
-                "return document.body ? document.body.innerText : ''"
-            )
-            or ""
-        ).casefold()
+        body = read_woolworths_page_body(driver)
         heartbeat()
 
         verification_markers = (

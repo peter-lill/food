@@ -179,6 +179,29 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         ))
         self.assertFalse(woolworths_request_matches_category(None, category))
 
+    def test_woolworths_title_inspection_uses_bounded_async_script(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        driver.execute_async_script.return_value = "Woolworths Garden & Outdoors"
+
+        result = woolworths_browser.read_woolworths_page_title(driver)
+
+        self.assertEqual(result, "woolworths garden & outdoors")
+        driver.execute_async_script.assert_called_once()
+
+    def test_woolworths_body_inspection_uses_bounded_async_script(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        driver.execute_async_script.return_value = "Browse Garden & Outdoors"
+
+        result = woolworths_browser.read_woolworths_page_body(driver)
+
+        self.assertEqual(result, "browse garden & outdoors")
+        driver.execute_async_script.assert_called_once()
+        driver.execute_script.assert_not_called()
+
     def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
         import woolworths_browser
 
