@@ -1246,6 +1246,76 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         collector._thread.join(timeout=2)
         self.assertEqual(next(item for item in self.bridge.woolworths_collection_status()["categories"] if item["category_path"] == category)["attempts"], 1)
 
+    def test_collector_retries_same_category_after_visible_browser_restart(self) -> None:
+        category = "/shop/browse/cleaning-maintenance/kitchen/water-filtration"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
+        calls = []
+
+        def browse(requested: str) -> dict:
+            calls.append(requested)
+            if len(calls) == 1:
+                raise RuntimeError(
+                    "visible browser category session did not return in time"
+                )
+            return {"subcategories": []}
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        self.bridge.cache_woolworths_leaf = lambda _category, _payload: {
+            "products": 4,
+            "detailsEnriched": 0,
+            "detailsFailed": 0,
+            "detailError": None,
+        }
+        self.bridge._woolworths_detail_collector = MagicMock()
+        collector = self.bridge.WoolworthsCatalogueCollector()
+
+        with patch.object(self.bridge.time, "sleep") as sleep:
+            self.assertTrue(collector.start(None, False))
+            assert collector._thread is not None
+            collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(calls, [category, category])
+        sleep.assert_called_once()
+        result = next(
+            item
+            for item in self.bridge.woolworths_collection_status()["categories"]
+            if item["category_path"] == category
+        )
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(result["attempts"], 1)
+        self.assertEqual(result["products_cached"], 4)
+
+    def test_collector_does_not_retry_semantic_category_failure(self) -> None:
+        category = "/shop/browse/bakery/christmas-bakery"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
+        calls = []
+
+        def browse(requested: str) -> dict:
+            calls.append(requested)
+            raise RuntimeError("category API response was not observed")
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        self.bridge._woolworths_detail_collector = MagicMock()
+        collector = self.bridge.WoolworthsCatalogueCollector()
+
+        with patch.object(self.bridge.time, "sleep") as sleep:
+            self.assertTrue(collector.start(None, False))
+            assert collector._thread is not None
+            collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(calls, [category])
+        sleep.assert_not_called()
+        result = next(
+            item
+            for item in self.bridge.woolworths_collection_status()["categories"]
+            if item["category_path"] == category
+        )
+        self.assertEqual(result["state"], "failed")
+        self.assertEqual(result["attempts"], 1)
+        self.assertEqual(result["last_error"], "category API response was not observed")
+
     def test_collector_enqueues_discovered_descendant_categories(self) -> None:
         root = "/shop/browse/dairy-eggs-fridge"
         child = "/shop/browse/dairy-eggs-fridge/milk"

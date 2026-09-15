@@ -1542,7 +1542,17 @@ class WoolworthsCatalogueCollector:
                     WHERE category_path = ?
                 """, (started_at, category))
             try:
-                payload = woolworths_browser().browse(category)
+                try:
+                    payload = woolworths_browser().browse(category)
+                except Exception as error:  # noqa: BLE001
+                    if "visible browser category session did not return in time" not in str(error).casefold():
+                        raise
+                    # The host browser watchdog may have recycled a wedged
+                    # Selenium process. Give the replacement browser time to
+                    # become ready, then retry this same catalogue checkpoint
+                    # once instead of cascading the restart into later rows.
+                    time.sleep(30)
+                    payload = woolworths_browser().browse(category)
                 children = woolworths_subcategory_paths(payload, category)
                 if children:
                     outcome = {"products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None}
