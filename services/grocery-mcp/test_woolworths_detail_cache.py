@@ -1172,6 +1172,106 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertNotIn(legacy, states)
         self.assertEqual(states[current], "pending")
 
+    def test_obsolete_meat_seafood_deli_root_is_migrated_to_live_poultry_meat_seafood_route(self) -> None:
+        legacy = "/shop/browse/meat-seafood-deli"
+        current = "/shop/browse/poultry-meat-seafood"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 18, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_meat_mince_route_is_migrated_to_live_mince_route(self) -> None:
+        legacy = "/shop/browse/poultry-meat-seafood/meat/mince"
+        current = "/shop/browse/poultry-meat-seafood/mince"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 3, 'visible browser did not capture the requested category')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_meat_organic_route_is_migrated_to_live_organic_meat_poultry_route(self) -> None:
+        legacy = "/shop/browse/poultry-meat-seafood/meat/organic-meat"
+        current = "/shop/browse/poultry-meat-seafood/organic-meat-poultry"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 3, 'visible browser did not capture the requested category')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_liquor_root_is_migrated_to_live_beer_wine_spirits_route(self) -> None:
+        legacy = "/shop/browse/liquor"
+        current = "/shop/browse/beer-wine-spirits"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 13, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_christmas_bakery_is_migrated_to_live_route(self) -> None:
+        legacy = "/shop/browse/bakery/christmas-bakery"
+        current = "/shop/browse/gift-ideas/christmas-gifts/christmas-bakery"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 11, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
     def test_rich_detail_fields_are_cached_without_erasing_catalogue_identity(self) -> None:
         self.bridge.cache_woolworths_category("/shop/browse/dairy-eggs-fridge/milk", {
             "Products": [{
@@ -1373,7 +1473,7 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(result["products_cached"], 4)
 
     def test_collector_does_not_retry_semantic_category_failure(self) -> None:
-        category = "/shop/browse/bakery/christmas-bakery"
+        category = "/shop/browse/test-semantic-failure"
         self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
         calls = []
 

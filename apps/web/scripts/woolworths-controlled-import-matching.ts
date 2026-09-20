@@ -85,7 +85,7 @@ export function canonicalWoolworthsCategoryPath(paths: readonly string[]): strin
       const segments = woolworthsCategorySegments(path);
       const [root, ...descendants] = segments;
       const base = {
-        pet: 1000, baby: 900, freezer: 800, "meat-seafood-deli": 700,
+        pet: 1000, baby: 900, freezer: 800, "meat-seafood-deli": 700, "poultry-meat-seafood": 700,
         "fruit-veg": 700, "dairy-eggs-fridge": 700, bakery: 700,
         "cleaning-maintenance": 700, beauty: 700, drinks: 600, liquor: 600,
         pantry: 500,
@@ -105,7 +105,7 @@ export function categoryForWoolworthsPath(path: string, productName = ""): { cat
   if (productOverride) return productOverride;
 
   if (root === "fruit-veg") return { category: "Fruit & vegetables", productType: produceProductType(productName) };
-  if (root === "meat-seafood-deli") {
+  if (root === "meat-seafood-deli" || root === "poultry-meat-seafood") {
     if (descendantSegments.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment))) return { category: "Deli", productType: ProductType.PACKAGED };
     if (descendantSegments.some((segment) => /(?:^|-)seafood(?:-|$)/.test(segment))) return { category: "Meat & seafood", productType: ProductType.SEAFOOD };
     return { category: "Meat & seafood", productType: ProductType.FRESH_MEAT };

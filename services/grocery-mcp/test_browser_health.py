@@ -3,7 +3,12 @@ from unittest.mock import Mock, patch
 
 from browser_health import BrowserWatchdog, probe_connections, transient_navigation_error
 from coles_browser import chromium_major_version, fatal_browser_error
-from woolworths_browser import CategoryCapture
+from woolworths_browser import (
+    CategoryCapture,
+    clear_stale_x_display_artifacts,
+    woolworths_category_path,
+    x_display_paths,
+)
 
 
 class BrowserHealthTests(unittest.TestCase):
@@ -92,6 +97,61 @@ class BrowserHealthTests(unittest.TestCase):
     def test_driver_major_tracks_installed_chromium_after_rebuild(self):
         with patch('coles_browser.subprocess.run', return_value=Mock(stdout='Chromium 152.0.7977.82')):
             self.assertEqual(chromium_major_version('/usr/bin/chromium'), 152)
+
+    def test_x_display_paths_follow_configured_display(self):
+        lock_path, socket_path = x_display_paths(":77")
+        self.assertEqual(str(lock_path), "/tmp/.X77-lock")
+        self.assertEqual(str(socket_path), "/tmp/.X11-unix/X77")
+
+    @patch("woolworths_browser.x_display_paths")
+    def test_stale_x_display_artifacts_are_removed(self, display_paths):
+        lock_path = Mock()
+        socket_path = Mock()
+        socket_path.exists.return_value = False
+        display_paths.return_value = (lock_path, socket_path)
+
+        clear_stale_x_display_artifacts(":77")
+
+        lock_path.unlink.assert_called_once()
+        socket_path.unlink.assert_called_once()
+
+    def test_woolworths_category_path_keeps_requested_path_without_redirect(self):
+        url = "https://www.woolworths.com.au/shop/browse/freezer"
+        self.assertEqual(
+            woolworths_category_path(url, url),
+            "/shop/browse/freezer",
+        )
+
+    def test_woolworths_category_path_uses_safe_canonical_redirect(self):
+        requested = (
+            "https://www.woolworths.com.au/"
+            "shop/browse/poultry-meat-seafood/meat/mince"
+        )
+        loaded = (
+            "https://www.woolworths.com.au/"
+            "shop/browse/poultry-meat-seafood/mince"
+        )
+        self.assertEqual(
+            woolworths_category_path(requested, loaded),
+            "/shop/browse/poultry-meat-seafood/mince",
+        )
+
+    def test_woolworths_category_path_rejects_non_browse_redirect(self):
+        requested = "https://www.woolworths.com.au/shop/browse/freezer"
+        self.assertEqual(
+            woolworths_category_path(
+                requested,
+                "https://www.woolworths.com.au/login",
+            ),
+            "/shop/browse/freezer",
+        )
+        self.assertEqual(
+            woolworths_category_path(
+                requested,
+                "https://example.com/shop/browse/freezer",
+            ),
+            "/shop/browse/freezer",
+        )
 
     def test_woolworths_category_capture_returns_only_paired_request_metadata(self):
         capture = CategoryCapture()

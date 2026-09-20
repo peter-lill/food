@@ -58,6 +58,12 @@ def valid_woolworths_browse_url(value: str) -> bool:
     )
 
 
+def woolworths_category_path(requested_url: str, loaded_url: str) -> str:
+    """Use Woolworths' canonical browse path after a safe same-site redirect."""
+    effective_url = loaded_url if valid_woolworths_browse_url(loaded_url) else requested_url
+    return urlparse(effective_url).path.rstrip("/")
+
+
 class Handler(BaseHTTPRequestHandler):
     server_version = "FoodWoolworthsUC/1.0"
 
@@ -406,9 +412,44 @@ def start_process(command: list[str], name: str) -> subprocess.Popen:
     return subprocess.Popen(command, env={**os.environ, "DISPLAY": DISPLAY})
 
 
+def x_display_paths(display: str = DISPLAY) -> tuple[Path, Path]:
+    """Return the X11 lock and socket paths for a local display."""
+    display_number = display.removeprefix(":").split(".", 1)[0]
+    return (
+        Path(f"/tmp/.X{display_number}-lock"),
+        Path(f"/tmp/.X11-unix/X{display_number}"),
+    )
+
+
+def clear_stale_x_display_artifacts(display: str = DISPLAY) -> None:
+    """Remove X11 artifacts left behind by a previous container run."""
+    lock_path, socket_path = x_display_paths(display)
+
+    # A live Unix-domain socket means an X server may genuinely own this
+    # display. Do not disturb it.
+    if socket_path.exists():
+        import socket
+
+        probe = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        try:
+            probe.settimeout(0.5)
+            probe.connect(str(socket_path))
+            return
+        except OSError:
+            pass
+        finally:
+            probe.close()
+
+    for path in (lock_path, socket_path):
+        try:
+            path.unlink()
+            print(f"Removed stale X display artifact: {path}", flush=True)
+        except FileNotFoundError:
+            pass
+
+
 def wait_for_x_display(timeout_seconds: int = 10) -> None:
-    display_number = DISPLAY.removeprefix(":").split(".", 1)[0]
-    socket_path = Path(f"/tmp/.X11-unix/X{display_number}")
+    _, socket_path = x_display_paths()
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
         if socket_path.exists():
@@ -453,6 +494,16 @@ def fetch_category(
     print(f"Woolworths category {category_path}: navigate", flush=True)
     driver.get(url)
     heartbeat()
+
+    loaded_url = str(getattr(driver, "current_url", "") or "")
+    effective_path = woolworths_category_path(url, loaded_url)
+    if effective_path != category_path:
+        print(
+            f"Woolworths category {category_path}: redirected to {effective_path}",
+            flush=True,
+        )
+        category_path = effective_path
+
     # UC can navigate its controlled target in a background Chromium tab while
     # leaving the initial blank tab focused.  Make the collection target the
     # foreground tab so the visible noVNC session faithfully shows navigation.
@@ -673,6 +724,7 @@ def main() -> None:
     server: ThreadingHTTPServer | None = None
     watchdog = None
     try:
+        clear_stale_x_display_artifacts()
         processes.append(start_process(
             ["Xvfb", DISPLAY, "-screen", "0", SCREEN, "-ac"],
             "Xvfb",

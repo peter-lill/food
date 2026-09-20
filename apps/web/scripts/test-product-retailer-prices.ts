@@ -176,6 +176,16 @@ assert.equal(
   "a legacy Woolworths freezer path must not appear in Pantry",
 );
 assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/poultry-meat-seafood"),
+  "Meat & seafood",
+  "the current Woolworths poultry, meat and seafood root must map to Meat & seafood",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/meat-seafood-deli"),
+  "Meat & seafood",
+  "the legacy Woolworths meat, seafood and deli root must remain supported",
+);
+assert.equal(
   heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),
   "Origin: MADE IN AUSTRALIA.",
   "raw ingredient statements must not appear in the product hero description",

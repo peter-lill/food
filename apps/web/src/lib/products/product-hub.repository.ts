@@ -210,7 +210,7 @@ export function departmentFromLegacyWoolworthsPath(aisle: string | null | undefi
   if (root === "baby") return "Baby";
   if (root === "cleaning-maintenance") return "Household";
   if (root === "pet") return "Pet";
-  if (root === "meat-seafood-deli") return descendants.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment)) ? "Deli" : "Meat & seafood";
+  if (root === "meat-seafood-deli" || root === "poultry-meat-seafood") return descendants.some((segment) => /(?:^|-)deli(?:-|$)/.test(segment)) ? "Deli" : "Meat & seafood";
   return null;
 }
 

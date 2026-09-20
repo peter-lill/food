@@ -30,7 +30,7 @@ assert.match(bridge, /def browse\(self, category_path: str\)[\s\S]*woolworths_vi
 assert.match(bridge, /def woolworths_remaining_category_pages[\s\S]*TotalRecordCount[\s\S]*range\(current_page \+ 1, total_pages \+ 1\)/, "broad category pagination must be derived from the authoritative finite storefront total");
 assert.match(bridge, /page_size = int\(request_payload\.get\("pageSize"\)/, "leaf collection must preserve the storefront page size");
 assert.match(bridge, /def woolworths_remaining_category_pages[\s\S]*TotalRecordCount[\s\S]*total_pages = \(total \+ page_size - 1\) \/\/ page_size[\s\S]*range\(current_page \+ 1, total_pages \+ 1\)/, "leaf collection must derive every remaining API page from the authoritative result total");
-assert.match(bridge, /for page_number in woolworths_remaining_category_pages\([\s\S]*woolworths_visible_category_fetch\([\s\S]*woolworths_visible_category_page\(category_path, page_number\)/, "every remaining category page must navigate through the visible sidecar");
+assert.match(bridge, /expected_pages = woolworths_remaining_category_pages\([\s\S]*captured_pages: set\[int\] = set\(\)[\s\S]*visible browser did not capture category page/);
 assert.match(browserSidecar, /CATEGORY_SESSION_SECONDS = \([\s\S]*CATEGORY_NAVIGATION_SECONDS[\s\S]*\+ 180/, "the sidecar must use the same bounded visible-navigation budget");
 assert.match(browserSidecar, /"categoryRequests": result\.get\("categoryRequests", \[\]\)/, "the sidecar must return request metadata together with category responses");
 assert.match(browserSidecar, /if request_id in self\.responses and request_id in self\.requests/, "the sidecar must never return an unpaired category response");

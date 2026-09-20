@@ -342,6 +342,11 @@ WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
 WOOLWORTHS_DETAIL_BATCH_SIZE = 24
 WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS = {
     "/shop/browse/health-beauty": "/shop/browse/beauty",
+    "/shop/browse/liquor": "/shop/browse/beer-wine-spirits",
+    "/shop/browse/meat-seafood-deli": "/shop/browse/poultry-meat-seafood",
+    "/shop/browse/poultry-meat-seafood/meat/mince": "/shop/browse/poultry-meat-seafood/mince",
+    "/shop/browse/poultry-meat-seafood/meat/organic-meat": "/shop/browse/poultry-meat-seafood/organic-meat-poultry",
+    "/shop/browse/bakery/christmas-bakery": "/shop/browse/gift-ideas/christmas-gifts/christmas-bakery",
 }
 WOOLWORTHS_COLLECTION_CATEGORIES = tuple(
     WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS.get(path.strip(), path.strip())
