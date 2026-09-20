@@ -69,7 +69,9 @@ button:disabled { cursor:wait; opacity:.65; }
 .pantry-edit summary { width:max-content; color:var(--accent-dark); cursor:pointer; font-size:13px; font-weight:800; }
 .pantry-destructive-actions { display:flex; align-items:center; gap:8px; }
 .pantry-destructive-actions form { margin:0; }
-.secondary-button,.danger-button { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:11px; background:var(--surface); padding:8px 10px; cursor:pointer; font-size:12px; font-weight:800; }
+.primary-button,.secondary-button,.danger-button { display:inline-flex; align-items:center; justify-content:center; border:1px solid var(--line); border-radius:11px; padding:8px 10px; cursor:pointer; font-size:12px; font-weight:800; }
+.primary-button { background:var(--accent); color:#fff; }
+.secondary-button,.danger-button { background:var(--surface); }
 .secondary-button { color:var(--accent-dark); }
 .danger-button { color:var(--danger); }
 .pantry-empty,.pantry-error { display:grid; justify-items:center; gap:6px; padding:42px 20px; text-align:center; }

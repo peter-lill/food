@@ -88,6 +88,13 @@ assert.match(
   "the desktop Shopping panel should retain its readable 1240px presentation on wide screens",
 );
 
+const globalStyles = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+assert.match(globalStyles, /\.primary-button,\.secondary-button,\.danger-button\s*\{[^}]*border-radius:\s*11px/, "primary and secondary links must share the same complete control treatment");
+const plannerSource = readFileSync(new URL("../src/components/planner/PlannerWorkspace.tsx", import.meta.url), "utf8");
+assert.match(plannerSource, /className="secondary-button" href="\/recipes">Browse recipes<\/Link>[\s\S]*?className="primary-button" href="\/shopping">Open Shopping<\/Link>/, "Planner header actions must use the shared button system");
+const recipeImageRouteSource = readFileSync(new URL("../src/app/api/recipes/local-image/[recipeId]/route.ts", import.meta.url), "utf8");
+assert.match(recipeImageRouteSource, /NextResponse\.redirect\(sourceImage, 307\)/, "a failed local recipe cache must fall back to the published source image");
+
 const accountPanelSource = readFileSync(new URL("../src/components/account/AccountPanel.tsx", import.meta.url), "utf8");
 assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Linked devices<\/strong>/);
 assert.match(accountPanelSource, /<details className=\{styles\.collapsibleCard\}>[\s\S]*?<strong>Link phone<\/strong>/);

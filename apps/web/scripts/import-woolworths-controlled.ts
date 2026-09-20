@@ -1,8 +1,9 @@
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
-import { Prisma, ProductLifecycle } from "@prisma/client";
+import { Prisma, ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
+import { classifyGenericProduce } from "../src/lib/products/generic-produce-classification";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
 import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
@@ -13,6 +14,7 @@ import {
   type CachedWoolworthsProduct,
   type ImportDisposition,
 } from "./woolworths-controlled-import-matching";
+import { genericProduceComparisonKey, indexGenericProduceCandidates } from "./generic-produce-import-matching";
 
 const apply = process.argv.includes("--apply");
 const importAll = process.argv.includes("--all");
@@ -27,9 +29,10 @@ const limit = importAll
   : Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 1000 ? requestedLimit : 30;
 
 type CachedResponse = { status?: unknown; products?: unknown; nextOffset?: unknown; error?: unknown };
+type WoolworthsDisposition = ImportDisposition | "link-produce";
 type Plan = {
   product: CachedWoolworthsProduct;
-  disposition: ImportDisposition;
+  disposition: WoolworthsDisposition;
   reason: string;
   productId: string | null;
   storeProductId: string | null;
@@ -89,7 +92,7 @@ async function readCachedProductPage(pageOffset: number) {
 }
 
 function emptyCounts() {
-  return { retain: 0, "link-barcode": 0, "link-name": 0, create: 0, skip: 0 } as Record<ImportDisposition, number>;
+  return { retain: 0, "link-barcode": 0, "link-name": 0, "link-produce": 0, create: 0, skip: 0 } as Record<WoolworthsDisposition, number>;
 }
 
 function duplicatePlannedIdentity(product: CachedWoolworthsProduct, aliases: Set<string>, barcodes: Set<string>) {
@@ -102,7 +105,12 @@ function duplicatePlannedIdentity(product: CachedWoolworthsProduct, aliases: Set
   return null;
 }
 
-async function plansForPage(products: CachedWoolworthsProduct[], plannedAliases: Set<string>, plannedBarcodes: Set<string>) {
+async function plansForPage(
+  products: CachedWoolworthsProduct[],
+  plannedAliases: Set<string>,
+  plannedBarcodes: Set<string>,
+  genericProduceByKey: Map<string, string>,
+) {
   const stockcodes = [...new Set(products.map((product) => product.stockcode))];
   const barcodes = [...new Set(products.map((product) => cleanBarcode(product.barcode)).filter((value): value is string => Boolean(value)))];
   const aliases = [...new Set(products.map((product) => normaliseProductText(product.name)))];
@@ -132,10 +140,16 @@ async function plansForPage(products: CachedWoolworthsProduct[], plannedAliases:
     const normalised = normaliseProductText(product.name);
     const aliasProductId = productByAlias.get(normalised);
     if (aliasProductId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId: aliasProductId, storeProductId: randomUUID() };
-    if (!barcode) return { product, disposition: "skip", reason: "no barcode; creation is intentionally withheld", productId: null, storeProductId: null };
+    const mapped = categoryForWoolworthsPaths(product.category_paths, product.name);
+    const produceKey = genericProduceComparisonKey(product.name, product.pack_size, mapped.productType === ProductType.GENERIC_PRODUCE);
+    const produceProductId = produceKey ? genericProduceByKey.get(produceKey) : null;
+    if (produceProductId) return { product, disposition: "link-produce", reason: "same generic produce and sellable presentation", productId: produceProductId, storeProductId: randomUUID() };
+    if (!barcode && !produceKey) return { product, disposition: "skip", reason: "no barcode; creation is intentionally withheld", productId: null, storeProductId: null };
     const duplicateReason = duplicatePlannedIdentity(product, plannedAliases, plannedBarcodes);
     if (duplicateReason) return { product, disposition: "skip", reason: duplicateReason, productId: null, storeProductId: null };
-    return { product, disposition: "create", reason: "verified detail and a unique barcode", productId: randomUUID(), storeProductId: randomUUID() };
+    const productId = randomUUID();
+    if (produceKey) genericProduceByKey.set(produceKey, productId);
+    return { product, disposition: "create", reason: barcode ? "verified detail and a unique barcode" : "verified generic produce with an authoritative stockcode", productId, storeProductId: randomUUID() };
   });
 }
 
@@ -209,13 +223,17 @@ async function attachPage(plans: Plan[]) {
   const createdListings = applicable.filter((plan) => plan.disposition !== "retain");
   const existingListings = applicable.filter((plan) => plan.disposition === "retain");
   const existingProducts = applicable.filter((plan) => plan.disposition !== "create");
+  const newAliases = applicable.filter((plan) => plan.disposition === "create" || plan.disposition === "link-produce");
   await prisma.$transaction(async (tx) => {
     if (createdProducts.length) {
       await tx.product.createMany({
         data: createdProducts.map((plan) => {
           const mapped = categoryForWoolworthsPaths(plan.product.category_paths, plan.product.name);
           return {
-            id: plan.productId!, name: plan.product.name, canonicalName: plan.product.name,
+            id: plan.productId!, name: plan.product.name,
+            canonicalName: mapped.productType === ProductType.GENERIC_PRODUCE
+              ? classifyGenericProduce(plan.product.name, plan.product.pack_size)?.variantName ?? plan.product.name
+              : plan.product.name,
             slug: `${slugifyProductName(plan.product.name)}-${plan.product.stockcode}`,
             barcode: cleanBarcode(plan.product.barcode), brand: plan.product.brand, category: mapped.category,
             description: canonicalWoolworthsDescription(plan.product),
@@ -224,10 +242,11 @@ async function attachPage(plans: Plan[]) {
           };
         }),
       });
-      await tx.productAlias.createMany({
-        data: createdProducts.map((plan) => ({ productId: plan.productId!, alias: plan.product.name, normalised: normaliseProductText(plan.product.name), source: "woolworths-controlled-import" })),
-      });
     }
+    if (newAliases.length) await tx.productAlias.createMany({
+      data: newAliases.map((plan) => ({ productId: plan.productId!, alias: plan.product.name, normalised: normaliseProductText(plan.product.name), source: "woolworths-controlled-import" })),
+      skipDuplicates: true,
+    });
     if (createdListings.length) {
       await tx.storeProduct.createMany({
         data: createdListings.map((plan) => ({ id: plan.storeProductId!, productId: plan.productId!, retailer: "Woolworths", externalId: plan.product.stockcode, ...listingData(plan) })),
@@ -255,13 +274,19 @@ async function main() {
   const skipReasons = new Map<string, number>();
   const plannedAliases = new Set<string>();
   const plannedBarcodes = new Set<string>();
+  const existingGenericProduce = await prisma.product.findMany({
+    where: { OR: [{ productType: ProductType.GENERIC_PRODUCE }, { category: { in: ["Fresh produce", "Fruit & vegetables"] } }] },
+    select: { id: true, name: true, canonicalName: true, packSize: true },
+    orderBy: [{ confidenceScore: "desc" }, { createdAt: "asc" }],
+  });
+  const genericProduceByKey = indexGenericProduceCandidates(existingGenericProduce);
   let pageOffset = Number.isInteger(offset) && offset >= 0 ? offset : 0;
   let processed = 0;
   let pages = 0;
   while (true) {
     const page = await readCachedProductPage(pageOffset);
     if (!page.products.length && pages === 0) throw new Error("No verified Woolworths cache records were returned for this batch.");
-    const plans = await plansForPage(page.products, plannedAliases, plannedBarcodes);
+    const plans = await plansForPage(page.products, plannedAliases, plannedBarcodes, genericProduceByKey);
     for (const plan of plans) {
       counts[plan.disposition] += 1;
       if (plan.disposition === "skip") skipReasons.set(plan.reason, (skipReasons.get(plan.reason) ?? 0) + 1);
