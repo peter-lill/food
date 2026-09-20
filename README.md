@@ -237,9 +237,13 @@ If Woolworths rejects the container browser but accepts Chromium running directl
 sudo install -m 0644 deploy/food-woolworths-browser.service /etc/systemd/system/food-woolworths-browser.service
 sudo install -m 0644 deploy/food-woolworths-novnc.service /etc/systemd/system/food-woolworths-novnc.service
 sudo install -m 0644 deploy/food-woolworths-novnc.socket /etc/systemd/system/food-woolworths-novnc.socket
+sudo install -m 0755 scripts/ensure-browser-vnc.sh /home/peter/Development/food/scripts/ensure-browser-vnc.sh
+sudo install -m 0644 deploy/food-browser-vnc-watchdog.service /etc/systemd/system/food-browser-vnc-watchdog.service
+sudo install -m 0644 deploy/food-browser-vnc-watchdog.timer /etc/systemd/system/food-browser-vnc-watchdog.timer
 sudo systemctl daemon-reload
 sudo systemctl enable --now food-woolworths-browser.service
 sudo systemctl enable --now food-woolworths-novnc.socket
+sudo systemctl enable --now food-browser-vnc-watchdog.timer
 ```
 
 The host browser keeps its profile under `~/snap/chromium/common/food-woolworths-profile` and exposes CDP only on host loopback port `9224`. Its noVNC process remains on loopback port `6084`; the socket-activated proxy publishes only that page on Coffee's LAN address at `http://192.168.0.111:6085/vnc.html?autoconnect=1&resize=scale&path=websockify`. Complete any Woolworths verification there. Browser control through CDP is never published to the LAN.
