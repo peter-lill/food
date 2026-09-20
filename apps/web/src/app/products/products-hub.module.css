@@ -163,40 +163,85 @@
   color: #9fe8fa;
 }
 
-/* Shelf photos sit on one neutral canvas, regardless of the source image's own
-   white, black, or transparent edge treatment. */
-.shelfFilterImage {
+/* Subcategory cards keep artwork above a dedicated, readable label. */
+.shelfFilter,
+.shelfFilterActive {
+  grid-template-rows: 96px minmax(2.6em, auto);
+  min-height: 158px;
+}
+
+.shelfFilterImage,
+.shelfFilterActive .shelfFilterImage {
+  grid-row: 1;
   isolation: isolate;
-  background: #f4f2eb;
-}
-.shelfFilterImage img {
-  display: block;
   width: 100%;
-  height: 100%;
-  padding: 5px;
+  height: 96px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 0;
+  background: transparent;
+}
+
+.shelfFilterImage img,
+.shelfFilterActive .shelfFilterImage img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 96px !important;
+  padding: 4px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
   box-sizing: border-box;
-  object-fit: contain;
-  object-position: center;
-  mix-blend-mode: multiply;
+  background: transparent !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  mix-blend-mode: normal;
 }
-:global(.kitchen-mode) .shelfFilterImage {
-  background: #ece9df;
+
+.shelfFilterLabel {
+  grid-row: 2;
+  position: relative;
+  z-index: 2;
+  align-self: start;
+  display: -webkit-box !important;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.6em;
+  padding: 0 2px;
+  box-sizing: border-box;
+  overflow: hidden;
+  visibility: visible;
+  opacity: 1;
+  color: #34453b !important;
+  font-size: .76rem;
+  font-weight: 800;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
-:global(.kitchen-mode) .shelfFilterImage img {
+
+.shelfFilterActive .shelfFilterLabel {
+  color: #1f5f3b !important;
+}
+
+:global(.kitchen-mode) .shelfFilterImage,
+:global(.kitchen-mode) .shelfFilterActive .shelfFilterImage {
+  background: transparent;
+}
+
+:global(.kitchen-mode) .shelfFilterImage img,
+:global(.kitchen-mode) .shelfFilterActive .shelfFilterImage img {
+  background: transparent !important;
   filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .16));
 }
 
-/* Use an explicit label element so image framing can never suppress the name. */
-.shelfFilterLabel {
-  display: -webkit-box !important;
-  min-height: 2.56em;
-  overflow: hidden;
-  color: inherit;
-  font-size: .74rem;
-  font-weight: 800;
-  line-height: 1.28;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+:global(.kitchen-mode) .shelfFilterLabel {
+  color: #f8f7f2 !important;
+}
+
+:global(.kitchen-mode) .shelfFilterActive .shelfFilterLabel {
+  color: #9fe8fa !important;
 }
 
 /* The empty search state is informational, so it stays neutral rather than

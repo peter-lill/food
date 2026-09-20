@@ -21,6 +21,8 @@ assert.equal(shelfForWoolworthsPath("/shop/browse/pantry/jelly"), "Jelly");
 assert.equal(shelfForWoolworthsPath("/shop/browse/pantry"), null);
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/freezer/frozen-meals"), { category: "Frozen", productType: ProductType.FROZEN });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/meat/beef"), { category: "Meat & seafood", productType: ProductType.FRESH_MEAT });
+assert.deepEqual(categoryForWoolworthsPath("/shop/browse/poultry-meat-seafood"), { category: "Meat & seafood", productType: ProductType.FRESH_MEAT });
+assert.equal(canonicalWoolworthsCategoryPath(["/shop/browse/pantry", "/shop/browse/poultry-meat-seafood"]), "/shop/browse/poultry-meat-seafood");
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/seafood/fish"), { category: "Meat & seafood", productType: ProductType.SEAFOOD });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli/deli-meats"), { category: "Deli", productType: ProductType.PACKAGED });
 assert.deepEqual(categoryForWoolworthsPath("/shop/browse/meat-seafood-deli/deli-meats"), { category: "Deli", productType: ProductType.PACKAGED });

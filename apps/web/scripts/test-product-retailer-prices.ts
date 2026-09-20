@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { bestProductImage, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, productHubFamilyName, shelfLabelFromRetailerListings, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
+import { bestProductImage, customerShelfLabel, departmentFromLegacyWoolworthsPath, displayShelfLabel, finaliseProductFamilyListItem, latestPricesByRetailer, preferMoreSpecificShelfLabel, productFamilyName, productHubFamilyName, shelfLabelFromRetailerListings, type ProductHubListItem } from "../src/lib/products/product-hub.repository";
 import { heroProductDescription } from "../src/lib/products/product-description";
 import { priceObservationKind } from "../src/lib/products/price-observation-display";
 
@@ -48,6 +48,14 @@ assert.equal(
   "Tea Coffee Hot Chocolate",
   "retailer shelf slugs must render with customer-facing capitalisation",
 );
+assert.equal(customerShelfLabel("Chips 1"), "Chips & snacks", "distinct retailer chip shelves must have distinct customer-facing labels");
+assert.equal(customerShelfLabel("Boxed Chocolates 1"), "Boxed Chocolates", "numeric taxonomy suffixes must be hidden");
+assert.equal(customerShelfLabel("Alternative Confec"), "Alternative confectionery", "truncated retailer labels must be expanded");
+assert.equal(customerShelfLabel("Bars Dried Fruits"), "Dried fruit bars", "awkward retailer labels must be humanised");
+assert.equal(customerShelfLabel("Choc Sharepacks"), "Chocolate sharepacks", "retailer abbreviations must be expanded");
+assert.equal(customerShelfLabel("Chocolate Bars"), "Chocolate Bars", "normal retailer labels must remain unchanged");
+assert.equal(customerShelfLabel("2 Minute Noodles"), "2 Minute Noodles", "legitimate numeric product taxonomy labels must remain unchanged");
+
 assert.equal(
   preferMoreSpecificShelfLabel("Deli", "Deli Meat", "Deli"),
   "Deli Meat",
@@ -166,6 +174,16 @@ assert.equal(
   departmentFromLegacyWoolworthsPath("/shop/browse/freezer/frozen-meals"),
   "Frozen",
   "a legacy Woolworths freezer path must not appear in Pantry",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/poultry-meat-seafood"),
+  "Meat & seafood",
+  "the current Woolworths poultry, meat and seafood root must map to Meat & seafood",
+);
+assert.equal(
+  departmentFromLegacyWoolworthsPath("/shop/browse/meat-seafood-deli"),
+  "Meat & seafood",
+  "the legacy Woolworths meat, seafood and deli root must remain supported",
 );
 assert.equal(
   heroProductDescription("Origin: MADE IN AUSTRALIA. Ingredients: Sugar, milk powder."),

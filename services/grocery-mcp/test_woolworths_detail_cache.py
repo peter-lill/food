@@ -77,6 +77,25 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             "subcategories": children,
         })
 
+    def test_woolworths_subcategory_paths_excludes_everyday_market(self) -> None:
+        parent = "/shop/browse/pet"
+        payload = {
+            "subcategories": [
+                "/shop/browse/pet/cat-kitten",
+                "/shop/browse/pet/everyday-market",
+                "/shop/browse/pet/everyday-market/pet-supplies",
+                "/shop/browse/pet/dog-puppy",
+            ]
+        }
+
+        self.assertEqual(
+            self.bridge.woolworths_subcategory_paths(payload, parent),
+            [
+                "/shop/browse/pet/cat-kitten",
+                "/shop/browse/pet/dog-puppy",
+            ],
+        )
+
     def test_woolworths_leaf_requests_every_page_reported_by_the_api(self) -> None:
         request = {"pageNumber": 1, "pageSize": 36}
 
@@ -98,6 +117,249 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
             ),
             [],
         )
+
+    def test_woolworths_browse_does_not_renavigate_when_sidecar_returns_all_pages(self) -> None:
+        category = "/shop/browse/beauty/beauty-specials"
+        payload = {
+            "status": "success",
+            "categoryResponses": [
+                {"TotalRecordCount": 73},
+                {"TotalRecordCount": 73},
+                {"TotalRecordCount": 73},
+            ],
+            "categoryRequests": [
+                {"payload": {"pageNumber": 1, "pageSize": 36, "categoryId": "beauty"}},
+                {"payload": {"pageNumber": 2, "pageSize": 36, "categoryId": "beauty"}},
+                {"payload": {"pageNumber": 3, "pageSize": 36, "categoryId": "beauty"}},
+            ],
+            "subcategories": [],
+        }
+
+        with patch.object(
+            self.bridge,
+            "woolworths_visible_category_fetch",
+            return_value=payload,
+        ) as visible_fetch:
+            result = object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+
+        visible_fetch.assert_called_once_with(category)
+        self.assertEqual(result["categoryResponses"], payload["categoryResponses"])
+        self.assertEqual(result["categoryRequests"], payload["categoryRequests"])
+
+    def test_woolworths_browse_rejects_missing_sidecar_pages(self) -> None:
+        category = "/shop/browse/beauty/beauty-specials"
+        for page in (3, "invalid"):
+            with self.subTest(page=page):
+                payload = {
+                    "categoryResponses": [
+                        {"TotalRecordCount": 73}, {"TotalRecordCount": 73},
+                    ],
+                    "categoryRequests": [
+                        {"payload": {"pageNumber": page, "pageSize": 36}},
+                        {"payload": {"pageNumber": 1, "pageSize": 36}},
+                    ],
+                    "subcategories": [],
+                }
+                with patch.object(
+                    self.bridge, "woolworths_visible_category_fetch",
+                    return_value=payload,
+                ) as visible_fetch:
+                    with self.assertRaisesRegex(RuntimeError, "category page 2"):
+                        object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+                visible_fetch.assert_called_once_with(category)
+
+    def test_woolworths_browse_ignores_previous_category_pages(self) -> None:
+        category = "/shop/browse/beauty/cosmetics/cosmetics-specials"
+        requests = [
+            {"payload": {"pageNumber": 5, "pageSize": 36,
+                         "location": "/shop/browse/beauty/cosmetics/complexion"}},
+            *[{"payload": {"pageNumber": page, "pageSize": 36,
+                           "location": category}} for page in (1, 2, 3)],
+        ]
+        responses = [{"TotalRecordCount": 157},
+                     *[{"TotalRecordCount": 104} for _ in range(3)]]
+        with patch.object(self.bridge, "woolworths_visible_category_fetch",
+                          return_value={"categoryRequests": requests,
+                                        "categoryResponses": responses}) as fetch:
+            result = object.__new__(self.bridge.WoolworthsBrowserSession).browse(category)
+        fetch.assert_called_once_with(category)
+        self.assertEqual(result["categoryRequests"], requests[1:])
+        self.assertEqual(result["categoryResponses"], responses[1:])
+
+    def test_woolworths_capture_matches_category_path(self) -> None:
+        from woolworths_browser import woolworths_request_matches_category
+        category = "/shop/browse/beauty/cosmetics"
+        self.assertTrue(woolworths_request_matches_category(
+            {"payload": {"url": "https://www.woolworths.com.au" + category + "/?pageNumber=2"}},
+            category,
+        ))
+        self.assertFalse(woolworths_request_matches_category(
+            {"payload": {"location": category + "/complexion"}}, category,
+        ))
+        self.assertFalse(woolworths_request_matches_category(None, category))
+
+    def test_woolworths_title_inspection_uses_bounded_async_script(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        driver.execute_async_script.return_value = "Woolworths Garden & Outdoors"
+
+        result = woolworths_browser.read_woolworths_page_title(driver)
+
+        self.assertEqual(result, "woolworths garden & outdoors")
+        driver.execute_async_script.assert_called_once()
+
+    def test_woolworths_body_inspection_uses_bounded_async_script(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        driver.execute_async_script.return_value = "Browse Garden & Outdoors"
+
+        result = woolworths_browser.read_woolworths_page_body(driver)
+
+        self.assertEqual(result, "browse garden & outdoors")
+        driver.execute_async_script.assert_called_once()
+        driver.execute_script.assert_not_called()
+
+    def test_catalogue_api_status_zero_failure_is_retryable(self) -> None:
+        import woolworths_browser
+
+        error = RuntimeError(
+            "Woolworths catalogue API request failed (0): TypeError: Failed to fetch"
+        )
+
+        self.assertTrue(
+            woolworths_browser.retryable_woolworths_catalogue_error(error)
+        )
+
+    def test_catalogue_api_http_failure_is_not_retryable(self) -> None:
+        import woolworths_browser
+
+        error = RuntimeError(
+            "Woolworths catalogue API request failed (400): request failed"
+        )
+
+        self.assertFalse(
+            woolworths_browser.retryable_woolworths_catalogue_error(error)
+        )
+
+    def test_catalogue_page_retries_transient_fetch_failure(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        request = {"payload": {"pageNumber": 68, "pageSize": 36}}
+        transient = RuntimeError(
+            "Woolworths catalogue API request failed (0): TypeError: Failed to fetch"
+        )
+        expected = {"TotalRecordCount": 5328}
+
+        with patch.object(
+            woolworths_browser,
+            "fetch_woolworths_catalogue_response",
+            side_effect=[transient, expected],
+        ) as fetch, patch.object(woolworths_browser.time, "sleep") as sleep:
+            result = woolworths_browser.fetch_woolworths_catalogue_page(
+                driver, request
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(fetch.call_count, 2)
+        sleep.assert_called_once()
+
+    def test_catalogue_page_does_not_retry_http_failure(self) -> None:
+        import woolworths_browser
+
+        driver = MagicMock()
+        request = {"payload": {"pageNumber": 2, "pageSize": 36}}
+        failure = RuntimeError(
+            "Woolworths catalogue API request failed (400): request failed"
+        )
+
+        with patch.object(
+            woolworths_browser,
+            "fetch_woolworths_catalogue_response",
+            side_effect=failure,
+        ) as fetch, patch.object(woolworths_browser.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, r"failed \(400\)"):
+                woolworths_browser.fetch_woolworths_catalogue_page(
+                    driver, request
+                )
+
+        fetch.assert_called_once()
+        sleep.assert_not_called()
+
+    def test_catalogue_request_payload_excludes_everyday_market(self) -> None:
+        import woolworths_browser
+
+        captured = {
+            "method": "POST",
+            "payload": {
+                "categoryId": "1_03B0EB8",
+                "categoryVersion": "v2",
+                "pageNumber": 1,
+                "pageSize": 36,
+                "location": "/shop/browse/cleaning-maintenance/hardware/extension-cords-adapters",
+                "isHideEverydayMarketProducts": False,
+            },
+        }
+
+        result = woolworths_browser.woolworths_catalogue_request_payload(captured)
+
+        self.assertIsNotNone(result)
+        self.assertTrue(result["isHideEverydayMarketProducts"])
+        self.assertEqual(result["categoryId"], "1_03B0EB8")
+        self.assertEqual(result["pageNumber"], 1)
+        self.assertEqual(result["pageSize"], 36)
+        self.assertFalse(
+            captured["payload"]["isHideEverydayMarketProducts"],
+            "captured storefront request must not be mutated",
+        )
+
+    def test_visible_woolworths_fetch_requires_paired_capture_metadata(self) -> None:
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "status": "success",
+            "categoryResponses": [{"TotalRecordCount": 36}],
+            "categoryRequests": [{
+                "method": "POST",
+                "payload": {"pageNumber": 1, "pageSize": 36, "categoryId": "fruit"},
+            }],
+            "subcategories": [],
+        }).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(
+            self.bridge, "WOOLWORTHS_BROWSER_FETCH_URL", "http://browser:8789/fetch"
+        ), patch.object(self.bridge, "urlopen", return_value=response) as open_request:
+            payload = self.bridge.woolworths_visible_category_fetch(
+                "/shop/browse/fruit-veg"
+            )
+
+        self.assertEqual(payload["categoryRequests"][0]["payload"]["categoryId"], "fruit")
+        self.assertIn(
+            "url=https%3A%2F%2Fwww.woolworths.com.au%2Fshop%2Fbrowse%2Ffruit-veg",
+            open_request.call_args.args[0].full_url,
+        )
+        self.assertEqual(
+            open_request.call_args.kwargs["timeout"],
+            self.bridge.WOOLWORTHS_CATEGORY_SESSION_SECONDS,
+        )
+
+    def test_visible_woolworths_fetch_rejects_unpaired_capture_metadata(self) -> None:
+        response = MagicMock()
+        response.read.return_value = json.dumps({
+            "status": "success",
+            "categoryResponses": [{"TotalRecordCount": 36}],
+            "categoryRequests": [],
+            "subcategories": [],
+        }).encode("utf-8")
+        response.__enter__.return_value = response
+        with patch.object(
+            self.bridge, "WOOLWORTHS_BROWSER_FETCH_URL", "http://browser:8789/fetch"
+        ), patch.object(self.bridge, "urlopen", return_value=response):
+            with self.assertRaisesRegex(RuntimeError, "unpaired category capture"):
+                self.bridge.woolworths_visible_category_fetch(
+                    "/shop/browse/fruit-veg"
+                )
 
     def test_woolworths_category_cache_counts_duplicate_pages_once(self) -> None:
         product = {"Stockcode": 123, "DisplayName": "Test flour", "Price": 2.5}
@@ -583,6 +845,77 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertIsNone(stale_leaf["is_leaf"])
         self.assertEqual(self.coles_catalogue.status()["total"], 2)
 
+    def test_coles_browse_shell_without_search_results_is_category_unavailable(self) -> None:
+        raw = json.dumps({
+            "props": {
+                "pageProps": {
+                    "serverSideOutageConfig": None,
+                    "assetsUrl": "https://cdn.productimages.coles.com.au/productimages",
+                }
+            }
+        })
+
+        with self.assertRaisesRegex(
+            self.coles_catalogue.ColesCategoryUnavailableError,
+            "no longer exposes catalogue data",
+        ):
+            self.coles_catalogue.parse_coles_browse_document(raw)
+
+    def test_coles_unavailable_leaf_does_not_block_remaining_discovery(self) -> None:
+        root = "/browse/deli"
+        obsolete = root + "/obsolete"
+        current = root + "/current"
+
+        class Session:
+            def __init__(inner_self) -> None:
+                inner_self.browsed = []
+
+            def children(inner_self, category: str) -> list[str]:
+                if category == root:
+                    return [obsolete, current]
+                return []
+
+            def browse(inner_self, category: str, resume: bool = False) -> int:
+                inner_self.browsed.append((category, resume))
+                if category == obsolete:
+                    raise self.coles_catalogue.ColesCategoryUnavailableError(
+                        "Coles browse category no longer exposes catalogue data"
+                    )
+                with self.coles_catalogue.cache_session() as connection:
+                    connection.execute(
+                        "UPDATE coles_category_collection SET state='completed' WHERE category_path=?",
+                        (category,),
+                    )
+                return 0
+
+        session = Session()
+        with patch.object(self.coles_catalogue, "COLES_ROOT_CATEGORIES", (root,)):
+            self.coles_catalogue.refresh_all(session=session)
+
+        self.assertEqual(
+            session.browsed,
+            [
+                (obsolete, False),
+                (current, False),
+            ],
+        )
+        with self.coles_catalogue.cache_session() as connection:
+            rows = connection.execute(
+                """SELECT category_path, state
+                   FROM coles_category_collection
+                   WHERE category_path IN (?, ?)
+                   ORDER BY category_path""",
+                (obsolete, current),
+            ).fetchall()
+
+        self.assertEqual(
+            {row["category_path"]: row["state"] for row in rows},
+            {
+                obsolete: "pending",
+                current: "completed",
+            },
+        )
+
     def test_coles_discovery_survives_failure_and_publishes_leaf_jobs(self) -> None:
         root = "/browse/pantry"
         oil, salt = root + "/oil", root + "/salt"
@@ -839,6 +1172,106 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertNotIn(legacy, states)
         self.assertEqual(states[current], "pending")
 
+    def test_obsolete_meat_seafood_deli_root_is_migrated_to_live_poultry_meat_seafood_route(self) -> None:
+        legacy = "/shop/browse/meat-seafood-deli"
+        current = "/shop/browse/poultry-meat-seafood"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 18, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_meat_mince_route_is_migrated_to_live_mince_route(self) -> None:
+        legacy = "/shop/browse/poultry-meat-seafood/meat/mince"
+        current = "/shop/browse/poultry-meat-seafood/mince"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 3, 'visible browser did not capture the requested category')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_meat_organic_route_is_migrated_to_live_organic_meat_poultry_route(self) -> None:
+        legacy = "/shop/browse/poultry-meat-seafood/meat/organic-meat"
+        current = "/shop/browse/poultry-meat-seafood/organic-meat-poultry"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 3, 'visible browser did not capture the requested category')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_liquor_root_is_migrated_to_live_beer_wine_spirits_route(self) -> None:
+        legacy = "/shop/browse/liquor"
+        current = "/shop/browse/beer-wine-spirits"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 13, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
+    def test_obsolete_christmas_bakery_is_migrated_to_live_route(self) -> None:
+        legacy = "/shop/browse/bakery/christmas-bakery"
+        current = "/shop/browse/gift-ideas/christmas-gifts/christmas-bakery"
+        with self.bridge.catalogue_session() as connection:
+            connection.execute(
+                """INSERT INTO woolworths_category_collection
+                   (category_path, state, attempts, last_error)
+                   VALUES (?, 'failed', 11, 'category API response was not observed')""",
+                (legacy,),
+            )
+
+        self.bridge.seed_woolworths_category_collection()
+
+        states = {
+            item["category_path"]: item["state"]
+            for item in self.bridge.woolworths_collection_status()["categories"]
+        }
+        self.assertNotIn(legacy, states)
+        self.assertEqual(states[current], "pending")
+
     def test_rich_detail_fields_are_cached_without_erasing_catalogue_identity(self) -> None:
         self.bridge.cache_woolworths_category("/shop/browse/dairy-eggs-fridge/milk", {
             "Products": [{
@@ -998,6 +1431,76 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         assert collector._thread is not None
         collector._thread.join(timeout=2)
         self.assertEqual(next(item for item in self.bridge.woolworths_collection_status()["categories"] if item["category_path"] == category)["attempts"], 1)
+
+    def test_collector_retries_same_category_after_visible_browser_restart(self) -> None:
+        category = "/shop/browse/cleaning-maintenance/kitchen/water-filtration"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
+        calls = []
+
+        def browse(requested: str) -> dict:
+            calls.append(requested)
+            if len(calls) == 1:
+                raise RuntimeError(
+                    "visible browser category session did not return in time"
+                )
+            return {"subcategories": []}
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        self.bridge.cache_woolworths_leaf = lambda _category, _payload: {
+            "products": 4,
+            "detailsEnriched": 0,
+            "detailsFailed": 0,
+            "detailError": None,
+        }
+        self.bridge._woolworths_detail_collector = MagicMock()
+        collector = self.bridge.WoolworthsCatalogueCollector()
+
+        with patch.object(self.bridge.time, "sleep") as sleep:
+            self.assertTrue(collector.start(None, False))
+            assert collector._thread is not None
+            collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(calls, [category, category])
+        sleep.assert_called_once()
+        result = next(
+            item
+            for item in self.bridge.woolworths_collection_status()["categories"]
+            if item["category_path"] == category
+        )
+        self.assertEqual(result["state"], "completed")
+        self.assertEqual(result["attempts"], 1)
+        self.assertEqual(result["products_cached"], 4)
+
+    def test_collector_does_not_retry_semantic_category_failure(self) -> None:
+        category = "/shop/browse/test-semantic-failure"
+        self.bridge.WOOLWORTHS_COLLECTION_CATEGORIES = (category,)
+        calls = []
+
+        def browse(requested: str) -> dict:
+            calls.append(requested)
+            raise RuntimeError("category API response was not observed")
+
+        self.bridge.woolworths_browser = lambda: types.SimpleNamespace(browse=browse)
+        self.bridge._woolworths_detail_collector = MagicMock()
+        collector = self.bridge.WoolworthsCatalogueCollector()
+
+        with patch.object(self.bridge.time, "sleep") as sleep:
+            self.assertTrue(collector.start(None, False))
+            assert collector._thread is not None
+            collector._thread.join(timeout=2)
+
+        self.assertFalse(collector._thread.is_alive())
+        self.assertEqual(calls, [category])
+        sleep.assert_not_called()
+        result = next(
+            item
+            for item in self.bridge.woolworths_collection_status()["categories"]
+            if item["category_path"] == category
+        )
+        self.assertEqual(result["state"], "failed")
+        self.assertEqual(result["attempts"], 1)
+        self.assertEqual(result["last_error"], "category API response was not observed")
 
     def test_collector_enqueues_discovered_descendant_categories(self) -> None:
         root = "/shop/browse/dairy-eggs-fridge"

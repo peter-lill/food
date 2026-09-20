@@ -11,10 +11,12 @@ import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Queue
+from urllib.error import HTTPError
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import sync_playwright
+from woolworths_browser import woolworths_request_matches_category
 
 from coles_catalogue import (
     ColesBrowserSession,
@@ -324,22 +326,27 @@ WOOLWORTHS_CATEGORY_API_PATH = "/apis/ui/browse/category"
 WOOLWORTHS_DETAIL_API_PATH = "/apis/ui/product/detail"
 WOOLWORTHS_CATALOGUE_DB = os.getenv("WOOLWORTHS_CATALOGUE_DB", "/data/woolworths-catalogue.sqlite3")
 WOOLWORTHS_CDP_URL = os.getenv("WOOLWORTHS_CDP_URL", "").strip()
+WOOLWORTHS_BROWSER_FETCH_URL = os.getenv("WOOLWORTHS_BROWSER_FETCH_URL", "").strip()
 WOOLWORTHS_TIMEOUT_SECONDS = max(3, int(os.getenv("WOOLWORTHS_TIMEOUT_SECONDS", "15")))
 WOOLWORTHS_CIRCUIT_SECONDS = max(30, int(os.getenv("WOOLWORTHS_CIRCUIT_SECONDS", "300")))
 WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS = WOOLWORTHS_TIMEOUT_SECONDS + 30
 WOOLWORTHS_CATEGORY_SCROLL_ROUNDS = 60
 WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS = 750
-WOOLWORTHS_CATEGORY_PAGE_LIMIT = 250
-WOOLWORTHS_CATEGORY_PAGE_CONCURRENCY = 3
-WOOLWORTHS_CATEGORY_PAGE_TIMEOUT_MS = (WOOLWORTHS_TIMEOUT_SECONDS + 5) * 1000
-WOOLWORTHS_DETAIL_BATCH_SIZE = 24
+# Each visible sidecar navigation is finite: one page load, the fixed lazy
+# scrolling window, and a bounded allowance for the storefront category API.
 WOOLWORTHS_CATEGORY_SESSION_SECONDS = (
     WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
     + (WOOLWORTHS_CATEGORY_SCROLL_ROUNDS * WOOLWORTHS_CATEGORY_SCROLL_WAIT_MS + 999) // 1000
     + 180
 )
+WOOLWORTHS_DETAIL_BATCH_SIZE = 24
 WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS = {
     "/shop/browse/health-beauty": "/shop/browse/beauty",
+    "/shop/browse/liquor": "/shop/browse/beer-wine-spirits",
+    "/shop/browse/meat-seafood-deli": "/shop/browse/poultry-meat-seafood",
+    "/shop/browse/poultry-meat-seafood/meat/mince": "/shop/browse/poultry-meat-seafood/mince",
+    "/shop/browse/poultry-meat-seafood/meat/organic-meat": "/shop/browse/poultry-meat-seafood/organic-meat-poultry",
+    "/shop/browse/bakery/christmas-bakery": "/shop/browse/gift-ideas/christmas-gifts/christmas-bakery",
 }
 WOOLWORTHS_COLLECTION_CATEGORIES = tuple(
     WOOLWORTHS_LEGACY_CATEGORY_REPLACEMENTS.get(path.strip(), path.strip())
@@ -408,40 +415,81 @@ def woolworths_browse_page_is_ready(
     return stable_rounds >= 4 and bool(captured_responses or descendants)
 
 
-def woolworths_remaining_category_pages(
-    request_payload: object, category_payloads: list[object]
-) -> list[int]:
-    """Return every API page still required after the visible first page."""
-    if not isinstance(request_payload, dict):
-        return []
+def woolworths_category_request_payload(request: object) -> dict | None:
+    """Read the paired UC-captured request payload used for category paging."""
+    if not isinstance(request, dict):
+        return None
+    payload = request.get("payload")
+    return dict(payload) if isinstance(payload, dict) else None
+
+
+def woolworths_visible_category_fetch(category_path: str) -> dict:
+    """Ask the visible UC sidecar to navigate and capture one browse page."""
+    if not WOOLWORTHS_BROWSER_FETCH_URL:
+        raise RuntimeError(
+            "verified browser fetch session is not configured; "
+            "set WOOLWORTHS_BROWSER_FETCH_URL"
+        )
+    if not category_path.startswith("/shop/browse/"):
+        raise ValueError("category must be a /shop/browse/ path")
+
+    target_url = f"https://www.woolworths.com.au{category_path}"
+    separator = "&" if "?" in WOOLWORTHS_BROWSER_FETCH_URL else "?"
+    request = Request(
+        f"{WOOLWORTHS_BROWSER_FETCH_URL}{separator}{urlencode({'url': target_url})}",
+        headers={"Accept": "application/json"},
+    )
     try:
-        page_number = int(request_payload.get("pageNumber") or 1)
+        with urlopen(request, timeout=WOOLWORTHS_CATEGORY_SESSION_SECONDS) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except HTTPError as error:
+        try:
+            failure = json.loads(error.read().decode("utf-8"))
+        except Exception:  # noqa: BLE001
+            failure = {}
+        message = failure.get("error") if isinstance(failure, dict) else None
+        raise RuntimeError(str(message or "visible browser category request failed")) from error
+    except Exception as error:  # noqa: BLE001
+        raise RuntimeError("visible browser category session did not return in time") from error
+
+    if not isinstance(payload, dict):
+        raise RuntimeError("visible browser returned an invalid category payload")
+    if payload.get("status") != "success":
+        raise RuntimeError(str(payload.get("error") or "visible browser category request failed"))
+
+    responses = payload.get("categoryResponses")
+    requests = payload.get("categoryRequests")
+    if not isinstance(responses, list) or not isinstance(requests, list):
+        raise RuntimeError("visible browser returned invalid category capture data")
+    if len(responses) != len(requests):
+        raise RuntimeError("visible browser returned unpaired category capture data")
+    return payload
+
+
+def woolworths_visible_category_page(category_path: str, page_number: int) -> str:
+    separator = "&" if "?" in category_path else "?"
+    return f"{category_path}{separator}{urlencode({'pageNumber': page_number})}"
+
+
+def woolworths_remaining_category_pages(
+    request_payload: dict, responses: list[object]
+) -> list[int]:
+    """Derive the finite visible-page plan from the storefront response."""
+    try:
+        current_page = max(1, int(request_payload.get("pageNumber") or 1))
         page_size = int(request_payload.get("pageSize") or 0)
     except (TypeError, ValueError):
         return []
-    if page_number != 1 or page_size < 1:
-        return []
-    totals = [
-        int(payload.get("TotalRecordCount") or 0)
-        for payload in category_payloads
-        if isinstance(payload, dict)
-    ]
-    total = max(totals, default=0)
-    total_pages = (total + page_size - 1) // page_size
-    if total_pages > WOOLWORTHS_CATEGORY_PAGE_LIMIT:
-        raise RuntimeError(
-            f"Woolworths category requires {total_pages} pages, exceeding the safe limit"
-        )
-    return list(range(2, total_pages + 1))
-
-
-def woolworths_category_request_payload(response: object) -> dict | None:
-    """Recover the storefront's exact first-page request for authenticated paging."""
-    try:
-        payload = response.request.post_data_json
-    except Exception:
-        return None
-    return dict(payload) if isinstance(payload, dict) else None
+    total = max(
+        (
+            int(response.get("TotalRecordCount") or 0)
+            for response in responses
+            if isinstance(response, dict)
+        ),
+        default=0,
+    )
+    total_pages = (total + page_size - 1) // page_size if page_size > 0 else 1
+    return list(range(current_page + 1, total_pages + 1))
 
 
 class WoolworthsBrowserSession:
@@ -464,15 +512,69 @@ class WoolworthsBrowserSession:
         return value
 
     def browse(self, category_path: str) -> object:
-        completed: Queue = Queue(maxsize=1)
-        self._requests.put(("browse", category_path, completed))
-        try:
-            success, value = completed.get(timeout=WOOLWORTHS_CATEGORY_SESSION_SECONDS)
-        except Exception as error:
-            raise RuntimeError("browser category session did not return in time") from error
-        if not success:
-            raise RuntimeError(str(value))
-        return value
+        # Category browsing belongs to the undetected-Chrome sidecar.  The
+        # Playwright worker below remains responsible only for search and
+        # product-detail enrichment.
+        payload = woolworths_visible_category_fetch(category_path)
+        pairs = [
+            (request, response)
+            for request, response in zip(
+                payload["categoryRequests"], payload["categoryResponses"]
+            )
+            if woolworths_request_matches_category(request, category_path)
+        ]
+        requests = [request for request, _ in pairs]
+        responses = [response for _, response in pairs]
+        if payload["categoryResponses"] and not pairs:
+            raise RuntimeError("visible browser did not capture the requested category")
+        descendants = payload.get("subcategories")
+        if descendants:
+            return {
+                "categoryResponses": responses,
+                "categoryRequests": requests,
+                "subcategories": descendants,
+            }
+
+        request_payload = next(
+            (
+                candidate
+                for request in requests
+                if (candidate := woolworths_category_request_payload(request))
+            ),
+            None,
+        )
+        if not request_payload:
+            return {
+                "categoryResponses": responses,
+                "categoryRequests": requests,
+                "subcategories": [],
+            }
+        # The sidecar replays every catalogue page in the authenticated
+        # session. Missing pages must fail collection instead of navigating
+        # again or silently accepting a partial catalogue.
+        expected_pages = woolworths_remaining_category_pages(
+            {**request_payload, "pageNumber": 1}, responses
+        )
+        captured_pages: set[int] = set()
+        for request, response in zip(requests, responses):
+            candidate = woolworths_category_request_payload(request)
+            if not candidate or not isinstance(response, dict):
+                continue
+            try:
+                captured_pages.add(int(candidate.get("pageNumber") or 1))
+            except (TypeError, ValueError):
+                continue
+        for page_number in [1, *expected_pages]:
+            if page_number not in captured_pages:
+                raise RuntimeError(
+                    f"visible browser did not capture category page {page_number}"
+                )
+
+        return {
+            "categoryResponses": responses,
+            "categoryRequests": requests,
+            "subcategories": [],
+        }
 
     def details(self, stockcodes: list[str]) -> object:
         completed: Queue = Queue(maxsize=1)
@@ -491,29 +593,80 @@ class WoolworthsBrowserSession:
             page = None
             owns_browser = False
             while True:
+                print(
+                    "Woolworths worker: waiting for request",
+                    flush=True,
+                )
                 request = self._requests.get()
-                if len(request) == 3 and request[0] in ("browse", "details"):
+                print(
+                    f"Woolworths worker: received operation={request[0]!r}",
+                    flush=True,
+                )
+                if len(request) == 3 and request[0] == "browse":
+                    # browse() above is deliberately synchronous with the UC
+                    # sidecar.  Never fall back to Playwright navigation.
+                    request[2].put((False, RuntimeError(
+                        "Woolworths category browse must use the visible browser sidecar"
+                    )))
+                    continue
+                if len(request) == 3 and request[0] == "details":
                     operation, operation_value, completed = request
-                    category_path = operation_value if operation == "browse" else None
-                    stockcodes = operation_value if operation == "details" else []
+                    category_path = None
+                    stockcodes = operation_value
                     query = None
                     limit = 0
                 else:
                     query, limit, completed = request
                     operation = "search"
                 try:
+                    print(
+                        "Woolworths worker: checking browser connection",
+                        flush=True,
+                    )
                     if browser is None or not browser.is_connected():
+                        print(
+                            "Woolworths worker: browser connection required",
+                            flush=True,
+                        )
                         if WOOLWORTHS_CDP_URL:
+                            cdp_url = resolved_cdp_url(WOOLWORTHS_CDP_URL)
+                            print(
+                                f"Woolworths worker: connecting CDP {cdp_url}",
+                                flush=True,
+                            )
                             browser = playwright.chromium.connect_over_cdp(
-                                resolved_cdp_url(WOOLWORTHS_CDP_URL)
+                                cdp_url
+                            )
+                            print(
+                                "Woolworths worker: CDP connected",
+                                flush=True,
                             )
                             owns_browser = False
                             if not browser.contexts:
                                 raise RuntimeError("verified browser has no active context")
                             context = browser.contexts[0]
-                            page = next((candidate for candidate in context.pages if "woolworths.com.au" in candidate.url), None)
+                            print(
+                                f"Woolworths worker: context acquired; pages={len(context.pages)}",
+                                flush=True,
+                            )
+                            page = next(
+                                (
+                                    candidate
+                                    for candidate in context.pages
+                                    if "woolworths.com.au" in candidate.url
+                                ),
+                                None,
+                            )
                             if page is None:
+                                print(
+                                    "Woolworths worker: creating page",
+                                    flush=True,
+                                )
                                 page = context.new_page()
+                            print(
+                                f"Woolworths worker: selected page {page.url}",
+                                flush=True,
+                            )
                         else:
                             browser = playwright.chromium.launch(
                                 headless=True,
@@ -550,17 +703,38 @@ class WoolworthsBrowserSession:
                         captured_responses: list[object] = []
                         def capture_category(response: object) -> None:
                             try:
-                                if WOOLWORTHS_CATEGORY_API_PATH in response.url and response.ok:
+                                if (
+                                    not captured_responses
+                                    and WOOLWORTHS_CATEGORY_API_PATH in response.url
+                                    and response.ok
+                                ):
                                     captured_responses.append(response)
                             except Exception:
                                 return
                         browse_page.on("response", capture_category)
                         try:
+                            print(
+                                "Woolworths browse: bringing page to front",
+                                flush=True,
+                            )
                             browse_page.bring_to_front()
+                            print(
+                                "Woolworths browse: page brought to front",
+                                flush=True,
+                            )
+                            target_url = f"https://www.woolworths.com.au{category_path}"
+                            print(
+                                f"Woolworths browse: initial goto {target_url}",
+                                flush=True,
+                            )
                             browse_page.goto(
-                                f"https://www.woolworths.com.au{category_path}",
+                                target_url,
                                 wait_until="domcontentloaded",
                                 timeout=WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS * 1000,
+                            )
+                            print(
+                                f"Woolworths browse: initial goto returned; url={browse_page.url}",
+                                flush=True,
                             )
                             # Scroll long enough for lazy pages to request their next
                             # category response. The first complete response is not an
@@ -605,52 +779,157 @@ class WoolworthsBrowserSession:
                                 request_payload = woolworths_category_request_payload(
                                     captured_responses[0]
                                 )
-                                remaining_pages = woolworths_remaining_category_pages(
-                                    request_payload, payload["categoryResponses"]
-                                )
-                                if request_payload and remaining_pages:
-                                    additional_payloads = browse_page.evaluate(
-                                        """async ({url, requestPayload, pageNumbers, concurrency, timeoutMs}) => {
-                                          const payloads = [];
-                                          for (let index = 0; index < pageNumbers.length; index += concurrency) {
-                                            const batch = pageNumbers.slice(index, index + concurrency);
-                                            const completed = await Promise.all(batch.map(async (pageNumber) => {
-                                              const controller = new AbortController();
-                                              const timeout = setTimeout(() => controller.abort(), timeoutMs);
-                                              try {
-                                                const response = await fetch(url, {
-                                                  method: 'POST',
-                                                  credentials: 'include',
-                                                  signal: controller.signal,
-                                                  headers: {
-                                                    'accept': 'application/json, text/plain, */*',
-                                                    'content-type': 'application/json'
-                                                  },
-                                                  body: JSON.stringify({...requestPayload, pageNumber})
-                                                });
-                                                if (!response.ok) {
-                                                  throw new Error(`Woolworths category page ${pageNumber} returned HTTP ${response.status}`);
-                                                }
-                                                return {pageNumber, payload: await response.json()};
-                                              } finally {
-                                                clearTimeout(timeout);
-                                              }
-                                            }));
-                                            completed.sort((left, right) => left.pageNumber - right.pageNumber);
-                                            payloads.push(...completed.map((item) => item.payload));
-                                            await new Promise((resolve) => setTimeout(resolve, 250));
-                                          }
-                                          return payloads;
-                                        }""",
-                                        {
-                                            "url": WOOLWORTHS_CATEGORY_API_PATH,
-                                            "requestPayload": request_payload,
-                                            "pageNumbers": remaining_pages,
-                                            "concurrency": WOOLWORTHS_CATEGORY_PAGE_CONCURRENCY,
-                                            "timeoutMs": WOOLWORTHS_CATEGORY_PAGE_TIMEOUT_MS,
-                                        },
+                                if request_payload:
+                                    try:
+                                        current_page = int(
+                                            request_payload.get("pageNumber") or 1
+                                        )
+                                        page_size = int(
+                                            request_payload.get("pageSize") or 0
+                                        )
+                                    except (TypeError, ValueError):
+                                        current_page = 1
+                                        page_size = 0
+
+                                    total = max(
+                                        (
+                                            int(item.get("TotalRecordCount") or 0)
+                                            for item in payload["categoryResponses"]
+                                            if isinstance(item, dict)
+                                        ),
+                                        default=0,
                                     )
-                                    payload["categoryResponses"].extend(additional_payloads)
+                                    total_pages = (
+                                        (total + page_size - 1) // page_size
+                                        if page_size > 0
+                                        else 1
+                                    )
+
+                                    expected_path = category_path.rstrip("/")
+                                    expected_category_id = request_payload.get(
+                                        "categoryId"
+                                    )
+
+                                    for next_page in range(
+                                        current_page + 1, total_pages + 1
+                                    ):
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "starting navigation",
+                                            flush=True,
+                                        )
+
+                                        def matches_category_page(
+                                            response: object,
+                                        ) -> bool:
+                                            try:
+                                                if (
+                                                    WOOLWORTHS_CATEGORY_API_PATH
+                                                    not in response.url
+                                                    or not response.ok
+                                                ):
+                                                    return False
+
+                                                candidate = (
+                                                    woolworths_category_request_payload(
+                                                        response
+                                                    )
+                                                )
+                                                if not candidate:
+                                                    return False
+
+                                                candidate_page = int(
+                                                    candidate.get("pageNumber")
+                                                    or 1
+                                                )
+                                                candidate_path = str(
+                                                    candidate.get("url")
+                                                    or candidate.get(
+                                                        "location"
+                                                    )
+                                                    or ""
+                                                ).split("?", 1)[0].rstrip("/")
+
+                                                return (
+                                                    candidate_page
+                                                    == next_page
+                                                    and candidate_path
+                                                    == expected_path
+                                                    and candidate.get(
+                                                        "categoryId"
+                                                    )
+                                                    == expected_category_id
+                                                )
+                                            except Exception:
+                                                return False
+
+                                        with browse_page.expect_response(
+                                            matches_category_page,
+                                            timeout=(
+                                                WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
+                                                * 1000
+                                            ),
+                                        ) as response_info:
+                                            browse_page.goto(
+                                                (
+                                                    "https://www.woolworths.com.au"
+                                                    f"{category_path}"
+                                                    f"?pageNumber={next_page}"
+                                                ),
+                                                wait_until="domcontentloaded",
+                                                timeout=(
+                                                    WOOLWORTHS_CATEGORY_NAVIGATION_SECONDS
+                                                    * 1000
+                                                ),
+                                            )
+                                            print(
+                                                f"Woolworths page {next_page}/{total_pages}: "
+                                                "goto returned",
+                                                flush=True,
+                                            )
+
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "matching response obtained",
+                                            flush=True,
+                                        )
+
+                                        title = browse_page.title().casefold()
+                                        if (
+                                            "access denied" in title
+                                            or "captcha" in title
+                                        ):
+                                            raise RuntimeError(
+                                                "Woolworths requires "
+                                                "browser verification"
+                                            )
+
+                                        response = response_info.value
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "waiting for response body",
+                                            flush=True,
+                                        )
+                                        response.finished()
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "response body finished",
+                                            flush=True,
+                                        )
+                                        response_payload = response.json()
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "JSON parsed",
+                                            flush=True,
+                                        )
+                                        payload[
+                                            "categoryResponses"
+                                        ].append(response_payload)
+                                        print(
+                                            f"Woolworths page {next_page}/{total_pages}: "
+                                            "complete",
+                                            flush=True,
+                                        )
                             completed.put((True, payload))
                         finally:
                             if not browse_page.is_closed():
@@ -1042,7 +1321,11 @@ def woolworths_subcategory_paths(payload: object, parent_path: str) -> list[str]
     return list(dict.fromkeys(
         candidate.rstrip("/")
         for candidate in candidates
-        if isinstance(candidate, str) and candidate.startswith(f"{base}/")
+        if (
+            isinstance(candidate, str)
+            and candidate.startswith(f"{base}/")
+            and "everyday-market" not in candidate.rstrip("/").split("/")
+        )
     ))
 
 
@@ -1268,7 +1551,17 @@ class WoolworthsCatalogueCollector:
                     WHERE category_path = ?
                 """, (started_at, category))
             try:
-                payload = woolworths_browser().browse(category)
+                try:
+                    payload = woolworths_browser().browse(category)
+                except Exception as error:  # noqa: BLE001
+                    if "visible browser category session did not return in time" not in str(error).casefold():
+                        raise
+                    # The host browser watchdog may have recycled a wedged
+                    # Selenium process. Give the replacement browser time to
+                    # become ready, then retry this same catalogue checkpoint
+                    # once instead of cascading the restart into later rows.
+                    time.sleep(30)
+                    payload = woolworths_browser().browse(category)
                 children = woolworths_subcategory_paths(payload, category)
                 if children:
                     outcome = {"products": 0, "detailsEnriched": 0, "detailsFailed": 0, "detailError": None}

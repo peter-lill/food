@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
@@ -411,15 +410,16 @@ export function PlannerWorkspace({ data, loadError = false, shoppingError = fals
               ×
             </button>
             {openRecipe.recipe.imageUrl ? (
-              <div className={styles.recipeImage}>
-                <Image
-                  alt={`Finished ${openRecipe.recipe.name}`}
-                  fill
-                  priority
-                  sizes="(max-width: 760px) 100vw, 760px"
-                  src={openRecipe.recipe.imageUrl}
-                />
-              </div>
+              <div
+                aria-label={`Finished ${openRecipe.recipe.name}`}
+                className={styles.recipeImage}
+                role="img"
+                style={{
+                  backgroundImage: `url("${openRecipe.recipe.imageUrl}")`,
+                  backgroundPosition: "center",
+                  backgroundSize: "cover",
+                }}
+              />
             ) : (
               <div className={styles.recipeImageFallback} aria-hidden="true">◇</div>
             )}

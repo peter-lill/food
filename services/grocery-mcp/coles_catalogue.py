@@ -78,13 +78,24 @@ def json_value(value: object) -> str | None:
     return json.dumps(value, ensure_ascii=False, separators=(",", ":")) if value not in (None, "", [], {}) else None
 
 
+class ColesCategoryUnavailableError(RuntimeError):
+    """A valid Coles page no longer exposes catalogue data for this category."""
+
+
 def parse_coles_browse_document(raw: str) -> dict[str, Any]:
     """Return the canonical SSR browse payload, or fail before caching anything."""
     try:
         document = json.loads(raw)
-        result = document["props"]["pageProps"]["searchResults"]
+        page_props = document["props"]["pageProps"]
     except (KeyError, TypeError, json.JSONDecodeError) as error:
         raise RuntimeError("Coles browse page did not expose its catalogue data") from error
+
+    if "searchResults" not in page_props:
+        raise ColesCategoryUnavailableError(
+            "Coles browse category no longer exposes catalogue data"
+        )
+
+    result = page_props["searchResults"]
     if not isinstance(result, dict) or not isinstance(result.get("results"), list):
         raise RuntimeError("Coles browse page returned an invalid catalogue result")
     return result
@@ -783,7 +794,10 @@ def refresh_all(
     # Drain durable leaf jobs before making further browser discovery requests.
     # A failed pagination call leaves discovery and page checkpoints intact.
     for job in jobs:
-        collect_leaf(job["category_path"], job["state"])
+        try:
+            collect_leaf(job["category_path"], job["state"])
+        except ColesCategoryUnavailableError:
+            continue
     while True:
         with cache_session() as connection:
             node = connection.execute(
@@ -822,7 +836,10 @@ def refresh_all(
                 "SELECT state FROM coles_category_collection WHERE category_path=?", (category,)
             ).fetchone()["state"]
         if not children:
-            collect_leaf(category, state)
+            try:
+                collect_leaf(category, state)
+            except ColesCategoryUnavailableError:
+                continue
     if not resume_reached:
         raise ValueError(f"Unknown Coles leaf category: {resume_category}")
 
