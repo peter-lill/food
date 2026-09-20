@@ -516,12 +516,19 @@ class WoolworthsBrowserSession:
         # Playwright worker below remains responsible only for search and
         # product-detail enrichment.
         payload = woolworths_visible_category_fetch(category_path)
+        captured_category_path = payload.get("categoryPath")
+        verification_path = (
+            captured_category_path
+            if isinstance(captured_category_path, str)
+            and captured_category_path.startswith("/shop/browse/")
+            else category_path
+        )
         pairs = [
             (request, response)
             for request, response in zip(
                 payload["categoryRequests"], payload["categoryResponses"]
             )
-            if woolworths_request_matches_category(request, category_path)
+            if woolworths_request_matches_category(request, verification_path)
         ]
         requests = [request for request, _ in pairs]
         responses = [response for _, response in pairs]
