@@ -1,0 +1,8 @@
+[Unit]
+Description=Food grocery browser and noVNC watchdog
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/home/peter/Development/food/scripts/ensure-browser-vnc.sh
