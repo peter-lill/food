@@ -17,6 +17,8 @@ for (const [recipeText, expectedIngredient] of cases) {
   assert.equal(shoppingPriceIngredientName(recipeText), expectedIngredient, `${recipeText} should search as ${expectedIngredient}`);
 }
 
+assert.equal(shoppingPriceIngredientName("Crushed"), null, "a preparation-only fragment must not be priced as an unknown ingredient");
+
 assert.equal(isExactShoppingPriceIngredientName("Banana", "Bananas 1kg"), true, "plural produce with a size is an exact ingredient match");
 assert.equal(isExactShoppingPriceIngredientName("Banana", "Cavendish Bananas Loose"), true, "a produce variety is an exact banana match");
 assert.equal(isExactShoppingPriceIngredientName("Egg", "Barn Laid Eggs 700g"), true, "egg production qualifiers are an exact egg match");

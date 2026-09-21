@@ -10,6 +10,10 @@ const leadingRecipeTerms = new Set([
   "a", "an", "the", "few", "pinch", "of", "small", "medium", "large", "ripe",
 ]);
 
+const preparationOnlyTerms = new Set([
+  "beaten", "chopped", "crushed", "diced", "grated", "minced", "peeled", "sliced", "torn",
+]);
+
 const trailingPreparationTerms = new Set([
   "beaten", "chopped", "diced", "grated", "minced", "peeled", "sliced", "torn",
 ]);
@@ -23,8 +27,9 @@ function titleCase(value: string) {
  * purchasable ingredient. Recipe amounts, sizes and preparation are not a
  * distinct grocery product.
  */
-export function shoppingPriceIngredientName(value: string) {
+export function shoppingPriceIngredientName(value: string): string | null {
   const raw = value.trim();
+  if (preparationOnlyTerms.has(normaliseProductText(raw))) return null;
   const alias = directAliases.get(raw.toLocaleLowerCase("en-AU"));
   if (alias) return alias;
 
