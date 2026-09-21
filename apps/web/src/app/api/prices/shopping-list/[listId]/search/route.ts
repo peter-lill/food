@@ -6,6 +6,7 @@ import {
 } from "@/lib/location-preferences";
 import { prisma } from "@/lib/prisma";
 import { retailerProductUrl, searchColesAndWoolworths } from "@/lib/prices/coles-woolworths-provider";
+import { isExactShoppingPriceIngredientName, shoppingPriceIngredientName, shoppingPriceMatchTokens } from "@/lib/prices/shopping-price-ingredient";
 import {
   supermarketRetailers,
   type SupermarketRetailer,
@@ -48,6 +49,7 @@ type SearchableItem = {
   canonicalName: string | null;
   brand: string | null;
   packSize: string | null;
+  priceSearchName: string;
 };
 type SearchRequestBody = {
   allowSubstitutes?: unknown;
@@ -163,9 +165,9 @@ function searchQueries(entry: SearchableItem) {
   return [...new Set([
     entry.barcode,
     rich,
+    entry.priceSearchName,
     entry.canonicalName,
     entry.productName,
-    entry.item.name,
   ].map(clean).filter(Boolean))].slice(0, 4);
 }
 
@@ -177,14 +179,14 @@ function matchScore(entry: SearchableItem, query: string, candidate: Candidate, 
   }
   if (expectedBarcode && candidateBarcode && expectedBarcode !== candidateBarcode) return null;
 
-  const requested = normalise(entry.canonicalName ?? entry.productName ?? query);
+  const requested = normalise(entry.priceSearchName || entry.canonicalName || entry.productName || query);
   const candidateName = normalise(candidate.productName);
-  const queryTokens = requested.split(" ").filter((token) => token.length > 1);
-  const productTokens = new Set(candidateName.split(" "));
+  const queryTokens = shoppingPriceMatchTokens(requested).filter((token) => token.length > 1);
+  const productTokens = new Set(shoppingPriceMatchTokens(candidateName));
   const ratio = queryTokens.length
     ? queryTokens.filter((token) => productTokens.has(token)).length / queryTokens.length
     : 0;
-
+  const exactName = isExactShoppingPriceIngredientName(requested, candidateName);
   const expectedBrand = normalise(entry.brand ?? "");
   if (expectedBrand && !candidateName.includes(expectedBrand)) {
     if (!allowSubstitutes) return null;
@@ -195,11 +197,11 @@ function matchScore(entry: SearchableItem, query: string, candidate: Candidate, 
   const packMatches = !expectedPack || !candidatePack || expectedPack === candidatePack;
   if (!packMatches && !allowSubstitutes) return null;
 
-  if (candidateName === requested) return { score: 1_000 + (packMatches ? 80 : 0), exact: true, reason: "Exact product name match." };
-  if (candidateName.includes(requested) && ratio >= 0.8) {
-    return { score: 900 + ratio * 50 + (packMatches ? 50 : -100), exact: packMatches, reason: packMatches ? "Product name and pack size match." : "Product name matches; pack size differs." };
+  if (exactName) return { score: 1_000 + (packMatches ? 80 : 0), exact: true, reason: "Exact purchasable ingredient match." };
+  if (ratio >= 0.8) {
+    return { score: 900 + ratio * 50 + (packMatches ? 50 : -100), exact: false, reason: packMatches ? "Comparable product; verify the label." : "Comparable product with a different pack size; verify the label." };
   }
-  if (ratio >= 0.75 && packMatches) return { score: 750 + ratio * 100, exact: true, reason: "Strong product and pack-size match." };
+  if (ratio >= 0.75 && packMatches) return { score: 750 + ratio * 100, exact: false, reason: "Comparable product; verify the label." };
   if (!allowSubstitutes || ratio < 0.45) return null;
   return { score: 400 + ratio * 100 + (packMatches ? 30 : -80), exact: false, reason: "Comparable substitute; check brand and pack size." };
 }
@@ -521,6 +523,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
     canonicalName: entry.product?.canonicalName ?? null,
     brand: entry.product?.brand ?? null,
     packSize: entry.product?.packSize ?? null,
+    priceSearchName: shoppingPriceIngredientName(entry.product?.canonicalName ?? entry.product?.name ?? entry.name),
   }));
 
   const sources = new Set<CandidateSource>();
@@ -528,7 +531,7 @@ export async function POST(request: Request, context: { params: Promise<{ listId
   let liveItemCount = 0;
 
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
-    const query = titleCase(entry.item.name);
+    const query = entry.priceSearchName;
     // Cached prices must honour the same selected-store guard as live results.
     // In particular, do not show a previous Drakes price before the shopper has
     // chosen the Drakes store whose catalogue it came from.
