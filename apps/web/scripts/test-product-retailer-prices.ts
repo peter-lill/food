@@ -224,6 +224,7 @@ const activiaFamily: ProductHubListItem = {
   latestRetailer: "Woolworths",
   latestPackSize: "4 pack",
   latestObservedAt: observedAt,
+  latestCheckedAt: observedAt,
   latestIsSpecial: false,
   priceNeedsSpecificVariant: false,
 };
