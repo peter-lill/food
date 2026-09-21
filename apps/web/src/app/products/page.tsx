@@ -150,7 +150,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
   const href = `/products/${encodeURIComponent(product.slug ?? product.id)}`;
   const { title, receiptName, category } = productDisplay(product);
   const latestPrice = money(product.latestPrice);
-  const observed = observedLabel(product.latestObservedAt);
+  const checked = observedLabel(product.latestCheckedAt ?? product.latestObservedAt);
   const family = product.variantCount > 1;
   const generic = isGenericFood(product);
   const categoryLabel = category ?? (family ? "Product family" : generic ? "Fresh produce" : "Uncategorised");
@@ -196,7 +196,7 @@ function ProductCard({ product }: { product: ProductHubListItem }) {
         </div>
         <div className={styles.cardFooter}>
           <span>{product.latestRetailer ? <RetailerLogo compact retailer={product.latestRetailer} surface="dark" /> : "No retailer linked"}</span>
-          <small>{observed ? `Checked ${observed}` : "Not checked"}</small>
+          <small>{checked ? `Checked ${checked}` : "Not checked"}</small>
         </div>
       </div>
       <Link aria-label={`Open ${title}`} className={styles.cardLink} href={href} />

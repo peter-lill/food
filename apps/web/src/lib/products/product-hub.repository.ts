@@ -37,6 +37,7 @@ export type ProductHubListItem = {
   latestRetailer: string | null;
   latestPackSize: string | null;
   latestObservedAt: Date | null;
+  latestCheckedAt: Date | null;
   latestIsSpecial: boolean;
   priceNeedsSpecificVariant: boolean;
 };
@@ -491,7 +492,7 @@ export async function getProductHubList(query?: string, department?: Supermarket
           },
         },
       },
-      storeProducts: { select: { retailer: true, imageUrl: true, aisle: true } },
+      storeProducts: { select: { retailer: true, imageUrl: true, aisle: true, lastSeenAt: true } },
       priceObservations: {
         orderBy: { observedAt: "desc" },
         take: 12,
@@ -533,6 +534,11 @@ export async function getProductHubList(query?: string, department?: Supermarket
     );
     const retailers = new Set(product.storeProducts.map((listing) => listing.retailer));
     const latest = product.priceObservations[0] ?? null;
+    const latestCheckedAt = product.storeProducts.reduce<Date | null>((latestCheck, listing) =>
+      listing.lastSeenAt && (!latestCheck || listing.lastSeenAt > latestCheck)
+        ? listing.lastSeenAt
+        : latestCheck,
+    null);
     const retailerPrices = latestPricesByRetailer(product.priceObservations);
     const bestRetailerPrice = [...retailerPrices].sort((left, right) => left.price - right.price)[0] ?? null;
     const familyName = resolvedFamilyName(product, genericFamilies);
@@ -572,6 +578,7 @@ export async function getProductHubList(query?: string, department?: Supermarket
         latestRetailer: bestRetailerPrice?.retailer ?? null,
         latestPackSize: bestRetailerPrice ? bestRetailerPrice.packSize ?? "Size not recorded" : null,
         latestObservedAt: latest?.observedAt ?? null,
+        latestCheckedAt,
         latestIsSpecial: bestRetailerPrice?.isSpecial ?? false,
         priceNeedsSpecificVariant: false,
       });
@@ -620,6 +627,9 @@ export async function getProductHubList(query?: string, department?: Supermarket
       current.latestPackSize = bestRetailerPrice ? bestRetailerPrice.packSize ?? "Size not recorded" : null;
       current.latestObservedAt = latest.observedAt;
       current.latestIsSpecial = bestRetailerPrice?.isSpecial ?? false;
+    }
+    if (latestCheckedAt && (!current.latestCheckedAt || latestCheckedAt > current.latestCheckedAt)) {
+      current.latestCheckedAt = latestCheckedAt;
     }
   }
 
