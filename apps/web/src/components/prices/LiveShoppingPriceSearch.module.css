@@ -148,6 +148,42 @@
   color: #b3b7b4;
 }
 
+:global(.kitchen-mode) .liveTotal,
+:global(.kitchen-mode) .liveMeta,
+:global(.kitchen-mode) .liveItem,
+:global(.kitchen-mode) .liveMatchCard,
+:global(.kitchen-mode) .liveNoMatch {
+  border-color: rgba(246, 241, 229, .18);
+  background: rgba(255, 255, 255, .065);
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .liveCompleteTotal,
+:global(.kitchen-mode) .liveSplitTotal,
+:global(.kitchen-mode) .liveBestMatch {
+  border-color: rgba(40, 184, 223, .36);
+  background: rgba(40, 184, 223, .14);
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .liveTotal > small,
+:global(.kitchen-mode) .liveCompleteTotal > small,
+:global(.kitchen-mode) .liveSplitTotal > small,
+:global(.kitchen-mode) .liveMeta,
+:global(.kitchen-mode) .liveMatchCard small,
+:global(.kitchen-mode) .liveBestMatch small,
+:global(.kitchen-mode) .liveItem header span,
+:global(.kitchen-mode) .liveMatchCard p,
+:global(.kitchen-mode) .liveBestMatch p,
+:global(.kitchen-mode) .liveNoMatch {
+  color: #b3b7b4;
+}
+
+:global(.kitchen-mode) .liveItemError {
+  background: rgba(194, 75, 70, .2);
+  color: #ffb6af;
+}
+
 .substituteToggle strong {
   font-size: 12px;
 }
@@ -458,4 +494,33 @@
   .livePriceLine > span {
     text-align: left;
   }
+}
+
+:global(.kitchen-mode) .liveTotal > span,
+:global(.kitchen-mode) .liveCompleteTotal > span,
+:global(.kitchen-mode) .liveSplitTotal > span,
+:global(.kitchen-mode) .liveMeta strong,
+:global(.kitchen-mode) .livePriceLine > span {
+  color: #b3b7b4;
+}
+
+:global(.kitchen-mode) .liveProductName,
+:global(.kitchen-mode) .liveProductLink {
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .liveProductLink:hover,
+:global(.kitchen-mode) .liveMatchCard a,
+:global(.kitchen-mode) .liveBestMatch a {
+  color: #9fe8fa;
+}
+
+:global(.kitchen-mode) .exactBadge {
+  background: rgba(40, 184, 223, .18);
+  color: #9fe8fa;
+}
+
+:global(.kitchen-mode) .substituteBadge {
+  background: rgba(255, 196, 93, .16);
+  color: #ffd58a;
 }
