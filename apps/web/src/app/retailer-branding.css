@@ -51,6 +51,9 @@ small .retailer-inline-logo {
   vertical-align: middle;
 }
 
+.kitchen-mode [data-retailer-logo="drakes"] .drakes-logo-dark { display: none !important; }
+.kitchen-mode [data-retailer-logo="drakes"] .drakes-logo-light { display: block !important; }
+
 .retailer-logo-name {
   color: #00582d;
   font-size: .92rem;

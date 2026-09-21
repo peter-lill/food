@@ -134,24 +134,10 @@ export function RetailerLogo({ retailer, compact = false, className, surface = "
         width,
       }}
     >
-      <img
-        alt=""
-        decoding="async"
-        height={height}
-        loading="lazy"
-        referrerPolicy="no-referrer"
-        src={sourceKey === "drakes" && surface === "dark" ? "/retailer-logos/drakes-light.svg" : logo.src}
-        style={{
-          background: "transparent",
-          display: "block",
-          height: "100%",
-          maxHeight: "100%",
-          maxWidth: "100%",
-          objectFit: "contain",
-          width: "100%",
-        }}
-        width={width}
-      />
+      {sourceKey === "drakes" ? <>
+        <img alt="" className="drakes-logo-dark" decoding="async" height={height} loading="lazy" src={logo.src} style={{ background: "transparent", display: surface === "dark" ? "none" : "block", height: "100%", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", width: "100%" }} width={width} />
+        <img alt="" className="drakes-logo-light" decoding="async" height={height} loading="lazy" src="/retailer-logos/drakes-light.svg" style={{ background: "transparent", display: surface === "dark" ? "block" : "none", height: "100%", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", width: "100%" }} width={width} />
+      </> : <img alt="" decoding="async" height={height} loading="lazy" referrerPolicy="no-referrer" src={logo.src} style={{ background: "transparent", display: "block", height: "100%", maxHeight: "100%", maxWidth: "100%", objectFit: "contain", width: "100%" }} width={width} />}
     </span>
   );
 }
