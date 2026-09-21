@@ -118,6 +118,36 @@
   gap: 3px;
 }
 
+:global(.kitchen-mode) .liveSearch {
+  border-color: rgba(246, 241, 229, .2);
+  background: rgba(24, 27, 26, .91);
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .locationChoice legend {
+  color: #9fe8fa;
+}
+
+:global(.kitchen-mode) .locationOption,
+:global(.kitchen-mode) .substituteToggle {
+  border-color: rgba(246, 241, 229, .18);
+  background: rgba(255, 255, 255, .065);
+  color: #f8f7f2;
+}
+
+:global(.kitchen-mode) .locationOptionActive {
+  border-color: rgba(40, 184, 223, .42);
+  background: rgba(40, 184, 223, .15);
+  color: #f8f7f2;
+  box-shadow: inset 0 0 0 1px rgba(40, 184, 223, .13);
+}
+
+:global(.kitchen-mode) .locationOption small,
+:global(.kitchen-mode) .locationOptionActive small,
+:global(.kitchen-mode) .substituteToggle small {
+  color: #b3b7b4;
+}
+
 .substituteToggle strong {
   font-size: 12px;
 }
