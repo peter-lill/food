@@ -133,6 +133,7 @@ class Handler(BaseHTTPRequestHandler):
             200,
             {
                 "status": "success",
+                "categoryPath": result.get("categoryPath"),
                 "categoryResponses": result.get("categoryResponses", []),
                 "categoryRequests": result.get("categoryRequests", []),
                 "subcategories": result.get("subcategories", []),
@@ -709,6 +710,7 @@ def fetch_category(
         raise RuntimeError("category API response was not observed")
 
     return {
+        "categoryPath": category_path,
         "categoryResponses": responses,
         "categoryRequests": category_requests,
         "subcategories": unique_descendants,

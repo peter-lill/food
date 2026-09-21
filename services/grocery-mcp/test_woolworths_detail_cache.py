@@ -186,6 +186,27 @@ class WoolworthsDetailCacheTest(unittest.TestCase):
         self.assertEqual(result["categoryRequests"], requests[1:])
         self.assertEqual(result["categoryResponses"], responses[1:])
 
+    def test_woolworths_browse_accepts_verified_retailer_redirect(self) -> None:
+        requested = "/shop/browse/beer-wine-spirits/champagne-sparkling"
+        loaded = "/shop/browse/beer-wine-spirits/champagne-sparkling-wine"
+        request = {
+            "payload": {"pageNumber": 1, "pageSize": 36, "location": loaded}
+        }
+        response = {"TotalRecordCount": 1}
+        with patch.object(
+            self.bridge,
+            "woolworths_visible_category_fetch",
+            return_value={
+                "categoryPath": loaded,
+                "categoryRequests": [request],
+                "categoryResponses": [response],
+            },
+        ) as fetch:
+            result = object.__new__(self.bridge.WoolworthsBrowserSession).browse(requested)
+        fetch.assert_called_once_with(requested)
+        self.assertEqual(result["categoryRequests"], [request])
+        self.assertEqual(result["categoryResponses"], [response])
+
     def test_woolworths_capture_matches_category_path(self) -> None:
         from woolworths_browser import woolworths_request_matches_category
         category = "/shop/browse/beauty/cosmetics"
