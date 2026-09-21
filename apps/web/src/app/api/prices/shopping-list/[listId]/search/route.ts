@@ -49,7 +49,7 @@ type SearchableItem = {
   canonicalName: string | null;
   brand: string | null;
   packSize: string | null;
-  priceSearchName: string;
+  priceSearchName: string | null;
 };
 type SearchRequestBody = {
   allowSubstitutes?: unknown;
@@ -532,6 +532,15 @@ export async function POST(request: Request, context: { params: Promise<{ listId
 
   const items = await mapWithConcurrency(searchItems, searchConcurrency, async (entry): Promise<LiveGroceryPriceItemResult> => {
     const query = entry.priceSearchName;
+    if (!query) {
+      return {
+        item: entry.item,
+        query: entry.item.name,
+        matches: [],
+        best: null,
+        error: "This entry only describes preparation, not a purchasable ingredient. Edit it to name the ingredient before comparing prices.",
+      };
+    }
     // Cached prices must honour the same selected-store guard as live results.
     // In particular, do not show a previous Drakes price before the shopper has
     // chosen the Drakes store whose catalogue it came from.
