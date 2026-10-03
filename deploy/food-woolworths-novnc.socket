@@ -2,7 +2,7 @@
 Description=Expose Food Woolworths noVNC on Coffee LAN
 
 [Socket]
-ListenStream=192.168.0.111:6085
+ListenStream=0.0.0.0:6085
 Accept=no
 
 [Install]
