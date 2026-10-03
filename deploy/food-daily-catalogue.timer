@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Food supported-retailer catalogue refresh each day
+
+[Timer]
+OnCalendar=*-*-* 20:00:00
+Persistent=true
+AccuracySec=5min
+Unit=food-daily-catalogue.service
+
+[Install]
+WantedBy=timers.target

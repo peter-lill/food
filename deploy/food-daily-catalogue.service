@@ -1,0 +1,21 @@
+[Unit]
+Description=Food daily supported-retailer catalogue refresh and import
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=21600
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+User=peter
+Group=peter
+Environment=HOME=/home/peter
+Environment=GROCERY_MCP_BRIDGE_URL=http://127.0.0.1:8790
+WorkingDirectory=/home/peter/Development/food
+StateDirectory=food-retailer-catalogue
+ExecStart=/usr/bin/flock -n /var/lib/food-retailer-catalogue/daily-catalogue.lock /usr/bin/npm --workspace apps/web run products:catalogues:mass-import -- --drakes-store=087 --apply
+TimeoutStartSec=infinity
+Restart=on-failure
+RestartSec=15min
+Nice=5
