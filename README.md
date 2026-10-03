@@ -132,6 +132,27 @@ implement this discovery/leaf rule, source-path preservation, and a
 retailer-specific controlled importer before it is added to an automated
 catalogue refresh.
 
+### Daily catalogue refresh
+
+Food refreshes and imports the verified ALDI, Drakes, Coles and Woolworths
+catalogues each evening. The job holds a run lock, resumes browser-backed
+collection from durable checkpoints after a transient failure, and retries up
+to three times over six hours. It runs at 8:00 pm in Coffee's local timezone,
+so it does not overlap the Wednesday 5:30 am Woolworths specials sweep.
+
+Install the timer once on Coffee:
+
+```bash
+sudo install -m 0644 deploy/food-daily-catalogue.service /etc/systemd/system/food-daily-catalogue.service
+sudo install -m 0644 deploy/food-daily-catalogue.timer /etc/systemd/system/food-daily-catalogue.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now food-daily-catalogue.timer
+systemctl list-timers food-daily-catalogue.timer
+```
+
+Use `sudo systemctl start food-daily-catalogue.service` to run it immediately.
+Follow its output with
+`journalctl -fu food-daily-catalogue.service`.
 ### Weekly specials refresh
 
 Food can revisit the verified Woolworths catalogue every Wednesday morning to
