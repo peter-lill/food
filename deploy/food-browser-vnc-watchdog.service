@@ -5,4 +5,4 @@ Wants=docker.service network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/home/peter/Development/food/scripts/ensure-browser-vnc.sh
+ExecStart=/usr/bin/bash /home/peter/Development/food/scripts/ensure-browser-vnc.sh

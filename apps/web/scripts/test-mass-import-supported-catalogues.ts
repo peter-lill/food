@@ -10,6 +10,7 @@ assert.match(source, /--resume-coles/);
 assert.match(source, /\/coles\/catalogue\/collection\/start/);
 assert.match(source, /\/coles\/catalogue\/collection\/status/);
 assert.match(source, /\/woolworths\/catalogue\/collection\/start/);
+assert.match(source, /collection is already running; attaching to its durable checkpoints/, "an active Woolworths collection must be attached rather than treated as a failed refresh" );
 assert.match(source, /import-coles-controlled\.ts/);
 assert.match(source, /import-woolworths-controlled\.ts/);
 assert.match(source, /sync-imported-retailer-catalogues\.ts/);

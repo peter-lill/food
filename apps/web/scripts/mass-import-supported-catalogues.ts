@@ -41,8 +41,14 @@ function collectionCounts(payload: JsonObject) {
 }
 
 async function waitForWoolworths() {
-  const start = await request("/woolworths/catalogue/collection/start", { revisitAllCompleted: "1", retryFailed: "1" });
-  console.log(`Woolworths collection requested: ${JSON.stringify(collectionCounts(start))}.`);
+  try {
+    const start = await request("/woolworths/catalogue/collection/start", { revisitAllCompleted: "1", retryFailed: "1" });
+    console.log(`Woolworths collection requested: ${JSON.stringify(collectionCounts(start))}.`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!/Woolworths catalogue collection is already running/i.test(message)) throw error;
+    console.log("Woolworths collection is already running; attaching to its durable checkpoints.");
+  }
   const deadline = Date.now() + 6 * 60 * 60 * 1000;
   while (Date.now() < deadline) {
     const status = await request("/woolworths/catalogue/collection/status");
