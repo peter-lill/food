@@ -8,39 +8,58 @@ const requestedProductId = argument("--product-id")?.trim();
 const requestedName = argument("--name")?.trim();
 const requestedLimit = Number(argument("--limit") ?? "50");
 const limit = Number.isInteger(requestedLimit) && requestedLimit >= 1 && requestedLimit <= 500 ? requestedLimit : 50;
+const scanAll = process.argv.includes("--all");
+const summaryOnly = process.argv.includes("--summary");
 
 function packIdentity(packSize: string | null, name: string) {
   return comparablePackSize(packSize) ?? comparablePackSize(name);
 }
 
 async function main() {
-  const products = await prisma.product.findMany({
-    where: {
-      storeProducts: { some: { active: true } },
-      ...(requestedProductId ? { id: requestedProductId } : {}),
-      ...(requestedName ? {
-        OR: [
-          { name: { contains: requestedName, mode: "insensitive" } },
-          { canonicalName: { contains: requestedName, mode: "insensitive" } },
-        ],
-      } : {}),
-    },
-    take: requestedProductId ? 1 : limit,
-    orderBy: [{ name: "asc" }, { id: "asc" }],
-    select: {
-      id: true, name: true, canonicalName: true, brand: true, barcode: true, category: true,
-      packSize: true, productType: true, lifecycle: true, confidenceScore: true,
-      storeProducts: {
-        where: { active: true },
-        select: {
-          id: true, retailer: true, externalId: true, retailerProductName: true,
-          brand: true, packSize: true,
-          _count: { select: { priceObservations: true } },
-        },
-        orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }],
+  const productWhere = {
+    storeProducts: { some: { active: true } },
+    ...(requestedProductId ? { id: requestedProductId } : {}),
+    ...(requestedName ? {
+      OR: [
+        { name: { contains: requestedName, mode: "insensitive" as const } },
+        { canonicalName: { contains: requestedName, mode: "insensitive" as const } },
+      ],
+    } : {}),
+  };
+  const productSelect = {
+    id: true, name: true, canonicalName: true, brand: true, barcode: true, category: true,
+    packSize: true, productType: true, lifecycle: true, confidenceScore: true,
+    storeProducts: {
+      where: { active: true },
+      select: {
+        id: true, retailer: true, externalId: true, retailerProductName: true,
+        brand: true, packSize: true,
+        _count: { select: { priceObservations: true } },
       },
+      orderBy: [{ retailer: "asc" as const }, { retailerProductName: "asc" as const }],
     },
-  });
+  };
+  const products: any[] = [];
+  if (scanAll && !requestedProductId && !requestedName) {
+    let cursor: string | undefined;
+    while (true) {
+      const batch = await prisma.product.findMany({
+        where: productWhere, select: productSelect, take: 500,
+        ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+        orderBy: { id: "asc" },
+      });
+      if (!batch.length) break;
+      products.push(...batch);
+      cursor = batch.at(-1)!.id;
+      if (batch.length < 500) break;
+    }
+  } else {
+    products.push(...await prisma.product.findMany({
+      where: productWhere, select: productSelect,
+      take: requestedProductId ? 1 : limit,
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    }));
+  }
 
   const plans = [];
   let skippedMultiRetailer = 0;
@@ -103,7 +122,7 @@ async function main() {
   console.log(JSON.stringify({
     mode: "dry-run",
     writesPerformed: false,
-    filters: { productId: requestedProductId ?? null, name: requestedName ?? null, limit },
+    filters: { productId: requestedProductId ?? null, name: requestedName ?? null, limit, all: scanAll },
     scannedProductCount: products.length,
     repairableProductCount: plans.length,
     skipped: {
@@ -112,7 +131,12 @@ async function main() {
       ambiguousRetainedPack: skippedAmbiguousRetainedPack,
       clean: skippedClean,
     },
-    plans,
+    totals: {
+      newProductsRequired: plans.reduce((sum, plan) => sum + plan.groups.filter((group) => group.action === "create-new-product-and-move").length, 0),
+      storeProductsToMove: plans.reduce((sum, plan) => sum + plan.groups.filter((group) => group.action === "create-new-product-and-move").reduce((groupSum, group) => groupSum + group.storeProductCount, 0), 0),
+      priceObservationsToMove: plans.reduce((sum, plan) => sum + plan.groups.filter((group) => group.action === "create-new-product-and-move").reduce((groupSum, group) => groupSum + group.priceObservationCount, 0), 0),
+    },
+    ...(summaryOnly ? {} : { plans }),
   }, null, 2));
 }
 
