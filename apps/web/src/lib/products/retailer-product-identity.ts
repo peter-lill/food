@@ -21,14 +21,17 @@ function normaliseBarcode(value: string | null | undefined) {
 
 export function comparablePackSize(value: string | null | undefined) {
   const normalised = normaliseProductText(value ?? "");
-  const multipack = normalised.match(/(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/i);
+  const countFirst = normalised.match(/(\d+)\s*x\s*(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/i);
+  const sizeFirst = normalised.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\s*x\s*(\d+)\s*(?:pack|pk)?\b/i);
+  const multipack = countFirst
+    ? { count: Number(countFirst[1]), amount: Number(countFirst[2]), unit: countFirst[3].toLowerCase() }
+    : sizeFirst
+      ? { count: Number(sizeFirst[3]), amount: Number(sizeFirst[1]), unit: sizeFirst[2].toLowerCase() }
+      : null;
   if (multipack) {
-    const count = Number(multipack[1]);
-    const amount = Number(multipack[2]);
-    const unit = multipack[3].toLowerCase();
-    const baseAmount = unit === "kg" ? amount * 1000 : unit === "l" ? amount * 1000 : amount;
-    const baseUnit = unit === "kg" ? "g" : unit === "l" ? "ml" : unit;
-    return `${count}x${baseAmount}${baseUnit}`;
+    const baseAmount = multipack.unit === "kg" ? multipack.amount * 1000 : multipack.unit === "l" ? multipack.amount * 1000 : multipack.amount;
+    const baseUnit = multipack.unit === "kg" ? "g" : multipack.unit === "l" ? "ml" : multipack.unit;
+    return `${multipack.count}x${baseAmount}${baseUnit}`;
   }
   const single = normalised.match(/(\d+(?:\.\d+)?)\s*(kg|g|l|ml)\b/i);
   if (single) {
