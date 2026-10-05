@@ -90,8 +90,19 @@ async function main() {
     }
   }
 
+  const suspiciousCurrentOwnerStoreProductIds = new Set(["7de8781b-d56e-4464-b27b-4f57ad0d7265"]);
+  const automaticGroups = groups.filter((group) => !suspiciousCurrentOwnerStoreProductIds.has(group.storeProduct.id));
+  const manualReviewGroups = groups.filter((group) => suspiciousCurrentOwnerStoreProductIds.has(group.storeProduct.id));
+
   console.log(JSON.stringify({
     mode: "read-only",
+    classification: {
+      automaticStoreProducts: automaticGroups.length,
+      automaticObservationRepairs: automaticGroups.reduce((sum, group) => sum + group.mismatchCount, 0),
+      manualReviewStoreProducts: manualReviewGroups.length,
+      manualReviewObservations: manualReviewGroups.reduce((sum, group) => sum + group.mismatchCount, 0),
+      manualReviewStoreProductIds: [...suspiciousCurrentOwnerStoreProductIds],
+    },
     storeProductsWithMismatches: groups.length,
     mismatchCount: groups.reduce((sum, group) => sum + group.mismatchCount, 0),
     groups,
