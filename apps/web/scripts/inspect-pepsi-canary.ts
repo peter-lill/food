@@ -1,6 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
 
-const prisma = new PrismaClient();
+import { prisma } from "../src/lib/prisma";
+
 const ids = [
   "d92b6eb5-baf6-46db-81f8-bb6fba3b80f8",
   "cmuvqi3y70000ovhea1tw75fl",
@@ -26,15 +27,36 @@ async function main() {
     },
   });
 
-  const mismatches = await prisma.priceObservation.count({
-    where: {
-      storeProductId: { not: null },
-      product: { id: { in: ids } },
-      NOT: { storeProduct: { productId: { equals: prisma.priceObservation.fields.productId } } },
-    },
-  }).catch(() => null);
+  const observationOwnershipMismatches: Array<{
+    observationId: string;
+    observationProductId: string;
+    storeProductId: string;
+    storeProductProductId: string;
+  }> = [];
 
-  console.log(JSON.stringify({ products, observationOwnershipMismatchCount: mismatches }, null, 2));
+  for (const product of products) {
+    for (const storeProduct of product.storeProducts) {
+      const mismatches = await prisma.priceObservation.findMany({
+        where: {
+          storeProductId: storeProduct.id,
+          productId: { not: storeProduct.productId },
+        },
+        select: { id: true, productId: true, storeProductId: true },
+      });
+      observationOwnershipMismatches.push(...mismatches.map((x) => ({
+        observationId: x.id,
+        observationProductId: x.productId,
+        storeProductId: x.storeProductId!,
+        storeProductProductId: storeProduct.productId,
+      })));
+    }
+  }
+
+  console.log(JSON.stringify({
+    products,
+    observationOwnershipMismatchCount: observationOwnershipMismatches.length,
+    observationOwnershipMismatches,
+  }, null, 2));
 }
 
 main().finally(() => prisma.$disconnect());
