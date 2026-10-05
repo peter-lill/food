@@ -28,9 +28,9 @@ async function main() {
   let checkedObservations = 0;
   const repairedProductIds = manifestProductIds();
   let mismatchCount = 0;
-  let migrationRelatedMismatchCount = 0;
+  let manifestIntersectingMismatchCount = 0;
   let historicalMismatchCount = 0;
-  const migrationRelatedMismatchSamples: Array<{ observationId: string; observationProductId: string; storeProductId: string; storeProductProductId: string }> = [];
+  const manifestIntersectingMismatchSamples: Array<{ observationId: string; observationProductId: string; storeProductId: string; storeProductProductId: string }> = [];
   const mismatchSamples: Array<{
     observationId: string;
     observationProductId: string;
@@ -59,10 +59,10 @@ async function main() {
       for (const observation of observations) {
         if (observation.productId === storeProduct.productId) continue;
         mismatchCount += 1;
-        const migrationRelated = repairedProductIds.has(observation.productId) || repairedProductIds.has(storeProduct.productId);
-        if (migrationRelated) {
-          migrationRelatedMismatchCount += 1;
-          migrationRelatedMismatchSamples.push({ observationId: observation.id, observationProductId: observation.productId, storeProductId: storeProduct.id, storeProductProductId: storeProduct.productId });
+        const intersectsRepairManifest = repairedProductIds.has(observation.productId) || repairedProductIds.has(storeProduct.productId);
+        if (intersectsRepairManifest) {
+          manifestIntersectingMismatchCount += 1;
+          manifestIntersectingMismatchSamples.push({ observationId: observation.id, observationProductId: observation.productId, storeProductId: storeProduct.id, storeProductProductId: storeProduct.productId });
         } else historicalMismatchCount += 1;
         if (mismatchSamples.length < 25) {
           mismatchSamples.push({
@@ -85,9 +85,9 @@ async function main() {
     mismatchCount,
     manifestPath: manifestPath ?? null,
     manifestProductCount: repairedProductIds.size,
-    migrationRelatedMismatchCount,
+    manifestIntersectingMismatchCount,
     historicalMismatchCount,
-    migrationRelatedMismatchSamples,
+    manifestIntersectingMismatchSamples,
     mismatchSamples,
     passed: mismatchCount === 0,
   }, null, 2));
