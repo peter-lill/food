@@ -4,22 +4,35 @@ import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
 
 async function main() {
-  const products = await prisma.product.findMany({
-    where: { storeProducts: { some: { active: true } } },
-    select: {
-      id: true,
-      name: true,
-      canonicalName: true,
-      brand: true,
-      packSize: true,
-      lifecycle: true,
-      storeProducts: {
-        where: { active: true },
-        select: { id: true, retailer: true, externalId: true, retailerProductName: true, brand: true, packSize: true },
-        orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }],
+  const products: Array<{
+    id: string; name: string; canonicalName: string | null; brand: string | null; packSize: string | null;
+    lifecycle: string; storeProducts: Array<{
+      id: string; retailer: string; externalId: string | null; retailerProductName: string;
+      brand: string | null; packSize: string | null;
+    }>;
+  }> = [];
+  const batchSize = 500;
+  let cursor: string | undefined;
+  while (true) {
+    const batch = await prisma.product.findMany({
+      where: { storeProducts: { some: { active: true } } },
+      take: batchSize,
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      orderBy: { id: "asc" },
+      select: {
+        id: true, name: true, canonicalName: true, brand: true, packSize: true, lifecycle: true,
+        storeProducts: {
+          where: { active: true },
+          select: { id: true, retailer: true, externalId: true, retailerProductName: true, brand: true, packSize: true },
+          orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }],
+        },
       },
-    },
-  });
+    });
+    if (!batch.length) break;
+    products.push(...batch);
+    cursor = batch.at(-1)!.id;
+    if (batch.length < batchSize) break;
+  }
 
   const contaminated = products.flatMap((product) => {
     const groups = new Map<string, typeof product.storeProducts>();
