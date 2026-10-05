@@ -46,6 +46,7 @@ async function main() {
   let skippedMultiRetailer = 0;
   let skippedUnknownPack = 0;
   let skippedClean = 0;
+  let skippedAmbiguousRetainedPack = 0;
 
   for (const product of products) {
     const retailers = [...new Set(product.storeProducts.map((listing) => listing.retailer))];
@@ -73,13 +74,11 @@ async function main() {
     }
 
     const productPack = packIdentity(product.packSize, product.name);
-    const retainedPack = productPack && groups.has(productPack)
-      ? productPack
-      : [...groups.entries()].sort((a, b) => {
-          const aPrices = a[1].reduce((sum, listing) => sum + listing._count.priceObservations, 0);
-          const bPrices = b[1].reduce((sum, listing) => sum + listing._count.priceObservations, 0);
-          return bPrices - aPrices || a[0].localeCompare(b[0]);
-        })[0][0];
+    if (!productPack || !groups.has(productPack)) {
+      skippedAmbiguousRetainedPack += 1;
+      continue;
+    }
+    const retainedPack = productPack;
 
     plans.push({
       product: {
@@ -107,7 +106,12 @@ async function main() {
     filters: { productId: requestedProductId ?? null, name: requestedName ?? null, limit },
     scannedProductCount: products.length,
     repairableProductCount: plans.length,
-    skipped: { multiRetailer: skippedMultiRetailer, unknownPack: skippedUnknownPack, clean: skippedClean },
+    skipped: {
+      multiRetailer: skippedMultiRetailer,
+      unknownPack: skippedUnknownPack,
+      ambiguousRetainedPack: skippedAmbiguousRetainedPack,
+      clean: skippedClean,
+    },
     plans,
   }, null, 2));
 }
