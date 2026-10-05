@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { prisma } from "../src/lib/prisma";
-import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
+import { groupListingsBySellablePack } from "../src/lib/products/catalogue-sku-contamination";
 
 async function main() {
   const products: Array<{
@@ -35,15 +35,9 @@ async function main() {
   }
 
   const contaminated = products.flatMap((product) => {
-    const groups = new Map<string, typeof product.storeProducts>();
-    for (const listing of product.storeProducts) {
-      const pack = comparablePackSize(listing.packSize) ?? comparablePackSize(listing.retailerProductName) ?? "unknown";
-      const group = groups.get(pack) ?? [];
-      group.push(listing);
-      groups.set(pack, group);
-    }
-    const knownPacks = [...groups.keys()].filter((pack) => pack !== "unknown");
-    if (knownPacks.length <= 1) return [];
+    const { groups, unknown, contaminated } = groupListingsBySellablePack(product.storeProducts);
+    if (!contaminated) return [];
+    if (unknown.length) groups.set("unknown", unknown);
     return [{
       product: {
         id: product.id, name: product.name, canonicalName: product.canonicalName,
