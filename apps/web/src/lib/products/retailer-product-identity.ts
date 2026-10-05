@@ -71,10 +71,7 @@ function comparableName(product: ComparableRetailProduct) {
  * Unbranded products deliberately return null: an exact alias or the existing
  * generic-produce matcher must resolve those instead.
  */
-export function comparableRetailProductKey(product: ComparableRetailProduct) {
-  const barcode = normaliseBarcode(product.barcode);
-  if (barcode) return `barcode:${barcode}`;
-
+function packagedKey(product: ComparableRetailProduct) {
   const brand = normaliseProductText(product.brand ?? "");
   if (!brand) return null;
   const pack = comparablePackSize(product.packSize) ?? comparablePackSize(product.name);
@@ -84,13 +81,17 @@ export function comparableRetailProductKey(product: ComparableRetailProduct) {
   return `packaged:${brand}:${name}:${pack}`;
 }
 
+export function comparableRetailProductKey(product: ComparableRetailProduct) {
+  const barcode = normaliseBarcode(product.barcode);
+  return barcode ? `barcode:${barcode}` : packagedKey(product);
+}
+
 export function sameComparableRetailProduct(left: ComparableRetailProduct, right: ComparableRetailProduct) {
   const leftBarcode = normaliseBarcode(left.barcode);
   const rightBarcode = normaliseBarcode(right.barcode);
   if (leftBarcode && rightBarcode) return leftBarcode === rightBarcode;
-  if (leftBarcode && rightBarcode && leftBarcode !== rightBarcode) return false;
 
-  const leftKey = comparableRetailProductKey(left);
-  const rightKey = comparableRetailProductKey(right);
+  const leftKey = packagedKey(left);
+  const rightKey = packagedKey(right);
   return Boolean(leftKey && rightKey && leftKey === rightKey);
 }
