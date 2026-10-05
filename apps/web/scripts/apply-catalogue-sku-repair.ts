@@ -1,6 +1,7 @@
 import "dotenv/config";
 
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
@@ -16,7 +17,25 @@ const scanAll = process.argv.includes("--all");
 const summaryOnly = process.argv.includes("--summary");
 const apply = process.argv.includes("--apply");
 const confirmation = argument("--confirm");
+const manifestPath = argument("--manifest")?.trim();
+const resume = process.argv.includes("--resume");
 const runId = randomUUID();
+
+function appendManifest(entry: Record<string, unknown>) {
+  if (!manifestPath) return;
+  appendFileSync(manifestPath, `${JSON.stringify(entry)}\n`, { encoding: "utf8" });
+}
+
+function completedFromManifest() {
+  const completed = new Set<string>();
+  if (!manifestPath || !existsSync(manifestPath)) return completed;
+  for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const row = JSON.parse(line) as { type?: string; productId?: string; status?: string };
+    if (row.type === "product" && row.status === "applied" && row.productId) completed.add(row.productId);
+  }
+  return completed;
+}
 
 function packIdentity(packSize: string | null, name: string) {
   return comparablePackSize(packSize) ?? comparablePackSize(name);
@@ -34,6 +53,16 @@ async function main() {
   if (apply && !requestedProductId && !scanAll) {
     throw new Error("Refusing broad writes without either --product-id=<id> or --all.");
   }
+  if (apply && scanAll && !manifestPath) {
+    throw new Error("Refusing broad writes without --manifest=<path>.");
+  }
+  if (resume && !manifestPath) throw new Error("--resume requires --manifest=<path>.");
+  if (resume && !existsSync(manifestPath!)) throw new Error(`Resume manifest does not exist: ${manifestPath}`);
+  if (apply && manifestPath && existsSync(manifestPath) && !resume) {
+    throw new Error(`Manifest already exists: ${manifestPath}. Use --resume to continue it or choose a new path.`);
+  }
+
+  const completedProductIds = resume ? completedFromManifest() : new Set<string>();
 
   const productWhere = {
     storeProducts: { some: { active: true } },
@@ -94,13 +123,27 @@ async function main() {
     candidates.push({ product, retainedPack, groups });
   }
 
+  const planFingerprint = createHash("sha256").update(JSON.stringify(candidates.map(({ product, retainedPack, groups }) => ({
+    productId: product.id,
+    retainedPack,
+    listingIds: [...groups.values()].flat().map((x) => x.id).sort(),
+  })))).digest("hex");
+
+  if (apply) appendManifest({ type: "run", runId, startedAt: new Date().toISOString(), planFingerprint, candidateCount: candidates.length, resume });
+
   const results: Array<Record<string, unknown>> = [];
+  let resumedSkipped = 0;
   let newProducts = 0;
   let storeProductMoves = 0;
   let observationMoves = 0;
 
   for (const candidate of candidates) {
     const { product, retainedPack, groups } = candidate;
+    if (completedProductIds.has(product.id)) {
+      resumedSkipped += 1;
+      results.push({ productId: product.id, status: "already-applied-from-manifest" });
+      continue;
+    }
     const plannedListingIds = [...groups.values()].flat().map((x) => x.id).sort();
     const plannedObservationCount = [...groups.entries()]
       .filter(([pack]) => pack !== retainedPack)
@@ -226,12 +269,18 @@ async function main() {
     storeProductMoves += result.movedListings;
     observationMoves += result.movedObservations;
     results.push(result);
+    appendManifest({ type: "product", runId, completedAt: new Date().toISOString(), ...result });
   }
+
+  if (apply) appendManifest({ type: "run-complete", runId, completedAt: new Date().toISOString(), planFingerprint, resumedSkipped, totals: { newProducts, storeProductMoves, priceObservationMoves: observationMoves } });
 
   console.log(JSON.stringify({
     mode: apply ? "apply" : "dry-run",
     writesPerformed: apply,
     runId,
+    planFingerprint,
+    manifestPath: manifestPath ?? null,
+    resumedSkipped,
     scannedProductCount: products.length,
     repairableProductCount: candidates.length,
     skipped,
