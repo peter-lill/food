@@ -68,6 +68,7 @@ async function main() {
   let skippedUnknownPack = 0;
   let skippedClean = 0;
   let skippedAmbiguousRetainedPack = 0;
+  let contaminatedProductCount = 0;
 
   for (const product of products) {
     const groups = new Map<string, typeof product.storeProducts>();
@@ -88,6 +89,7 @@ async function main() {
       skippedClean += 1;
       continue;
     }
+    contaminatedProductCount += 1;
 
     const retailers = [...new Set(product.storeProducts.map((listing) => listing.retailer))];
     if (retailers.length !== 1) {
@@ -131,6 +133,7 @@ async function main() {
     writesPerformed: false,
     filters: { productId: requestedProductId ?? null, name: requestedName ?? null, limit, all: scanAll },
     scannedProductCount: products.length,
+    contaminatedProductCount,
     repairableProductCount: plans.length,
     skipped: {
       multiRetailer: skippedMultiRetailer,
