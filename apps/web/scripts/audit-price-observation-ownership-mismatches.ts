@@ -11,7 +11,7 @@ async function main() {
       id: string;
       productId: string;
       retailer: string;
-      externalId: string;
+      externalId: string | null;
       retailerProductName: string;
       packSize: string | null;
       owner?: { name: string; packSize: string | null; barcode: string | null } | null;
