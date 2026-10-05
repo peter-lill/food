@@ -1,6 +1,24 @@
 import "dotenv/config";
 
+import { existsSync, readFileSync } from "node:fs";
 import { prisma } from "../src/lib/prisma";
+
+const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
+const manifestPath = argument("--manifest")?.trim();
+
+function manifestProductIds() {
+  const ids = new Set<string>();
+  if (!manifestPath) return ids;
+  if (!existsSync(manifestPath)) throw new Error(`Manifest does not exist: ${manifestPath}`);
+  for (const line of readFileSync(manifestPath, "utf8").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const row = JSON.parse(line) as { type?: string; status?: string; productId?: string; created?: Array<{ id?: string }> };
+    if (row.type !== "product" || row.status !== "applied" || !row.productId) continue;
+    ids.add(row.productId);
+    for (const created of row.created ?? []) if (created.id) ids.add(created.id);
+  }
+  return ids;
+}
 
 const BATCH_SIZE = 1000;
 
@@ -8,7 +26,10 @@ async function main() {
   let cursor: string | undefined;
   let checkedStoreProducts = 0;
   let checkedObservations = 0;
+  const repairedProductIds = manifestProductIds();
   let mismatchCount = 0;
+  let migrationRelatedMismatchCount = 0;
+  let historicalMismatchCount = 0;
   const mismatchSamples: Array<{
     observationId: string;
     observationProductId: string;
@@ -37,6 +58,9 @@ async function main() {
       for (const observation of observations) {
         if (observation.productId === storeProduct.productId) continue;
         mismatchCount += 1;
+        const migrationRelated = repairedProductIds.has(observation.productId) || repairedProductIds.has(storeProduct.productId);
+        if (migrationRelated) migrationRelatedMismatchCount += 1;
+        else historicalMismatchCount += 1;
         if (mismatchSamples.length < 25) {
           mismatchSamples.push({
             observationId: observation.id,
@@ -56,6 +80,10 @@ async function main() {
     checkedStoreProducts,
     checkedObservations,
     mismatchCount,
+    manifestPath: manifestPath ?? null,
+    manifestProductCount: repairedProductIds.size,
+    migrationRelatedMismatchCount,
+    historicalMismatchCount,
     mismatchSamples,
     passed: mismatchCount === 0,
   }, null, 2));
