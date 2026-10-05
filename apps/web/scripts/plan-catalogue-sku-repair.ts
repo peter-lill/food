@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import type { Prisma } from "../generated/prisma/client";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
 
