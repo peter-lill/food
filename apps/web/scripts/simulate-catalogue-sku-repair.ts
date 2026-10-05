@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
 import { groupListingsBySellablePack } from "../src/lib/products/catalogue-sku-contamination";
@@ -54,7 +55,8 @@ async function main() {
     },
   };
 
-  const products: Awaited<ReturnType<typeof prisma.product.findMany>> = [];
+  type ProductRow = Prisma.ProductGetPayload<{ select: typeof select }>;
+  const products: ProductRow[] = [];
   let cursor: string | undefined;
   while (true) {
     const batch = await prisma.product.findMany({
