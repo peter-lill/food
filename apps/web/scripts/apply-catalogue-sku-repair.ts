@@ -125,7 +125,7 @@ async function main() {
           storeProducts: {
             where: { active: true },
             select: {
-              id: true, retailer: true, retailerProductName: true, packSize: true,
+              id: true, retailer: true, retailerProductName: true, brand: true, packSize: true,
               _count: { select: { priceObservations: true } },
             },
           },
