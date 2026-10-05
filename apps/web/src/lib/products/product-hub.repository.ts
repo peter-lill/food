@@ -6,6 +6,7 @@ import { heroProductDescription } from "@/lib/products/product-description";
 import { productDepartment, supermarketDepartments, type SupermarketDepartment } from "@/lib/products/product-category";
 import { externalRecipes } from "@/lib/recipes/external-recipes";
 import { withSourceImage } from "@/lib/recipes/recipe-image";
+import { sameComparableRetailProduct } from "@/lib/products/retailer-product-identity";
 
 const externalRecipeByName = new Map(externalRecipes.map(withSourceImage).map((recipe) => [recipe.name, recipe]));
 const localRecipeImages: Record<string, string> = {
@@ -711,7 +712,49 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
   const genericFamilies = genericFamilyNames(familyCandidates);
   const familyName = resolvedFamilyName(product, genericFamilies);
   const specificName = productVarietyName(product);
+  const comparisonProduct = {
+    name: product.name,
+    canonicalName: product.canonicalName,
+    brand: product.brand ?? product.storeProducts.find((listing) => listing.brand)?.brand ?? null,
+    packSize: product.packSize,
+    barcode: product.barcode,
+  };
+  const equivalentProductIds = new Set(familyCandidates
+    .filter((candidate) => candidate.id !== product.id)
+    .filter((candidate) => sameComparableRetailProduct(comparisonProduct, {
+      name: candidate.name,
+      canonicalName: candidate.canonicalName,
+      brand: candidate.brand ?? candidate.storeProducts.find((listing) => listing.brand)?.brand ?? null,
+      packSize: candidate.packSize,
+      barcode: candidate.barcode,
+    }))
+    .map((candidate) => candidate.id));
+
+  const equivalentProducts = equivalentProductIds.size
+    ? await prisma.product.findMany({
+      where: { id: { in: [...equivalentProductIds] }, lifecycle: { not: "ARCHIVED" } },
+      include: {
+        storeProducts: { where: { active: true }, orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }] },
+        priceObservations: {
+          where: { OR: [{ storeProductId: null }, { storeProduct: { active: true } }] },
+          orderBy: { observedAt: "desc" },
+          take: 100,
+        },
+      },
+    })
+    : [];
+
+  const combinedStoreProducts = [product, ...equivalentProducts]
+    .flatMap((record) => record.storeProducts)
+    .filter((listing, index, listings) => listings.findIndex((candidate) => candidate.id === listing.id) === index);
+  const combinedPriceObservations = [product, ...equivalentProducts]
+    .flatMap((record) => record.priceObservations)
+    .sort((left, right) => right.observedAt.getTime() - left.observedAt.getTime())
+    .filter((observation, index, observations) => observations.findIndex((candidate) => candidate.id === observation.id) === index)
+    .slice(0, 100);
+
   const variants = familyCandidates
+    .filter((candidate) => !equivalentProductIds.has(candidate.id))
     .filter((candidate) => resolvedFamilyName(candidate, genericFamilies) === familyName)
     .filter((candidate) => {
       const varietyName = productVarietyName(candidate);
@@ -767,7 +810,7 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
       expiresAt,
     })),
     recipes: [...recipeMap.values()].sort((left, right) => left.name.localeCompare(right.name)),
-    storeProducts: product.storeProducts.map((listing) => ({
+    storeProducts: combinedStoreProducts.map((listing) => ({
       id: listing.id,
       retailer: listing.retailer,
       retailerProductName: listing.retailerProductName,
@@ -778,7 +821,7 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
       aisle: listing.aisle,
       lastSeenAt: listing.lastSeenAt,
     })),
-    priceObservations: product.priceObservations.map((observation) => ({
+    priceObservations: combinedPriceObservations.map((observation) => ({
       id: observation.id,
       retailer: observation.retailer,
       price: observation.price,
