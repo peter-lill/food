@@ -16,7 +16,7 @@ async function main() {
       storeProducts: {
         orderBy: [{ retailer: "asc" }, { retailerProductName: "asc" }],
         select: {
-          id: true, retailer: true, externalId: true, retailerProductName: true,
+          id: true, productId: true, retailer: true, externalId: true, retailerProductName: true,
           brand: true, packSize: true, active: true,
           _count: { select: { priceObservations: true } },
         },
