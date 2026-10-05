@@ -3,6 +3,7 @@ import "dotenv/config";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
+import { groupListingsBySellablePack } from "../src/lib/products/catalogue-sku-contamination";
 
 const argument = (name: string) => process.argv.find((value) => value.startsWith(`${name}=`))?.slice(name.length + 1);
 const requestedProductId = argument("--product-id")?.trim();
@@ -71,21 +72,11 @@ async function main() {
   let contaminatedProductCount = 0;
 
   for (const product of products) {
-    const groups = new Map<string, typeof product.storeProducts>();
-    let hasUnknown = false;
-    for (const listing of product.storeProducts) {
-      const pack = packIdentity(listing.packSize, listing.retailerProductName);
-      if (!pack) {
-        hasUnknown = true;
-        continue;
-      }
-      const group = groups.get(pack) ?? [];
-      group.push(listing);
-      groups.set(pack, group);
-    }
+    const { groups, unknown, contaminated } = groupListingsBySellablePack(product.storeProducts);
+    const hasUnknown = unknown.length > 0;
 
     // A Product is only contaminated when its active listings expose more than one known sellable pack.
-    if (groups.size <= 1) {
+    if (!contaminated) {
       skippedClean += 1;
       continue;
     }
