@@ -5,6 +5,7 @@ import { ProductLifecycle, ProductType } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { classifyGenericProduce } from "../src/lib/products/generic-produce-classification";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { catalogueNamePackKey, sameSellablePack } from "../src/lib/products/catalogue-sku-identity";
 import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import {
   canonicalColesDescription, categoryForColesPath, cleanColesBarcode,
@@ -70,11 +71,16 @@ async function plansForPage(
   const [listings, barcodeProducts, aliases] = await Promise.all([
     prisma.storeProduct.findMany({ where: { retailer: "Coles", externalId: { in: ids } }, select: { id: true, externalId: true, productId: true } }),
     prisma.product.findMany({ where: { barcode: { in: barcodes } }, select: { id: true, barcode: true } }),
-    prisma.productAlias.findMany({ where: { normalised: { in: names } }, select: { normalised: true, productId: true } }),
+    prisma.productAlias.findMany({ where: { normalised: { in: names } }, select: { normalised: true, productId: true, product: { select: { packSize: true } } } }),
   ]);
   const listingById = new Map(listings.flatMap((listing) => listing.externalId ? [[listing.externalId, listing] as const] : []));
   const productByBarcode = new Map(barcodeProducts.flatMap((product) => product.barcode ? [[product.barcode, product.id] as const] : []));
-  const productByName = new Map(aliases.map((alias) => [alias.normalised, alias.productId]));
+  const productsByName = new Map<string, typeof aliases>();
+  for (const alias of aliases) {
+    const candidates = productsByName.get(alias.normalised) ?? [];
+    candidates.push(alias);
+    productsByName.set(alias.normalised, candidates);
+  }
   return products.map((product) => {
     const eligibility = colesImportEligibility(product);
     if (!eligibility.eligible) return { product, disposition: "skip", reason: eligibility.reason!, productId: null, storeProductId: null };
@@ -82,16 +88,18 @@ async function plansForPage(
     if (listing) return { product, disposition: "retain", reason: "authoritative Coles listing already exists", productId: listing.productId, storeProductId: listing.id };
     const barcode = cleanColesBarcode(product.barcode); const barcodeProduct = barcode ? productByBarcode.get(barcode) : null;
     if (barcodeProduct) return { product, disposition: "link-barcode", reason: "exact barcode matches an existing Food product", productId: barcodeProduct, storeProductId: randomUUID() };
-    const nameProduct = productByName.get(normaliseProductText(product.name));
-    if (nameProduct) return { product, disposition: "link-name", reason: "exact normalised name matches an existing Food alias", productId: nameProduct, storeProductId: randomUUID() };
+    const nameProduct = (productsByName.get(normaliseProductText(product.name)) ?? [])
+      .find((candidate) => sameSellablePack(candidate.product.packSize, product.pack_size));
+    if (nameProduct) return { product, disposition: "link-name", reason: "exact normalised name and sellable pack match an existing Food alias", productId: nameProduct.productId, storeProductId: randomUUID() };
     const mapped = categoryForColesPath(product.category_path);
     const produceKey = genericProduceComparisonKey(product.name, product.pack_size, mapped.productType === ProductType.GENERIC_PRODUCE);
     const produceProduct = produceKey ? genericProduceByKey.get(produceKey) : null;
     if (produceProduct) return { product, disposition: "link-produce", reason: "same generic produce and sellable presentation", productId: produceProduct, storeProductId: randomUUID() };
     const normalisedName = normaliseProductText(product.name);
-    if (plannedNames.has(normalisedName)) return { product, disposition: "skip", reason: "duplicate normalised name in this import", productId: null, storeProductId: null };
+    const namePackKey = catalogueNamePackKey(product.name, product.pack_size);
+    if (namePackKey && plannedNames.has(namePackKey)) return { product, disposition: "skip", reason: "duplicate normalised name and sellable pack in this import", productId: null, storeProductId: null };
     if (barcode && plannedBarcodes.has(barcode)) return { product, disposition: "skip", reason: "duplicate barcode in this import", productId: null, storeProductId: null };
-    plannedNames.add(normalisedName); if (barcode) plannedBarcodes.add(barcode);
+    if (namePackKey) plannedNames.add(namePackKey); if (barcode) plannedBarcodes.add(barcode);
     const productId = randomUUID();
     if (produceKey) genericProduceByKey.set(produceKey, productId);
     return { product, disposition: "create", reason: "unique verified Coles catalogue identity", productId, storeProductId: randomUUID() };

@@ -5,6 +5,7 @@ import { ProductLifecycle } from "@prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { productDepartment, type SupermarketDepartment } from "../src/lib/products/product-category";
 import { normaliseProductText, slugifyProductName } from "../src/lib/products/product-normalisation";
+import { catalogueNamePackKey, sameSellablePack } from "../src/lib/products/catalogue-sku-identity";
 import { enqueueMissingCatalogueProductImages, promoteCatalogueProductImages } from "../src/lib/products/catalogue-image-enrichment";
 import { categoryResolutionForImport, comparableProductCategoryKey, type ImportedCategoryResolution } from "./catalogue-import-category-evidence";
 import { hasSuspiciousLabelTail, type ImportDisposition } from "./woolworths-controlled-import-matching";
@@ -61,10 +62,15 @@ async function plansForPage(products: DrakesProduct[], aliasesSeen: Set<string>)
   const comparableKeys = products.flatMap((product) => { const key = comparableProductCategoryKey(product.name); return key ? [key] : []; });
   const [listings, aliasRows] = await Promise.all([
     prisma.storeProduct.findMany({ where: { retailer: "Drakes", externalId: { in: externalIds } }, select: { id: true, externalId: true, productId: true } }),
-    prisma.productAlias.findMany({ where: { normalised: { in: [...new Set([...aliases, ...comparableKeys])] } }, select: { normalised: true, productId: true, product: { select: { category: true } } } }),
+    prisma.productAlias.findMany({ where: { normalised: { in: [...new Set([...aliases, ...comparableKeys])] } }, select: { normalised: true, productId: true, product: { select: { category: true, packSize: true } } } }),
   ]);
   const listingById = new Map(listings.flatMap((listing) => listing.externalId ? [[listing.externalId, listing] as const] : []));
-  const productByAlias = new Map(aliasRows.map((alias) => [alias.normalised, alias.productId]));
+  const productsByAlias = new Map<string, typeof aliasRows>();
+  for (const alias of aliasRows) {
+    const candidates = productsByAlias.get(alias.normalised) ?? [];
+    candidates.push(alias);
+    productsByAlias.set(alias.normalised, candidates);
+  }
   const comparableCategories = new Map<string, Set<SupermarketDepartment>>();
   for (const alias of aliasRows) {
     if (!comparableKeys.includes(alias.normalised)) continue;
@@ -77,10 +83,12 @@ async function plansForPage(products: DrakesProduct[], aliasesSeen: Set<string>)
     const invalid = eligibility(product); if (invalid) return { product, disposition: "skip", reason: invalid, productId: null, storeProductId: null, category: null };
     const category = categoryResolutionForImport(product.name, comparableCategories, product.categoryPaths);
     const listing = listingById.get(listingExternalId(product)); if (listing) return { product, disposition: "retain", reason: "selected-store Drakes listing already exists", productId: listing.productId, storeProductId: listing.id, category };
-    const alias = normaliseProductText(product.name); const productId = productByAlias.get(alias);
-    if (productId) return { product, disposition: "link-name", reason: "exact normalised product name matches an existing Food alias", productId, storeProductId: randomUUID(), category: null };
-    if (aliasesSeen.has(alias)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name", productId: null, storeProductId: null, category: null };
-    aliasesSeen.add(alias);
+    const alias = normaliseProductText(product.name);
+    const nameProduct = (productsByAlias.get(alias) ?? []).find((candidate) => sameSellablePack(candidate.product.packSize, product.packSize));
+    if (nameProduct) return { product, disposition: "link-name", reason: "exact normalised product name and sellable pack match an existing Food alias", productId: nameProduct.productId, storeProductId: randomUUID(), category: null };
+    const namePackKey = catalogueNamePackKey(product.name, product.packSize);
+    if (namePackKey && aliasesSeen.has(namePackKey)) return { product, disposition: "skip", reason: "another record in this import has the same normalised name and sellable pack", productId: null, storeProductId: null, category: null };
+    if (namePackKey) aliasesSeen.add(namePackKey);
     return { product, disposition: "create", reason: "unique selected-store Drakes catalogue identity; queued for later barcode verification", productId: randomUUID(), storeProductId: randomUUID(), category };
   });
 }
