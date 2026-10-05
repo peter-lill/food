@@ -1,5 +1,6 @@
 import "dotenv/config";
 
+import type { Prisma } from "../generated/prisma/client";
 import { prisma } from "../src/lib/prisma";
 import { comparablePackSize } from "../src/lib/products/retailer-product-identity";
 
@@ -39,7 +40,8 @@ async function main() {
       orderBy: [{ retailer: "asc" as const }, { retailerProductName: "asc" as const }],
     },
   };
-  const products: any[] = [];
+  type ProductRow = Prisma.ProductGetPayload<{ select: typeof productSelect }>;
+  const products: ProductRow[] = [];
   if (scanAll && !requestedProductId && !requestedName) {
     let cursor: string | undefined;
     while (true) {
@@ -68,27 +70,32 @@ async function main() {
   let skippedAmbiguousRetainedPack = 0;
 
   for (const product of products) {
+    const groups = new Map<string, typeof product.storeProducts>();
+    let hasUnknown = false;
+    for (const listing of product.storeProducts) {
+      const pack = packIdentity(listing.packSize, listing.retailerProductName);
+      if (!pack) {
+        hasUnknown = true;
+        continue;
+      }
+      const group = groups.get(pack) ?? [];
+      group.push(listing);
+      groups.set(pack, group);
+    }
+
+    // A Product is only contaminated when its active listings expose more than one known sellable pack.
+    if (groups.size <= 1) {
+      skippedClean += 1;
+      continue;
+    }
+
     const retailers = [...new Set(product.storeProducts.map((listing) => listing.retailer))];
     if (retailers.length !== 1) {
       skippedMultiRetailer += 1;
       continue;
     }
-
-    const groups = new Map<string, typeof product.storeProducts>();
-    let unknown = false;
-    for (const listing of product.storeProducts) {
-      const pack = packIdentity(listing.packSize, listing.retailerProductName);
-      if (!pack) { unknown = true; break; }
-      const group = groups.get(pack) ?? [];
-      group.push(listing);
-      groups.set(pack, group);
-    }
-    if (unknown) {
+    if (hasUnknown) {
       skippedUnknownPack += 1;
-      continue;
-    }
-    if (groups.size <= 1) {
-      skippedClean += 1;
       continue;
     }
 
