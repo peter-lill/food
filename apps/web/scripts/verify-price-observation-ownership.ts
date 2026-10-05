@@ -30,6 +30,7 @@ async function main() {
   let mismatchCount = 0;
   let migrationRelatedMismatchCount = 0;
   let historicalMismatchCount = 0;
+  const migrationRelatedMismatchSamples: Array<{ observationId: string; observationProductId: string; storeProductId: string; storeProductProductId: string }> = [];
   const mismatchSamples: Array<{
     observationId: string;
     observationProductId: string;
@@ -59,8 +60,10 @@ async function main() {
         if (observation.productId === storeProduct.productId) continue;
         mismatchCount += 1;
         const migrationRelated = repairedProductIds.has(observation.productId) || repairedProductIds.has(storeProduct.productId);
-        if (migrationRelated) migrationRelatedMismatchCount += 1;
-        else historicalMismatchCount += 1;
+        if (migrationRelated) {
+          migrationRelatedMismatchCount += 1;
+          migrationRelatedMismatchSamples.push({ observationId: observation.id, observationProductId: observation.productId, storeProductId: storeProduct.id, storeProductProductId: storeProduct.productId });
+        } else historicalMismatchCount += 1;
         if (mismatchSamples.length < 25) {
           mismatchSamples.push({
             observationId: observation.id,
@@ -84,6 +87,7 @@ async function main() {
     manifestProductCount: repairedProductIds.size,
     migrationRelatedMismatchCount,
     historicalMismatchCount,
+    migrationRelatedMismatchSamples,
     mismatchSamples,
     passed: mismatchCount === 0,
   }, null, 2));
