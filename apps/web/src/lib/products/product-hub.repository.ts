@@ -91,6 +91,7 @@ export type ProductHubDetail = {
   }>;
   priceObservations: Array<{
     id: string;
+    storeProductId: string | null;
     retailer: string;
     price: number;
     unitPrice: number | null;
@@ -823,6 +824,7 @@ export async function getProductHubDetail(idOrSlug: string, options: { specific?
     })),
     priceObservations: combinedPriceObservations.map((observation) => ({
       id: observation.id,
+      storeProductId: observation.storeProductId,
       retailer: observation.retailer,
       price: observation.price,
       unitPrice: observation.unitPrice,

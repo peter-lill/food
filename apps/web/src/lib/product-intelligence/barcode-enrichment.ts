@@ -182,8 +182,6 @@ export async function enrichProductKnowledge(productId: string) {
     select: { id: true },
   });
   if (recent) {
-    await refreshAustralianRetailerKnowledge(productId);
-    await recoverMissingImage(productId);
     return { status: "fresh" as const };
   }
 

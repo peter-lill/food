@@ -144,8 +144,12 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
     : knowledgeFor(canonicalName ?? displayName);
   const description = familyView ? knowledge?.overview ?? null : heroProductDescription(product.description, product.brand) ?? knowledge?.overview ?? null;
   const latestPriceByRetailer = new Map<string, (typeof product.priceObservations)[number]>();
+  const latestPriceByStoreProduct = new Map<string, (typeof product.priceObservations)[number]>();
   for (const observation of familyView ? [] : product.priceObservations) {
     if (!latestPriceByRetailer.has(observation.retailer)) latestPriceByRetailer.set(observation.retailer, observation);
+    if (observation.storeProductId && !latestPriceByStoreProduct.has(observation.storeProductId)) {
+      latestPriceByStoreProduct.set(observation.storeProductId, observation);
+    }
   }
   const currentRetailerPrices = [...latestPriceByRetailer.values()]
     .sort((left, right) => left.price - right.price);
@@ -315,7 +319,7 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
         </article> : null}
 
         {product.storeProducts.length ? <article className={styles.panel}><h2>Current retailer listings</h2><ul className={styles.list}>{product.storeProducts.map((listing) => {
-          const price = latestPriceByRetailer.get(listing.retailer);
+          const price = latestPriceByStoreProduct.get(listing.id);
           const priceValue = price ? money(price.price) : listing.packSize ?? "—";
           const priceDetail = price ? `${price.isSpecial ? "On special" : "Regular price"} · ${date(price.observedAt)}` : listing.aisle ?? date(listing.lastSeenAt);
           return <li className={`${styles.listItem} ${styles.retailerListing}`} key={listing.id}>
