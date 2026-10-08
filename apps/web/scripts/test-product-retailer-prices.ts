@@ -236,7 +236,8 @@ assert.equal(yoghurtFamily.retailerCount, 1, "retailer counts must be distinct a
 assert.equal(yoghurtFamily.variantCount, 29, "a family card must report the number of specific products it contains");
 assert.equal(yoghurtFamily.priceNeedsSpecificVariant, true, "family pricing must direct people to a specific variant");
 
-assert.match(productPageSource, /familyView \? null : await getOrGenerateProductContent/, "family pages must not generate or display content for an arbitrary variant");
+assert.match(productPageSource, /familyView \? null : await getCachedProductContent/, "family pages must not display cached content for an arbitrary variant");
+assert.doesNotMatch(productPageSource, /getOrGenerateProductContent/, "public product pages must not synchronously generate AI product content");
 assert.match(productPageSource, /!familyView \? <ProductImagePanel/, "family pages must not expose one variant's image tools as family content");
 assert.match(productCatalogueSource, /const productImage = product\.imageUrl/, "family cards must render their retained representative catalogue image");
 assert.match(productCatalogueSource, /enabledRetailers\(retailerPreferences\)\.length/, "the products summary must count the retailers the signed-in user selected");

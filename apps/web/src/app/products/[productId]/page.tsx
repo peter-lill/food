@@ -7,11 +7,10 @@ import { ProductMergePanel } from "@/components/products/ProductMergePanel";
 import { heroProductDescription } from "@/lib/products/product-description";
 import { priceObservationKind } from "@/lib/products/price-observation-display";
 import { RetailerLogo } from "@/components/retailers/RetailerLogo";
-import { enrichProductKnowledge } from "@/lib/product-intelligence/barcode-enrichment";
 import { productDepartment, supermarketDepartments } from "@/lib/products/product-category";
 import { updateProductDetails } from "@/lib/products/product-detail.actions";
 import { getProductHubDetail } from "@/lib/products/product-hub.repository";
-import { getOrGenerateProductContent } from "@/lib/ai/product-content";
+import { getCachedProductContent } from "@/lib/ai/product-content";
 import styles from "../products.module.css";
 
 export const dynamic = "force-dynamic";
@@ -124,11 +123,10 @@ export default async function ProductPage({ params, searchParams }: ProductPageP
   const { productId } = await params;
   const { specific } = await searchParams;
   const decodedProductId = decodeURIComponent(productId);
-  await enrichProductKnowledge(decodedProductId);
   const product = await getProductHubDetail(decodedProductId, { specific: specific === "1" });
   if (!product) notFound();
   const familyView = specific !== "1" && product.variants.length > 1;
-  const generatedKnowledge = familyView ? null : await getOrGenerateProductContent(product.id).catch(() => null);
+  const generatedKnowledge = familyView ? null : await getCachedProductContent(product.id).catch(() => null);
   const isGenericProduct = familyView || (!product.brand && !product.barcode && product.storeProducts.length === 0);
 
   const rawDisplayName = collapseRepeatedPhrase(product.name);

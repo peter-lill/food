@@ -5,17 +5,46 @@ import { aiComputeChat } from "./aicompute";
 import { configuredProvider } from "./provider-settings";
 import { parseGeneratedProductContent } from "./product-content-validation";
 
-type Evidence = { name: string; canonicalName: string | null; brand: string | null; category: string | null; packSize: string | null; productType: string };
+export type ProductContentEvidence = { name: string; canonicalName: string | null; brand: string | null; category: string | null; packSize: string | null; productType: string };
 
-function evidenceHash(evidence: Evidence) {
+export function productContentEvidenceHash(evidence: ProductContentEvidence) {
   return createHash("sha256").update(JSON.stringify(evidence)).digest("hex");
+}
+
+export async function getCachedProductContent(productId: string) {
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    select: {
+      name: true,
+      canonicalName: true,
+      brand: true,
+      category: true,
+      packSize: true,
+      productType: true,
+      generatedContent: true,
+    },
+  });
+  if (!product?.generatedContent) return null;
+
+  const evidence: ProductContentEvidence = {
+    name: product.name,
+    canonicalName: product.canonicalName,
+    brand: product.brand,
+    category: product.category,
+    packSize: product.packSize,
+    productType: product.productType,
+  };
+
+  return product.generatedContent.evidenceHash === productContentEvidenceHash(evidence)
+    ? product.generatedContent
+    : null;
 }
 
 export async function getOrGenerateProductContent(productId: string) {
   const product = await prisma.product.findUnique({ where: { id: productId }, select: { id: true, name: true, canonicalName: true, brand: true, category: true, packSize: true, productType: true, generatedContent: true } });
   if (!product) return null;
-  const evidence: Evidence = { name: product.name, canonicalName: product.canonicalName, brand: product.brand, category: product.category, packSize: product.packSize, productType: product.productType };
-  const hash = evidenceHash(evidence);
+  const evidence: ProductContentEvidence = { name: product.name, canonicalName: product.canonicalName, brand: product.brand, category: product.category, packSize: product.packSize, productType: product.productType };
+  const hash = productContentEvidenceHash(evidence);
   if (product.generatedContent?.evidenceHash === hash) return product.generatedContent;
 
   const setting = await configuredProvider("aicompute");
